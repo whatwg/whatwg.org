@@ -49,7 +49,17 @@
             summary = summary.substr(0,47)+'...';
         if (selection.length > 1000)
             selection = selection.substr(0,997)+'...';
-        var url = location.protocol+'//'+location.host+location.pathname+(node ? '#'+node.id : '');
+        var url = '';
+        if (location.protocol == 'file:' || location.hostname == 'localhost') {
+          // use "This Version:" link in the header if there is one
+          var dt = document.querySelector('dt');
+          if (dt.textContent.indexOf('This Version:') != -1 && dt.nextElementSibling && dt.nextElementSibling.firstElementChild instanceof HTMLAnchorElement)
+            url += dt.nextElementSibling.firstElementChild.href;
+        } else {
+          url += location.protocol+'//'+location.host+location.pathname;
+        }
+        if (node)
+          url += '#'+node.id;
         bugLink.href = originalHref + '&short_desc='+encodeURIComponent('"'+summary+'" ')+'&comment='+encodeURIComponent(url+'\n\n[[\n'+selection+'\n]]\n\n');
         bugLink.accessKey = '1';
     };
