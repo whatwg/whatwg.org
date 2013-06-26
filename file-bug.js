@@ -56,7 +56,7 @@
           if (dt.textContent.indexOf('This Version:') != -1 && dt.nextElementSibling && dt.nextElementSibling.firstElementChild instanceof HTMLAnchorElement)
             url += dt.nextElementSibling.firstElementChild.href;
         } else {
-          url += location.protocol+'//'+location.host+location.pathname;
+          url += location.protocol+'//'+location.host+location.pathname+location.search;
         }
         if (node)
           url += '#'+node.id;
