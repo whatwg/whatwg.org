@@ -2,9 +2,6 @@
  * <a href="https://www.w3.org/Bugs/Public/enter_bug.cgi?...">file a bug</a>
  * and somewhere after that, include the following:
  * <script src=http://resources.whatwg.org/file-bug.js async></script>
- * (or if you need https:, use:
- * <script src=https://w3c-test.org/resources.whatwg.org/file-bug.js async></script>
- * )
  * If you don't want the script to inject styles, use a data-no-style=""
  * attribute on the script element.
  */
