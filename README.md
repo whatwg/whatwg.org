@@ -1,5 +1,5 @@
-resources.whatwg.org
-====================
+resources.whatwg.org (excluding browser-logos)
+==============================================
 
 Contributors
 ------------
