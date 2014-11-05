@@ -1,5 +1,6 @@
 /* Usage: include a link like:
- * <a href="https://www.w3.org/Bugs/Public/enter_bug.cgi?...">file a bug</a>
+ * <a href=".../enter_bug.cgi?...">file a bug</a>
+ * (use id="file-bug-link" if the URL doesn't contain "/enter_bug.cgi?")
  * and somewhere after that, include the following:
  * <script src=http://resources.whatwg.org/file-bug.js async></script>
  * If you don't want the script to inject styles, use a data-no-style=""
@@ -19,7 +20,7 @@
     return url;
   }
   var prevSelection = '';
-  var link = document.querySelector('a[href^="https://www.w3.org/Bugs/Public/enter_bug.cgi?"]');
+  var link = document.querySelector('a[href*="/enter_bug.cgi?"], #file-bug-link');
   var originalHref = link.href;
   var bugLink = document.createElement('a');
   bugLink.href = originalHref + '&short_desc=&comment=' + encodeURIComponent(getUrl() + '\n\n');
