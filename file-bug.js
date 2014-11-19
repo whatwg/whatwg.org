@@ -2,7 +2,7 @@
  * <a href=".../enter_bug.cgi?...">file a bug</a>
  * (use id="file-bug-link" if the URL doesn't contain "/enter_bug.cgi?")
  * and also include the following:
- * <script src=http://resources.whatwg.org/file-bug.js async></script>
+ * <script src=https://resources.whatwg.org/file-bug.js async></script>
  * If you don't want the script to inject styles, use a data-no-style=""
  * attribute on the script element.
  */
