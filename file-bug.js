@@ -46,33 +46,40 @@
     onmouseup = onkeyup = function(e){
       var selectionObj = getSelection();
       var selection = String(selectionObj);
-      if (selection == prevSelection)
+      if (selection == prevSelection) {
         return;
+      }
       prevSelection = selection;
       var node = e.target;
       if (selectionObj.anchorNode) {
         node = selectionObj.anchorNode;
         if (selectionObj.focusNode && selectionObj.focusNode.compareDocumentPosition) {
           var compare = selectionObj.focusNode.compareDocumentPosition(selectionObj.anchorNode);
-          if (compare == 20 || compare == 4) // descendant or following
+          if (compare == 20 || compare == 4) { // descendant or following
             node = selectionObj.focusNode;
+          }
         }
       }
       while (node && !node.id) {
         node = node.previousSibling || node.parentNode;
       }
       var summary = selection.replace(/\n/g, ' ');
-      if (summary.length > 50)
+      if (summary.length > 50) {
         summary = summary.substr(0,47)+'...';
-      if (summary)
+      }
+      if (summary) {
         summary = '"' + summary + '" ';
-      if (selection.length > 1000)
+      }
+      if (selection.length > 1000) {
         selection = selection.substr(0,997)+'...';
-      if (selection)
+      }
+      if (selection) {
         selection = '[[\n' + selection + '\n]]\n\n';
+      }
       var url = getUrl();
-      if (node)
+      if (node) {
         url += '#'+node.id;
+      }
       bugLink.href = originalHref + '&short_desc=' + encodeURIComponent(summary) + '&comment=' + encodeURIComponent(url + '\n\n' + selection);
     };
   }
