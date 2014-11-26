@@ -6,6 +6,7 @@
 
 (function () {
   "use strict";
+  var thisScript = document.currentScript;
 
   document.addEventListener('DOMContentLoaded', function () {
     var link = findLink();
@@ -18,7 +19,7 @@
     fileLink.className = 'selected-text-file-an-issue';
     fileLink.textContent = 'File an issue about the selected text';
 
-    if (!document.currentScript.hasAttribute('data-no-style')) {
+    if (!thisScript.hasAttribute('data-no-style')) {
       // Consider moving this to a .css file in the future, perhaps bikeshed.css once all specs have moved to Bikeshed.
       var style = document.createElement('style');
       style.textContent = 'position: fixed; bottom: 0; right: 0; background: rgba(255, 255, 255, 0.8);' +
