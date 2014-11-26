@@ -22,8 +22,9 @@
     if (!thisScript.hasAttribute('data-no-style')) {
       // Consider moving this to a .css file in the future, perhaps bikeshed.css once all specs have moved to Bikeshed.
       var style = document.createElement('style');
-      style.textContent = 'position: fixed; bottom: 0; right: 0; background: rgba(255, 255, 255, 0.8);' +
-                          'font-size: smaller; padding: 4px 10px; z-index: 1; text-decoration: underline;';
+      style.textContent = '.selected-text-file-an-issue { position: fixed; bottom: 0; right: 0; ' +
+                          'background: rgba(255, 255, 255, 0.8); font-size: smaller; padding: 4px 10px; z-index: 1; ' +
+                          'text-decoration: underline; }';
       document.head.appendChild(style);
     }
 
