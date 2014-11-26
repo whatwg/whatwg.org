@@ -1,6 +1,6 @@
-// Usage: include a link like `<a href="https://github.com/whatwg/streams/issues/new">file an issue</a>`, or give it
+// Usage: include a link like `<a href="https://github.com/whatwg/{my-repo}/issues/new">file an issue</a>`, or give it
 // `id="file-issue-link"` instead. Then include this script with
-// `<script src="https://resources.whatwg.or/file-issue.js" async></script>`. Style the element using the selector
+// `<script src="https://resources.whatwg.org/file-issue.js" async></script>`. Style the element using the selector
 // `.selected-text-file-an-issue`.
 
 (function () {
