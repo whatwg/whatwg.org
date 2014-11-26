@@ -1,7 +1,8 @@
 // Usage: include a link like `<a href="https://github.com/whatwg/{my-repo}/issues/new">file an issue</a>`, or give it
 // `id="file-issue-link"` instead. Then include this script with
 // `<script src="https://resources.whatwg.org/file-issue.js" async></script>`. Style the element using the selector
-// `.selected-text-file-an-issue`.
+// `.selected-text-file-an-issue`. If you don't want the script to inject styles, use a `data-no-style` attribute on
+// the script element.
 
 (function () {
   "use strict";
@@ -16,6 +17,14 @@
     fileLink.accessKey = '1';
     fileLink.className = 'selected-text-file-an-issue';
     fileLink.textContent = 'File an issue about the selected text';
+
+    if (!document.currentScript.hasAttribute('data-no-style')) {
+      // Consider moving this to a .css file in the future, perhaps bikeshed.css once all specs have moved to Bikeshed.
+      var style = document.createElement('style');
+      style.textContent = 'position: fixed; bottom: 0; right: 0; background: rgba(255, 255, 255, 0.8);' +
+                          'font-size: smaller; padding: 4px 10px; z-index: 1; text-decoration: underline;';
+      document.head.appendChild(style);
+    }
 
     document.body.appendChild(fileLink);
 
