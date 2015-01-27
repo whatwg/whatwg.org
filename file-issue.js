@@ -5,7 +5,7 @@
 // the script element.
 
 (function () {
-  "use strict";
+  'use strict';
   var thisScript = document.currentScript;
 
   document.addEventListener('DOMContentLoaded', function () {
