@@ -100,7 +100,7 @@
 
     var node = getBestNodeToReport(selection, startNode);
     if (node) {
-      url += '#' + node.id;
+      url = url.split('#')[0] + '#' + node.id;
     }
 
     return url;
