@@ -11,39 +11,37 @@
   'use strict';
   var thisScript = document.currentScript;
 
-  document.addEventListener('DOMContentLoaded', function () {
-    var originalFilingUrl = getOriginalFilingUrl();
-    var prevSelectionText = null;
+  var originalFilingUrl = getOriginalFilingUrl();
+  var prevSelectionText = null;
 
-    var fileLink = document.createElement('a');
-    fileLink.href = getFilingUrl(originalFilingUrl, window.getSelection());
-    fileLink.accessKey = '1';
-    fileLink.className = 'selected-text-file-an-issue';
-    fileLink.textContent = 'File an issue about the selected text';
+  var fileLink = document.createElement('a');
+  fileLink.href = getFilingUrl(originalFilingUrl, window.getSelection());
+  fileLink.accessKey = '1';
+  fileLink.className = 'selected-text-file-an-issue';
+  fileLink.textContent = 'File an issue about the selected text';
 
-    if (!thisScript.hasAttribute('data-no-style')) {
-      // Consider moving this to a .css file in the future, perhaps bikeshed.css once all specs have moved to Bikeshed.
-      var style = document.createElement('style');
-      style.textContent = '.selected-text-file-an-issue { position: fixed; bottom: 0; right: 0; ' +
-                          'background: rgba(255, 255, 255, 0.8); font-size: smaller; padding: 4px 10px; z-index: 1; ' +
-                          'text-decoration: underline; }';
-      document.head.appendChild(style);
+  if (!thisScript.hasAttribute('data-no-style')) {
+    // Consider moving this to a .css file in the future, perhaps bikeshed.css once all specs have moved to Bikeshed.
+    var style = document.createElement('style');
+    style.textContent = '.selected-text-file-an-issue { position: fixed; bottom: 0; right: 0; ' +
+                        'background: rgba(255, 255, 255, 0.8); font-size: smaller; padding: 4px 10px; z-index: 1; ' +
+                        'text-decoration: underline; }';
+    document.head.appendChild(style);
+  }
+
+  document.body.appendChild(fileLink);
+
+  window.addEventListener('mouseup', handleInteraction);
+  window.addEventListener('keydown', handleInteraction);
+
+  function handleInteraction(event) {
+    var selection = window.getSelection();
+    if (selection.toString() === prevSelectionText) {
+      return;
     }
 
-    document.body.appendChild(fileLink);
-
-    window.addEventListener('mouseup', handleInteraction);
-    window.addEventListener('keydown', handleInteraction);
-
-    function handleInteraction(event) {
-      var selection = window.getSelection();
-      if (selection.toString() === prevSelectionText) {
-        return;
-      }
-
-      fileLink.href = getFilingUrl(originalFilingUrl, selection, event.target);
-    }
-  });
+    fileLink.href = getFilingUrl(originalFilingUrl, selection, event.target);
+  }
 
   function getOriginalFilingUrl() {
     var link = document.querySelector('#file-issue-link, a[href$="/issues/new"]');
