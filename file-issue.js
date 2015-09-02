@@ -1,20 +1,22 @@
 // Usage: include a link like `<a href="https://github.com/whatwg/{my-repo}/issues/new">file an issue</a>`, or give it
 // `id="file-issue-link"` instead. Then include this script with
-// `<script src="https://resources.whatwg.org/file-issue.js" async></script>`. Style the element using the selector
+// `<script src="https://resources.whatwg.org/file-issue.js" defer></script>`. Style the element using the selector
 // `.selected-text-file-an-issue`. If you don't want the script to inject styles, use a `data-no-style` attribute on
 // the script element.
+//
+// If you don't have a file an issue link on your spec (e.g. for a spec split into multiple documents), you can use
+// a `data-file-issue-url=""` attribute on the `<script>` tag.
 
 (function () {
   'use strict';
   var thisScript = document.currentScript;
 
   document.addEventListener('DOMContentLoaded', function () {
-    var link = findLink();
-    var originalHref = link.href;
+    var originalFilingUrl = getOriginalFilingUrl();
     var prevSelectionText = null;
 
     var fileLink = document.createElement('a');
-    fileLink.href = getFilingUrl(originalHref, window.getSelection());
+    fileLink.href = getFilingUrl(originalFilingUrl, window.getSelection());
     fileLink.accessKey = '1';
     fileLink.className = 'selected-text-file-an-issue';
     fileLink.textContent = 'File an issue about the selected text';
@@ -39,23 +41,28 @@
         return;
       }
 
-      fileLink.href = getFilingUrl(originalHref, selection, event.target);
+      fileLink.href = getFilingUrl(originalFilingUrl, selection, event.target);
     }
   });
 
-  function findLink() {
+  function getOriginalFilingUrl() {
     var link = document.querySelector('#file-issue-link, a[href$="/issues/new"]');
-
     if (link) {
-      return link;
+      return link.href;
     }
 
-    throw new Error('No "file an issue" link found');
+    var dataAttr = thisScript.getAttribute("data-file-issue-url");
+    if (dataAttr) {
+      return dataAttr;
+    }
+
+    throw new Error('No "file an issue" link found and no data-file-issue-url attribute present on the script');
   }
 
-  function getFilingUrl(originalHref, selection, startNode) {
+  function getFilingUrl(originalFilingUrl, selection, startNode) {
     var bugData = getBugData(selection, startNode);
-    return originalHref + '?title=' + encodeURIComponent(bugData.title) + '&body=' + encodeURIComponent(bugData.body);
+    return originalFilingUrl + '?title=' + encodeURIComponent(bugData.title) + '&body=' +
+           encodeURIComponent(bugData.body);
   }
 
   function getBugData(selection, startNode) {
