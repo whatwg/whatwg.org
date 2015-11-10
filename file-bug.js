@@ -40,7 +40,7 @@
     link.parentNode.appendChild(bugLink);
     if (!document.querySelector('script[data-no-style][src$="/file-bug.js"]')) {
       var style = document.createElement('style');
-      style.textContent = '.bug-link { position:fixed; bottom:0; left:0; background:rgba(255,255,255,0.8) !important; width:115px; font-size:smaller; padding:0 10px; z-index:1; text-decoration:underline }';
+      style.textContent = '.bug-link { position:fixed; bottom:0; right:0; background:rgba(255,255,255,0.8) !important; width:115px; font-size:smaller; padding:0 10px; z-index:1; text-decoration:underline }';
       document.head.appendChild(style);
     }
     onmouseup = onkeyup = function(e){
