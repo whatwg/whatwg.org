@@ -72,6 +72,14 @@
       body: getBody(url, selectionText)
     };
   }
+  
+  function escapeGFM(text) {
+    return text.replace(/&/g, '&amp;') // HTML
+               .replace(/</g, '&lt;') // HTML
+               .replace(/>/g, '&gt;') // blockquote
+               .replace(/([:@=])/g, '$1\u200b') // emoji, @mention, headings
+               .replace(/([\\`\*_\{\}\[\]\(\)#\+\-\.!\~\|])/g, '\\$1'); // other formatting
+  }
 
   function getBody(url, selectionText) {
     var quotedText = selectionText;
@@ -84,7 +92,7 @@
       quotedText = '> ' + quotedText;
     }
 
-    return url + '\n\n' + quotedText;
+    return url + '\n\n' + escapeGFM(quotedText);
   }
 
   function getTitle(selectionText) {
