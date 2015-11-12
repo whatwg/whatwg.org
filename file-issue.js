@@ -87,12 +87,12 @@
       quotedText = quotedText.substring(0, 997) + '...';
     }
 
-    quotedText = quotedText.replace(/\r/g, '').replace(/\n/g, '\n> ');
+    quotedText = escapeGFM(quotedText).replace(/\r/g, '').replace(/\n/g, '\n> ');
     if (quotedText.length > 0) {
       quotedText = '> ' + quotedText;
     }
 
-    return url + '\n\n' + escapeGFM(quotedText);
+    return url + '\n\n' + quotedText;
   }
 
   function getTitle(selectionText) {
