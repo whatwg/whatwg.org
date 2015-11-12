@@ -79,7 +79,7 @@
       quotedText = quotedText.substring(0, 997) + '...';
     }
 
-    quotedText = quotedText.replace(/\r/g, '').replace(/\n\n/g, '\n\n> ');
+    quotedText = quotedText.replace(/\r/g, '').replace(/\n/g, '\n> ');
     if (quotedText.length > 0) {
       quotedText = '> ' + quotedText;
     }
