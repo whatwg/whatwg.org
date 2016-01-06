@@ -10,6 +10,7 @@ Contributors
 * Matthew Raymond
 * Robbert Broersma
 * Simon Pieters
+* Terin Stock
 
 License
 -------
