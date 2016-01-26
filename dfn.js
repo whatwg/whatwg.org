@@ -150,6 +150,9 @@ function dfnMovePanel(event) {
   dfnPanel.style.position = 'fixed';
   dfnPanel.style.left = '1em';
   dfnPanel.style.bottom = '1em';
+  dfnPanel.style.maxWidth = '20em';
+  dfnPanel.style.maxHeight = '50vh';
+  dfnPanel.style.overflow = 'auto';
   document.body.appendChild(dfnPanel);
   event.stopPropagation();
 }
