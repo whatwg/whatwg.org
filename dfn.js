@@ -19,7 +19,7 @@ function initDfn() {
     var start = new Date();
     while (k < dfnMapTarget) {
       if (links[k].hash.length > 1) {
-        if ((!links[k].classList.contains("no-backref")) && (!links[k].parentNode.classList.contains("no-backref")) && (!links[k].parentNode.parentNode.classList.contains("no-backref"))) {
+        if (!links[k].closest('.no-backref, ul.index, #idl-index + pre')) {
           var s;
           if (links[k].hasAttribute('data-x-internal'))
             s = links[k].getAttribute('data-x-internal')
@@ -173,6 +173,5 @@ function dfnGetCaption(link) {
   return 'Page';
 }
 
-// setup (disabled for multipage copy)
-if (document.getElementById('head'))
-  initDfn();
+// setup
+initDfn();
