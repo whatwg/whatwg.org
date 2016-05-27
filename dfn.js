@@ -19,7 +19,7 @@ function initDfn() {
     var start = new Date();
     while (k < dfnMapTarget) {
       if (links[k].hash.length > 1) {
-        if (!links[k].closest('.no-backref, ul.index, #idl-index + pre')) {
+        if (!links[k].closest('.no-backref, .self-link, ul.index, #idl-index + pre')) {
           var s;
           if (links[k].hasAttribute('data-x-internal'))
             s = links[k].getAttribute('data-x-internal')
