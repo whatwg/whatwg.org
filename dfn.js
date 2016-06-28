@@ -121,6 +121,7 @@ function dfnShow(event) {
               a.appendChild(document.createTextNode(header));
             } else {
               var cloneHeader = header.cloneNode(true);
+              [].slice.call(cloneHeader.querySelectorAll('a, dfn')).forEach(replaceWithChildren);
               while (cloneHeader.hasChildNodes())
                 a.appendChild(cloneHeader.firstChild);
             }
@@ -144,6 +145,13 @@ function dfnShow(event) {
   } else {
     dfnTimeout = setTimeout(dfnShow, 250, event);
   }
+}
+
+function replaceWithChildren(el) {
+  while (el.hasChildNodes()) {
+    el.parentNode.insertBefore(el.firstChild, el);
+  }
+  el.parentNode.removeChild(el);
 }
 
 function dfnMovePanel(event) {
