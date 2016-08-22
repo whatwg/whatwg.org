@@ -14,7 +14,7 @@
   var originalFilingUrl = getOriginalFilingUrl();
   var titlePrefix = '';
   var queryParamIndex = originalFilingUrl.indexOf('?title=');
-  if (queryParamIndex != -1)) {
+  if (queryParamIndex != -1) {
     titlePrefix = decodeURIComponent(originalFilingUrl.substr(queryParamIndex + '?title='.length));
     originalFilingUrl = originalFilingUrl.substr(0, queryParamIndex);
   }
