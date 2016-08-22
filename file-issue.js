@@ -1,5 +1,5 @@
 // Usage: include a link like `<a href="https://github.com/whatwg/{my-repo}/issues/new">file an issue</a>`, or give it
-// `id="file-issue-link"` instead. Then include this script with
+// `id="file-issue-link"` instead. The URL can include ?title=... to give a title prefix. Then include this script with
 // `<script src="https://resources.whatwg.org/file-issue.js" defer></script>`. Style the element using the selector
 // `.selected-text-file-an-issue`. If you don't want the script to inject styles, use a `data-no-style` attribute on
 // the script element.
