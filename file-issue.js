@@ -12,6 +12,13 @@
   var thisScript = document.currentScript;
 
   var originalFilingUrl = getOriginalFilingUrl();
+  var titlePrefix = '';
+  var queryParamIndex = originalFilingUrl.indexOf('?title=');
+  if (queryParamIndex != -1)) {
+    titlePrefix = decodeURIComponent(originalFilingUrl.substr(queryParamIndex + '?title='.length));
+    originalFilingUrl = originalFilingUrl.substr(0, queryParamIndex);
+  }
+  
   var prevSelectionText = null;
 
   var fileLink = document.createElement('a');
@@ -44,7 +51,7 @@
   }
 
   function getOriginalFilingUrl() {
-    var link = document.querySelector('#file-issue-link, a[href$="/issues/new"]');
+    var link = document.querySelector('#file-issue-link, a[href$="/issues/new"], a[href*="/issues/new?title="]');
     if (link) {
       return link.href;
     }
@@ -96,7 +103,7 @@
   }
 
   function getTitle(selectionText) {
-    var title = selectionText.toString().replace(/\n/g, ' ');
+    var title =  selectionText.toString().replace(/\n/g, ' ');
     if (title.length > 50) {
       title = title.substring(0, 47) + '...';
     }
@@ -105,7 +112,7 @@
       title = '"' + title + '"';
     }
 
-    return title;
+    return titlePrefix + title;
   }
 
   function getUrlToReport(selection, startNode) {
