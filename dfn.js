@@ -31,9 +31,16 @@ function initDfn() {
         }
       }
       k += 1;
-      if (new Date() - start > 1000) {
-        setTimeout(initDfnInternal, 10000);
-        return;
+      if ('requestIdleCallback' in window) {
+        if (new Date() - start > 10) {
+          requestIdleCallback(initDfnInternal);
+          return;
+        }
+      } else {
+        if (new Date() - start > 1000) {
+          setTimeout(initDfnInternal, 10000);
+          return;
+        }
       }
     }
     dfnMapDone = true;
