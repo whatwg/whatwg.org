@@ -18,11 +18,9 @@
     titlePrefix = decodeURIComponent(originalFilingUrl.substr(queryParamIndex + '?title='.length));
     originalFilingUrl = originalFilingUrl.substr(0, queryParamIndex);
   }
-  
-  var prevSelectionText = null;
 
   var fileLink = document.createElement('a');
-  fileLink.href = getFilingUrl(originalFilingUrl, window.getSelection());
+  fileLink.href = originalFilingUrl;
   fileLink.accessKey = '1';
   fileLink.className = 'selected-text-file-an-issue';
   fileLink.textContent = 'File an issue about the selected text';
@@ -42,23 +40,21 @@
   window.addEventListener('keydown', handleInteraction);
 
   function handleInteraction(event) {
-    var selection = window.getSelection();
-    if (selection.toString() === prevSelectionText) {
+    if (event.target === fileLink) {
       return;
     }
-
-    fileLink.href = getFilingUrl(originalFilingUrl, selection, event.target);
+    fileLink.href = getFilingUrl(originalFilingUrl, window.getSelection(), event.target);
   }
 
   function getOriginalFilingUrl() {
-    var link = document.querySelector('#file-issue-link, a[href$="/issues/new"], a[href*="/issues/new?title="]');
-    if (link) {
-      return link.href;
-    }
-
     var dataAttr = thisScript.getAttribute("data-file-issue-url");
     if (dataAttr) {
       return dataAttr;
+    }
+
+    var link = document.querySelector('#file-issue-link, a[href$="/issues/new"], a[href*="/issues/new?title="]');
+    if (link) {
+      return link.href;
     }
 
     throw new Error('No "file an issue" link found and no data-file-issue-url attribute present on the script');
@@ -79,7 +75,7 @@
       body: getBody(url, selectionText)
     };
   }
-  
+
   function escapeGFM(text) {
     return text.replace(/&/g, '&amp;') // HTML
                .replace(/</g, '&lt;') // HTML
@@ -103,7 +99,7 @@
   }
 
   function getTitle(selectionText) {
-    var title =  selectionText.toString().replace(/\n/g, ' ');
+    var title = selectionText.replace(/\n/g, ' ');
     if (title.length > 50) {
       title = title.substring(0, 47) + '...';
     }
