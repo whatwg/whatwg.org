@@ -1,8 +1,7 @@
 // Usage: include a link like `<a href="https://github.com/whatwg/{my-repo}/issues/new">file an issue</a>`, or give it
 // `id="file-issue-link"` instead. The URL can include ?title=... to give a title prefix. Then include this script with
-// `<script src="https://resources.whatwg.org/file-issue.js" defer></script>`. Style the element using the selector
-// `.selected-text-file-an-issue`. If you don't want the script to inject styles, use a `data-no-style` attribute on
-// the script element.
+// `<script src="https://resources.whatwg.org/file-issue.js" async></script>`. Style the element using the selector
+// `.selected-text-file-an-issue`.
 //
 // If you don't have a file an issue link on your spec (e.g. for a spec split into multiple documents), you can use
 // a `data-file-issue-url=""` attribute on the `<script>` tag.
@@ -24,15 +23,6 @@
   fileLink.accessKey = '1';
   fileLink.className = 'selected-text-file-an-issue';
   fileLink.textContent = 'File an issue about the selected text';
-
-  if (!thisScript.hasAttribute('data-no-style')) {
-    // Consider moving this to a .css file in the future, perhaps bikeshed.css once all specs have moved to Bikeshed.
-    var style = document.createElement('style');
-    style.textContent = '.selected-text-file-an-issue { position: fixed; bottom: 0; right: 0; ' +
-                        'background: rgba(255, 255, 255, 0.8); font-size: smaller; padding: 4px 10px; z-index: 1; ' +
-                        'text-decoration: underline; }';
-    document.head.appendChild(style);
-  }
 
   document.body.appendChild(fileLink);
 
