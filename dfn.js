@@ -6,31 +6,26 @@ var dfnMapTarget = -1;
 var dfnMapDone = false;
 var dfnMap = {};
 function initDfn() {
-  var links = [];
-  dfnMapTarget = document.links.length;
-  for (var i = 0; i < dfnMapTarget; i += 1)
-    links[i] = document.links[i];
+  var links = document.querySelectorAll('a[href*="#"]');
+  dfnMapTarget = links.length;
   var k = 0;
   var n = 0;
   var initDfnInternal = function () {
     n += 1;
     var start = new Date();
     while (k < dfnMapTarget) {
-      if (links[k].hash.length > 1) {
-        if (!links[k].closest('.no-backref, .self-link, ul.index, #idl-index + pre, ol.toc')) {
-          var s;
-          if (links[k].hasAttribute('data-x-internal'))
-            s = links[k].getAttribute('data-x-internal')
-          else
-            s = links[k].hash.substr(1);
-          if (!(s in dfnMap))
-            dfnMap[s] = [];
-          dfnMap[s].push(links[k]);
-        }
+      // Don't use .href or .hash because the URL parser is relatively expensive
+      var s = links[k].getAttribute('href').split('#')[1];
+      if (!links[k].closest('.no-backref, .self-link, ul.index, #idl-index + pre, ol.toc')) {
+        if (links[k].hasAttribute('data-x-internal'))
+          s = links[k].getAttribute('data-x-internal')
+        if (!(s in dfnMap))
+          dfnMap[s] = [];
+        dfnMap[s].push(links[k]);
       }
       k += 1;
       if ('requestIdleCallback' in window) {
-        if (new Date() - start > 10) {
+        if (k % 1000 === 0) {
           requestIdleCallback(initDfnInternal);
           return;
         }
