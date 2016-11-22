@@ -18,6 +18,8 @@
     originalFilingUrl = originalFilingUrl.substr(0, queryParamIndex);
   }
 
+  var specUrl = getSpecUrl();
+
   var fileLink = document.createElement('a');
   fileLink.href = originalFilingUrl;
   fileLink.accessKey = '1';
@@ -48,6 +50,14 @@
     }
 
     throw new Error('No "file an issue" link found and no data-file-issue-url attribute present on the script');
+  }
+
+  function getSpecUrl() {
+    var link = document.getElementById('commit-snapshot-link');
+    if (link) {
+      return link.href;
+    }
+    return window.location.href;
   }
 
   function getFilingUrl(originalFilingUrl, selection, startNode) {
@@ -102,7 +112,7 @@
   }
 
   function getUrlToReport(selection, startNode) {
-    var url = window.location.href;
+    var url = specUrl;
 
     var node = getBestNodeToReport(selection, startNode);
     if (node) {
