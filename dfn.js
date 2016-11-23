@@ -6,16 +6,18 @@ var dfnMapTarget = -1;
 var dfnMapDone = false;
 var dfnMap = {};
 function initDfn() {
+  var supportsIdleCallback = 'requestIdleCallback' in window;
   var links = document.querySelectorAll('a[href*="#"]');
   dfnMapTarget = links.length;
   var k = 0;
   var n = 0;
   var initDfnInternal = function () {
     n += 1;
-    var start = new Date();
+    var start = Date.now();
     while (k < dfnMapTarget) {
       // Don't use .href or .hash because the URL parser is relatively expensive
-      var s = links[k].getAttribute('href').split('#')[1];
+      var s = links[k].getAttribute('href');
+      s = s.substring(s.indexOf('#') + 1);
       if (!links[k].closest('.no-backref, .self-link, ul.index, #idl-index + pre, ol.toc')) {
         if (links[k].hasAttribute('data-x-internal'))
           s = links[k].getAttribute('data-x-internal')
@@ -24,15 +26,15 @@ function initDfn() {
         dfnMap[s].push(links[k]);
       }
       k += 1;
-      if ('requestIdleCallback' in window) {
-        if (k % 1000 === 0) {
-          requestIdleCallback(initDfnInternal);
-          return;
-        }
-      } else {
-        if (new Date() - start > 1000) {
-          setTimeout(initDfnInternal, 10000);
-          return;
+      if (k % 1000 === 0) {
+        if (supportsIdleCallback) {
+            requestIdleCallback(initDfnInternal);
+            return;
+        } else {
+          if (Date.now() - start > 500) {
+            setTimeout(initDfnInternal, 500);
+            return;
+          }
         }
       }
     }
