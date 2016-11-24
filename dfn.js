@@ -2,6 +2,8 @@
 // makes <dfn> elements link back to all uses of the term
 // no copyright is asserted on this file
 
+(function() {
+
 var dfnMapTarget = -1;
 var dfnMapDone = false;
 var dfnMap = {};
@@ -183,3 +185,5 @@ function dfnGetCaption(link) {
 
 // setup
 initDfn();
+
+})();
