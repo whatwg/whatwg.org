@@ -1,10 +1,12 @@
 // Usage: include a link like `<a href="https://github.com/whatwg/{my-repo}/issues/new">file an issue</a>`, or give it
 // `id="file-issue-link"` instead. The URL can include ?title=... to give a title prefix. Then include this script with
-// `<script src="https://resources.whatwg.org/file-issue.js" async></script>`. Style the element using the selector
-// `.selected-text-file-an-issue`.
+// `<script src="https://resources.whatwg.org/file-issue.js" async></script>` after that link. Style the element using
+// the selector `.selected-text-file-an-issue`.
 //
 // If you don't have a file an issue link on your spec (e.g. for a spec split into multiple documents), you can use
-// a `data-file-issue-url=""` attribute on the `<script>` tag.
+// a `data-file-issue-url=""` attribute on the `<script>` tag, and include this script right after the `<body>` tag.
+//
+// If you want to include this script in `head`, use `defer` instead of `async`.
 
 (function () {
   'use strict';
@@ -26,7 +28,7 @@
   fileLink.className = 'selected-text-file-an-issue';
   fileLink.textContent = 'File an issue about the selected text';
 
-  document.body.appendChild(fileLink);
+  document.body.insertBefore(fileLink, document.body.firstChild);
 
   window.addEventListener('mouseup', handleInteraction);
   window.addEventListener('keydown', handleInteraction);
