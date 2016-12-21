@@ -61,6 +61,8 @@ function dfnShow(event) {
   }
   if (dfnMapDone) {
     var node = event.target;
+    if (node && node instanceof HTMLAnchorElement)
+      return;
     while (node && (!node instanceof HTMLElement || !(node.localName == 'dfn' || (node instanceof HTMLHeadingElement && node.hasAttribute('data-dfn-type')))))
       node = node.parentNode;
     if (node) {
