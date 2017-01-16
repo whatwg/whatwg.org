@@ -1,0 +1,314 @@
+<!DOCTYPE HTML>
+
+
+<html lang="en-GB-hixie">
+ <head>
+  <title>HTML 5</title>
+  <link href="/style/specification" type="text/css" rel="stylesheet">
+  <link href="/images/icon" rel="icon">
+
+  <style type="text/css">
+   h4 + .element { margin-top: -2.5em; padding-top: 2em; }
+   h4 + p + .element { margin-top: -5em; padding-top: 4em; }
+   .element { background: #EEFFEE; color: black; margin: 0 0 1em -1em; padding: 0 1em 0.25em 0.75em; border-left: solid #99FF99 0.25em; -padding: 0; /* that last decl is for IE6. Try removing it, it's hilarious! */ }
+   .proposal { border: blue solid; padding: 1em; }
+   table.matrix, table.matrix td { border: none; text-align: right; }
+   table.matrix { margin-left: 2em; }
+  </style>
+
+ <link href="section-dnd.html#nav-bar" rel="prev" title="5.3. Drag and
+   drop"><link href="index.html#contents" rel="index" title="Table of contents"><link href="section-command.html#nav-bar" rel="next" title="5.5. Command APIs"></head><body class="cfc">
+  <style scoped>
+   * { color: gray ! important; background: none ! important; border-color: silver ! important; }
+   img, object, iframe { filter: url("data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\'><filter id=\'grayscale\'><feColorMatrix type=\'matrix\' values=\'0.3333 0.3333 0.3333 0 0 0.3333 0.3333 0.3333 0 0 0.3333 0.3333 0.3333 0 0 0 0 0 1 0\'/></filter></svg>#grayscale"); -webkit-filter: grayscale(100%); }
+   .obsolete { border: double thick red ! important; background: yellow ! important; margin: 4em auto 0 auto; max-width: 50em; width: 70%; text-align: center; position: fixed;  z-index: 10000; top: 0; left: 0; right: 0; }
+   .obsolete a { color: blue ! important; }
+   .obsolete p { font: 900 2em sans-serif; color: red ! important; margin: 1em 1.5em ! important; }
+  </style>
+  <div class=obsolete>
+   <p>This is a snapshot of an early working draft and has therefore
+   been superseded by the <a href="http://whatwg.org/html">HTML
+   standard</a>.</p>
+   <p>This document will not be further updated.</p>
+  </div>
+<div class="head">
+   <p><a href="http://www.whatwg.org/" class="logo" rel="home"><img src="/images/logo" alt="WHATWG"></a></p>
+
+   <h1 id="html-5">HTML 5</h1>
+
+   <h2 id="working" class="no-num no-toc">Call For Comments — 27 October 2007</h2></div><nav id="nav-bar"><a href="section-dnd.html#nav-bar">&lt; 5.3. Drag and
+   drop</a> – <a href="index.html#contents">Table of contents</a> – <a href="section-command.html#nav-bar">5.5. Command APIs &gt;</a></nav><h3 id="undo"><span class="secno">5.4. </span><dfn id="undo-history">Undo
+   history</dfn></h3>
+
+  <p class="big-issue">There has got to be a better way of doing this, surely.
+
+  </p><p>The user agent must associate an <dfn id="undo-transaction">undo
+   transaction history</dfn> with each <code><a href="section-documents.html#htmldocument">HTMLDocument</a></code> object.
+
+  </p><p>The <a href="#undo-transaction">undo transaction history</a> is a list
+   of entries. The entries are of two type: <a href="#dom-changes">DOM
+   changes</a> and <a href="#undo-object" title="undo object">undo
+   objects</a>.
+
+  </p><p>Each <dfn id="dom-changes">DOM changes</dfn> entry in the <a href="#undo-transaction">undo transaction history</a> consists of batches
+   of one or more of the following:
+
+  </p><ul>
+   <li>Changes to the <a href="section-terminology.html#content">content attributes</a> of an
+    <code>Element</code> node.
+
+   </li><li>Changes to the <a href="section-terminology.html#dom-attributes">DOM attributes</a> of a
+    <code>Node</code>.</li>
+   <!-- XXX uh, these change on their own, so
+   clearly this isn't going to fly. Which DOM attributes, exactly? -->
+
+   <li>Changes to the DOM hierarchy of nodes that are descendants of the
+    <code><a href="section-documents.html#htmldocument">HTMLDocument</a></code> object
+    (<code>parentNode</code>, <code>childNodes</code>).
+  </li></ul>
+
+  <p><dfn id="undo-object">Undo object</dfn> entries consist of objects
+   representing state that scripts running in the document are managing. For
+   example, a Web mail application could use an <a href="#undo-object">undo
+   object</a> to keep track of the fact that a user has moved an e-mail to a
+   particular folder, so that the user can undo the action and have the
+   e-mail return to its former location.
+
+  </p><p>Broadly speaking, <a href="#dom-changes">DOM changes</a> entries are
+   handled by the UA in response to user edits of form controls and
+   <span>editing hosts</span> on the page, and <a href="#undo-object">undo
+   object</a> entries are handled by script in response to higher-level user
+   actions (such as interactions with server-side state, or in the
+   implementation of a drawing tool).
+
+  </p><h4 id="the-undomanager"><span class="secno">5.4.1. </span>The <code><a href="#undomanager">UndoManager</a></code> interface</h4>
+
+  <div class="big-issue">
+   <p>This API sucks. Seriously. It's a terrible API. Really bad. I hate it.
+    Here are the requirements:</p>
+
+   <ul>
+    <li>Has to cope with cases where the server has undo state already when
+     the page is loaded, that can be stuffed into the undo buffer onload.
+
+    </li><li>Has to support undo/redo.
+
+    </li><li>Has to cope with the &quot;undo&quot; action being &quot;contact the server and tell
+     it to undo&quot;, rather than it being the opposite of the &quot;redo&quot; action.
+
+    </li><li>Has to cope with some undo states expiring from the undo history
+     (e.g. server can only remember one undelete action) but other states not
+     expiring (e.g. client can undo arbitrary amounts of local edits).
+   </li></ul>
+  </div>
+
+  <p>To manage <a href="#undo-object">undo object</a> entries in the <a href="#undo-transaction">undo transaction history</a>, the <code><a href="#undomanager">UndoManager</a></code> interface can be used:
+
+  </p><pre class="idl">interface <dfn id="undomanager">UndoManager</dfn> {
+  unsigned long <a href="#adddata" title="dom-UndoManager-add">add</a>(in DOMObject data, in DOMStrong title);
+  void <a href="#remove2" title="dom-UndoManager-remove">remove</a>(in unsigned long index);
+  void <a href="#clearundo" title="dom-UndoManager-clearUndo">clearUndo</a>();
+  void <a href="#clearredo" title="dom-UndoManager-clearRedo">clearRedo</a>();
+  DOMObject <a href="#itemn" title="dom-UndoManager-item">item</a>(in unsigned long index);
+  readonly attribute unsigned long <a href="#length10" title="dom-UndoManager-length">length</a>;
+  readonly attribute unsigned long <a href="#position0" title="dom-UndoManager-position">position</a>;
+};</pre>
+
+  <p>The <dfn id="undomanager0" title="dom-undoManager"><code>undoManager</code></dfn> attribute of the
+   <code><a href="section-the-default0.html#window">Window</a></code> interface must return the object
+   implementing the <code><a href="#undomanager">UndoManager</a></code>
+   interface for that <code><a href="section-the-default0.html#window">Window</a></code> object's
+   associated <code><a href="section-documents.html#htmldocument">HTMLDocument</a></code> object.
+
+  </p><p>In the ECMAScript DOM binding, objects implementing this interface must
+   also support being dereferenced using the square bracket notation, such
+   that dereferencing with an integer index is equivalent to invoking the
+   <code title="dom-UndoManager-item"><a href="#itemn">item()</a></code> method
+   with that index (e.g. <code title="">undoManager[1]</code> returns the
+   same as <code title="">undoManager.item(1)</code>).
+
+  </p><p><code><a href="#undomanager">UndoManager</a></code> objects represent
+   their document's <a href="#undo-transaction">undo transaction history</a>.
+   Only <a href="#undo-object">undo object</a> entries are visible with this
+   API, but this does not mean that <a href="#dom-changes">DOM changes</a>
+   entries are absent from the <a href="#undo-transaction">undo transaction
+   history</a>.
+
+  </p><p>The <dfn id="length10" title="dom-UndoManager-length"><code>length</code></dfn> attribute must
+   return the number of <a href="#undo-object">undo object</a> entries in the
+   <a href="#undo-transaction">undo transaction history</a>.
+
+  </p><p>The <dfn id="itemn" title="dom-UndoManager-item"><code>item(<var title="">n</var>)</code></dfn> method must return the <var title="">n</var>th <a href="#undo-object">undo object</a> entry in the <a href="#undo-transaction">undo transaction history</a>.
+
+  </p><p>The <a href="#undo-transaction">undo transaction history</a> has a <dfn id="current3" title="undo position">current position</dfn>. This is the
+   position between two entries in the <a href="#undo-transaction">undo
+   transaction history</a>'s list where the previous entry represents what
+   needs to happen if the user invokes the &quot;undo&quot; command (the &quot;undo&quot; side,
+   lower numbers), and the next entry represents what needs to happen if the
+   user invokes the &quot;redo&quot; command (the &quot;redo&quot; side, higher numbers).
+
+  </p><p>The <dfn id="position0" title="dom-UndoManager-position"><code>position</code></dfn> attribute must
+   return the index of the <a href="#undo-object">undo object</a> entry
+   nearest to the <a href="#current3">undo position</a>, on the &quot;redo&quot; side.
+   If there are no <a href="#undo-object">undo object</a> entries on the
+   &quot;redo&quot; side, then the attribute must return the same as the <code title="dom-UndoManager-length"><a href="#length10">length</a></code>
+   attribute. If there are no <a href="#undo-object">undo object</a> entries
+   on the &quot;undo&quot; side of the <a href="#current3">undo position</a>, the <code title="dom-UndoManager-position"><a href="#position0">position</a></code>
+   attribute returns zero.
+
+  </p><p class="note">Since the <a href="#undo-transaction">undo transaction
+   history</a> contains both <a href="#undo-object">undo object</a> entries
+   and <a href="#dom-changes">DOM changes</a> entries, but the <code title="dom-UndoManager-position"><a href="#position0">position</a></code>
+   attribute only returns indices relative to <a href="#undo-object">undo
+   object</a> entries, it is possible for several &quot;undo&quot; or &quot;redo&quot; actions to
+   be performed without the value of the <code title="dom-UndoManager-position"><a href="#position0">position</a></code>
+   attribute changing.
+
+  </p><p>The <dfn id="adddata" title="dom-UndoManager-add"><code>add(<var title="">data</var>, <var title="">title</var>)</code></dfn> method's
+   behaviour depends on the current state. Normally, it must insert the <var title="">data</var> object passed as an argument into the <a href="#undo-transaction">undo transaction history</a> immediately before
+   the <a href="#current3">undo position</a>, optionally remembering the
+   given <var title="">title</var> to use in the UI. If the method is called
+   <a href="#undo-moving0" title="do-undo">during an undo operation</a>,
+   however, the object must instead be added immediately <em>after</em> the
+   <a href="#current3">undo position</a>.
+
+  </p><p>If the method is called and there is neither <a href="#undo-moving0" title="do-undo">an undo operation in progress</a> nor <a href="#redo-moving0" title="do-redo">a redo operation in progress</a> then
+   any entries in the <a href="#undo-transaction">undo transaction
+   history</a> after the <a href="#current3">undo position</a> must be
+   removed (as if <code title="dom-UndoManager-clearRedo"><a href="#clearredo">clearRedo()</a></code> had been called).
+
+  </p><p class="big-issue">We could fire events when someone adds something to the
+   undo history -- one event per undo object entry before the position (or
+   after, during redo addition), allowing the script to decide if that entry
+   should remain or not. Or something. Would make it potentially easier to
+   expire server-held state when the server limitations come into play.</p>
+  <!-- XXX note on expiring undo in case server can only do one level undo -->
+
+  <p>The <dfn id="remove2" title="dom-UndoManager-remove"><code>remove(<var title="">index</var>)</code></dfn> method must remove the <a href="#undo-object">undo object</a> entry with the specified <var title="">index</var>. If the index is less than zero or greater than or
+   equal to <code title="dom-UndoManager-length"><a href="#length10">length</a></code> then the method must raise an
+   <code>INDEX_SIZE_ERR</code> exception. <a href="#dom-changes">DOM
+   changes</a> entries are unaffected by this method.
+
+  </p><p>The <dfn id="clearundo" title="dom-UndoManager-clearUndo"><code>clearUndo()</code></dfn> method must
+   remove all entries in the <a href="#undo-transaction">undo transaction
+   history</a> before the <a href="#current3">undo position</a>, be they <a href="#dom-changes">DOM changes</a> entries or <a href="#undo-object">undo
+   object</a> entries.
+
+  </p><p>The <dfn id="clearredo" title="dom-UndoManager-clearRedo"><code>clearRedo()</code></dfn> method must
+   remove all entries in the <a href="#undo-transaction">undo transaction
+   history</a> after the <a href="#current3">undo position</a>, be they <a href="#dom-changes">DOM changes</a> entries or <a href="#undo-object">undo
+   object</a> entries.
+
+  </p><p class="big-issue">Another idea is to have a way for scripts to say
+   &quot;startBatchingDOMChangesForUndo()&quot; and after that the changes to the DOM
+   go in as if the user had done them.
+
+  </p><h4 id="undo-moving"><span class="secno">5.4.2. </span><dfn id="undo-moving0" title="do-undo">Undo: moving back in the undo transaction history</dfn></h4>
+
+  <p>When the user invokes an undo operation, or when the <code title="dom-document-execCommand"><a href="section-command.html#execCommand">execCommand()</a></code> method is called with the
+   <code title="command-undo"><a href="section-command.html#undo1">undo</a></code> command, the
+   user agent must perform an undo operation.
+
+  </p><p>If the <a href="#current3">undo position</a> is at the start of the <a href="#undo-transaction">undo transaction history</a>, then the user agent
+   must do nothing.
+
+  </p><p>If the entry immediately before the <a href="#current3">undo
+   position</a> is a <a href="#dom-changes">DOM changes</a> entry, then the
+   user agent must remove that <a href="#dom-changes">DOM changes</a> entry,
+   reverse the DOM changes that were listed in that entry, and, if the
+   changes were reversed with no problems, add a new <a href="#dom-changes">DOM changes</a> entry (consisting of the opposite of
+   those DOM changes) to the <a href="#undo-transaction">undo transaction
+   history</a> on the other side of the <a href="#current3">undo
+   position</a>.
+
+  </p><p>If the DOM changes cannot be undone (e.g. because the DOM state is no
+   longer consistent with the changes represented in the entry), then the
+   user agent must simply remove the <a href="#dom-changes">DOM changes</a>
+   entry, without doing anything else.
+
+  </p><p>If the entry immediately before the <a href="#current3">undo
+   position</a> is an <a href="#undo-object">undo object</a> entry, then the
+   user agent must first remove that <a href="#undo-object">undo object</a>
+   entry from the <a href="#undo-transaction">undo transaction history</a>,
+   and then must fire an <code title="event-undo"><a href="#undo0">undo</a></code> event on the <code>Document</code> object,
+   using the <a href="#undo-object">undo object</a> entry's associated undo
+   object as the event's data.
+
+  </p><p>Any calls to <code title="dom-undoManager-add"><a href="#adddata">add()</a></code> while the event is being handled will be
+   used to populate the redo history, and will then be used if the user
+   invokes the &quot;redo&quot; command to undo his undo.
+
+  </p><h4 id="redo-moving"><span class="secno">5.4.3. </span><dfn id="redo-moving0" title="do-redo">Redo: moving forward in the undo transaction history</dfn></h4>
+
+  <p>When the user invokes a redo operation, or when the <code title="dom-document-execCommand"><a href="section-command.html#execCommand">execCommand()</a></code> method is called with the
+   <code title="command-redo"><a href="section-command.html#redo0">redo</a></code> command, the
+   user agent must perform a redo operation.
+
+  </p><p>This is mostly the opposite of an <a href="#undo-moving0" title="do-undo">undo operation</a>, but the full definition is included here
+   for completeness.
+
+  </p><p>If the <a href="#current3">undo position</a> is at the end of the <a href="#undo-transaction">undo transaction history</a>, then the user agent
+   must do nothing.
+
+  </p><p>If the entry immediately after the <a href="#current3">undo position</a>
+   is a <a href="#dom-changes">DOM changes</a> entry, then the user agent
+   must remove that <a href="#dom-changes">DOM changes</a> entry, reverse the
+   DOM changes that were listed in that entry, and, if the changes were
+   reversed with no problems, add a new <a href="#dom-changes">DOM
+   changes</a> entry (consisting of the opposite of those DOM changes) to the
+   <a href="#undo-transaction">undo transaction history</a> on the other side
+   of the <a href="#current3">undo position</a>.
+
+  </p><p>If the DOM changes cannot be redone (e.g. because the DOM state is no
+   longer consistent with the changes represented in the entry), then the
+   user agent must simply remove the <a href="#dom-changes">DOM changes</a>
+   entry, without doing anything else.
+
+  </p><p>If the entry immediately after the <a href="#current3">undo position</a>
+   is an <a href="#undo-object">undo object</a> entry, then the user agent
+   must first remove that <a href="#undo-object">undo object</a> entry from
+   the <a href="#undo-transaction">undo transaction history</a>, and then
+   must fire a <code title="event-undo"><a href="#undo0">redo</a></code> event
+   on the <code>Document</code> object, using the <a href="#undo-object">undo
+   object</a> entry's associated undo object as the event's data.
+
+  </p><h4 id="the-undomanagerevent"><span class="secno">5.4.4. </span>The <code><a href="#undomanagerevent">UndoManagerEvent</a></code> interface and the
+   <code title="event-undo"><a href="#undo0">undo</a></code> and <code title="event-redo"><a href="#redo">redo</a></code> events</h4>
+
+  <pre class="idl">interface <dfn id="undomanagerevent">UndoManagerEvent</dfn> : Event {
+  readonly attribute DOMObject <a href="#data3" title="dom-UndoManagerEvent-data">data</a>;
+  void <a href="#initundomanagerevent" title="dom-UndoManagerEvent-initUndoManagerEvent">initUndoManagerEvent</a>(in DOMString typeArg, in boolean canBubbleArg, in boolean cancelableArg, in DOMObject dataArg);
+  void <span title="dom-UndoManagerEvent-initUndoManagerEventNS">initUndoManagerEventNS</span>(in DOMString namespaceURIArg, in DOMString typeArg, in boolean canBubbleArg, in boolean cancelableArg, in DOMObject dataArg);
+};</pre>
+
+  <p>The <dfn id="initundomanagerevent" title="dom-UndoManagerEvent-initUndoManagerEvent"><code>initUndoManagerEvent()</code></dfn>
+   and <dfn id="initundomanagereventns"><code title="dom-UndoManagerEvent-initUndoManagerEventNS">initUndoManagerEventNS()</code></dfn>
+   methods must initialise the event in a manner analogous to the
+   similarly-named methods in the DOM3 Events interfaces. <a href="#refsDOM3EVENTS">[DOM3EVENTS]</a>
+
+  </p><p>The <dfn id="data3" title="dom-UndoManagerEvent-data"><code>data</code></dfn> attribute
+   represents the <a href="#undo-object">undo object</a> for the event.
+
+  </p><p>The <dfn id="undo0" title="event-undo"><code>undo</code></dfn> and <dfn id="redo" title="event-redo"><code>redo</code></dfn> events do not bubble,
+   cannot be canceled, and have no default action. When the user agent fires
+   one of these events it must use the <code><a href="#undomanagerevent">UndoManagerEvent</a></code> interface, with the
+   <code title="dom-UndoManagerEvent-data"><a href="#data3">data</a></code>
+   field containing the relevant <a href="#undo-object">undo object</a>.
+
+  </p><h4 id="implementation0"><span class="secno">5.4.5. </span>Implementation notes</h4>
+
+  <p>How user agents present the above conceptual model to the user is not
+   defined. The undo interface could be a filtered view of the <a href="#undo-transaction">undo transaction history</a>, it could manipulate
+   the <a href="#undo-transaction">undo transaction history</a> in ways not
+   described above, and so forth. For example, it is possible to design a UA
+   that appears to have separate <a href="#undo-transaction" title="undo
+   transaction history">undo transaction histories</a> for each form control;
+   similarly, it is possible to design systems where the user has access to
+   more undo information than is present in the offical (as described above)
+   <a href="#undo-transaction">undo transaction history</a> (such as
+   providing a tree-based approach to document state). Such UI models should
+   be based upon the single <a href="#undo-transaction">undo transaction
+   history</a> described in this section, however, such that to a script
+   there is no detectable difference.
+
+  </p><script src="http://status.whatwg.org/annotate-web-apps.js" type="text/javascript"></script></body></html>
