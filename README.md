@@ -1,4 +1,4 @@
-resources.whatwg.org (excluding browser-logos)
+resources.whatwg.org
 ==============================================
 
 Contributors
@@ -11,8 +11,9 @@ Contributors
 * Robbert Broersma
 * Simon Pieters
 * Terin Stock
+* Henri Sivonen
 
-License
+License (excluding browser-logos and fonts)
 -------
 
 [![CC0](http://i.creativecommons.org/p/zero/1.0/80x15.png)](http://creativecommons.org/publicdomain/zero/1.0/)
