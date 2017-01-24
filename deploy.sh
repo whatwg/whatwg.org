@@ -1,12 +1,8 @@
 #!/bin/bash
 set -e
 
-echo "TRAVIS_BRANCH=$TRAVIS_BRANCH and TRAVIS_PULL_REQUEST=$TRAVIS_PULL_REQUEST"
-echo ""
-
 if [ "$TRAVIS_BRANCH" != "master" -o "$TRAVIS_PULL_REQUEST" != "false" ]; then
     echo "Skipping deploy for a pull request"
-    exit 0
 else
     ENCRYPTED_KEY_VAR="encrypted_${ENCRYPTION_LABEL}_key"
     ENCRYPTED_IV_VAR="encrypted_${ENCRYPTION_LABEL}_iv"
