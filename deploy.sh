@@ -1,7 +1,12 @@
 #!/bin/bash
 set -e
 
-if [ $TRAVIS_BRANCH == "master" ] ; then
+BRANCH="`git rev-parse --abbrev-ref HEAD`"
+if [ "$BRANCH" == "HEAD" ]; then # Travis does this for some reason
+    BRANCH=$TRAVIS_BRANCH
+fi
+
+if [ $BRANCH == "master" ] ; then
 
     ENCRYPTED_KEY_VAR="encrypted_${ENCRYPTION_LABEL}_key"
     ENCRYPTED_IV_VAR="encrypted_${ENCRYPTION_LABEL}_iv"
