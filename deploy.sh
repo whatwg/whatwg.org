@@ -6,7 +6,10 @@ if [ "$BRANCH" == "HEAD" ]; then # Travis does this for some reason
     BRANCH=$TRAVIS_BRANCH
 fi
 
-if [ "$BRANCH" == "master" -a "$TRAVIS_PULL_REQUEST" != "false" -a "$TRAVIS_PULL_REQUEST" != "" ]; then
+echo "TRAVIS_BRANCH=$TRAVIS_BRANCH and TRAVIS_PULL_REQUEST=$TRAVIS_PULL_REQUEST"
+echo ""
+
+if [ "$TRAVIS_BRANCH" != "master" -o "$TRAVIS_PULL_REQUEST" != "false" ] ]; then
     echo "Skipping deploy for a pull request"
     exit 0
 else
