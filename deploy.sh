@@ -1,11 +1,6 @@
 #!/bin/bash
 set -e
 
-BRANCH="`git rev-parse --abbrev-ref HEAD`"
-if [ "$BRANCH" == "HEAD" ]; then # Travis does this for some reason
-    BRANCH=$TRAVIS_BRANCH
-fi
-
 echo "TRAVIS_BRANCH=$TRAVIS_BRANCH and TRAVIS_PULL_REQUEST=$TRAVIS_PULL_REQUEST"
 echo ""
 
