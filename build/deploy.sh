@@ -56,7 +56,7 @@ if [ $BRANCH != "master" ] ; then
     curl https://api.csswg.org/bikeshed/ -f -F file=@$INPUT_FILE -F md-status=LS-BRANCH \
          -F md-warning="Branch $BRANCH $BRANCH_URL_BASE$BRANCH replaced by $LS_URL" \
          -F md-title="$TITLE (Branch Snapshot $BRANCH)" \
-         -F md-Text-Macro="SNAPSHOT-LINK $SNAPSHOT_LINK" \
+         -F md-Text-Macro="SNAPSHOT-LINK $BACK_TO_LS_LINK" \
          > $BRANCH_DIR/index.html;
     echo "Branch snapshot output to $WEB_ROOT/$BRANCHES_DIR/$BRANCH"
 else
