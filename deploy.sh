@@ -7,7 +7,6 @@ if [ "$BRANCH" == "HEAD" ]; then # Travis does this for some reason
 fi
 
 if [ $BRANCH == "master" ] ; then
-
     ENCRYPTED_KEY_VAR="encrypted_${ENCRYPTION_LABEL}_key"
     ENCRYPTED_IV_VAR="encrypted_${ENCRYPTION_LABEL}_iv"
     ENCRYPTED_KEY=${!ENCRYPTED_KEY_VAR}
