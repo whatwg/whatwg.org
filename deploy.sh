@@ -6,7 +6,10 @@ if [ "$BRANCH" == "HEAD" ]; then # Travis does this for some reason
     BRANCH=$TRAVIS_BRANCH
 fi
 
-if [ $BRANCH == "master" ] ; then
+if [ "$BRANCH" == "master" -a "$TRAVIS_PULL_REQUEST" != "false" -a "$TRAVIS_PULL_REQUEST" != "" ]; then
+    echo "Skipping deploy for a pull request"
+    exit 0
+else
     ENCRYPTED_KEY_VAR="encrypted_${ENCRYPTION_LABEL}_key"
     ENCRYPTED_IV_VAR="encrypted_${ENCRYPTION_LABEL}_iv"
     ENCRYPTED_KEY=${!ENCRYPTED_KEY_VAR}
