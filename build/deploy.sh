@@ -47,6 +47,11 @@ if [[ "$TRAVIS" == "true" ]]; then # For some reason the above does not work on 
     BRANCH=$TRAVIS_BRANCH
 fi
 
+SERVICE_WORKER_SHA=$(curl https://api.github.com/repos/whatwg/resources.whatwg.org/contents/standard-service-worker.js \
+                     -H "Accept: application/vnd.github.v3+json" \
+                     | grep -Po '(?<="sha": ")[^"]*') # Hacky JSON parsing but works for SHAs
+
+
 BACK_TO_LS_LINK="<a href=\"/\" id=\"commit-snapshot-link\">Go to the living standard</a>"
 SNAPSHOT_LINK="<a href=\"/commit-snapshots/$SHA/\" id=\"commit-snapshot-link\">Snapshot as of this commit</a>"
 
@@ -82,6 +87,12 @@ else
     curl https://api.csswg.org/bikeshed/ -f -F file=@"$INPUT_FILE" \
          -F md-Text-Macro="SNAPSHOT-LINK $SNAPSHOT_LINK" \
          > "$WEB_ROOT/index.html"
+
+    echo "\"use strict\";
+importScripts(\"https://resources.whatwg.org/standard-service-worker.js\");
+// Version (for service worker freshness check): $SERVICE_WORKER_SHA" \
+       > "$WEB_ROOT/service-worker.js"
+
     echo "Living standard output to $WEB_ROOT"
 fi
 
