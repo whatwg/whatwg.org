@@ -15,5 +15,5 @@ else
     echo "$SERVER $SERVER_PUBLIC_KEY" > known_hosts
     echo "$IDEA_SERVER $IDEA_SERVER_PUBLIC_KEY" >> known_hosts
     rsync --archive --verbose --compress --delete --rsh="ssh -o UserKnownHostsFile=known_hosts" src/ $DEPLOY_USER@$SERVER:$WEB_ROOT/
-    rsync --archive --verbose --compress --delete --rsh="ssh -o UserKnownHostsFile=known_hosts" idea.whatwg.org/ admini@$IDEA_SERVER:$IDEA_WEB_ROOT/
+    rsync --archive --verbose --compress --delete --rsh="ssh -o UserKnownHostsFile=known_hosts" idea.whatwg.org/ admin@$IDEA_SERVER:$IDEA_WEB_ROOT/
 fi
