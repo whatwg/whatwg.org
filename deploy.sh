@@ -13,7 +13,7 @@ else
     eval `ssh-agent -s`
     ssh-add deploy_key
     echo "$SERVER $SERVER_PUBLIC_KEY" > known_hosts
-    echo "$IDEA_SERVER $IDEA_SERVER_PUBLIC_KEY" >> known_hosts
-    rsync --archive --verbose --compress --delete --rsh="ssh -o UserKnownHostsFile=known_hosts" src/ $DEPLOY_USER@$SERVER:$WEB_ROOT/
-    rsync --archive --verbose --compress --delete --rsh="ssh -o UserKnownHostsFile=known_hosts" idea.whatwg.org/ admin@$IDEA_SERVER:$IDEA_WEB_ROOT/
+    echo "$NEW_SERVER $NEW_SERVER_PUBLIC_KEY" >> known_hosts
+    rsync --archive --verbose --compress --delete --rsh="ssh -o UserKnownHostsFile=known_hosts" src/ $DEPLOY_USER@$SERVER:whatwg.org/
+    rsync --archive --verbose --compress --delete --rsh="ssh -o UserKnownHostsFile=known_hosts" idea.whatwg.org images.whatwg.org n.whatwg.org $NEW_DEPLOY_USER@$NEW_SERVER:
 fi
