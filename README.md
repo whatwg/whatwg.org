@@ -1,5 +1,4 @@
-This repository hosts the [whatwg.org](https://whatwg.org/) and
-[spec.whatwg.org](https://spec.whatwg.org/) sites. Feel free to help improve them!
+This repository hosts [whatwg.org](https://whatwg.org/) and some related sites. Feel free to help improve them!
 
 ### Code of conduct
 
