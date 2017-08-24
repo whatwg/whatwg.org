@@ -15,5 +15,5 @@ else
     echo "$SERVER $SERVER_PUBLIC_KEY" > known_hosts
     echo "$NEW_SERVER $NEW_SERVER_PUBLIC_KEY" >> known_hosts
     rsync --archive --verbose --compress --delete --rsh="ssh -o UserKnownHostsFile=known_hosts" src/ $DEPLOY_USER@$SERVER:whatwg.org/
-    rsync --archive --verbose --compress --delete --rsh="ssh -o UserKnownHostsFile=known_hosts" idea.whatwg.org images.whatwg.org n.whatwg.org $NEW_DEPLOY_USER@$NEW_SERVER:
+    rsync --archive --chmod=D755,F644 --verbose --compress --delete --rsh="ssh -o UserKnownHostsFile=known_hosts" idea.whatwg.org images.whatwg.org n.whatwg.org deploy@$NEW_SERVER:/var/www/
 fi
