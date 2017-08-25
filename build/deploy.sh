@@ -18,6 +18,8 @@ BRANCHES_DIR="branch-snapshots"
 
 SERVER="75.119.197.251"
 SERVER_PUBLIC_KEY="ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDP7zWfhJdjre9BHhfOtN52v6kIaDM/1kEJV4HqinvLP2hzworwNBmTtAlIMS2JJzSiE+9WcvSbSqmw7FKmNVGtvCd/CNJJkdAOEzYFBntYLf4cwNozCRmRI0O0awTaekIm03pzLO+iJm0+xmdCjIJNDW1v8B7SwXR9t4ElYNfhYD4HAT+aP+qs6CquBbOPfVdPgQMar6iDocAOQuBFBaUHJxPGMAG0qkVRJSwS4gi8VIXNbFrLCCXnwDC4REN05J7q7w90/8/Xjt0q+im2sBUxoXcHAl38ZkHeFJry/He2CiCc8YPoOAWmM8Vd0Ukc4SYZ99UfW/bxDroLHobLQ9Eh"
+NEW_SERVER="165.227.248.76"
+NEW_SERVER_PUBLIC_KEY="ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBDt6Igtp73aTOYXuFb8qLtgs80wWF6cNi3/AItpWAMpX3PymUw7stU7Pi+IoBJz21nfgmxaKp3gfSe2DPNt06l8="
 
 # Optional environment variables (won't be set for local deploys)
 TRAVIS=${TRAVIS:-false}
@@ -118,4 +120,15 @@ if [[ "$TRAVIS" == "true" ]]; then
     # scp to the WHATWG server
     echo "$SERVER $SERVER_PUBLIC_KEY" > known_hosts
     scp -r -o UserKnownHostsFile=known_hosts "$WEB_ROOT" "$DEPLOY_USER@$SERVER":
+
+    # rsync to the (new) WHATWG server, without deleting anything
+    echo "$NEW_SERVER $NEW_SERVER_PUBLIC_KEY" > known_hosts
+    rsync --rsh="ssh -o UserKnownHostsFile=known_hosts" --verbose \
+          --archive --chmod=D755,F644 --compress \
+          "$WEB_ROOT" deploy@$NEW_SERVER:/var/www/
+    # now delete extraneous files, excluding $COMMITS_DIR and $BRANCHES_DIR
+    rsync --rsh="ssh -o UserKnownHostsFile=known_hosts" --verbose \
+          --existing --ignore-existing --delete \
+          --exclude="$COMMITS_DIR" --exclude="$BRANCHES_DIR" \
+          "$WEB_ROOT" deploy@$NEW_SERVER:/var/www/
 fi
