@@ -128,7 +128,7 @@ if [[ "$TRAVIS" == "true" ]]; then
           "$WEB_ROOT" deploy@$NEW_SERVER:/var/www/
     # now delete extraneous files, excluding $COMMITS_DIR and $BRANCHES_DIR
     rsync --rsh="ssh -o UserKnownHostsFile=known_hosts" --verbose \
-          --existing --ignore-existing --delete \
+          --existing --ignore-existing --delete --recursive \
           --exclude="$COMMITS_DIR" --exclude="$BRANCHES_DIR" \
           "$WEB_ROOT" deploy@$NEW_SERVER:/var/www/
 fi
