@@ -121,14 +121,10 @@ if [[ "$TRAVIS" == "true" ]]; then
     echo "$SERVER $SERVER_PUBLIC_KEY" > known_hosts
     scp -r -o UserKnownHostsFile=known_hosts "$WEB_ROOT" "$DEPLOY_USER@$SERVER":
 
-    # rsync to the (new) WHATWG server, without deleting anything
+    # rsync to the new WHATWG server. No --delete as that would require extra
+    # care to not delete snapshots.
     echo "$NEW_SERVER $NEW_SERVER_PUBLIC_KEY" > known_hosts
     rsync --rsh="ssh -o UserKnownHostsFile=known_hosts" --verbose \
           --archive --chmod=D755,F644 --compress \
-          "$WEB_ROOT" deploy@$NEW_SERVER:/var/www/
-    # now delete extraneous files, excluding $COMMITS_DIR and $BRANCHES_DIR
-    rsync --rsh="ssh -o UserKnownHostsFile=known_hosts" --verbose \
-          --existing --ignore-existing --delete --recursive \
-          --exclude="$COMMITS_DIR" --exclude="$BRANCHES_DIR" \
           "$WEB_ROOT" deploy@$NEW_SERVER:/var/www/
 fi
