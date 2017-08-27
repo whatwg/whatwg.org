@@ -16,6 +16,6 @@ else
     echo "$NEW_SERVER $NEW_SERVER_PUBLIC_KEY" >> known_hosts
     # TODO: remove this copy when the old server is gone
     cp spec.whatwg.org/index.html whatwg.org/specs/index
-    rsync --archive --verbose --compress --delete --rsh="ssh -o UserKnownHostsFile=known_hosts" whatwg.org/ $DEPLOY_USER@$SERVER:whatwg.org/
+    rsync --archive --verbose --compress --delete --rsh="ssh -o UserKnownHostsFile=known_hosts" whatwg.org resources.whatwg.org $DEPLOY_USER@$SERVER:
     rsync --archive --chmod=D755,F644 --verbose --compress --delete --rsh="ssh -o UserKnownHostsFile=known_hosts" whatwg.org *.whatwg.org deploy@$NEW_SERVER:/var/www/
 fi
