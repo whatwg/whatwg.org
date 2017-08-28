@@ -49,7 +49,7 @@ if [[ "$TRAVIS" == "true" ]]; then # For some reason the above does not work on 
     BRANCH=$TRAVIS_BRANCH
 fi
 
-SERVICE_WORKER_SHA=$(curl https://api.github.com/repos/whatwg/resources.whatwg.org/contents/standard-service-worker.js \
+SERVICE_WORKER_SHA=$(curl https://api.github.com/repos/whatwg/whatwg.org/contents/resources.whatwg.org/standard-service-worker.js \
                      -H "Accept: application/vnd.github.v3+json" \
                      | grep -Po '(?<="sha": ")[^"]*') # Hacky JSON parsing but works for SHAs
 
