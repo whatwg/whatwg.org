@@ -25,6 +25,7 @@ NEW_SERVER_PUBLIC_KEY="ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIb
 TRAVIS=${TRAVIS:-false}
 TRAVIS_PULL_REQUEST=${TRAVIS_PULL_REQUEST:-false}
 DEPLOY_USER=${DEPLOY_USER:-}
+EXTRA_FILES=${EXTRA_FILES:-}
 
 # Note: $TRAVIS_PULL_REQUEST is either a number or false, not true or false.
 # https://docs.travis-ci.com/user/environment-variables/#Default-Environment-Variables
@@ -63,6 +64,13 @@ echo ""
 
 rm -rf "$WEB_ROOT" || exit 0
 
+copy_extra_files() {
+    if [[ "$EXTRA_FILES" != "" ]]; then
+        # Will not pass ShellCheck: https://stackoverflow.com/q/45931553/3191
+        cp $EXTRA_FILES "$1"
+    fi
+}
+
 if [[ $BRANCH != "master" ]] ; then
     # Branch snapshot, if not master
     BRANCH_DIR="$WEB_ROOT/$BRANCHES_DIR/$BRANCH"
@@ -72,7 +80,8 @@ if [[ $BRANCH != "master" ]] ; then
          -F md-title="$TITLE (Branch Snapshot $BRANCH)" \
          -F md-Text-Macro="SNAPSHOT-LINK $BACK_TO_LS_LINK" \
          > "$BRANCH_DIR/index.html";
-    echo "Branch snapshot output to $WEB_ROOT/$BRANCHES_DIR/$BRANCH"
+    copy_extra_files "$BRANCH_DIR"
+    echo "Branch snapshot output to $BRANCH_DIR"
 else
     # Commit snapshot, if master
     COMMIT_DIR="$WEB_ROOT/$COMMITS_DIR/$SHA"
@@ -82,13 +91,15 @@ else
          -F md-title="$TITLE (Commit Snapshot $SHA)" \
          -F md-Text-Macro="SNAPSHOT-LINK $BACK_TO_LS_LINK" \
          > "$COMMIT_DIR/index.html";
-    echo "Commit snapshot output to $WEB_ROOT/$COMMITS_DIR/$SHA"
+    copy_extra_files "$COMMIT_DIR"
+    echo "Commit snapshot output to $COMMIT_DIR"
     echo ""
 
     # Living standard, if master
     curl https://api.csswg.org/bikeshed/ -f -F file=@"$INPUT_FILE" \
          -F md-Text-Macro="SNAPSHOT-LINK $SNAPSHOT_LINK" \
          > "$WEB_ROOT/index.html"
+    copy_extra_files "$WEB_ROOT"
 
     echo "\"use strict\";
 importScripts(\"https://resources.whatwg.org/standard-service-worker.js\");
