@@ -44,11 +44,15 @@ if [[ "$TRAVIS" != "true" ]]; then
     echo ""
 fi
 
-SHA=$(git rev-parse HEAD)
 BRANCH=$(git rev-parse --abbrev-ref HEAD)
 if [[ "$TRAVIS" == "true" ]]; then # For some reason the above does not work on Travis
     BRANCH=$TRAVIS_BRANCH
 fi
+SHA=$(git rev-parse HEAD)
+
+echo "Branch = $BRANCH"
+echo "Commit = $SHA"
+echo ""
 
 SERVICE_WORKER_SHA=$(curl https://api.github.com/repos/whatwg/whatwg.org/contents/resources.whatwg.org/standard-service-worker.js \
                      -H "Accept: application/vnd.github.v3+json" \
@@ -57,10 +61,6 @@ SERVICE_WORKER_SHA=$(curl https://api.github.com/repos/whatwg/whatwg.org/content
 
 BACK_TO_LS_LINK="<a href=\"/\" id=\"commit-snapshot-link\">Go to the living standard</a>"
 SNAPSHOT_LINK="<a href=\"/commit-snapshots/$SHA/\" id=\"commit-snapshot-link\">Snapshot as of this commit</a>"
-
-echo "Branch = $BRANCH"
-echo "Commit = $SHA"
-echo ""
 
 rm -rf "$WEB_ROOT" || exit 0
 
