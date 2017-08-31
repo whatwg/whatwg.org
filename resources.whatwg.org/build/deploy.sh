@@ -63,7 +63,7 @@ rm -rf "$WEB_ROOT" || exit 0
 
 copy_extra_files() {
     if [[ "$EXTRA_FILES" != "" ]]; then
-        # spellcheck disable=extrafiles
+        # spellcheck disable=SC2086
         cp $EXTRA_FILES "$1"
     fi
 }
