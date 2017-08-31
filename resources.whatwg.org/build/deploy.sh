@@ -3,7 +3,9 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-# See ./README.md for documentation.
+# This script is maintained at
+# https://github.com/whatwg/whatwg.org/tree/master/resources.whatwg.org/build.
+# See README.md for documentation.
 
 SHORTNAME=$(git config --local remote.origin.url | sed -n "s#.*/\([^.]*\)\.git#\1#p")
 INPUT_FILE=$(find . -maxdepth 1 -name "*.bs" -print -quit)
