@@ -54,11 +54,6 @@ echo "Branch = $BRANCH"
 echo "Commit = $SHA"
 echo ""
 
-SERVICE_WORKER_SHA=$(curl https://api.github.com/repos/whatwg/whatwg.org/contents/resources.whatwg.org/standard-service-worker.js \
-                     -H "Accept: application/vnd.github.v3+json" \
-                     | grep -Po '(?<="sha": ")[^"]*') # Hacky JSON parsing but works for SHAs
-
-
 BACK_TO_LS_LINK="<a href=\"/\" id=\"commit-snapshot-link\">Go to the living standard</a>"
 SNAPSHOT_LINK="<a href=\"/commit-snapshots/$SHA/\" id=\"commit-snapshot-link\">Snapshot as of this commit</a>"
 
@@ -101,6 +96,7 @@ else
          > "$WEB_ROOT/index.html"
     copy_extra_files "$WEB_ROOT"
 
+    SERVICE_WORKER_SHA=$(curl --fail https://resources.whatwg.org/standard-service-worker.js | shasum | cut -c 1-40)
     echo "\"use strict\";
 importScripts(\"https://resources.whatwg.org/standard-service-worker.js\");
 // Version (for service worker freshness check): $SERVICE_WORKER_SHA" \
