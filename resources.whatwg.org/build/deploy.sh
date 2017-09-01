@@ -63,6 +63,7 @@ rm -rf "$WEB_ROOT" || exit 0
 
 copy_extra_files() {
     if [[ "$EXTRA_FILES" != "" ]]; then
+        # Will not pass shellcheck: https://stackoverflow.com/q/45931553/3191
         # shellcheck disable=SC2086
         cp $EXTRA_FILES "$1"
     fi

@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-if [ "$TRAVIS_BRANCH" != "master" ] || [ "$TRAVIS_PULL_REQUEST" != "false" ]; then
+if [[ "$TRAVIS_BRANCH" != "master" || "$TRAVIS_PULL_REQUEST" != "false" ]]; then
     echo "Skipping deploy for a pull request"
 else
     ENCRYPTED_KEY_VAR="encrypted_${ENCRYPTION_LABEL}_key"
