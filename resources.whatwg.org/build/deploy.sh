@@ -25,6 +25,7 @@ DEPLOY_USER=${DEPLOY_USER:-}
 SERVER=${SERVER:-"75.119.197.251"}
 SERVER_PUBLIC_KEY=${SERVER_PUBLIC_KEY:-"ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDP7zWfhJdjre9BHhfOtN52v6kIaDM/1kEJV4HqinvLP2hzworwNBmTtAlIMS2JJzSiE+9WcvSbSqmw7FKmNVGtvCd/CNJJkdAOEzYFBntYLf4cwNozCRmRI0O0awTaekIm03pzLO+iJm0+xmdCjIJNDW1v8B7SwXR9t4ElYNfhYD4HAT+aP+qs6CquBbOPfVdPgQMar6iDocAOQuBFBaUHJxPGMAG0qkVRJSwS4gi8VIXNbFrLCCXnwDC4REN05J7q7w90/8/Xjt0q+im2sBUxoXcHAl38ZkHeFJry/He2CiCc8YPoOAWmM8Vd0Ukc4SYZ99UfW/bxDroLHobLQ9Eh"}
 EXTRA_FILES=${EXTRA_FILES:-}
+POST_BUILD_STEP=${POST_BUILD_STEP:-}
 
 # New server, see https://github.com/whatwg/misc-server/issues/7
 NEW_SERVER="165.227.248.76"
@@ -64,9 +65,17 @@ rm -rf "$WEB_ROOT" || exit 0
 
 copy_extra_files() {
     if [[ "$EXTRA_FILES" != "" ]]; then
+        echo "Copying extra files ($EXTRA_FILES) to $1"
         # Will not pass shellcheck: https://stackoverflow.com/q/45931553/3191
         # shellcheck disable=SC2086
         cp $EXTRA_FILES "$1"
+    fi
+}
+
+run_post_build_step() {
+    if [[ "$POST_BUILD_STEP" != "" ]]; then
+        echo "Running post build step ($POST_BUILD_STEP) for $1"
+        DIR="$1" bash -c "$POST_BUILD_STEP"
     fi
 }
 
@@ -80,6 +89,7 @@ if [[ $BRANCH != "master" ]] ; then
          -F md-Text-Macro="SNAPSHOT-LINK $BACK_TO_LS_LINK" \
          > "$BRANCH_DIR/index.html";
     copy_extra_files "$BRANCH_DIR"
+    run_post_build_step "$BRANCH_DIR"
     echo "Branch snapshot output to $BRANCH_DIR"
 else
     # Commit snapshot, if master
@@ -91,6 +101,7 @@ else
          -F md-Text-Macro="SNAPSHOT-LINK $BACK_TO_LS_LINK" \
          > "$COMMIT_DIR/index.html";
     copy_extra_files "$COMMIT_DIR"
+    run_post_build_step "$COMMIT_DIR"
     echo "Commit snapshot output to $COMMIT_DIR"
     echo ""
 
@@ -99,6 +110,7 @@ else
          -F md-Text-Macro="SNAPSHOT-LINK $SNAPSHOT_LINK" \
          > "$WEB_ROOT/index.html"
     copy_extra_files "$WEB_ROOT"
+    run_post_build_step "$WEB_ROOT"
 
     SERVICE_WORKER_SHA=$(curl --fail https://resources.whatwg.org/standard-service-worker.js | shasum | cut -c 1-40)
     echo "\"use strict\";
