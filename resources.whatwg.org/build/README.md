@@ -21,7 +21,7 @@ For non-local deploys, it is dependent on the following environment setup:
 Optional environment variables:
 - `$SERVER` is the server to deploy to.
 - `$SERVER_PUBLIC_KEY` is the public key of the deploy server, in the format of `known_hosts`.
-- `$EXTRA_FILES` are extra files to copy for each build. Shell wildcards are allowed. Example: `EXTRA_FILES="*.png"`.
+- `$EXTRA_FILES` are extra files to copy for each build. Shell wildcards are allowed, and directory structure will be preserved. Example: `EXTRA_FILES="images/*.png"`.
 - `$POST_BUILD_STEP` is an extra step to run after each build. Evaluated with the `$DIR` variable set to the build directory. Example: `POST_BUILD_STEP='python generate-stuff.py "$DIR"'`.
 
 An example `.travis.yml` file that uses this script would then be as follows:
