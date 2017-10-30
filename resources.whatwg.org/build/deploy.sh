@@ -31,6 +31,9 @@ POST_BUILD_STEP=${POST_BUILD_STEP:-}
 NEW_SERVER="165.227.248.76"
 NEW_SERVER_PUBLIC_KEY="ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBDt6Igtp73aTOYXuFb8qLtgs80wWF6cNi3/AItpWAMpX3PymUw7stU7Pi+IoBJz21nfgmxaKp3gfSe2DPNt06l8="
 
+# HTML checker filter passed to vnu.jar --filterpattern
+CHECKER_FILTER=${CHECKER_FILTER:-}
+
 # Note: $TRAVIS_PULL_REQUEST is either a number or false, not true or false.
 # https://docs.travis-ci.com/user/environment-variables/#Default-Environment-Variables
 if [[ "$TRAVIS" == "true" && "$TRAVIS_PULL_REQUEST" != "false" ]]; then
@@ -128,7 +131,7 @@ echo ""
 if [[ "$TRAVIS" == "true" ]]; then
     # Run the HTML checker only when building on Travis
     curl -O https://sideshowbarker.net/nightlies/jar/vnu.jar
-    /usr/lib/jvm/java-8-oracle/jre/bin/java -jar vnu.jar --skip-non-html "$WEB_ROOT"
+    /usr/lib/jvm/java-8-oracle/jre/bin/java -jar vnu.jar --skip-non-html --Werror --filterpattern "$CHECKER_FILTER" "$WEB_ROOT"
 
     # Get the deploy key by using Travis's stored variables to decrypt deploy_key.enc
     ENCRYPTED_KEY_VAR="encrypted_${ENCRYPTION_LABEL}_key"
