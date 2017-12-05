@@ -16,7 +16,6 @@ For non-local deploys, it is dependent on the following environment setup:
 
 - `deploy_key.enc` must contain a SSH private key, [encrypted for Travis](https://docs.travis-ci.com/user/encrypting-files/) for the appropriate repository.
 - The environment variable `$ENCRYPTION_LABEL` must contain the encryption label produced by the Travis encryption process.
-- The environment variable `$DEPLOY_USER` must contain the username used to SSH into the WHATWG web server.
 
 Optional environment variables:
 - `$SERVER` is the server to deploy to.
@@ -32,7 +31,6 @@ language: generic
 env:
   global:
     - ENCRYPTION_LABEL="1337deadb33f"
-    - DEPLOY_USER="yourusername"
 
 script:
   - curl --remote-name --fail https://resources.whatwg.org/build/deploy.sh && bash ./deploy.sh
