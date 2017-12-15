@@ -18,7 +18,6 @@ COMMITS_DIR="commit-snapshots"
 
 # Optional environment variables (won't be set for local deploys)
 TRAVIS=${TRAVIS:-false}
-TRAVIS_PULL_REQUEST=${TRAVIS_PULL_REQUEST:-false}
 ENCRYPTION_LABEL=${ENCRYPTION_LABEL:-}
 SERVER="165.227.248.76"
 SERVER_PUBLIC_KEY="ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBDt6Igtp73aTOYXuFb8qLtgs80wWF6cNi3/AItpWAMpX3PymUw7stU7Pi+IoBJz21nfgmxaKp3gfSe2DPNt06l8="
@@ -27,18 +26,6 @@ POST_BUILD_STEP=${POST_BUILD_STEP:-}
 
 # HTML checker filter passed to vnu.jar --filterpattern
 CHECKER_FILTER=${CHECKER_FILTER:-}
-
-# Note: $TRAVIS_PULL_REQUEST is either a number or false, not true or false.
-# https://docs.travis-ci.com/user/environment-variables/#Default-Environment-Variables
-if [[ "$TRAVIS" == "true" && "$TRAVIS_PULL_REQUEST" != "false" ]]; then
-    echo "Skipping deploy for a pull request; the branch build will suffice"
-    exit 0
-fi
-
-if [[ "$TRAVIS" == "true" && "$ENCRYPTION_LABEL" == "" ]]; then
-    echo "No deploy credentials present; deploy cannot continue"
-    exit 1
-fi
 
 if [[ "$TRAVIS" != "true" ]]; then
     echo "Running a local deploy into $WEB_ROOT directory"
@@ -76,46 +63,47 @@ run_post_build_step() {
     fi
 }
 
-if [[ "$BRANCH" == "master" ]] ; then
-    # Commit snapshot, if master
-    COMMIT_DIR="$WEB_ROOT/$COMMITS_DIR/$SHA"
-    mkdir -p "$COMMIT_DIR"
-    curl https://api.csswg.org/bikeshed/ -f -F file=@"$INPUT_FILE" -F md-status=LS-COMMIT \
-         -F md-warning="Commit $SHA $COMMIT_URL_BASE$SHA replaced by $LS_URL" \
-         -F md-title="$TITLE (Commit Snapshot $SHA)" \
-         -F md-Text-Macro="SNAPSHOT-LINK $BACK_TO_LS_LINK" \
-         > "$COMMIT_DIR/index.html";
-    copy_extra_files "$COMMIT_DIR"
-    run_post_build_step "$COMMIT_DIR"
-    echo "Commit snapshot output to $COMMIT_DIR"
-    echo ""
+# Commit snapshot
+COMMIT_DIR="$WEB_ROOT/$COMMITS_DIR/$SHA"
+mkdir -p "$COMMIT_DIR"
+curl https://api.csswg.org/bikeshed/ -f -F file=@"$INPUT_FILE" -F md-status=LS-COMMIT \
+     -F md-warning="Commit $SHA $COMMIT_URL_BASE$SHA replaced by $LS_URL" \
+     -F md-title="$TITLE (Commit Snapshot $SHA)" \
+     -F md-Text-Macro="SNAPSHOT-LINK $BACK_TO_LS_LINK" \
+     > "$COMMIT_DIR/index.html";
+copy_extra_files "$COMMIT_DIR"
+run_post_build_step "$COMMIT_DIR"
+echo "Commit snapshot output to $COMMIT_DIR"
+echo ""
 
-    # Living standard, if master
-    curl https://api.csswg.org/bikeshed/ -f -F file=@"$INPUT_FILE" \
-         -F md-Text-Macro="SNAPSHOT-LINK $SNAPSHOT_LINK" \
-         > "$WEB_ROOT/index.html"
-    copy_extra_files "$WEB_ROOT"
-    run_post_build_step "$WEB_ROOT"
+# Living standard
+curl https://api.csswg.org/bikeshed/ -f -F file=@"$INPUT_FILE" \
+     -F md-Text-Macro="SNAPSHOT-LINK $SNAPSHOT_LINK" \
+     > "$WEB_ROOT/index.html"
+copy_extra_files "$WEB_ROOT"
+run_post_build_step "$WEB_ROOT"
+echo "Living standard output to $WEB_ROOT"
+echo ""
 
-    SERVICE_WORKER_SHA=$(curl --fail https://resources.whatwg.org/standard-service-worker.js | shasum | cut -c 1-40)
-    echo "\"use strict\";
+# Standard service worker
+SERVICE_WORKER_SHA=$(curl --fail https://resources.whatwg.org/standard-service-worker.js | shasum | cut -c 1-40)
+echo "\"use strict\";
 importScripts(\"https://resources.whatwg.org/standard-service-worker.js\");
 // Version (for service worker freshness check): $SERVICE_WORKER_SHA" \
-       > "$WEB_ROOT/service-worker.js"
+     > "$WEB_ROOT/service-worker.js"
+echo "Service worker script output to $WEB_ROOT"
+echo ""
 
-    echo "Living standard output to $WEB_ROOT"
-    echo ""
+find "$WEB_ROOT" -type f -print
+echo ""
 
-    find "$WEB_ROOT" -type f -print
-    echo ""
-fi
-
+# Run the HTML checker only when building on Travis
 if [[ "$TRAVIS" == "true" ]]; then
-    # Run the HTML checker only when building on Travis
     curl -O https://sideshowbarker.net/nightlies/jar/vnu.jar
     /usr/lib/jvm/java-8-oracle/jre/bin/java -jar vnu.jar --skip-non-html --Werror --filterpattern "$CHECKER_FILTER" "$WEB_ROOT"
 fi
 
+# Deploy from Travis on master branch only
 if [[ "$TRAVIS" == "true" && "$BRANCH" == "master" ]]; then
     # Get the deploy key by using Travis's stored variables to decrypt deploy_key.enc
     ENCRYPTED_KEY_VAR="encrypted_${ENCRYPTION_LABEL}_key"
