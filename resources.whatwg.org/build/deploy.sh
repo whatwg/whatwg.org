@@ -13,10 +13,8 @@ TITLE=$(grep < "$INPUT_FILE" "^Title: .*$" | sed -e "s/Title: //")
 
 LS_URL="https://$SHORTNAME.spec.whatwg.org/"
 COMMIT_URL_BASE="https://github.com/whatwg/$SHORTNAME/commit/"
-BRANCH_URL_BASE="https://github.com/whatwg/$SHORTNAME/tree/"
 WEB_ROOT="$SHORTNAME.spec.whatwg.org"
 COMMITS_DIR="commit-snapshots"
-BRANCHES_DIR="branch-snapshots"
 
 # Optional environment variables (won't be set for local deploys)
 TRAVIS=${TRAVIS:-false}
@@ -78,19 +76,7 @@ run_post_build_step() {
     fi
 }
 
-if [[ $BRANCH != "master" ]] ; then
-    # Branch snapshot, if not master
-    BRANCH_DIR="$WEB_ROOT/$BRANCHES_DIR/$BRANCH"
-    mkdir -p "$BRANCH_DIR"
-    curl https://api.csswg.org/bikeshed/ -f -F file=@"$INPUT_FILE" -F md-status=LS-BRANCH \
-         -F md-warning="Branch $BRANCH $BRANCH_URL_BASE$BRANCH replaced by $LS_URL" \
-         -F md-title="$TITLE (Branch Snapshot $BRANCH)" \
-         -F md-Text-Macro="SNAPSHOT-LINK $BACK_TO_LS_LINK" \
-         > "$BRANCH_DIR/index.html";
-    copy_extra_files "$BRANCH_DIR"
-    run_post_build_step "$BRANCH_DIR"
-    echo "Branch snapshot output to $BRANCH_DIR"
-else
+if [[ "$BRANCH" == "master" ]] ; then
     # Commit snapshot, if master
     COMMIT_DIR="$WEB_ROOT/$COMMITS_DIR/$SHA"
     mkdir -p "$COMMIT_DIR"
