@@ -104,11 +104,11 @@ importScripts(\"https://resources.whatwg.org/standard-service-worker.js\");
        > "$WEB_ROOT/service-worker.js"
 
     echo "Living standard output to $WEB_ROOT"
-fi
+    echo ""
 
-echo ""
-find "$WEB_ROOT" -type f -print
-echo ""
+    find "$WEB_ROOT" -type f -print
+    echo ""
+fi
 
 if [[ "$TRAVIS" == "true" ]]; then
     # Run the HTML checker only when building on Travis
