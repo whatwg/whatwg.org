@@ -114,7 +114,9 @@ if [[ "$TRAVIS" == "true" ]]; then
     # Run the HTML checker only when building on Travis
     curl -O https://sideshowbarker.net/nightlies/jar/vnu.jar
     /usr/lib/jvm/java-8-oracle/jre/bin/java -jar vnu.jar --skip-non-html --Werror --filterpattern "$CHECKER_FILTER" "$WEB_ROOT"
+fi
 
+if [[ "$TRAVIS" == "true" && "$BRANCH" == "master" ]]; then
     # Get the deploy key by using Travis's stored variables to decrypt deploy_key.enc
     ENCRYPTED_KEY_VAR="encrypted_${ENCRYPTION_LABEL}_key"
     ENCRYPTED_IV_VAR="encrypted_${ENCRYPTION_LABEL}_iv"
