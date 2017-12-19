@@ -128,7 +128,8 @@ if [[ "$TRAVIS" == "true" && "$BRANCH" == "master" ]]; then
     ssh-add deploy_key
 
     # rsync to the WHATWG server. No --delete as that would require extra care
-    # to not delete snapshots.
+    # to not delete snapshots. --chmod=D755,F644 means read-write for user,
+    # read-only for others.
     echo "$SERVER $SERVER_PUBLIC_KEY" > known_hosts
     rsync --rsh="ssh -o UserKnownHostsFile=known_hosts" --verbose \
           --archive --chmod=D755,F644 --compress \
