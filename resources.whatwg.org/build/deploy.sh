@@ -18,6 +18,8 @@ COMMITS_DIR="commit-snapshots"
 
 # Optional environment variables (won't be set for local deploys)
 TRAVIS=${TRAVIS:-false}
+TRAVIS_BRANCH=${TRAVIS_BRANCH:-}
+TRAVIS_PULL_REQUEST=${TRAVIS_PULL_REQUEST:-false}
 ENCRYPTION_LABEL=${ENCRYPTION_LABEL:-}
 SERVER="165.227.248.76"
 SERVER_PUBLIC_KEY="ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBDt6Igtp73aTOYXuFb8qLtgs80wWF6cNi3/AItpWAMpX3PymUw7stU7Pi+IoBJz21nfgmxaKp3gfSe2DPNt06l8="
@@ -32,13 +34,8 @@ if [[ "$TRAVIS" != "true" ]]; then
     echo ""
 fi
 
-BRANCH=$(git rev-parse --abbrev-ref HEAD)
-if [[ "$TRAVIS" == "true" ]]; then # For some reason the above does not work on Travis
-    BRANCH=$TRAVIS_BRANCH
-fi
 SHA=$(git rev-parse HEAD)
 
-echo "Branch = $BRANCH"
 echo "Commit = $SHA"
 echo ""
 
@@ -103,8 +100,8 @@ if [[ "$TRAVIS" == "true" ]]; then
     /usr/lib/jvm/java-8-oracle/jre/bin/java -jar vnu.jar --skip-non-html --Werror --filterpattern "$CHECKER_FILTER" "$WEB_ROOT"
 fi
 
-# Deploy from Travis on master branch only
-if [[ "$TRAVIS" == "true" && "$BRANCH" == "master" ]]; then
+# Deploy from Travis on push to master branch only
+if [[ "$TRAVIS_BRANCH" == "master" && "$TRAVIS_PULL_REQUEST" == "false" ]]; then
     # Get the deploy key by using Travis's stored variables to decrypt deploy_key.enc
     ENCRYPTED_KEY_VAR="encrypted_${ENCRYPTION_LABEL}_key"
     ENCRYPTED_IV_VAR="encrypted_${ENCRYPTION_LABEL}_iv"
