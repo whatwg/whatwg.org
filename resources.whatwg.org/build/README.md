@@ -35,6 +35,10 @@ env:
 script:
   - curl --remote-name --fail https://resources.whatwg.org/build/deploy.sh && bash ./deploy.sh
 
+branches:
+  only:
+    - master
+
 notifications:
   email:
     on_success: never
