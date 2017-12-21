@@ -69,12 +69,17 @@ def fix_nested_lists(policy_markdown):
     return re.sub(r'^   1[.]', '    1.', policy_markdown, flags=re.MULTILINE)
 
 
+def avoid_link_false_positives(policy_markdown):
+    return re.sub(r'[]] [(]', '] \\(', policy_markdown)
+
+
 def preprocess_markdown(policy_markdown, link_mapping):
     result = lower_headers(policy_markdown)
     result = apply_link_mapping(result, link_mapping)
     result = add_header_anchors(result)
     result = rewrite_defs(result)
     result = fix_nested_lists(result)
+    result = avoid_link_false_positives(result)
 
     return result
 
