@@ -87,10 +87,14 @@ def preprocess_markdown(policy_markdown, link_mapping):
 def markdown_title(policy_markdown):
     for line in policy_markdown.split('\n'):
         if line.startswith("#"):
-            header = line.lstrip("# ")
-            return "WHATWG " + header if "WHATWG" not in header else header
+            title = line.lstrip("# ")
+            tile = "WHATWG " + title if "WHATWG" not in title else title
+            replacement_line = re.sub(r'^# WHATWG ', '# ', line)
+            policy_markdown = policy_markdown.replace(line, replacement_line)
 
-    return "WHATWG Policies"
+            return (title, policy_markdown)
+
+    return ("WHATWG Policies", policy_markdown)
 
 
 def main():
@@ -99,8 +103,8 @@ def main():
     template = template_file.read().decode('utf-8')
     link_mapping = link_mapping_file.read().decode('utf-8')
 
+    (title, policy_markdown) = markdown_title(policy_markdown)
     preprocessed_policy_markdown = preprocess_markdown(policy_markdown, link_mapping)
-    title = markdown_title(preprocessed_policy_markdown)
 
     policy_html = markdown.markdown(preprocessed_policy_markdown, extensions=[PartialGithubFlavoredMarkdownExtension()])
 
