@@ -9,7 +9,7 @@ set -o pipefail
 
 SHORTNAME=$(git config --local remote.origin.url | sed -n "s#.*/\([^.]*\)\.git#\1#p")
 INPUT_FILE=$(find . -maxdepth 1 -name "*.bs" -print -quit)
-TITLE=$(grep < "$INPUT_FILE" "^Title: .*$" | sed -e "s/Title: //")
+H1=$(grep < "$INPUT_FILE" "^H1: .*$" | sed -e "s/H1: //")
 
 LS_URL="https://$SHORTNAME.spec.whatwg.org/"
 COMMIT_URL_BASE="https://github.com/whatwg/$SHORTNAME/commit/"
@@ -39,8 +39,8 @@ SHA=$(git rev-parse HEAD)
 echo "Commit = $SHA"
 echo ""
 
-BACK_TO_LS_LINK="<a href=\"/\" id=\"commit-snapshot-link\">Go to the living standard</a>"
-SNAPSHOT_LINK="<a href=\"/commit-snapshots/$SHA/\" id=\"commit-snapshot-link\">Snapshot as of this commit</a>"
+BACK_TO_LS_LINK="<a href=/ id=commit-snapshot-link>Go to the living standard</a>"
+SNAPSHOT_LINK="<a href=/commit-snapshots/$SHA/ id=commit-snapshot-link>Snapshot as of this commit</a>"
 
 rm -rf "$WEB_ROOT" || exit 0
 
@@ -65,7 +65,7 @@ COMMIT_DIR="$WEB_ROOT/$COMMITS_DIR/$SHA"
 mkdir -p "$COMMIT_DIR"
 curl https://api.csswg.org/bikeshed/ -f -F file=@"$INPUT_FILE" -F md-status=LS-COMMIT \
      -F md-warning="Commit $SHA $COMMIT_URL_BASE$SHA replaced by $LS_URL" \
-     -F md-title="$TITLE (Commit Snapshot $SHA)" \
+     -F md-title="$H1 Standard (Commit Snapshot $SHA)" \
      -F md-Text-Macro="SNAPSHOT-LINK $BACK_TO_LS_LINK" \
      > "$COMMIT_DIR/index.html";
 copy_extra_files "$COMMIT_DIR"
@@ -76,7 +76,7 @@ echo ""
 # Living standard
 curl https://api.csswg.org/bikeshed/ -f -F file=@"$INPUT_FILE" \
      -F md-Text-Macro="SNAPSHOT-LINK $SNAPSHOT_LINK" \
-     > "$WEB_ROOT/index.html"
+     > "$WEB_ROOT/index.html";
 copy_extra_files "$WEB_ROOT"
 run_post_build_step "$WEB_ROOT"
 echo "Living standard output to $WEB_ROOT"
