@@ -31,12 +31,12 @@ CHECKER_FILTER=${CHECKER_FILTER:-}
 
 if [[ "$TRAVIS" != "true" ]]; then
     echo "Running a local deploy into $WEB_ROOT directory"
-    echo ""
 fi
 
 SHA=$(git rev-parse HEAD)
 
-echo "Commit = $SHA"
+echo ""
+echo "Running deploy for commit: $SHA"
 echo ""
 
 BACK_TO_LS_LINK="<a href=\"/\" id=\"commit-snapshot-link\">Go to the living standard</a>"
@@ -60,7 +60,8 @@ run_post_build_step() {
     fi
 }
 
-# Commit snapshot
+echo "Starting commit snapshot..."
+echo ""
 COMMIT_DIR="$WEB_ROOT/$COMMITS_DIR/$SHA"
 mkdir -p "$COMMIT_DIR"
 curl https://api.csswg.org/bikeshed/ -f -F file=@"$INPUT_FILE" -F md-status=LS-COMMIT \
@@ -73,7 +74,8 @@ run_post_build_step "$COMMIT_DIR"
 echo "Commit snapshot output to $COMMIT_DIR"
 echo ""
 
-# Living standard
+echo "Starting living standard..."
+echo ""
 curl https://api.csswg.org/bikeshed/ -f -F file=@"$INPUT_FILE" \
      -F md-Text-Macro="SNAPSHOT-LINK $SNAPSHOT_LINK" \
      > "$WEB_ROOT/index.html"
