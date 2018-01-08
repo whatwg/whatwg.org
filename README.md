@@ -7,3 +7,5 @@ We are committed to providing a friendly, safe, and welcoming environment for al
 ### Acknowledgments
 
 Thanks to [DigitalOcean](https://www.digitalocean.com/) for sponsoring the hosting of whatwg.org.
+
+Thanks to [Oliver Williams](https://github.com/o-t-w) for the most recent home page design (see [#90](https://github.com/whatwg/whatwg.org/pull/90) and [#153](https://github.com/whatwg/whatwg.org/pull/153)).
