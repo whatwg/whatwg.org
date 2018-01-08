@@ -84,13 +84,16 @@ run_post_build_step "$WEB_ROOT"
 echo "Living standard output to $WEB_ROOT"
 echo ""
 
-# Standard service worker
+# Standard service worker and robots.txt
 SERVICE_WORKER_SHA=$(curl --fail https://resources.whatwg.org/standard-service-worker.js | shasum | cut -c 1-40)
 echo "\"use strict\";
 importScripts(\"https://resources.whatwg.org/standard-service-worker.js\");
 // Version (for service worker freshness check): $SERVICE_WORKER_SHA" \
      > "$WEB_ROOT/service-worker.js"
-echo "Service worker script output to $WEB_ROOT"
+echo "User-agent: *
+Disallow: /branch-snapshots/
+Disallow: /commit-snapshots/" > "$WEB_ROOT/robots.txt"
+echo "Service worker and robots.txt output to $WEB_ROOT"
 echo ""
 
 find "$WEB_ROOT" -type f -print
