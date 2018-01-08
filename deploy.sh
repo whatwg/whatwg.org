@@ -4,6 +4,16 @@ set -e
 if [[ "$TRAVIS_BRANCH" != "master" || "$TRAVIS_PULL_REQUEST" != "false" ]]; then
     echo "Skipping deploy for a pull request"
 else
+    echo "Importing content from whatwg/sg and making it suitable for whatwg.org"
+    git clone https://github.com/whatwg/sg sg
+    ./convert-policy.py sg/SG\ Policy.md policy-template.html sg/policy-link-mapping.txt  > whatwg.org/sg-policy
+    ./convert-policy.py sg/Workstream\ Policy.md policy-template.html sg/policy-link-mapping.txt  > whatwg.org/workstream-policy
+    ./convert-policy.py sg/SG\ Agreement.md policy-template.html sg/policy-link-mapping.txt  > whatwg.org/sg-agreement
+    ./convert-policy.py sg/Principles.md policy-template.html sg/policy-link-mapping.txt  > whatwg.org/principles
+    ./convert-policy.py sg/IPR\ Policy.md policy-template.html sg/policy-link-mapping.txt  > whatwg.org/ipr-policy
+    echo ""
+
+    echo "Synchronizing content with whatwg.org et al"
     ENCRYPTED_KEY_VAR="encrypted_${ENCRYPTION_LABEL}_key"
     ENCRYPTED_IV_VAR="encrypted_${ENCRYPTION_LABEL}_iv"
     ENCRYPTED_KEY=${!ENCRYPTED_KEY_VAR}
