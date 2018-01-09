@@ -96,7 +96,7 @@ importScripts(\"https://resources.whatwg.org/standard-service-worker.js\");
 echo "Service worker script output to $WEB_ROOT"
 echo ""
 
-echo "Overview of generated files..."
+echo "Overview of generated files:"
 find "$WEB_ROOT" -type f -print
 echo ""
 
