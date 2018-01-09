@@ -1,9 +1,8 @@
 #!/bin/bash
 set -e
 
-if [[ "$TRAVIS_BRANCH" != "master" || "$TRAVIS_PULL_REQUEST" != "false" ]]; then
-    echo "Skipping deploy for a pull request"
-else
+# This makes it run on master (when not a PR) and locally (so it can be tested)
+if [[ "$TRAVIS" != "true" || "$TRAVIS_BRANCH" == "master" && "$TRAVIS_PULL_REQEST" == "false" ]]; then
     echo "Importing content from whatwg/sg and making it suitable for whatwg.org"
     git clone https://github.com/whatwg/sg sg
     ./convert-policy.py sg/SG\ Policy.md policy-template.html sg/policy-link-mapping.txt  > whatwg.org/sg-policy
@@ -11,8 +10,15 @@ else
     ./convert-policy.py sg/SG\ Agreement.md policy-template.html sg/policy-link-mapping.txt  > whatwg.org/sg-agreement
     ./convert-policy.py sg/Principles.md policy-template.html sg/policy-link-mapping.txt  > whatwg.org/principles
     ./convert-policy.py sg/IPR\ Policy.md policy-template.html sg/policy-link-mapping.txt  > whatwg.org/ipr-policy
+    rm -rf sg
+    echo "Markdown converted to HTML"
     echo ""
+fi
 
+# This makes sure that only changes to the master branch get deployed
+if [[ "$TRAVIS_BRANCH" != "master" || "$TRAVIS_PULL_REQUEST" != "false" ]]; then
+    echo "Skipping deploy"
+else
     echo "Synchronizing content with whatwg.org et al"
     ENCRYPTED_KEY_VAR="encrypted_${ENCRYPTION_LABEL}_key"
     ENCRYPTED_IV_VAR="encrypted_${ENCRYPTION_LABEL}_iv"
