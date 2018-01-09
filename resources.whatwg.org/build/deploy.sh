@@ -60,12 +60,16 @@ run_post_build_step() {
     fi
 }
 
-echo "Checking for errors and warnings in the Bikeshed source..."
+header() {
+  echo -e "\x1b[1m$1\x1b[0m"
+}
+
+header "Checking for errors and warnings using Bikeshed..."
 curl https://api.csswg.org/bikeshed/ -f -F file=@"$INPUT_FILE" -F output=err \
      -F md-Text-Macro="SNAPSHOT-LINK ERROR WARNING CHECK";
 echo ""
 
-echo "Starting commit snapshot..."
+header "Starting commit snapshot..."
 COMMIT_DIR="$WEB_ROOT/$COMMITS_DIR/$SHA"
 mkdir -p "$COMMIT_DIR"
 curl https://api.csswg.org/bikeshed/ -f -F file=@"$INPUT_FILE" -F md-status=LS-COMMIT \
@@ -78,7 +82,7 @@ run_post_build_step "$COMMIT_DIR"
 echo "Commit snapshot output to $COMMIT_DIR"
 echo ""
 
-echo "Starting living standard..."
+header "Starting living standard..."
 curl https://api.csswg.org/bikeshed/ -f -F file=@"$INPUT_FILE" \
      -F md-Text-Macro="SNAPSHOT-LINK $SNAPSHOT_LINK" \
      > "$WEB_ROOT/index.html";
@@ -88,6 +92,7 @@ echo "Living standard output to $WEB_ROOT"
 echo ""
 
 # Standard service worker and robots.txt
+header "Getting the service worker hash..."
 SERVICE_WORKER_SHA=$(curl --fail https://resources.whatwg.org/standard-service-worker.js | shasum | cut -c 1-40)
 echo "\"use strict\";
 importScripts(\"https://resources.whatwg.org/standard-service-worker.js\");
@@ -99,13 +104,13 @@ Disallow: /commit-snapshots/" > "$WEB_ROOT/robots.txt"
 echo "Service worker and robots.txt output to $WEB_ROOT"
 echo ""
 
-echo "Overview of generated files:"
+header "Overview of generated files:"
 find "$WEB_ROOT" -type f -print
 echo ""
 
 # Run the HTML checker only when building on Travis
 if [[ "$TRAVIS" == "true" ]]; then
-    echo "Running HTML checker..."
+    header "Running the HTML checker..."
     curl -O https://sideshowbarker.net/nightlies/jar/vnu.jar
     /usr/lib/jvm/java-8-oracle/jre/bin/java -jar vnu.jar --skip-non-html --Werror --filterpattern "$CHECKER_FILTER" "$WEB_ROOT"
     echo ""
@@ -113,6 +118,7 @@ fi
 
 # Deploy from Travis on push to master branch only
 if [[ "$TRAVIS_BRANCH" == "master" && "$TRAVIS_PULL_REQUEST" == "false" ]]; then
+    header "rsync to the WHATWG server..."
     # Get the deploy key by using Travis's stored variables to decrypt deploy_key.enc
     ENCRYPTED_KEY_VAR="encrypted_${ENCRYPTION_LABEL}_key"
     ENCRYPTED_IV_VAR="encrypted_${ENCRYPTION_LABEL}_iv"
@@ -122,8 +128,6 @@ if [[ "$TRAVIS_BRANCH" == "master" && "$TRAVIS_PULL_REQUEST" == "false" ]]; then
     chmod 600 deploy_key
     eval "$(ssh-agent -s)"
     ssh-add deploy_key
-
-    echo "rsync to the WHATWG server..."
     echo "$SERVER $SERVER_PUBLIC_KEY" > known_hosts
     # No --delete as that would require extra care to not delete snapshots.
     # --chmod=D755,F644 means read-write for user, read-only for others.
