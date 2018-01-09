@@ -1,21 +1,18 @@
 #!/bin/bash
 set -e
 
-# This makes it run on master (when not a PR) and locally (so it can be tested)
-if [[ "$TRAVIS" != "true" || "$TRAVIS_BRANCH" == "master" && "$TRAVIS_PULL_REQEST" == "false" ]]; then
-    echo "Importing content from whatwg/sg and making it suitable for whatwg.org"
-    git clone https://github.com/whatwg/sg sg
-    ./convert-policy.py sg/SG\ Policy.md policy-template.html sg/policy-link-mapping.txt  > whatwg.org/sg-policy
-    ./convert-policy.py sg/Workstream\ Policy.md policy-template.html sg/policy-link-mapping.txt  > whatwg.org/workstream-policy
-    ./convert-policy.py sg/SG\ Agreement.md policy-template.html sg/policy-link-mapping.txt  > whatwg.org/sg-agreement
-    ./convert-policy.py sg/Principles.md policy-template.html sg/policy-link-mapping.txt  > whatwg.org/principles
-    ./convert-policy.py sg/IPR\ Policy.md policy-template.html sg/policy-link-mapping.txt  > whatwg.org/ipr-policy
-    rm -rf sg
-    echo "Markdown converted to HTML"
-    echo ""
-fi
+echo "Importing content from whatwg/sg and making it suitable for whatwg.org"
+git clone --depth=1 https://github.com/whatwg/sg sg
+./convert-policy.py sg/SG\ Policy.md policy-template.html sg/policy-link-mapping.txt  > whatwg.org/sg-policy
+./convert-policy.py sg/Workstream\ Policy.md policy-template.html sg/policy-link-mapping.txt  > whatwg.org/workstream-policy
+./convert-policy.py sg/SG\ Agreement.md policy-template.html sg/policy-link-mapping.txt  > whatwg.org/sg-agreement
+./convert-policy.py sg/Principles.md policy-template.html sg/policy-link-mapping.txt  > whatwg.org/principles
+./convert-policy.py sg/IPR\ Policy.md policy-template.html sg/policy-link-mapping.txt  > whatwg.org/ipr-policy
+rm -rf sg
+echo "Markdown converted to HTML"
+echo ""
 
-# This makes sure that only changes to the master branch get deployed
+# This ensures that only changes to the master branch get deployed
 if [[ "$TRAVIS_BRANCH" != "master" || "$TRAVIS_PULL_REQUEST" != "false" ]]; then
     echo "Skipping deploy"
 else
@@ -30,4 +27,5 @@ else
     ssh-add deploy_key
     echo "$SERVER $SERVER_PUBLIC_KEY" > known_hosts
     rsync --archive --chmod="D755,F644" --verbose --compress --delete --rsh="ssh -o UserKnownHostsFile=known_hosts" ./whatwg.org ./*.whatwg.org "deploy@$SERVER:/var/www/"
+    echo ""
 fi
