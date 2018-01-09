@@ -60,8 +60,12 @@ run_post_build_step() {
     fi
 }
 
-echo "Starting commit snapshot..."
+echo "Checking for errors and warnings in the Bikeshed source..."
+curl https://api.csswg.org/bikeshed/ -f -F file=@"$INPUT_FILE" -F output=err \
+     -F md-Text-Macro="SNAPSHOT-LINK ERROR WARNING CHECK";
 echo ""
+
+echo "Starting commit snapshot..."
 COMMIT_DIR="$WEB_ROOT/$COMMITS_DIR/$SHA"
 mkdir -p "$COMMIT_DIR"
 curl https://api.csswg.org/bikeshed/ -f -F file=@"$INPUT_FILE" -F md-status=LS-COMMIT \
@@ -75,7 +79,6 @@ echo "Commit snapshot output to $COMMIT_DIR"
 echo ""
 
 echo "Starting living standard..."
-echo ""
 curl https://api.csswg.org/bikeshed/ -f -F file=@"$INPUT_FILE" \
      -F md-Text-Macro="SNAPSHOT-LINK $SNAPSHOT_LINK" \
      > "$WEB_ROOT/index.html";
@@ -96,13 +99,16 @@ Disallow: /commit-snapshots/" > "$WEB_ROOT/robots.txt"
 echo "Service worker and robots.txt output to $WEB_ROOT"
 echo ""
 
+echo "Overview of generated files:"
 find "$WEB_ROOT" -type f -print
 echo ""
 
 # Run the HTML checker only when building on Travis
 if [[ "$TRAVIS" == "true" ]]; then
+    echo "Running HTML checker..."
     curl -O https://sideshowbarker.net/nightlies/jar/vnu.jar
     /usr/lib/jvm/java-8-oracle/jre/bin/java -jar vnu.jar --skip-non-html --Werror --filterpattern "$CHECKER_FILTER" "$WEB_ROOT"
+    echo ""
 fi
 
 # Deploy from Travis on push to master branch only
@@ -117,11 +123,12 @@ if [[ "$TRAVIS_BRANCH" == "master" && "$TRAVIS_PULL_REQUEST" == "false" ]]; then
     eval "$(ssh-agent -s)"
     ssh-add deploy_key
 
-    # rsync to the WHATWG server. No --delete as that would require extra care
-    # to not delete snapshots. --chmod=D755,F644 means read-write for user,
-    # read-only for others.
+    echo "rsync to the WHATWG server..."
     echo "$SERVER $SERVER_PUBLIC_KEY" > known_hosts
+    # No --delete as that would require extra care to not delete snapshots.
+    # --chmod=D755,F644 means read-write for user, read-only for others.
     rsync --rsh="ssh -o UserKnownHostsFile=known_hosts" --verbose \
           --archive --chmod=D755,F644 --compress \
           "$WEB_ROOT" deploy@$SERVER:/var/www/
+    echo ""
 fi
