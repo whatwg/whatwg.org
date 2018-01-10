@@ -88,7 +88,6 @@ def markdown_title(policy_markdown):
     for line in policy_markdown.split('\n'):
         if line.startswith("#"):
             title = line.lstrip("# ")
-            tile = "WHATWG " + title if "WHATWG" not in title else title
             replacement_line = re.sub(r'^# WHATWG ', '# ', line)
             policy_markdown = policy_markdown.replace(line, replacement_line)
 
