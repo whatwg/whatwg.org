@@ -68,18 +68,18 @@ curlretry() {
   curl --fail --retry 2 "$@"
 }
 
-bikeshed() {
+curlbikeshed() {
   curlretry https://api.csswg.org/bikeshed/ -F file=@"$INPUT_FILE" "$@"
 }
 
 header "Checking for errors and warnings using Bikeshed..."
-bikeshed -F output=err -F md-Text-Macro="SNAPSHOT-LINK ERROR WARNING CHECK"
+curlbikeshed -F output=err -F md-Text-Macro="SNAPSHOT-LINK ERROR WARNING CHECK"
 echo ""
 
 header "Starting commit snapshot..."
 COMMIT_DIR="$WEB_ROOT/$COMMITS_DIR/$SHA"
 mkdir -p "$COMMIT_DIR"
-bikeshed -F md-status=LS-COMMIT \
+curlbikeshed -F md-status=LS-COMMIT \
          -F md-warning="Commit $SHA $COMMIT_URL_BASE$SHA replaced by $LS_URL" \
          -F md-title="$H1 Standard (Commit Snapshot $SHA)" \
          -F md-Text-Macro="SNAPSHOT-LINK $BACK_TO_LS_LINK" \
@@ -90,7 +90,7 @@ echo "Commit snapshot output to $COMMIT_DIR"
 echo ""
 
 header "Starting living standard..."
-bikeshed -F md-Text-Macro="SNAPSHOT-LINK $SNAPSHOT_LINK" \
+curlbikeshed -F md-Text-Macro="SNAPSHOT-LINK $SNAPSHOT_LINK" \
          > "$WEB_ROOT/index.html";
 copy_extra_files "$WEB_ROOT"
 run_post_build_step "$WEB_ROOT"
