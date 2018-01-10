@@ -64,28 +64,34 @@ header() {
   echo -e "\x1b[1m$1\x1b[0m"
 }
 
+curlretry() {
+  curl --fail --retry 2 "$@"
+}
+
+curlbikeshed() {
+  curlretry https://api.csswg.org/bikeshed/ -F file=@"$INPUT_FILE" "$@"
+}
+
 header "Checking for errors and warnings using Bikeshed..."
-curl https://api.csswg.org/bikeshed/ -f -F file=@"$INPUT_FILE" -F output=err \
-     -F md-Text-Macro="SNAPSHOT-LINK ERROR WARNING CHECK";
+curlbikeshed -F output=err -F md-Text-Macro="SNAPSHOT-LINK ERROR WARNING CHECK"
 echo ""
 
 header "Starting commit snapshot..."
 COMMIT_DIR="$WEB_ROOT/$COMMITS_DIR/$SHA"
 mkdir -p "$COMMIT_DIR"
-curl https://api.csswg.org/bikeshed/ -f -F file=@"$INPUT_FILE" -F md-status=LS-COMMIT \
-     -F md-warning="Commit $SHA $COMMIT_URL_BASE$SHA replaced by $LS_URL" \
-     -F md-title="$H1 Standard (Commit Snapshot $SHA)" \
-     -F md-Text-Macro="SNAPSHOT-LINK $BACK_TO_LS_LINK" \
-     > "$COMMIT_DIR/index.html";
+curlbikeshed -F md-status=LS-COMMIT \
+         -F md-warning="Commit $SHA $COMMIT_URL_BASE$SHA replaced by $LS_URL" \
+         -F md-title="$H1 Standard (Commit Snapshot $SHA)" \
+         -F md-Text-Macro="SNAPSHOT-LINK $BACK_TO_LS_LINK" \
+         > "$COMMIT_DIR/index.html";
 copy_extra_files "$COMMIT_DIR"
 run_post_build_step "$COMMIT_DIR"
 echo "Commit snapshot output to $COMMIT_DIR"
 echo ""
 
 header "Starting living standard..."
-curl https://api.csswg.org/bikeshed/ -f -F file=@"$INPUT_FILE" \
-     -F md-Text-Macro="SNAPSHOT-LINK $SNAPSHOT_LINK" \
-     > "$WEB_ROOT/index.html";
+curlbikeshed -F md-Text-Macro="SNAPSHOT-LINK $SNAPSHOT_LINK" \
+         > "$WEB_ROOT/index.html";
 copy_extra_files "$WEB_ROOT"
 run_post_build_step "$WEB_ROOT"
 echo "Living standard output to $WEB_ROOT"
@@ -93,7 +99,7 @@ echo ""
 
 # Standard service worker and robots.txt
 header "Getting the service worker hash..."
-SERVICE_WORKER_SHA=$(curl --fail https://resources.whatwg.org/standard-service-worker.js | shasum | cut -c 1-40)
+SERVICE_WORKER_SHA=$(curlretry https://resources.whatwg.org/standard-service-worker.js | shasum | cut -c 1-40)
 echo "\"use strict\";
 importScripts(\"https://resources.whatwg.org/standard-service-worker.js\");
 // Version (for service worker freshness check): $SERVICE_WORKER_SHA" \
