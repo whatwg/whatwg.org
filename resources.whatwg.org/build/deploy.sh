@@ -6,7 +6,7 @@ set -o nounset
 # https://github.com/whatwg/whatwg.org/tree/master/resources.whatwg.org/build.
 # See README.md for documentation.
 
-SHORTNAME=$(git config --local remote.origin.url | sed -n "s#.*/\([^.]*\)\.git#\1#p")
+SHORTNAME=$(git config --local remote.origin.url | sed -n 's#.*/\([^.]*\)\.git#\1#p')
 INPUT_FILE=$(find . -maxdepth 1 -name "*.bs" -print -quit)
 H1=$(grep < "$INPUT_FILE" "^H1: .*$" | sed -e "s/H1: //")
 
@@ -60,21 +60,21 @@ run_post_build_step() {
 }
 
 header() {
-  echo -e "\x1b[1m$1\x1b[0m"
+    echo -e "\\x1b[1m$1\\x1b[0m"
 }
 
 curlretry() {
-  curl --fail --retry 2 "$@"
+    curl --fail --retry 2 "$@"
 }
 
 curlbikeshed() {
-  curlretry https://api.csswg.org/bikeshed/ -F file=@"$INPUT_FILE" "$@"
+    curlretry https://api.csswg.org/bikeshed/ -F file=@"$INPUT_FILE" "$@"
 }
 
 header "Linting the source:"
 MATCHES=$(
   perl -ne '$/ = "\n\n"; print "$_" if (/chosing|approprate|occured|elemenst|\bteh\b|\blabelled\b|\blabelling\b|\bhte\b|taht|linx\b|speciication|attribue|kestern|horiontal|\battribute\s+attribute\b|\bthe\s+the\b|\bthe\s+there\b|\bfor\s+for\b|\bor\s+or\b|\bany\s+any\b|\bbe\s+be\b|\bwith\s+with\b|\bis\s+is\b/si)' "$INPUT_FILE" | perl -lpe 'print "\nPossible typos:" if $. == 1'
-  grep -niE '((anonym|author|categor|custom|emphas|initial|local|minim|neutral|normal|optim|raster|real|recogn|roman|serial|standard|summar|synchron|synthes|token|optim)is(e|ing|ation|ability)|(col|behavi|hono|fav)our)' "$INPUT_FILE" | grep -vE "\ben-GB\b" | perl -lpe 'print "\nen-GB spelling (use lang=\"en-GB\", or <!-- en-GB -->, on the same line to override):" if $. == 1'
+  grep -niE '((anonym|author|categor|custom|emphas|initial|local|minim|neutral|normal|optim|raster|real|recogn|roman|serial|standard|summar|synchron|synthes|token|optim)is(e|ing|ation|ability)|(col|behavi|hono|fav)our)' "$INPUT_FILE" | grep -vE '\ben-GB\b' | perl -lpe 'print "\nen-GB spelling (use lang=\"en-GB\", or <!-- en-GB -->, on the same line to override):" if $. == 1'
   perl -ne '$/ = "\n\n"; print "$_" if (/\ban\s+(<[^>]*>)*(?!(L\b|http|https|href|hgroup|rb|rp|rt|rtc|li|xml|svg|svgmatrix|hour|hr|xhtml|xslt|xbl|nntp|mpeg|m[ions]|mtext|merror|h[1-6]|xmlns|xpath|s|x|sgml|huang|srgb|rsa|only|option|optgroup)\b|html)[b-df-hj-np-tv-z]/si or /\b(?<![<\/;])a\s+(?!<!--grammar-check-override-->)(<[^>]*>)*(?!&gt|one)(?:(L\b|http|https|href|hgroup|rt|rp|li|xml|svg|svgmatrix|hour|hr|xhtml|xslt|xbl|nntp|mpeg|m[ions]|mtext|merror|h[1-6]|xmlns|xpath|s|x|sgml|huang|srgb|rsa|only|option|optgroup)\b|html|[aeio])/si)' "$INPUT_FILE" | perl -lpe 'print "\nPossible grammar problem: \"a\" instead of \"an\" or vice versa (to override, use e.g. \"a <!--grammar-check-override-->apple\"):" if $. == 1'
   grep -ni 'and/or' "$INPUT_FILE" | perl -lpe 'print "\nOccurrences of making Ms2ger unhappy and/or annoyed:" if $. == 1'
   grep -niE '\s+$' "$INPUT_FILE" | perl -lpe 'print "\nTrailing whitespace:" if $. == 1'
@@ -114,7 +114,20 @@ echo ""
 # Standard service worker and robots.txt
 header "Getting the service worker hash..."
 SERVICE_WORKER_SHA=$(curlretry https://resources.whatwg.org/standard-service-worker.js | shasum | cut -c 1-40)
+
+EXTRA_FILES_JS=""
+if [[ "$EXTRA_FILES" != "" ]]; then
+    # Will not pass shellcheck: https://stackoverflow.com/q/45931553/3191
+    # shellcheck disable=SC2206
+    EXTRA_FILES_ARR=($EXTRA_FILES)
+    EXTRA_FILES_JS="
+self.extraFiles = [
+$(printf '  "/%s",\n' "${EXTRA_FILES_ARR[@]}")
+];
+"
+fi
 echo "\"use strict\";
+$EXTRA_FILES_JS
 importScripts(\"https://resources.whatwg.org/standard-service-worker.js\");
 // Version (for service worker freshness check): $SERVICE_WORKER_SHA" \
      > "$WEB_ROOT/service-worker.js"
