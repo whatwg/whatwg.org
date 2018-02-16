@@ -94,10 +94,10 @@ header "Starting commit snapshot..."
 COMMIT_DIR="$WEB_ROOT/$COMMITS_DIR/$SHA"
 mkdir -p "$COMMIT_DIR"
 curlbikeshed -F md-status=LS-COMMIT \
-         -F md-warning="Commit $SHA $COMMIT_URL_BASE$SHA replaced by $LS_URL" \
-         -F md-title="$H1 Standard (Commit Snapshot $SHA)" \
-         -F md-Text-Macro="SNAPSHOT-LINK $BACK_TO_LS_LINK" \
-         > "$COMMIT_DIR/index.html";
+             -F md-warning="Commit $SHA $COMMIT_URL_BASE$SHA replaced by $LS_URL" \
+             -F md-title="$H1 Standard (Commit Snapshot $SHA)" \
+             -F md-Text-Macro="SNAPSHOT-LINK $BACK_TO_LS_LINK" \
+             > "$COMMIT_DIR/index.html";
 copy_extra_files "$COMMIT_DIR"
 run_post_build_step "$COMMIT_DIR"
 echo "Commit snapshot output to $COMMIT_DIR"
@@ -105,7 +105,7 @@ echo ""
 
 header "Starting living standard..."
 curlbikeshed -F md-Text-Macro="SNAPSHOT-LINK $SNAPSHOT_LINK" \
-         > "$WEB_ROOT/index.html";
+             > "$WEB_ROOT/index.html";
 copy_extra_files "$WEB_ROOT"
 run_post_build_step "$WEB_ROOT"
 echo "Living standard output to $WEB_ROOT"
