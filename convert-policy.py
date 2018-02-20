@@ -87,7 +87,7 @@ def preprocess_markdown(policy_markdown, link_mapping):
 def markdown_title(policy_markdown):
     for line in policy_markdown.split('\n'):
         if line.startswith("# WHATWG "):
-            title = line.lstrip("# WHATWG ")
+            title = line[len("# WHATWG "):]
             policy_markdown = policy_markdown.replace(line, "")
 
             return (title, policy_markdown)
