@@ -4,6 +4,12 @@ This repository hosts [whatwg.org](https://whatwg.org/) and some related sites. 
 
 We are committed to providing a friendly, safe, and welcoming environment for all. Please read and respect the [WHATWG Code of Conduct](https://whatwg.org/code-of-conduct).
 
+### Location of files
+
+Several pages present on https://whatwg.org/ are generated or copied from the [whatwg/sg](https://github.com/whatwg/sg) repository. This happens in the `deploy.sh` script.
+
+So if you're confused as to why the `whatwg.org` directory doesn't have everything you see on the site, that's probably why.
+
 ### Acknowledgments
 
 Thanks to [DigitalOcean](https://www.digitalocean.com/) for sponsoring the hosting of whatwg.org.
