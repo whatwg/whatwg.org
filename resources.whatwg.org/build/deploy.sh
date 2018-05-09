@@ -111,6 +111,21 @@ run_post_build_step "$WEB_ROOT"
 echo "Living standard output to $WEB_ROOT"
 echo ""
 
+header "Starting review drafts..."
+for f in "$REVIEW_DRAFTS_DIR"/*.bs; do
+ [ -e "$f" ] || continue # http://mywiki.wooledge.org/BashPitfalls#line-80
+
+ BASENAME=$(basename "$f" .bs)
+ DRAFT_DIR="$WEB_ROOT/review-drafts/$BASENAME"
+ mkdir -p "$DRAFT_DIR"
+ curlbikeshed -F md-Status="RD" \
+              > "$DRAFT_DIR/index.html"
+ copy_extra_files "$DRAFT_DIR"
+ run_post_build_step "$DRAFT_DIR"
+ echo "Review draft output to $DRAFT_DIR"
+ echo ""
+done
+
 # Standard service worker and robots.txt
 header "Getting the service worker hash..."
 SERVICE_WORKER_SHA=$(curlretry https://resources.whatwg.org/standard-service-worker.js | shasum | cut -c 1-40)
@@ -133,7 +148,8 @@ importScripts(\"https://resources.whatwg.org/standard-service-worker.js\");
      > "$WEB_ROOT/service-worker.js"
 echo "User-agent: *
 Disallow: /branch-snapshots/
-Disallow: /commit-snapshots/" > "$WEB_ROOT/robots.txt"
+Disallow: /commit-snapshots/
+Disallow: /review-drafts/" > "$WEB_ROOT/robots.txt"
 echo "Service worker and robots.txt output to $WEB_ROOT"
 echo ""
 
