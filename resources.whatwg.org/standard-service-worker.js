@@ -11,6 +11,7 @@ const standardShortname = location.host.split(".")[0];
 const cacheKey = "v4";
 const toCache = [
   location.origin + "/",
+  "https://resources.whatwg.org/spec.css",
   "https://resources.whatwg.org/standard.css",
   "https://resources.whatwg.org/file-issue.js",
   "https://resources.whatwg.org/commit-snapshot-shortcut-key.js",
