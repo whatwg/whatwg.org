@@ -12,7 +12,6 @@ const cacheKey = "v4";
 const toCache = [
   location.origin + "/",
   "https://resources.whatwg.org/standard.css",
-  "https://resources.whatwg.org/dfn.js",
   "https://resources.whatwg.org/file-issue.js",
   "https://resources.whatwg.org/commit-snapshot-shortcut-key.js",
   standardShortname === "html" ? "https://resources.whatwg.org/logo.svg"
