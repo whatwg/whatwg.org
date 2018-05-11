@@ -11,7 +11,7 @@ INPUT_FILE=$(find . -maxdepth 1 -name "*.bs" -print -quit)
 REVIEW_DRAFT="review-drafts/$(date +'%Y-%m').bs"
 # The very unusual way of creating a newline here is done to keep macOS happy
 cp "$INPUT_FILE" temp
-sed 's/^Group: WHATWG$/&\'$'\n'"Date: $(date +'%Y-%m-%d')/g" temp > "$REVIEW_DRAFT"
+sed 's/^Group: WHATWG$/&'''$'\n'"Date: $(date +'%Y-%m-%d')/g" temp > "$REVIEW_DRAFT"
 rm temp
 echo "Created Review Draft at $REVIEW_DRAFT"
 echo "Differences with $INPUT_FILE:"
