@@ -57,7 +57,7 @@ Whether the script is running a local vs. Travis deploy is determined by checkin
 
 ## `review.sh`
 
-The `review.sh` script is also used by most WHATWG standards and is meant to be run locally to generate a [Review Draft](https://whatwg.org/workstream-policy#review-drafts).
+The `review.sh` script is also used by most WHATWG standards and is meant to be run locally to generate a new [Review Draft](https://whatwg.org/workstream-policy#review-drafts).
 
 It can be run with
 
