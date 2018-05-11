@@ -112,15 +112,20 @@ run_post_build_step "$WEB_ROOT"
 echo "Living standard output to $WEB_ROOT"
 echo ""
 
-header "Starting review drafts..."
+header "Starting review drafts (if applicable)..."
 echo "Note: review drafts must be added or changed in a single commit on master"
 for REVIEW_DRAFT in "$REVIEW_DRAFTS_DIR"/*.bs; do
-    [ -e "$REVIEW_DRAFT" ] || continue # http://mywiki.wooledge.org/BashPitfalls#line-80
+    # http://mywiki.wooledge.org/BashPitfalls#line-80
+    if [[ ! -e "$REVIEW_DRAFT" ]]; then
+        continue
+    fi
+
     if [[ "$TRAVIS_PULL_REQUEST" == "true" ]]; then
         CHANGED_FILES=$(git diff --name-only master..HEAD)
     else
         CHANGED_FILES=$(git diff --name-only HEAD~1)
     fi
+
     for CHANGED in $CHANGED_FILES; do # Omit quotes around variable to split on whitespace
         if [[ "$REVIEW_DRAFT" != "$CHANGED" ]]; then
             continue
