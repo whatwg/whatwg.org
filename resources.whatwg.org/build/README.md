@@ -51,4 +51,18 @@ Similarly, a local deploy can be performed with
 curl --remote-name --fail https://resources.whatwg.org/build/deploy.sh && bash ./deploy.sh
 ```
 
+or more typically `make deploy`.
+
 Whether the script is running a local vs. Travis deploy is determined by checking [the `$TRAVIS` environment variable](https://docs.travis-ci.com/user/environment-variables/#Default-Environment-Variables).
+
+## `review.sh`
+
+The `review.sh` script is also used by most WHATWG standards and is meant to be run locally to generate a [Review Draft](https://whatwg.org/workstream-policy#review-drafts).
+
+It can be run with
+
+```bash
+curl --remote-name --fail https://resources.whatwg.org/build/review.sh && bash ./review.sh
+```
+
+or more typically `make review`.

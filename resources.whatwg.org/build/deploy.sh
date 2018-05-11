@@ -114,19 +114,19 @@ echo ""
 
 header "Starting review drafts..."
 echo "Note: review drafts must be added or changed in a single commit on master"
-for f in "$REVIEW_DRAFTS_DIR"/*.bs; do
-    [ -e "$f" ] || continue # http://mywiki.wooledge.org/BashPitfalls#line-80
+for REVIEW_DRAFT in "$REVIEW_DRAFTS_DIR"/*.bs; do
+    [ -e "$REVIEW_DRAFT" ] || continue # http://mywiki.wooledge.org/BashPitfalls#line-80
     if [[ "$TRAVIS_PULL_REQUEST" == "true" ]]; then
         CHANGED_FILES=$(git diff --name-only master..HEAD)
     else
         CHANGED_FILES=$(git diff --name-only HEAD~1)
     fi
-    for change in $CHANGED_FILES; do # Omit quotes around variable to split on whitespace
-        if [[ "$f" != "$change" ]]; then
+    for CHANGED in $CHANGED_FILES; do # Omit quotes around variable to split on whitespace
+        if [[ "$REVIEW_DRAFT" != "$CHANGED" ]]; then
             continue
         fi
         echo ""
-        BASENAME=$(basename "$f" .bs)
+        BASENAME=$(basename "$REVIEW_DRAFT" .bs)
         DRAFT_DIR="$WEB_ROOT/$REVIEW_DRAFTS_DIR/$BASENAME"
         mkdir -p "$DRAFT_DIR"
         curlbikeshed -F md-Status="RD" \
