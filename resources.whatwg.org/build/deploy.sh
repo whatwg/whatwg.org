@@ -122,7 +122,7 @@ for f in "$REVIEW_DRAFTS_DIR"/*.bs; do
         CHANGED_FILES=$(git diff --name-only HEAD~1)
     fi
     for change in "$CHANGED_FILES"; do
-        if [[ f != change ]]; then
+        if [[ "$f" != "$change" ]]; then
             continue
         fi
         echo ""
