@@ -14,6 +14,7 @@ LS_URL="https://$SHORTNAME.spec.whatwg.org/"
 COMMIT_URL_BASE="https://github.com/whatwg/$SHORTNAME/commit/"
 WEB_ROOT="$SHORTNAME.spec.whatwg.org"
 COMMITS_DIR="commit-snapshots"
+REVIEW_DRAFTS_DIR="review-drafts"
 
 # Optional environment variables (won't be set for local deploys)
 TRAVIS=${TRAVIS:-false}
@@ -112,19 +113,30 @@ echo "Living standard output to $WEB_ROOT"
 echo ""
 
 header "Starting review drafts..."
+echo "Note: review drafts must be added or changed in a single commit on master"
 for f in "$REVIEW_DRAFTS_DIR"/*.bs; do
- [ -e "$f" ] || continue # http://mywiki.wooledge.org/BashPitfalls#line-80
-
- BASENAME=$(basename "$f" .bs)
- DRAFT_DIR="$WEB_ROOT/review-drafts/$BASENAME"
- mkdir -p "$DRAFT_DIR"
- curlbikeshed -F md-Status="RD" \
-              > "$DRAFT_DIR/index.html"
- copy_extra_files "$DRAFT_DIR"
- run_post_build_step "$DRAFT_DIR"
- echo "Review draft output to $DRAFT_DIR"
- echo ""
+    [ -e "$f" ] || continue # http://mywiki.wooledge.org/BashPitfalls#line-80
+    if [[ "$TRAVIS_PULL_REQUEST" == "true" ]]; then
+        CHANGED_FILES=$(git diff --name-only master..HEAD)
+    else
+        CHANGED_FILES=$(git diff --name-only HEAD~1)
+    fi
+    for change in "$CHANGED_FILES"; do
+        if [[ f != change ]]; then
+            continue
+        fi
+        echo ""
+        BASENAME=$(basename "$f" .bs)
+        DRAFT_DIR="$WEB_ROOT/$REVIEW_DRAFTS_DIR/$BASENAME"
+        mkdir -p "$DRAFT_DIR"
+        curlbikeshed -F md-Status="RD" \
+                     > "$DRAFT_DIR/index.html"
+        copy_extra_files "$DRAFT_DIR"
+        run_post_build_step "$DRAFT_DIR"
+        echo "Review draft output to $DRAFT_DIR"
+    done
 done
+echo ""
 
 # Standard service worker and robots.txt
 header "Getting the service worker hash..."
