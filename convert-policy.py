@@ -1,30 +1,20 @@
 #!/usr/bin/env python
 
-from __future__ import print_function
-import argparse
+import codecs
 import markdown
 from mdx_partial_gfm import PartialGithubFlavoredMarkdownExtension
 import re
-import string
-
-
-def parse_arguments():
-    parser = argparse.ArgumentParser(description="Convert a Markdown-formatted WHATWG policy to HTML suitable for publishing on whatwg.org")
-    parser.add_argument('policy', metavar='POLICY', type=argparse.FileType(), help="The markdown policy document to convert")
-    parser.add_argument('template', metavar='TEMPLATE', type=argparse.FileType(), help="A template to add appropriate boilerplate to the policy")
-    parser.add_argument('link_mapping', metavar='MAPPING', type=argparse.FileType(), help="File defining link mappings")
-
-    args = parser.parse_args()
-
-    return (args.policy, args.template, args.link_mapping)
 
 
 def lower_headers(policy_markdown):
     return re.sub(r'^#', '##', policy_markdown, flags=re.MULTILINE)
 
 
-def apply_link_mapping(policy_markdown, link_mapping):
-    mapping_pairs = [line.split('=',1) for line in link_mapping.split("\n") if len(line) > 0]
+def parse_link_mapping(link_mapping):
+    return [line.split('=',1) for line in link_mapping.split("\n") if len(line) > 0]
+
+
+def apply_link_mapping(policy_markdown, mapping_pairs):
     for mapping in mapping_pairs:
         policy_markdown = policy_markdown.replace(mapping[0], mapping[1])
 
@@ -73,9 +63,9 @@ def avoid_link_false_positives(policy_markdown):
     return re.sub(r'[]] [(]', '] \\(', policy_markdown)
 
 
-def preprocess_markdown(policy_markdown, link_mapping):
+def preprocess_markdown(policy_markdown, mapping_pairs):
     result = lower_headers(policy_markdown)
-    result = apply_link_mapping(result, link_mapping)
+    result = apply_link_mapping(result, mapping_pairs)
     result = add_header_anchors(result)
     result = rewrite_defs(result)
     result = fix_nested_lists(result)
@@ -96,19 +86,22 @@ def markdown_title(policy_markdown):
 
 
 def main():
-    (policy_file, template_file, link_mapping_file) = parse_arguments()
-    policy_markdown = policy_file.read().decode('utf-8')
-    template = template_file.read().decode('utf-8')
-    link_mapping = link_mapping_file.read().decode('utf-8')
+    link_mapping_pairs = parse_link_mapping(codecs.open("sg/policy-link-mapping.txt", "r", encoding="utf-8").read())
+    template = codecs.open("policy-template.html", "r", encoding="utf-8").read()
+    for resource, link in link_mapping_pairs:
+        if link.startswith("https:"):
+            continue
 
-    (title, policy_markdown) = markdown_title(policy_markdown)
-    preprocessed_policy_markdown = preprocess_markdown(policy_markdown, link_mapping)
+        policy_markdown = codecs.open("sg" + resource[1:].replace("%20", " "), "r", encoding="utf-8").read()
 
-    policy_html = markdown.markdown(preprocessed_policy_markdown, extensions=[PartialGithubFlavoredMarkdownExtension()])
+        (title, policy_markdown) = markdown_title(policy_markdown)
+        preprocessed_policy_markdown = preprocess_markdown(policy_markdown, link_mapping_pairs)
 
-    final_policy_html = template.replace("@POLICY_GOES_HERE@", policy_html)
-    final_policy_html = final_policy_html.replace("@TITLE_GOES_HERE@", title)
+        policy_html = markdown.markdown(preprocessed_policy_markdown, extensions=[PartialGithubFlavoredMarkdownExtension()])
 
-    print(final_policy_html.encode('utf-8'))
+        final_policy_html = template.replace("@POLICY_GOES_HERE@", policy_html)
+        final_policy_html = final_policy_html.replace("@TITLE_GOES_HERE@", title)
+
+        codecs.open("whatwg.org/" + link, "w", encoding="utf-8").write(final_policy_html)
 
 main()
