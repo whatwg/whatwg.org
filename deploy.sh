@@ -10,6 +10,14 @@ rm -rf sg
 echo "Markdown converted to HTML"
 echo ""
 
+echo "Creating snapshot logos"
+for LOGO in resources.whatwg.org/logo*.svg; do
+    BASENAME=$(basename "$LOGO" .svg)
+    sed s/#3c790a/#666/g < "$LOGO" > "resources.whatwg.org/$BASENAME-snapshot.svg"
+done
+echo "Snapshot logos created"
+echo ""
+
 # This ensures that only changes to the master branch get deployed
 if [[ "$TRAVIS_BRANCH" != "master" || "$TRAVIS_PULL_REQUEST" != "false" ]]; then
     echo "Skipping deploy"
