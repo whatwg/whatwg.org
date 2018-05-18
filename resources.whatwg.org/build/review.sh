@@ -9,6 +9,8 @@ set -o nounset
 mkdir -p "review-drafts"
 INPUT_FILE=$(find . -maxdepth 1 -name "*.bs" -print -quit)
 REVIEW_DRAFT="review-drafts/$(date +'%Y-%m').bs"
+# The backslash+linefeed literal is for sed.
+# shellcheck disable=SC1004
 sed 's/^Group: WHATWG$/&\
 '"Date: $(date +'%Y-%m-%d')/g" < "$INPUT_FILE" > "$REVIEW_DRAFT"
 echo "Created Review Draft at $REVIEW_DRAFT"
