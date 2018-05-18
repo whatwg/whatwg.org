@@ -72,51 +72,6 @@ curlbikeshed() {
     curlretry https://api.csswg.org/bikeshed/ -F file=@"$INPUT_FILE" "$@"
 }
 
-# The following function is also part of whatwg/html-build's build.sh. It's copy-and-pasted here and
-# therefore has a different coding style.
-#
-# From http://stackoverflow.com/a/12498485
-function relativePath {
-  # both $1 and $2 are absolute paths beginning with /
-  # returns relative path to $2 from $1
-  local source=$1
-  local target=$2
-
-  local commonPart=$source
-  local result=""
-
-  while [[ "${target#$commonPart}" == "${target}" ]]; do
-    # no match, means that candidate common part is not correct
-    # go up one level (reduce common part)
-    commonPart=$(dirname "$commonPart")
-    # and record that we went back, with correct / handling
-    if [[ -z $result ]]; then
-      result=".."
-    else
-      result="../$result"
-    fi
-  done
-
-  if [[ $commonPart == "/" ]]; then
-    # special case for root (no common path)
-    result="$result/"
-  fi
-
-  # since we now have identified the common part,
-  # compute the non-common part
-  local forwardPart="${target#$commonPart}"
-
-  # and now stick all parts together
-  if [[ -n $result ]] && [[ -n $forwardPart ]]; then
-    result="$result$forwardPart"
-  elif [[ -n $forwardPart ]]; then
-    # extra slash removal
-    result="${forwardPart:1}"
-  fi
-
-  echo "$result"
-}
-
 header "Linting the source:"
 MATCHES=$(
   perl -ne '$/ = "\n\n"; print "$_" if (/chosing|approprate|occured|elemenst|\bteh\b|\blabelled\b|\blabelling\b|\bhte\b|taht|linx\b|speciication|attribue|kestern|horiontal|\battribute\s+attribute\b|\bthe\s+the\b|\bthe\s+there\b|\bfor\s+for\b|\bor\s+or\b|\bany\s+any\b|\bbe\s+be\b|\bwith\s+with\b|\bis\s+is\b/si)' "$INPUT_FILE" | perl -lpe 'print "\nPossible typos:" if $. == 1'
@@ -159,33 +114,24 @@ echo ""
 
 header "Starting review drafts (if applicable)..."
 echo "Note: review drafts must be added or changed in a single commit on master"
-for REVIEW_DRAFT in "$REVIEW_DRAFTS_DIR"/*.bs; do
-    # http://mywiki.wooledge.org/BashPitfalls#line-80
-    if [[ ! -e "$REVIEW_DRAFT" ]]; then
+if [[ "$TRAVIS_PULL_REQUEST" == "true" ]]; then
+    CHANGED_FILES=$(git diff --name-only master..HEAD)
+else
+    CHANGED_FILES=$(git diff --name-only HEAD^ HEAD)
+fi
+for CHANGED in $CHANGED_FILES; do # Omit quotes around variable to split on whitespace
+    if ! [[ "$CHANGED" =~ ^review-drafts/.*.bs$ ]]; then
         continue
     fi
-    RELATIVE_REVIEW_DRAFT=$(relativePath "$WEB_ROOT" "$REVIEW_DRAFT")
-
-    if [[ "$TRAVIS_PULL_REQUEST" == "true" ]]; then
-        CHANGED_FILES=$(git diff --name-only master..HEAD)
-    else
-        CHANGED_FILES=$(git diff --name-only HEAD^ HEAD)
-    fi
-
-    for CHANGED in $CHANGED_FILES; do # Omit quotes around variable to split on whitespace
-        if [[ "$RELATIVE_REVIEW_DRAFT" != "$CHANGED" ]]; then
-            continue
-        fi
-        echo ""
-        BASENAME=$(basename "$RELATIVE_REVIEW_DRAFT" .bs)
-        DRAFT_DIR="$WEB_ROOT/$REVIEW_DRAFTS_DIR/$BASENAME"
-        mkdir -p "$DRAFT_DIR"
-        curlbikeshed -F md-Status="RD" \
-                     > "$DRAFT_DIR/index.html"
-        copy_extra_files "$DRAFT_DIR"
-        run_post_build_step "$DRAFT_DIR"
-        echo "Review draft output to $DRAFT_DIR"
-    done
+    echo ""
+    BASENAME=$(basename "$RELATIVE_REVIEW_DRAFT" .bs)
+    DRAFT_DIR="$WEB_ROOT/$REVIEW_DRAFTS_DIR/$BASENAME"
+    mkdir -p "$DRAFT_DIR"
+    curlbikeshed -F md-Status="RD" \
+                 > "$DRAFT_DIR/index.html"
+    copy_extra_files "$DRAFT_DIR"
+    run_post_build_step "$DRAFT_DIR"
+    echo "Review draft output to $DRAFT_DIR"
 done
 echo ""
 
