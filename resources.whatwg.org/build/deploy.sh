@@ -14,6 +14,7 @@ LS_URL="https://$SHORTNAME.spec.whatwg.org/"
 COMMIT_URL_BASE="https://github.com/whatwg/$SHORTNAME/commit/"
 WEB_ROOT="$SHORTNAME.spec.whatwg.org"
 COMMITS_DIR="commit-snapshots"
+REVIEW_DRAFTS_DIR="review-drafts"
 
 # Optional environment variables (won't be set for local deploys)
 TRAVIS=${TRAVIS:-false}
@@ -111,6 +112,29 @@ run_post_build_step "$WEB_ROOT"
 echo "Living standard output to $WEB_ROOT"
 echo ""
 
+header "Starting review drafts (if applicable)..."
+echo "Note: review drafts must be added or changed in a single commit on master"
+if [[ "$TRAVIS_PULL_REQUEST" == "true" ]]; then
+    CHANGED_FILES=$(git diff --name-only master..HEAD)
+else
+    CHANGED_FILES=$(git diff --name-only HEAD^ HEAD)
+fi
+for CHANGED in $CHANGED_FILES; do # Omit quotes around variable to split on whitespace
+    if ! [[ "$CHANGED" =~ ^review-drafts/.*.bs$ ]]; then
+        continue
+    fi
+    echo ""
+    BASENAME=$(basename "$RELATIVE_REVIEW_DRAFT" .bs)
+    DRAFT_DIR="$WEB_ROOT/$REVIEW_DRAFTS_DIR/$BASENAME"
+    mkdir -p "$DRAFT_DIR"
+    curlbikeshed -F md-Status="RD" \
+                 > "$DRAFT_DIR/index.html"
+    copy_extra_files "$DRAFT_DIR"
+    run_post_build_step "$DRAFT_DIR"
+    echo "Review draft output to $DRAFT_DIR"
+done
+echo ""
+
 # Standard service worker and robots.txt
 header "Getting the service worker hash..."
 SERVICE_WORKER_SHA=$(curlretry https://resources.whatwg.org/standard-service-worker.js | shasum | cut -c 1-40)
@@ -133,7 +157,8 @@ importScripts(\"https://resources.whatwg.org/standard-service-worker.js\");
      > "$WEB_ROOT/service-worker.js"
 echo "User-agent: *
 Disallow: /branch-snapshots/
-Disallow: /commit-snapshots/" > "$WEB_ROOT/robots.txt"
+Disallow: /commit-snapshots/
+Disallow: /review-drafts/" > "$WEB_ROOT/robots.txt"
 echo "Service worker and robots.txt output to $WEB_ROOT"
 echo ""
 
