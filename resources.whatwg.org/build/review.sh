@@ -15,4 +15,4 @@ sed 's/^Group: WHATWG$/&\
 '"Date: $(date +'%Y-%m-%d')/g" < "$INPUT_FILE" > "$REVIEW_DRAFT"
 echo "Created Review Draft at $REVIEW_DRAFT"
 echo "Please verify that only one line changed relative to $INPUT_FILE:"
-diff -up "$INPUT_FILE" "$REVIEW_DRAFT"
+diff -up "$INPUT_FILE" "$REVIEW_DRAFT" || exit 0

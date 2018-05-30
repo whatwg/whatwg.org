@@ -124,7 +124,7 @@ for CHANGED in $CHANGED_FILES; do # Omit quotes around variable to split on whit
         continue
     fi
     echo ""
-    BASENAME=$(basename "$RELATIVE_REVIEW_DRAFT" .bs)
+    BASENAME=$(basename "$CHANGED" .bs)
     DRAFT_DIR="$WEB_ROOT/$REVIEW_DRAFTS_DIR/$BASENAME"
     mkdir -p "$DRAFT_DIR"
     curlbikeshed -F md-Status="RD" \
