@@ -1,27 +1,30 @@
 "use strict";
 /* USAGE:
 
-  self.cacheKey = "v1";
-  self.toCache = "...";
+  // Optional:
+  self.cacheKey = "v3";
+  self.toCache = ["..."];
+
+  // Then:
   importScripts("https://resources.whatwg.org/website-service-worker.js");
 
 */
 
-const cacheKey = "v1";
-const toCache = [
+const cacheKeyToUse = self.cacheKey || "v2";
+const everythingToCache = [
   "/",
   "https://whatwg.org/style/shared.css",
   "https://whatwg.org/style/subpages.css",
   "https://resources.whatwg.org/logo.svg"
-];
+].concat(self.toCache || []);
 
 self.oninstall = e => {
-  e.waitUntil(caches.open(self.cacheKey).then(cache => cache.addAll(self.toCache)));
+  e.waitUntil(caches.open(cacheKeyToUse).then(cache => cache.addAll(everythingToCache));
 };
 
 self.onactivate = e => {
   e.waitUntil(caches.keys().then(keys => {
-    return Promise.all(keys.filter(key => key !== self.cacheKey).map(key => caches.delete(key)));
+    return Promise.all(keys.filter(key => key !== cacheKeyToUse).map(key => caches.delete(key)));
   }));
 };
 
@@ -57,5 +60,5 @@ function refreshCacheFromNetworkResponse(req, res) {
 
   const resForCache = res.clone();
 
-  return caches.open(self.cacheKey).then(cache => cache.put(req, resForCache));
+  return caches.open(cacheKeyToUse).then(cache => cache.put(req, resForCache));
 }
