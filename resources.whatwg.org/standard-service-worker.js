@@ -51,8 +51,8 @@ self.onfetch = e => {
         e.waitUntil(
           networkFetchPromise
             .then(res => refreshCacheFromNetworkResponse(e.request, res))
-            .catch(e => {
-              console.warn(`Could not refresh the cache for ${e.request.url}`, e);
+            .catch(err => {
+              console.warn(`Could not refresh the cache for ${e.request.url}`, err);
             })
         );
 
