@@ -1,6 +1,5 @@
 "use strict";
 
-self.cacheKey = "v2";
 self.toCache = [
   "/img/arrow.svg",
   "/img/bird-webpage.svg",
