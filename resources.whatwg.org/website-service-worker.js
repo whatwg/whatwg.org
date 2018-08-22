@@ -55,7 +55,7 @@ self.onfetch = e => {
 
 function refreshCacheFromNetworkResponse(req, res) {
   if (res.type !== "opaque" && !res.ok) {
-    throw new Error(`${res.url} is responding with ${res.status}`);
+    return Promise.reject(new Error(`${res.url} is responding with ${res.status}`));
   }
 
   const resForCache = res.clone();
