@@ -69,11 +69,7 @@ curlretry() {
 }
 
 curlbikeshed() {
-    curlretry https://api.csswg.org/bikeshed/ -F file=@"$INPUT_FILE" "$@"
-}
-
-curlbikesheddie() {
-    curlbikeshed -F die-on=warning "$@"
+    curlretry https://api.csswg.org/bikeshed/ -F die-on=warning -F file=@"$INPUT_FILE" "$@"
 }
 
 header "Linting the source:"
@@ -98,19 +94,19 @@ echo ""
 header "Starting commit snapshot..."
 COMMIT_DIR="$WEB_ROOT/$COMMITS_DIR/$SHA"
 mkdir -p "$COMMIT_DIR"
-curlbikesheddie -F md-status=LS-COMMIT \
-                -F md-warning="Commit $SHA $COMMIT_URL_BASE$SHA replaced by $LS_URL" \
-                -F md-title="$H1 Standard (Commit Snapshot $SHA)" \
-                -F md-Text-Macro="SNAPSHOT-LINK $BACK_TO_LS_LINK" \
-                > "$COMMIT_DIR/index.html";
+curlbikeshed -F md-status=LS-COMMIT \
+             -F md-warning="Commit $SHA $COMMIT_URL_BASE$SHA replaced by $LS_URL" \
+             -F md-title="$H1 Standard (Commit Snapshot $SHA)" \
+             -F md-Text-Macro="SNAPSHOT-LINK $BACK_TO_LS_LINK" \
+             > "$COMMIT_DIR/index.html";
 copy_extra_files "$COMMIT_DIR"
 run_post_build_step "$COMMIT_DIR"
 echo "Commit snapshot output to $COMMIT_DIR"
 echo ""
 
 header "Starting living standard..."
-curlbikesheddie -F md-Text-Macro="SNAPSHOT-LINK $SNAPSHOT_LINK" \
-                > "$WEB_ROOT/index.html";
+curlbikeshed -F md-Text-Macro="SNAPSHOT-LINK $SNAPSHOT_LINK" \
+             > "$WEB_ROOT/index.html";
 copy_extra_files "$WEB_ROOT"
 run_post_build_step "$WEB_ROOT"
 echo "Living standard output to $WEB_ROOT"
@@ -131,8 +127,8 @@ for CHANGED in $CHANGED_FILES; do # Omit quotes around variable to split on whit
     BASENAME=$(basename "$CHANGED" .bs)
     DRAFT_DIR="$WEB_ROOT/$REVIEW_DRAFTS_DIR/$BASENAME"
     mkdir -p "$DRAFT_DIR"
-    curlbikesheddie -F md-Status="RD" \
-                    > "$DRAFT_DIR/index.html"
+    curlbikeshed -F md-Status="RD" \
+                 > "$DRAFT_DIR/index.html"
     copy_extra_files "$DRAFT_DIR"
     run_post_build_step "$DRAFT_DIR"
     echo "Review draft output to $DRAFT_DIR"
