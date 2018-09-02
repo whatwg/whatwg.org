@@ -79,7 +79,7 @@ curlbikeshed() {
     if [[ "$HTTP_STATUS" != "200" ]]; then
         echo ""
         cat "$1"
-        rm -f "$0"
+        rm -f "$1"
         exit 22
     fi
 }
