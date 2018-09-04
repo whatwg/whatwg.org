@@ -65,11 +65,23 @@ header() {
 }
 
 curlretry() {
-    curl --fail --retry 2 "$@"
+    curl --retry 2 "$@"
 }
 
 curlbikeshed() {
-    curlretry https://api.csswg.org/bikeshed/ -F die-on=warning -F file=@"$INPUT_FILE" "$@"
+    HTTP_STATUS=$(curlretry https://api.csswg.org/bikeshed/ \
+                            --output "$1" \
+                            --write-out "%{http_code}" \
+                            -F die-on=warning \
+                            -F file=@"$INPUT_FILE" \
+                            "$@")
+
+    if [[ "$HTTP_STATUS" != "200" ]]; then
+        echo ""
+        cat "$1"
+        rm -f "$1"
+        exit 22
+    fi
 }
 
 header "Linting the source:"
@@ -87,26 +99,22 @@ else
 fi
 echo ""
 
-header "Checking for errors and warnings using Bikeshed..."
-curlbikeshed -F output=err -F md-Text-Macro="SNAPSHOT-LINK ERROR WARNING CHECK"
-echo ""
-
 header "Starting commit snapshot..."
 COMMIT_DIR="$WEB_ROOT/$COMMITS_DIR/$SHA"
 mkdir -p "$COMMIT_DIR"
-curlbikeshed -F md-status=LS-COMMIT \
+curlbikeshed "$COMMIT_DIR/index.html" \
+             -F md-status=LS-COMMIT \
              -F md-warning="Commit $SHA $COMMIT_URL_BASE$SHA replaced by $LS_URL" \
              -F md-title="$H1 Standard (Commit Snapshot $SHA)" \
-             -F md-Text-Macro="SNAPSHOT-LINK $BACK_TO_LS_LINK" \
-             > "$COMMIT_DIR/index.html";
+             -F md-Text-Macro="SNAPSHOT-LINK $BACK_TO_LS_LINK"
 copy_extra_files "$COMMIT_DIR"
 run_post_build_step "$COMMIT_DIR"
 echo "Commit snapshot output to $COMMIT_DIR"
 echo ""
 
 header "Starting living standard..."
-curlbikeshed -F md-Text-Macro="SNAPSHOT-LINK $SNAPSHOT_LINK" \
-             > "$WEB_ROOT/index.html";
+curlbikeshed "$WEB_ROOT/index.html" \
+             -F md-Text-Macro="SNAPSHOT-LINK $SNAPSHOT_LINK"
 copy_extra_files "$WEB_ROOT"
 run_post_build_step "$WEB_ROOT"
 echo "Living standard output to $WEB_ROOT"
@@ -127,8 +135,8 @@ for CHANGED in $CHANGED_FILES; do # Omit quotes around variable to split on whit
     BASENAME=$(basename "$CHANGED" .bs)
     DRAFT_DIR="$WEB_ROOT/$REVIEW_DRAFTS_DIR/$BASENAME"
     mkdir -p "$DRAFT_DIR"
-    curlbikeshed -F md-Status="RD" \
-                 > "$DRAFT_DIR/index.html"
+    curlbikeshed "$DRAFT_DIR/index.html" \
+                 -F md-Status="RD"
     copy_extra_files "$DRAFT_DIR"
     run_post_build_step "$DRAFT_DIR"
     echo "Review draft output to $DRAFT_DIR"
