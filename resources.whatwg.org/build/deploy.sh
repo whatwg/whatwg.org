@@ -69,7 +69,7 @@ curlretry() {
 }
 
 curlbikeshed() {
-    curlretry https://api.csswg.org/bikeshed/ -F file=@"$INPUT_FILE" "$@"
+    curlretry https://api.csswg.org/bikeshed/ -F die-on=warning -F file=@"$INPUT_FILE" "$@"
 }
 
 header "Linting the source:"
