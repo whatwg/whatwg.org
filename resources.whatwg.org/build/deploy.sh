@@ -88,7 +88,7 @@ fi
 echo ""
 
 header "Checking for errors and warnings using Bikeshed..."
-curlbikeshed -F output=err -F md-Text-Macro="SNAPSHOT-LINK ERROR WARNING CHECK"
+curlbikeshed -F output=err -F force=1 -F md-Text-Macro="SNAPSHOT-LINK ERROR WARNING CHECK"
 echo ""
 
 header "Starting commit snapshot..."
