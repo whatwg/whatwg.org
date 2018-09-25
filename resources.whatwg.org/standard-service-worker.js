@@ -8,7 +8,7 @@
 
 const standardShortname = location.host.split(".")[0];
 
-const cacheKey = "v5";
+const cacheKey = "v6";
 const toCache = [
   location.origin + "/",
   "https://resources.whatwg.org/spec.css",
@@ -20,7 +20,8 @@ const toCache = [
 ].concat(self.extraResources || []);
 
 self.oninstall = e => {
-  e.waitUntil(caches.open(cacheKey).then(cache => cache.addAll(toCache)));
+  const requests = toCache.map(url => new Request(url, { mode: "cors" }));
+  e.waitUntil(caches.open(cacheKey).then(cache => cache.addAll(requests)));
 };
 
 self.onfetch = e => {
