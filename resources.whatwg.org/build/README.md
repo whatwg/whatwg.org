@@ -66,3 +66,5 @@ curl --remote-name --fail https://resources.whatwg.org/build/review.sh && bash .
 ```
 
 or more typically `make review`.
+
+Please see https://github.com/whatwg/meta/blob/master/MAINTAINERS.md for information on creating and announcing Review Drafts.
