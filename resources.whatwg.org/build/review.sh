@@ -4,6 +4,8 @@ set -o nounset
 # This script is maintained at
 # https://github.com/whatwg/whatwg.org/tree/master/resources.whatwg.org/build and assumes English as
 # your locale. See README.md there for documentation.
+#
+# Please keep this synchronized with https://github.com/whatwg/html/blob/master/review-draft.sh.
 
 git checkout master
 git checkout -b "review-draft-$(date +'%F')"
