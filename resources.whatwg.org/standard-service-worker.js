@@ -39,13 +39,13 @@ self.onfetch = e => {
         return res;
       })
       .catch(() => {
-        return caches.match(e.request);
+        return caches.match(e.request, { cacheName: cacheKey });
       })
     );
   } else {
     // For auxiliary resources, we can use a cache-then-network strategy; it is OK to not get the freshest.
     e.respondWith(
-      caches.match(e.request).then(cachedResponse => {
+      caches.match(e.request, { cacheName: cacheKey }).then(cachedResponse => {
         const networkFetchPromise = fetch(e.request);
 
         // Only warn on network fetch or caching errors; they just mean we won't be able to refresh
