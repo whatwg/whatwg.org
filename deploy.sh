@@ -8,7 +8,6 @@ header() {
 header "Importing content from whatwg/sg and making it suitable for whatwg.org"
 git clone --depth=1 https://github.com/whatwg/sg sg
 ./convert-policy.py
-mv sg/working-mode whatwg.org/working-mode
 rm -rf sg
 echo ""
 

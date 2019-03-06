@@ -31,6 +31,9 @@ def header_text_to_id(header_text):
     header_id = re.sub(punctuation_regexp, '', header_id)
     header_id = re.sub(' ', '-', header_id)
 
+    if header_id == "anchor-permanence":
+        return "anchors"
+
     return header_id
 
 
@@ -72,6 +75,8 @@ def postprocess_html(policy_html, template, title):
     result = template.replace("@POLICY_GOES_HERE@", result)
     result = result.replace("@TITLE_GOES_HERE@", title)
     result = add_header_anchors(result)
+    result = result.replace("<p>EXAMPLE: ", "<p class=\"example\">")
+    result = result.replace("<p>NOTE: ", "<p class=\"note\">")
 
     return result
 
