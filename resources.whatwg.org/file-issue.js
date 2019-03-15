@@ -30,7 +30,7 @@
     fileLink.href = getFilingUrl(originalFilingUrl, window.getSelection());
   };
 
-  document.body.insertBefore(fileLink, document.body.firstChild);
+  document.body.prepend(fileLink);
 
   function getOriginalFilingUrl() {
     const dataAttr = document.currentScript.getAttribute("data-file-issue-url");
