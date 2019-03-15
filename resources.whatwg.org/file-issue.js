@@ -10,43 +10,44 @@
 
 (function () {
   'use strict';
-  var thisScript = document.currentScript;
 
-  var originalFilingUrl = getOriginalFilingUrl();
-  var titlePrefix = '';
-  var queryParamIndex = originalFilingUrl.indexOf('?title=');
+  let originalFilingUrl = getOriginalFilingUrl(),
+      titlePrefix = '';
+  const queryParamIndex = originalFilingUrl.indexOf('?title=');
   if (queryParamIndex != -1) {
     titlePrefix = decodeURIComponent(originalFilingUrl.substr(queryParamIndex + '?title='.length));
     originalFilingUrl = originalFilingUrl.substr(0, queryParamIndex);
   }
 
-  var specUrl = getSpecUrl();
+  const specUrl = getSpecUrl();
 
-  var fileLink = document.createElement('a');
+  const fileLink = document.createElement('a');
   fileLink.href = originalFilingUrl;
   fileLink.accessKey = '1';
   fileLink.className = 'selected-text-file-an-issue';
   fileLink.textContent = 'File an issue about the selected text';
 
+  fileLink.onclick = e => {
+    const selection = window.getSelection();
+    if (selection.toString() === "") {
+      alert("Please select some text first.");
+      e.preventDefault();
+    }
+    fileLink.href = getFilingUrl(originalFilingUrl, selection);
+  };
+
   document.body.insertBefore(fileLink, document.body.firstChild);
 
-  window.addEventListener('mouseup', handleInteraction);
-  window.addEventListener('keydown', handleInteraction);
-
-  function handleInteraction(event) {
-    if (event.target === fileLink) {
-      return;
-    }
-    fileLink.href = getFilingUrl(originalFilingUrl, window.getSelection(), event.target);
-  }
+  //window.addEventListener('mouseup', handleInteraction);
+  //window.addEventListener('keydown', handleInteraction);
 
   function getOriginalFilingUrl() {
-    var dataAttr = thisScript.getAttribute("data-file-issue-url");
+    const dataAttr = document.currentScript.getAttribute("data-file-issue-url");
     if (dataAttr) {
       return dataAttr;
     }
 
-    var link = document.querySelector('#file-issue-link, a[href$="/issues/new"], a[href*="/issues/new?title="]');
+    const link = document.querySelector('#file-issue-link, a[href$="/issues/new"], a[href*="/issues/new?title="]');
     if (link) {
       return link.href;
     }
@@ -55,22 +56,22 @@
   }
 
   function getSpecUrl() {
-    var link = document.getElementById('commit-snapshot-link');
+    const link = document.getElementById('commit-snapshot-link');
     if (link) {
       return link.href;
     }
     return window.location.href;
   }
 
-  function getFilingUrl(originalFilingUrl, selection, startNode) {
-    var bugData = getBugData(selection, startNode);
+  function getFilingUrl(originalFilingUrl, selection) {
+    const bugData = getBugData(selection);
     return originalFilingUrl + '?title=' + encodeURIComponent(bugData.title) + '&body=' +
            encodeURIComponent(bugData.body);
   }
 
-  function getBugData(selection, startNode) {
-    var selectionText = selection.toString();
-    var url = getUrlToReport(selection, startNode);
+  function getBugData(selection) {
+    const selectionText = selection.toString(),
+          url = getUrlToReport(selection);
 
     return {
       title: getTitle(selectionText),
@@ -87,7 +88,7 @@
   }
 
   function getBody(url, selectionText) {
-    var quotedText = selectionText;
+    let quotedText = selectionText;
     if (quotedText.length > 1000) {
       quotedText = quotedText.substring(0, 997) + '...';
     }
@@ -101,7 +102,7 @@
   }
 
   function getTitle(selectionText) {
-    var title = selectionText.replace(/\n/g, ' ');
+    let title = selectionText.replace(/\n/g, ' ');
     if (title.length > 50) {
       title = title.substring(0, 47) + '...';
     }
@@ -113,10 +114,10 @@
     return titlePrefix + title;
   }
 
-  function getUrlToReport(selection, startNode) {
-    var url = specUrl;
+  function getUrlToReport(selection) {
+    let url = specUrl;
 
-    var node = getBestNodeToReport(selection, startNode);
+    const node = getBestNodeToReport(selection);
     if (node) {
       url = url.split('#')[0] + '#' + node.id;
     }
@@ -124,14 +125,14 @@
     return url;
   }
 
-  function getBestNodeToReport(selection, fallback) {
-    var node = fallback;
+  function getBestNodeToReport(selection) {
+    let node = null;
 
     if (selection.anchorNode) {
       node = selection.anchorNode;
 
       if (selection.focusNode && selection.focusNode.compareDocumentPosition) {
-        var compare = selection.focusNode.compareDocumentPosition(selection.anchorNode);
+        const compare = selection.focusNode.compareDocumentPosition(selection.anchorNode);
         if (compare & Node.DOCUMENT_POSITION_FOLLOWING || compare & Node.DOCUMENT_POSITION_CONTAINED_BY) {
           node = selection.focusNode;
         }
