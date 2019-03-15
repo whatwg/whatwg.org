@@ -11,8 +11,8 @@
 (function () {
   'use strict';
 
-  let originalFilingUrl = getOriginalFilingUrl(),
-      titlePrefix = '';
+  let originalFilingUrl = getOriginalFilingUrl();
+  let titlePrefix = '';
   const queryParamIndex = originalFilingUrl.indexOf('?title=');
   if (queryParamIndex != -1) {
     titlePrefix = decodeURIComponent(originalFilingUrl.substr(queryParamIndex + '?title='.length));
@@ -26,20 +26,11 @@
   fileLink.accessKey = '1';
   fileLink.className = 'selected-text-file-an-issue';
   fileLink.textContent = 'File an issue about the selected text';
-
   fileLink.onclick = e => {
-    const selection = window.getSelection();
-    if (selection.toString() === "") {
-      alert("Please select some text first.");
-      e.preventDefault();
-    }
-    fileLink.href = getFilingUrl(originalFilingUrl, selection);
+    fileLink.href = getFilingUrl(originalFilingUrl, window.getSelection());
   };
 
   document.body.insertBefore(fileLink, document.body.firstChild);
-
-  //window.addEventListener('mouseup', handleInteraction);
-  //window.addEventListener('keydown', handleInteraction);
 
   function getOriginalFilingUrl() {
     const dataAttr = document.currentScript.getAttribute("data-file-issue-url");
@@ -70,8 +61,8 @@
   }
 
   function getBugData(selection) {
-    const selectionText = selection.toString(),
-          url = getUrlToReport(selection);
+    const selectionText = selection.toString();
+    const url = getUrlToReport(selection);
 
     return {
       title: getTitle(selectionText),
