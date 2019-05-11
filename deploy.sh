@@ -14,6 +14,7 @@ for LOGO in resources.whatwg.org/logo*.svg; do
     BASENAME=$(basename "$LOGO" .svg)
     sed s/#3c790a/#666/g < "$LOGO" > "resources.whatwg.org/$BASENAME-snapshot.svg"
 done
+./get-browser-logos.sh
 echo "Snapshot logos created"
 echo ""
 
