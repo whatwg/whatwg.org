@@ -11,28 +11,28 @@
 (function () {
   'use strict';
 
-  let originalFilingUrl = getOriginalFilingUrl();
+  let originalFilingURL = getOriginalFilingURL();
   let titlePrefix = '';
-  const queryParamIndex = originalFilingUrl.indexOf('?title=');
+  const queryParamIndex = originalFilingURL.indexOf('?title=');
   if (queryParamIndex != -1) {
-    titlePrefix = decodeURIComponent(originalFilingUrl.substr(queryParamIndex + '?title='.length));
-    originalFilingUrl = originalFilingUrl.substr(0, queryParamIndex);
+    titlePrefix = decodeURIComponent(originalFilingURL.substr(queryParamIndex + '?title='.length));
+    originalFilingURL = originalFilingURL.substr(0, queryParamIndex);
   }
 
-  const specUrl = getSpecUrl();
+  const specURL = getSpecURL();
 
   const fileLink = document.createElement('a');
-  fileLink.href = originalFilingUrl;
+  fileLink.href = originalFilingURL;
   fileLink.accessKey = '1';
   fileLink.className = 'selected-text-file-an-issue';
   fileLink.textContent = 'File an issue about the selected text';
   fileLink.onclick = e => {
-    fileLink.href = getFilingUrl(originalFilingUrl, window.getSelection());
+    fileLink.href = getFilingURL(originalFilingURL, window.getSelection());
   };
 
   document.body.prepend(fileLink);
 
-  function getOriginalFilingUrl() {
+  function getOriginalFilingURL() {
     const dataAttr = document.currentScript.getAttribute("data-file-issue-url");
     if (dataAttr) {
       return dataAttr;
@@ -46,7 +46,7 @@
     throw new Error('No "file an issue" link found and no data-file-issue-url attribute present on the script');
   }
 
-  function getSpecUrl() {
+  function getSpecURL() {
     const link = document.getElementById('commit-snapshot-link');
     if (link) {
       return link.href;
@@ -54,15 +54,15 @@
     return window.location.href;
   }
 
-  function getFilingUrl(originalFilingUrl, selection) {
+  function getFilingURL(originalFilingURL, selection) {
     const bugData = getBugData(selection);
-    return originalFilingUrl + '?title=' + encodeURIComponent(bugData.title) + '&body=' +
+    return originalFilingURL + '?title=' + encodeURIComponent(bugData.title) + '&body=' +
            encodeURIComponent(bugData.body);
   }
 
   function getBugData(selection) {
     const selectionText = selection.toString();
-    const url = getUrlToReport(selection);
+    const url = getURLToReport(selection);
 
     return {
       title: getTitle(selectionText),
@@ -105,8 +105,8 @@
     return titlePrefix + title;
   }
 
-  function getUrlToReport(selection) {
-    let url = specUrl;
+  function getURLToReport(selection) {
+    let url = specURL;
 
     const node = getBestNodeToReport(selection);
     if (node) {
