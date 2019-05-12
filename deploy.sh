@@ -1,23 +1,25 @@
 #!/bin/bash
 set -e
 
-echo "Importing content from whatwg/sg and making it suitable for whatwg.org"
+header() {
+    echo -e "\\x1b[1m$1\\x1b[0m"
+}
+
+header "Importing content from whatwg/sg and making it suitable for whatwg.org"
 git clone --depth=1 https://github.com/whatwg/sg sg
 ./convert-policy.py
 mv sg/working-mode whatwg.org/working-mode
 rm -rf sg
-echo "Markdown converted to HTML"
 echo ""
 
-echo "Creating snapshot logos"
+header "Creating snapshot logos"
 for LOGO in resources.whatwg.org/logo*.svg; do
     BASENAME=$(basename "$LOGO" .svg)
     sed s/#3c790a/#666/g < "$LOGO" > "resources.whatwg.org/$BASENAME-snapshot.svg"
 done
-echo "Snapshot logos created"
 echo ""
 
-echo "Copying browser logos"
+header "Copying browser logos"
 copy_logo() {
     declare source_file="node_modules/@browser-logos/$1"
     declare target_file="resources.whatwg.org/browser-logos/$2"
@@ -38,14 +40,34 @@ copy_logo "safari-ios/safari-ios.svg" "safari-ios.svg"
 copy_logo "safari/safari_32x32.png" "safari.png"
 copy_logo "samsung-internet/samsung-internet.svg" "samsung.svg"
 copy_logo "uc/uc_32x32.png" "uc.png"
-echo "Browser logos copied"
 echo ""
+
+# Run the HTML checker only when building on Travis
+if [[ "$TRAVIS" == "true" ]]; then
+    header "Running the HTML checker..."
+
+    # Check the targets given explicitly here, plus the extensionless files directly inside
+    # whatwg.org/ and n.whatwg.org/. This uses https://stackoverflow.com/a/23357277/3191 to get the
+    # results of the find command into an array. TODO: if Travis CI ever gets Bash 4.4, we can use
+    # the simpler version at https://stackoverflow.com/a/54561526/3191.
+    TARGETS=(whatwg.org/news whatwg.org/validator whatwg.org/index.html idea.whatwg.org/index.html spec.whatwg.org/index.html)
+    while IFS=  read -r -d $'\0'; do
+        TARGETS+=("$REPLY")
+    done < <(find whatwg.org -maxdepth 1 -type f ! -name "*.*" -print0)
+    while IFS=  read -r -d $'\0'; do
+        TARGETS+=("$REPLY")
+    done < <(find n.whatwg.org -maxdepth 1 -type f ! -name "*.*" -print0)
+
+    curl --retry 2 --fail --remote-name --location https://github.com/validator/validator/releases/download/jar/vnu.jar
+    /usr/lib/jvm/java-8-oracle/jre/bin/java -jar vnu.jar --Werror "${TARGETS[@]}"
+    echo ""
+fi
 
 # This ensures that only changes to the master branch get deployed
 if [[ "$TRAVIS_BRANCH" != "master" || "$TRAVIS_PULL_REQUEST" != "false" ]]; then
-    echo "Skipping deploy"
+    header "Skipping deploy"
 else
-    echo "Synchronizing content with whatwg.org et al"
+    header "Synchronizing content with whatwg.org et al"
     ENCRYPTED_KEY_VAR="encrypted_${ENCRYPTION_LABEL}_key"
     ENCRYPTED_IV_VAR="encrypted_${ENCRYPTION_LABEL}_iv"
     ENCRYPTED_KEY=${!ENCRYPTED_KEY_VAR}
