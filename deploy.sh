@@ -46,17 +46,14 @@ echo ""
 if [[ "$TRAVIS" == "true" ]]; then
     header "Running the HTML checker..."
 
-    # Check the targets given explicitly here, plus the extensionless files directly inside
-    # whatwg.org/ and n.whatwg.org/. This uses https://stackoverflow.com/a/23357277/3191 to get the
-    # results of the find command into an array. TODO: if Travis CI ever gets Bash 4.4, we can use
-    # the simpler version at https://stackoverflow.com/a/54561526/3191.
+    # Check the targets given explicitly here, plus most of the extensionless files directly inside
+    # whatwg.org/. This uses https://stackoverflow.com/a/23357277/3191 to get the results of the
+    # find command into an array. TODO: if Travis CI ever gets Bash 4.4, we can use the simpler
+    # version at https://stackoverflow.com/a/54561526/3191.
     TARGETS=(whatwg.org/news whatwg.org/validator whatwg.org/index.html idea.whatwg.org/index.html spec.whatwg.org/index.html)
     while IFS=  read -r -d $'\0'; do
         TARGETS+=("$REPLY")
-    done < <(find whatwg.org -maxdepth 1 -type f ! -name "*.*" -print0)
-    while IFS=  read -r -d $'\0'; do
-        TARGETS+=("$REPLY")
-    done < <(find n.whatwg.org -maxdepth 1 -type f ! -name "*.*" -print0)
+    done < <(find whatwg.org -maxdepth 1 -type f ! -name "*.*" ! -name "status-2008-12" -print0)
 
     curl --retry 2 --fail --remote-name --location https://github.com/validator/validator/releases/download/jar/vnu.jar
     /usr/lib/jvm/java-8-oracle/jre/bin/java -jar vnu.jar --Werror "${TARGETS[@]}"
