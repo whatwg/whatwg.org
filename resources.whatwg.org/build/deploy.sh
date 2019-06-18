@@ -183,7 +183,11 @@ if [[ "$TRAVIS" == "true" ]]; then
     header "Running the HTML checker..."
     curlretry --fail --remote-name --location https://github.com/validator/validator/releases/download/linux/vnu.linux.zip
     unzip vnu.linux.zip
-    ./vnu-runtime-image/bin/vnu --skip-non-html --Werror --filterpattern "$CHECKER_FILTER" "$WEB_ROOT"
+    if [ -z "$CHECKER_FILTER" ]; then
+      ./vnu-runtime-image/bin/vnu --skip-non-html --Werror "$WEB_ROOT"
+    else
+      ./vnu-runtime-image/bin/vnu --skip-non-html --Werror --filterpattern "$CHECKER_FILTER" "$WEB_ROOT"
+    fi
     echo ""
 fi
 
