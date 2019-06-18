@@ -181,8 +181,9 @@ echo ""
 # Run the HTML checker only when building on Travis
 if [[ "$TRAVIS" == "true" ]]; then
     header "Running the HTML checker..."
-    curlretry --fail --remote-name --location https://github.com/validator/validator/releases/download/jar/vnu.jar
-    /usr/lib/jvm/java-8-oracle/jre/bin/java -jar vnu.jar --skip-non-html --Werror --filterpattern "$CHECKER_FILTER" "$WEB_ROOT"
+    curlretry --fail --remote-name --location https://github.com/validator/validator/releases/download/linux/vnu.linux.zip
+    unzip vnu.linux.zip
+    ./vnu-runtime-image/bin/vnu --skip-non-html --Werror --filterpattern "$CHECKER_FILTER" "$WEB_ROOT"
     echo ""
 fi
 
