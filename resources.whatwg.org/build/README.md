@@ -23,6 +23,8 @@ Optional environment variables:
 - `$EXTRA_FILES` are extra files to copy for each build. Shell wildcards are allowed, and directory structure will be preserved. Example: `EXTRA_FILES="images/*.png"`.
 - `$POST_BUILD_STEP` is an extra step to run after each build. Evaluated with the `$DIR` variable set to the build directory. Example: `POST_BUILD_STEP='python generate-stuff.py "$DIR"'`.
 
+To cause particular errors or warnings emitted by the HTML checker to be suppressed, add a file named `.htmlcheckerfilter` at the root of the repo for a particular standard, and put filter patterns into it, as documented at https://github.com/validator/validator/wiki/Message-filtering#using-the---filterfile-option.
+
 An example `.travis.yml` file that uses this script would then be as follows:
 
 ```yaml
