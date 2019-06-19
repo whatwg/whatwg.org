@@ -26,9 +26,6 @@ SERVER_PUBLIC_KEY="ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzd
 EXTRA_FILES=${EXTRA_FILES:-}
 POST_BUILD_STEP=${POST_BUILD_STEP:-}
 
-# HTML checker filter passed to vnu.jar --filterpattern
-CHECKER_FILTER=${CHECKER_FILTER:-}
-
 if [[ "$TRAVIS" != "true" ]]; then
     echo "Running a local deploy into $WEB_ROOT directory"
 fi
@@ -183,10 +180,10 @@ if [[ "$TRAVIS" == "true" ]]; then
     header "Running the HTML checker..."
     curlretry --fail --remote-name --location https://github.com/validator/validator/releases/download/linux/vnu.linux.zip
     unzip vnu.linux.zip
-    if [ -z "$CHECKER_FILTER" ]; then
-      ./vnu-runtime-image/bin/vnu --skip-non-html --Werror "$WEB_ROOT"
+    if [ -f .htmlcheckerfilter ]; then
+      ./vnu-runtime-image/bin/vnu --skip-non-html --Werror --filterfile .htmlcheckerfilter "$WEB_ROOT"
     else
-      ./vnu-runtime-image/bin/vnu --skip-non-html --Werror --filterpattern "$CHECKER_FILTER" "$WEB_ROOT"
+      ./vnu-runtime-image/bin/vnu --skip-non-html --Werror "$WEB_ROOT"
     fi
     echo ""
 fi
