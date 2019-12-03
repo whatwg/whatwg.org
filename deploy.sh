@@ -28,6 +28,7 @@ copy_logo() {
 copy_logo "android-webview-beta/android-webview-beta_32x32.png" "android-webview.png"
 copy_logo "chrome/chrome.svg" "chrome.svg"
 copy_logo "edge/edge.svg" "edge.svg"
+copy_logo "edge_12-18/edge_12-18.svg" "edge_legacy.svg"
 copy_logo "firefox/firefox_32x32.png" "firefox.png"
 copy_logo "internet-explorer-tile_10-11/internet-explorer-tile_10-11.svg" "ie-mobile.svg"
 copy_logo "internet-explorer_9-11/internet-explorer_9-11_32x32.png" "ie.png"
