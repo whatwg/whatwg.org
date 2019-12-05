@@ -12,6 +12,4 @@ So if you're confused as to why the `whatwg.org` directory doesn't have everythi
 
 ### Acknowledgments
 
-Thanks to [DigitalOcean](https://www.digitalocean.com/) for sponsoring the hosting of whatwg.org.
-
 Thanks to [Oliver Williams](https://github.com/o-t-w) for the most recent home page design (see [#90](https://github.com/whatwg/whatwg.org/pull/90) and [#153](https://github.com/whatwg/whatwg.org/pull/153)).
