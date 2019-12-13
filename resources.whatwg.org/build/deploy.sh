@@ -1,6 +1,4 @@
 #!/bin/bash
-set -o errexit
-set -o nounset
 
 # This script is maintained at
 # https://github.com/whatwg/whatwg.org/tree/master/resources.whatwg.org/build.
@@ -15,6 +13,8 @@ COMMIT_URL_BASE="https://github.com/whatwg/$SHORTNAME/commit/"
 WEB_ROOT="$SHORTNAME.spec.whatwg.org"
 COMMITS_DIR="commit-snapshots"
 REVIEW_DRAFTS_DIR="review-drafts"
+VIRTUALENV_DIR=.virtualenv-deploy
+BIKESHED_DIR=.bikeshed_deploy
 
 # Optional environment variables (won't be set for local deploys)
 TRAVIS=${TRAVIS:-false}
@@ -100,22 +100,38 @@ else
 fi
 echo ""
 
+rm -rf "$VIRTUALENV_DIR"
+pip install virtualenv
+virtualenv -p python "$VIRTUALENV_DIR"
+# shellcheck disable=SC1091,SC1090
+source "$VIRTUALENV_DIR/bin/activate"
+pip install pygments
+pip install lxml
+rm -rf "$BIKESHED_DIR"
+git clone --branch=mdn-spec-links \
+  https://github.com/sideshowbarker/bikeshed.git \
+  "$BIKESHED_DIR"
+cd "$BIKESHED_DIR" || exit && pip install --editable . && cd - || exit
+bikeshed update --skip-manifest
+
 header "Starting commit snapshot..."
 COMMIT_DIR="$WEB_ROOT/$COMMITS_DIR/$SHA"
 mkdir -p "$COMMIT_DIR"
-curlbikeshed "$COMMIT_DIR/index.html" \
-             -F md-status=LS-COMMIT \
-             -F md-warning="Commit $SHA $COMMIT_URL_BASE$SHA replaced by $LS_URL" \
-             -F md-title="$H1 Standard (Commit Snapshot $SHA)" \
-             -F md-Text-Macro="SNAPSHOT-LINK $BACK_TO_LS_LINK"
+bikeshed spec "$INPUT_FILE" "$COMMIT_DIR/index.html" \
+             --md-status=LS-COMMIT \
+             --md-warning="Commit $SHA $COMMIT_URL_BASE$SHA replaced by $LS_URL" \
+             --md-title="$H1 Standard (Commit Snapshot $SHA)" \
+             --md-Text-Macro="SNAPSHOT-LINK $BACK_TO_LS_LINK" \
+             --md-Include-MDN-Panels="true"
 copy_extra_files "$COMMIT_DIR"
 run_post_build_step "$COMMIT_DIR"
 echo "Commit snapshot output to $COMMIT_DIR"
 echo ""
 
 header "Starting living standard..."
-curlbikeshed "$WEB_ROOT/index.html" \
-             -F md-Text-Macro="SNAPSHOT-LINK $SNAPSHOT_LINK"
+bikeshed spec "$INPUT_FILE" "$WEB_ROOT/index.html" \
+             --md-Text-Macro="SNAPSHOT-LINK $SNAPSHOT_LINK" \
+             --md-Include-MDN-Panels="true"
 copy_extra_files "$WEB_ROOT"
 run_post_build_step "$WEB_ROOT"
 echo "Living standard output to $WEB_ROOT"
@@ -136,13 +152,18 @@ for CHANGED in $CHANGED_FILES; do # Omit quotes around variable to split on whit
     BASENAME=$(basename "$CHANGED" .bs)
     DRAFT_DIR="$WEB_ROOT/$REVIEW_DRAFTS_DIR/$BASENAME"
     mkdir -p "$DRAFT_DIR"
-    curlbikeshed "$DRAFT_DIR/index.html" \
-                 -F md-Status="RD"
+    bikeshed spec "$INPUT_FILE" "$DRAFT_DIR/index.html" \
+                 --md-Status="RD" \
+                 --md-Include-MDN-Panels="true"
     copy_extra_files "$DRAFT_DIR"
     run_post_build_step "$DRAFT_DIR"
     echo "Review draft output to $DRAFT_DIR"
 done
 echo ""
+
+deactivate
+rm -rf "$BIKESHED_DIR"
+rm -rf "$VIRTUALENV_DIR"
 
 # Standard service worker and robots.txt
 header "Getting the service worker hash..."
