@@ -1,0 +1,484 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [html5] r4868 - [giow] (1) Make seeking async since some	implementations can't tell if something [...]
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commit-watchers%40lists.whatwg.org?Subject=Re%3A%20%5Bhtml5%5D%20r4868%20-%20%5Bgiow%5D%20%281%29%20Make%20seeking%20async%20since%20some%0A%09implementations%20can%27t%20tell%20if%20something%20%5B...%5D&In-Reply-To=%3C20100325093012.710A11C84005%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="011739.html">
+   <LINK REL="Next"  HREF="011741.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[html5] r4868 - [giow] (1) Make seeking async since some	implementations can't tell if something [...]</H1>
+<!--htdig_noindex-->
+    <B>whatwg at whatwg.org</B> 
+    <A HREF="mailto:commit-watchers%40lists.whatwg.org?Subject=Re%3A%20%5Bhtml5%5D%20r4868%20-%20%5Bgiow%5D%20%281%29%20Make%20seeking%20async%20since%20some%0A%09implementations%20can%27t%20tell%20if%20something%20%5B...%5D&In-Reply-To=%3C20100325093012.710A11C84005%40ps20323.dreamhostps.com%3E"
+       TITLE="[html5] r4868 - [giow] (1) Make seeking async since some	implementations can't tell if something [...]">whatwg at whatwg.org
+       </A><BR>
+    <I>Thu Mar 25 02:30:12 PDT 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="011739.html">[html5] r4867 - [e] (0) I am incompetent at this editing thing.
+</A></li>
+        <LI>Next message: <A HREF="011741.html">[html5] r4869 - [e] (0) We're trying to avoid negative space,	not avoid the actual ranges...
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#11740">[ date ]</a>
+              <a href="thread.html#11740">[ thread ]</a>
+              <a href="subject.html#11740">[ subject ]</a>
+              <a href="author.html#11740">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Author: ianh
+Date: 2010-03-25 02:30:10 -0700 (Thu, 25 Mar 2010)
+New Revision: 4868
+
+Modified:
+   complete.html
+   index
+   source
+Log:
+[giow] (1) Make seeking async since some implementations can't tell if something is seekable synchronously. Also, make it not throw ever, and make it sanely re-entrant.
+
+Modified: complete.html
+===================================================================
+--- complete.html	2010-03-25 08:18:08 UTC (rev 4867)
++++ complete.html	2010-03-25 09:30:10 UTC (rev 4868)
+@@ -24435,13 +24435,36 @@
+ 
+   &lt;p&gt;When the user agent is required to &lt;dfn id=dom-media-seek title=dom-media-seek&gt;seek&lt;/dfn&gt; to a particular &lt;var title=&quot;&quot;&gt;new
+   playback position&lt;/var&gt; in the &lt;a href=#media-resource&gt;media resource&lt;/a&gt;, it means
+-  that the user agent must run the following steps:&lt;/p&gt;
++  that the user agent must run the following steps. This algorithm
++  interacts closely with the &lt;a href=#event-loop&gt;event loop&lt;/a&gt; mechanism; in
++  particular, it has a &lt;a href=#synchronous-section&gt;synchronous
++  section&lt;/a&gt; (which is triggered as part of the &lt;a href=#event-loop&gt;event
++  loop&lt;/a&gt; algorithm). Steps in that section are marked with
++  &#8987;.&lt;/p&gt;
+ 
+-  &lt;ol&gt;&lt;li&gt;&lt;p&gt;If the &lt;a href=#media-element&gt;media element&lt;/a&gt;'s &lt;code title=dom-media-readyState&gt;&lt;a href=#dom-media-readystate&gt;readyState&lt;/a&gt;&lt;/code&gt; is &lt;code title=dom-media-HAVE_NOTHING&gt;&lt;a href=#dom-media-have_nothing&gt;HAVE_NOTHING&lt;/a&gt;&lt;/code&gt;, then the user
+-   agent must raise an &lt;code&gt;&lt;a href=#invalid_state_err&gt;INVALID_STATE_ERR&lt;/a&gt;&lt;/code&gt; exception (if
+-   the seek was in response to a DOM method call or setting of an IDL
+-   attribute), and abort these steps.&lt;/li&gt;
++  &lt;ol&gt;&lt;li&gt;&lt;p&gt;If the &lt;a href=#media-element&gt;media element&lt;/a&gt;'s &lt;code title=dom-media-readyState&gt;&lt;a href=#dom-media-readystate&gt;readyState&lt;/a&gt;&lt;/code&gt; is &lt;code title=dom-media-HAVE_NOTHING&gt;&lt;a href=#dom-media-have_nothing&gt;HAVE_NOTHING&lt;/a&gt;&lt;/code&gt;, then raise an
++   &lt;code&gt;&lt;a href=#invalid_state_err&gt;INVALID_STATE_ERR&lt;/a&gt;&lt;/code&gt; exception (if the seek was in
++   response to a DOM method call or setting of an IDL attribute), and
++   abort these steps.&lt;/li&gt;
+ 
++   &lt;li&gt;&lt;p&gt;If the element's &lt;code title=dom-media-seeking&gt;&lt;a href=#dom-media-seeking&gt;seeking&lt;/a&gt;&lt;/code&gt; IDL attribute is true,
++   then another instance of this algorithm is already running. Abort
++   that other instance of the algorithm without waiting for the step
++   that it is running to complete.&lt;/li&gt;
++
++   &lt;li&gt;&lt;p&gt;Set the &lt;code title=dom-media-seeking&gt;&lt;a href=#dom-media-seeking&gt;seeking&lt;/a&gt;&lt;/code&gt; IDL
++   attribute to true.&lt;/li&gt;
++
++   &lt;li id=seekUpdate&gt;&lt;p&gt;&lt;a href=#queue-a-task&gt;Queue a task&lt;/a&gt; to &lt;a href=#fire-a-simple-event&gt;fire a
++   simple event&lt;/a&gt; named &lt;code title=event-media-timeupdate&gt;&lt;a href=#event-media-timeupdate&gt;timeupdate&lt;/a&gt;&lt;/code&gt; at the
++   element.&lt;/li&gt;
++
++   &lt;li&gt;&lt;p&gt;If the seek was in response to a DOM method call or setting
++   of an IDL attribute, then continue the script. The remainder of
++   these steps must be run asynchronously. With the exception of the
++   steps marked with &#8987;, they could be aborted at any time by
++   another instance of this algorithm being invoked.&lt;/li&gt;
++
+    &lt;li&gt;&lt;p&gt;If the &lt;var title=&quot;&quot;&gt;new playback position&lt;/var&gt; is later
+    than the end of the &lt;a href=#media-resource&gt;media resource&lt;/a&gt;, then let it be the
+    end of the &lt;a href=#media-resource&gt;media resource&lt;/a&gt; instead.&lt;/li&gt;
+@@ -24451,49 +24474,49 @@
+    position instead.&lt;/li&gt;
+ 
+    &lt;li&gt;&lt;p&gt;If the (possibly now changed) &lt;var title=&quot;&quot;&gt;new playback
+-   position&lt;/var&gt; is not in one of the ranges given in the &lt;code title=dom-media-seekable&gt;&lt;a href=#dom-media-seekable&gt;seekable&lt;/a&gt;&lt;/code&gt; attribute, then the user
+-   agent must raise an &lt;code&gt;&lt;a href=#index_size_err&gt;INDEX_SIZE_ERR&lt;/a&gt;&lt;/code&gt; exception (if the
+-   seek was in response to a DOM method call or setting of an IDL
+-   attribute), and abort these steps.&lt;/li&gt;
++   position&lt;/var&gt; is not in one of the ranges given in the &lt;code title=dom-media-seekable&gt;&lt;a href=#dom-media-seekable&gt;seekable&lt;/a&gt;&lt;/code&gt; attribute, then let it
++   be the position in one of the ranges given in the &lt;code title=dom-media-seekable&gt;&lt;a href=#dom-media-seekable&gt;seekable&lt;/a&gt;&lt;/code&gt; attribute that is the
++   nearest to the &lt;var title=&quot;&quot;&gt;new playback position&lt;/var&gt;. If two
++   positions both satisfy that constraint (i.e. the &lt;var title=&quot;&quot;&gt;new
++   playback position&lt;/var&gt; is exactly in the middle of a range in the
++   &lt;code title=dom-media-seekable&gt;&lt;a href=#dom-media-seekable&gt;seekable&lt;/a&gt;&lt;/code&gt; attribute) then
++   use the position that is closest to the &lt;a href=#current-playback-position&gt;current playback
++   position&lt;/a&gt;. If there are no ranges given in the &lt;code title=dom-media-seekable&gt;&lt;a href=#dom-media-seekable&gt;seekable&lt;/a&gt;&lt;/code&gt; attribute then set the
++   &lt;code title=dom-media-seeking&gt;&lt;a href=#dom-media-seeking&gt;seeking&lt;/a&gt;&lt;/code&gt; IDL attribute to
++   false and abort these steps.&lt;/li&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;The &lt;a href=#current-playback-position&gt;current playback position&lt;/a&gt; must be set to
+-   the given &lt;var title=&quot;&quot;&gt;new playback position&lt;/var&gt;.&lt;/li&gt;
++   &lt;li&gt;&lt;p&gt;Set the &lt;a href=#current-playback-position&gt;current playback position&lt;/a&gt; to the given
++   &lt;var title=&quot;&quot;&gt;new playback position&lt;/var&gt;.&lt;/li&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;The &lt;code title=dom-media-seeking&gt;&lt;a href=#dom-media-seeking&gt;seeking&lt;/a&gt;&lt;/code&gt; IDL
+-   attribute must be set to true.&lt;/li&gt;
+-
+-   &lt;li id=seekUpdate&gt;&lt;p&gt;The user agent must &lt;a href=#queue-a-task&gt;queue a
+-   task&lt;/a&gt; to &lt;a href=#fire-a-simple-event&gt;fire a simple event&lt;/a&gt; named &lt;code title=event-media-timeupdate&gt;&lt;a href=#event-media-timeupdate&gt;timeupdate&lt;/a&gt;&lt;/code&gt; at the element.&lt;/li&gt;
+-
+    &lt;li&gt;&lt;p&gt;If the &lt;a href=#media-element&gt;media element&lt;/a&gt; was &lt;a href=#potentially-playing&gt;potentially
+    playing&lt;/a&gt; immediately before it started seeking, but seeking
+    caused its &lt;code title=dom-media-readyState&gt;&lt;a href=#dom-media-readystate&gt;readyState&lt;/a&gt;&lt;/code&gt;
+-   attribute to change to a value lower than &lt;code title=dom-media-HAVE_FUTURE_DATA&gt;&lt;a href=#dom-media-have_future_data&gt;HAVE_FUTURE_DATA&lt;/a&gt;&lt;/code&gt;, the
+-   user agent must &lt;a href=#queue-a-task&gt;queue a task&lt;/a&gt; to &lt;a href=#fire-a-simple-event&gt;fire a simple
+-   event&lt;/a&gt; named &lt;code title=event-media-waiting&gt;&lt;a href=#event-media-waiting&gt;waiting&lt;/a&gt;&lt;/code&gt; at
+-   the element.&lt;/li&gt;
++   attribute to change to a value lower than &lt;code title=dom-media-HAVE_FUTURE_DATA&gt;&lt;a href=#dom-media-have_future_data&gt;HAVE_FUTURE_DATA&lt;/a&gt;&lt;/code&gt;, then
++   &lt;a href=#queue-a-task&gt;queue a task&lt;/a&gt; to &lt;a href=#fire-a-simple-event&gt;fire a simple event&lt;/a&gt; named
++   &lt;code title=event-media-waiting&gt;&lt;a href=#event-media-waiting&gt;waiting&lt;/a&gt;&lt;/code&gt; at the
++   element.&lt;/li&gt;
+ 
+    &lt;li&gt;&lt;p&gt;If, when it reaches this step, the user agent has still not
+    established whether or not the &lt;a href=#media-data&gt;media data&lt;/a&gt; for the &lt;var title=&quot;&quot;&gt;new playback position&lt;/var&gt; is available, and, if it is,
+-   decoded enough data to play back that position, the user agent must
+-   &lt;a href=#queue-a-task&gt;queue a task&lt;/a&gt; to &lt;a href=#fire-a-simple-event&gt;fire a simple event&lt;/a&gt;
+-   named &lt;code title=event-media-seeking&gt;&lt;a href=#event-media-seeking&gt;seeking&lt;/a&gt;&lt;/code&gt; at the
+-   element.&lt;/li&gt;
++   decoded enough data to play back that position, then &lt;a href=#queue-a-task&gt;queue a
++   task&lt;/a&gt; to &lt;a href=#fire-a-simple-event&gt;fire a simple event&lt;/a&gt; named &lt;code title=event-media-seeking&gt;&lt;a href=#event-media-seeking&gt;seeking&lt;/a&gt;&lt;/code&gt; at the element.&lt;/li&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;If the seek was in response to a DOM method call or setting
+-   of an IDL attribute, then continue the script. The remainder of
+-   these steps must be run asynchronously.&lt;/li&gt;
++   &lt;li&gt;&lt;p&gt;Wait until it has established whether or not the &lt;a href=#media-data&gt;media
++   data&lt;/a&gt; for the &lt;var title=&quot;&quot;&gt;new playback position&lt;/var&gt; is
++   available, and, if it is, until it has decoded enough data to play
++   back that position.&lt;/li&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;The user agent must wait until it has established whether or
+-   not the &lt;a href=#media-data&gt;media data&lt;/a&gt; for the &lt;var title=&quot;&quot;&gt;new playback
+-   position&lt;/var&gt; is available, and, if it is, until it has decoded
+-   enough data to play back that position.&lt;/li&gt;
++   &lt;li&gt;&lt;p&gt;&lt;a href=#await-a-stable-state&gt;Await a stable state&lt;/a&gt;. The &lt;a href=#synchronous-section&gt;synchronous
++   section&lt;/a&gt; consists of all the remaining steps of this
++   algorithm. (Steps in the &lt;a href=#synchronous-section&gt;synchronous section&lt;/a&gt; are
++   marked with &#8987;.)&lt;/li&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;The &lt;code title=dom-media-seeking&gt;&lt;a href=#dom-media-seeking&gt;seeking&lt;/a&gt;&lt;/code&gt; IDL
+-   attribute must be set to false.&lt;/li&gt;
++   &lt;li&gt;&lt;p&gt;&#8987; Set the &lt;code title=dom-media-seeking&gt;&lt;a href=#dom-media-seeking&gt;seeking&lt;/a&gt;&lt;/code&gt; IDL attribute to
++   false.&lt;/li&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;The user agent must &lt;a href=#queue-a-task&gt;queue a task&lt;/a&gt; to &lt;a href=#fire-a-simple-event&gt;fire
+-   a simple event&lt;/a&gt; named &lt;code title=event-media-seeked&gt;&lt;a href=#event-media-seeked&gt;seeked&lt;/a&gt;&lt;/code&gt; at the element.&lt;/li&gt;
++   &lt;li&gt;&lt;p&gt;&#8987; &lt;a href=#queue-a-task&gt;Queue a task&lt;/a&gt; to &lt;a href=#fire-a-simple-event&gt;fire a simple
++   event&lt;/a&gt; named &lt;code title=event-media-seeked&gt;&lt;a href=#event-media-seeked&gt;seeked&lt;/a&gt;&lt;/code&gt;
++   at the element.&lt;/li&gt;
+ 
+   &lt;/ol&gt;&lt;p&gt;The &lt;dfn id=dom-media-seekable title=dom-media-seekable&gt;&lt;code&gt;seekable&lt;/code&gt;&lt;/dfn&gt;
+   attribute must return a new static &lt;a href=#normalized-timeranges-object&gt;normalized
+
+Modified: index
+===================================================================
+--- index	2010-03-25 08:18:08 UTC (rev 4867)
++++ index	2010-03-25 09:30:10 UTC (rev 4868)
+@@ -173,7 +173,7 @@
+ 
+   &lt;header class=head id=head&gt;&lt;p&gt;&lt;a class=logo href=<A HREF="http://www.whatwg.org/">http://www.whatwg.org/</A> rel=home&gt;&lt;img alt=WHATWG src=/images/logo&gt;&lt;/a&gt;&lt;/p&gt;
+    &lt;hgroup&gt;&lt;h1&gt;HTML5 (including next generation additions still in development)&lt;/h1&gt;
+-    &lt;h2 class=&quot;no-num no-toc&quot;&gt;Draft Standard &mdash; 24 March 2010&lt;/h2&gt;
++    &lt;h2 class=&quot;no-num no-toc&quot;&gt;Draft Standard &mdash; 25 March 2010&lt;/h2&gt;
+    &lt;/hgroup&gt;&lt;p&gt;You can take part in this work. &lt;a href=<A HREF="http://www.whatwg.org/mailing-list">http://www.whatwg.org/mailing-list</A>&gt;Join the working group's discussion list.&lt;/a&gt;&lt;/p&gt;
+    &lt;p&gt;&lt;strong&gt;Web designers!&lt;/strong&gt; We have a &lt;a href=<A HREF="http://blog.whatwg.org/faq/">http://blog.whatwg.org/faq/</A>&gt;FAQ&lt;/a&gt;, a &lt;a href=<A HREF="http://forums.whatwg.org/">http://forums.whatwg.org/</A>&gt;forum&lt;/a&gt;, and a &lt;a href=<A HREF="http://www.whatwg.org/mailing-list#help">http://www.whatwg.org/mailing-list#help</A>&gt;help mailing list&lt;/a&gt; for you!&lt;/p&gt;
+    &lt;!--&lt;p class=&quot;impl&quot;&gt;&lt;strong&gt;Implementors!&lt;/strong&gt; We have a &lt;a href=&quot;<A HREF="http://www.whatwg.org/mailing-list#implementors">http://www.whatwg.org/mailing-list#implementors</A>&quot;&gt;mailing list&lt;/a&gt; for you too!&lt;/p&gt;--&gt;
+@@ -24336,13 +24336,36 @@
+ 
+   &lt;p&gt;When the user agent is required to &lt;dfn id=dom-media-seek title=dom-media-seek&gt;seek&lt;/dfn&gt; to a particular &lt;var title=&quot;&quot;&gt;new
+   playback position&lt;/var&gt; in the &lt;a href=#media-resource&gt;media resource&lt;/a&gt;, it means
+-  that the user agent must run the following steps:&lt;/p&gt;
++  that the user agent must run the following steps. This algorithm
++  interacts closely with the &lt;a href=#event-loop&gt;event loop&lt;/a&gt; mechanism; in
++  particular, it has a &lt;a href=#synchronous-section&gt;synchronous
++  section&lt;/a&gt; (which is triggered as part of the &lt;a href=#event-loop&gt;event
++  loop&lt;/a&gt; algorithm). Steps in that section are marked with
++  &#8987;.&lt;/p&gt;
+ 
+-  &lt;ol&gt;&lt;li&gt;&lt;p&gt;If the &lt;a href=#media-element&gt;media element&lt;/a&gt;'s &lt;code title=dom-media-readyState&gt;&lt;a href=#dom-media-readystate&gt;readyState&lt;/a&gt;&lt;/code&gt; is &lt;code title=dom-media-HAVE_NOTHING&gt;&lt;a href=#dom-media-have_nothing&gt;HAVE_NOTHING&lt;/a&gt;&lt;/code&gt;, then the user
+-   agent must raise an &lt;code&gt;&lt;a href=#invalid_state_err&gt;INVALID_STATE_ERR&lt;/a&gt;&lt;/code&gt; exception (if
+-   the seek was in response to a DOM method call or setting of an IDL
+-   attribute), and abort these steps.&lt;/li&gt;
++  &lt;ol&gt;&lt;li&gt;&lt;p&gt;If the &lt;a href=#media-element&gt;media element&lt;/a&gt;'s &lt;code title=dom-media-readyState&gt;&lt;a href=#dom-media-readystate&gt;readyState&lt;/a&gt;&lt;/code&gt; is &lt;code title=dom-media-HAVE_NOTHING&gt;&lt;a href=#dom-media-have_nothing&gt;HAVE_NOTHING&lt;/a&gt;&lt;/code&gt;, then raise an
++   &lt;code&gt;&lt;a href=#invalid_state_err&gt;INVALID_STATE_ERR&lt;/a&gt;&lt;/code&gt; exception (if the seek was in
++   response to a DOM method call or setting of an IDL attribute), and
++   abort these steps.&lt;/li&gt;
+ 
++   &lt;li&gt;&lt;p&gt;If the element's &lt;code title=dom-media-seeking&gt;&lt;a href=#dom-media-seeking&gt;seeking&lt;/a&gt;&lt;/code&gt; IDL attribute is true,
++   then another instance of this algorithm is already running. Abort
++   that other instance of the algorithm without waiting for the step
++   that it is running to complete.&lt;/li&gt;
++
++   &lt;li&gt;&lt;p&gt;Set the &lt;code title=dom-media-seeking&gt;&lt;a href=#dom-media-seeking&gt;seeking&lt;/a&gt;&lt;/code&gt; IDL
++   attribute to true.&lt;/li&gt;
++
++   &lt;li id=seekUpdate&gt;&lt;p&gt;&lt;a href=#queue-a-task&gt;Queue a task&lt;/a&gt; to &lt;a href=#fire-a-simple-event&gt;fire a
++   simple event&lt;/a&gt; named &lt;code title=event-media-timeupdate&gt;&lt;a href=#event-media-timeupdate&gt;timeupdate&lt;/a&gt;&lt;/code&gt; at the
++   element.&lt;/li&gt;
++
++   &lt;li&gt;&lt;p&gt;If the seek was in response to a DOM method call or setting
++   of an IDL attribute, then continue the script. The remainder of
++   these steps must be run asynchronously. With the exception of the
++   steps marked with &#8987;, they could be aborted at any time by
++   another instance of this algorithm being invoked.&lt;/li&gt;
++
+    &lt;li&gt;&lt;p&gt;If the &lt;var title=&quot;&quot;&gt;new playback position&lt;/var&gt; is later
+    than the end of the &lt;a href=#media-resource&gt;media resource&lt;/a&gt;, then let it be the
+    end of the &lt;a href=#media-resource&gt;media resource&lt;/a&gt; instead.&lt;/li&gt;
+@@ -24352,49 +24375,49 @@
+    position instead.&lt;/li&gt;
+ 
+    &lt;li&gt;&lt;p&gt;If the (possibly now changed) &lt;var title=&quot;&quot;&gt;new playback
+-   position&lt;/var&gt; is not in one of the ranges given in the &lt;code title=dom-media-seekable&gt;&lt;a href=#dom-media-seekable&gt;seekable&lt;/a&gt;&lt;/code&gt; attribute, then the user
+-   agent must raise an &lt;code&gt;&lt;a href=#index_size_err&gt;INDEX_SIZE_ERR&lt;/a&gt;&lt;/code&gt; exception (if the
+-   seek was in response to a DOM method call or setting of an IDL
+-   attribute), and abort these steps.&lt;/li&gt;
++   position&lt;/var&gt; is not in one of the ranges given in the &lt;code title=dom-media-seekable&gt;&lt;a href=#dom-media-seekable&gt;seekable&lt;/a&gt;&lt;/code&gt; attribute, then let it
++   be the position in one of the ranges given in the &lt;code title=dom-media-seekable&gt;&lt;a href=#dom-media-seekable&gt;seekable&lt;/a&gt;&lt;/code&gt; attribute that is the
++   nearest to the &lt;var title=&quot;&quot;&gt;new playback position&lt;/var&gt;. If two
++   positions both satisfy that constraint (i.e. the &lt;var title=&quot;&quot;&gt;new
++   playback position&lt;/var&gt; is exactly in the middle of a range in the
++   &lt;code title=dom-media-seekable&gt;&lt;a href=#dom-media-seekable&gt;seekable&lt;/a&gt;&lt;/code&gt; attribute) then
++   use the position that is closest to the &lt;a href=#current-playback-position&gt;current playback
++   position&lt;/a&gt;. If there are no ranges given in the &lt;code title=dom-media-seekable&gt;&lt;a href=#dom-media-seekable&gt;seekable&lt;/a&gt;&lt;/code&gt; attribute then set the
++   &lt;code title=dom-media-seeking&gt;&lt;a href=#dom-media-seeking&gt;seeking&lt;/a&gt;&lt;/code&gt; IDL attribute to
++   false and abort these steps.&lt;/li&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;The &lt;a href=#current-playback-position&gt;current playback position&lt;/a&gt; must be set to
+-   the given &lt;var title=&quot;&quot;&gt;new playback position&lt;/var&gt;.&lt;/li&gt;
++   &lt;li&gt;&lt;p&gt;Set the &lt;a href=#current-playback-position&gt;current playback position&lt;/a&gt; to the given
++   &lt;var title=&quot;&quot;&gt;new playback position&lt;/var&gt;.&lt;/li&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;The &lt;code title=dom-media-seeking&gt;&lt;a href=#dom-media-seeking&gt;seeking&lt;/a&gt;&lt;/code&gt; IDL
+-   attribute must be set to true.&lt;/li&gt;
+-
+-   &lt;li id=seekUpdate&gt;&lt;p&gt;The user agent must &lt;a href=#queue-a-task&gt;queue a
+-   task&lt;/a&gt; to &lt;a href=#fire-a-simple-event&gt;fire a simple event&lt;/a&gt; named &lt;code title=event-media-timeupdate&gt;&lt;a href=#event-media-timeupdate&gt;timeupdate&lt;/a&gt;&lt;/code&gt; at the element.&lt;/li&gt;
+-
+    &lt;li&gt;&lt;p&gt;If the &lt;a href=#media-element&gt;media element&lt;/a&gt; was &lt;a href=#potentially-playing&gt;potentially
+    playing&lt;/a&gt; immediately before it started seeking, but seeking
+    caused its &lt;code title=dom-media-readyState&gt;&lt;a href=#dom-media-readystate&gt;readyState&lt;/a&gt;&lt;/code&gt;
+-   attribute to change to a value lower than &lt;code title=dom-media-HAVE_FUTURE_DATA&gt;&lt;a href=#dom-media-have_future_data&gt;HAVE_FUTURE_DATA&lt;/a&gt;&lt;/code&gt;, the
+-   user agent must &lt;a href=#queue-a-task&gt;queue a task&lt;/a&gt; to &lt;a href=#fire-a-simple-event&gt;fire a simple
+-   event&lt;/a&gt; named &lt;code title=event-media-waiting&gt;&lt;a href=#event-media-waiting&gt;waiting&lt;/a&gt;&lt;/code&gt; at
+-   the element.&lt;/li&gt;
++   attribute to change to a value lower than &lt;code title=dom-media-HAVE_FUTURE_DATA&gt;&lt;a href=#dom-media-have_future_data&gt;HAVE_FUTURE_DATA&lt;/a&gt;&lt;/code&gt;, then
++   &lt;a href=#queue-a-task&gt;queue a task&lt;/a&gt; to &lt;a href=#fire-a-simple-event&gt;fire a simple event&lt;/a&gt; named
++   &lt;code title=event-media-waiting&gt;&lt;a href=#event-media-waiting&gt;waiting&lt;/a&gt;&lt;/code&gt; at the
++   element.&lt;/li&gt;
+ 
+    &lt;li&gt;&lt;p&gt;If, when it reaches this step, the user agent has still not
+    established whether or not the &lt;a href=#media-data&gt;media data&lt;/a&gt; for the &lt;var title=&quot;&quot;&gt;new playback position&lt;/var&gt; is available, and, if it is,
+-   decoded enough data to play back that position, the user agent must
+-   &lt;a href=#queue-a-task&gt;queue a task&lt;/a&gt; to &lt;a href=#fire-a-simple-event&gt;fire a simple event&lt;/a&gt;
+-   named &lt;code title=event-media-seeking&gt;&lt;a href=#event-media-seeking&gt;seeking&lt;/a&gt;&lt;/code&gt; at the
+-   element.&lt;/li&gt;
++   decoded enough data to play back that position, then &lt;a href=#queue-a-task&gt;queue a
++   task&lt;/a&gt; to &lt;a href=#fire-a-simple-event&gt;fire a simple event&lt;/a&gt; named &lt;code title=event-media-seeking&gt;&lt;a href=#event-media-seeking&gt;seeking&lt;/a&gt;&lt;/code&gt; at the element.&lt;/li&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;If the seek was in response to a DOM method call or setting
+-   of an IDL attribute, then continue the script. The remainder of
+-   these steps must be run asynchronously.&lt;/li&gt;
++   &lt;li&gt;&lt;p&gt;Wait until it has established whether or not the &lt;a href=#media-data&gt;media
++   data&lt;/a&gt; for the &lt;var title=&quot;&quot;&gt;new playback position&lt;/var&gt; is
++   available, and, if it is, until it has decoded enough data to play
++   back that position.&lt;/li&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;The user agent must wait until it has established whether or
+-   not the &lt;a href=#media-data&gt;media data&lt;/a&gt; for the &lt;var title=&quot;&quot;&gt;new playback
+-   position&lt;/var&gt; is available, and, if it is, until it has decoded
+-   enough data to play back that position.&lt;/li&gt;
++   &lt;li&gt;&lt;p&gt;&lt;a href=#await-a-stable-state&gt;Await a stable state&lt;/a&gt;. The &lt;a href=#synchronous-section&gt;synchronous
++   section&lt;/a&gt; consists of all the remaining steps of this
++   algorithm. (Steps in the &lt;a href=#synchronous-section&gt;synchronous section&lt;/a&gt; are
++   marked with &#8987;.)&lt;/li&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;The &lt;code title=dom-media-seeking&gt;&lt;a href=#dom-media-seeking&gt;seeking&lt;/a&gt;&lt;/code&gt; IDL
+-   attribute must be set to false.&lt;/li&gt;
++   &lt;li&gt;&lt;p&gt;&#8987; Set the &lt;code title=dom-media-seeking&gt;&lt;a href=#dom-media-seeking&gt;seeking&lt;/a&gt;&lt;/code&gt; IDL attribute to
++   false.&lt;/li&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;The user agent must &lt;a href=#queue-a-task&gt;queue a task&lt;/a&gt; to &lt;a href=#fire-a-simple-event&gt;fire
+-   a simple event&lt;/a&gt; named &lt;code title=event-media-seeked&gt;&lt;a href=#event-media-seeked&gt;seeked&lt;/a&gt;&lt;/code&gt; at the element.&lt;/li&gt;
++   &lt;li&gt;&lt;p&gt;&#8987; &lt;a href=#queue-a-task&gt;Queue a task&lt;/a&gt; to &lt;a href=#fire-a-simple-event&gt;fire a simple
++   event&lt;/a&gt; named &lt;code title=event-media-seeked&gt;&lt;a href=#event-media-seeked&gt;seeked&lt;/a&gt;&lt;/code&gt;
++   at the element.&lt;/li&gt;
+ 
+   &lt;/ol&gt;&lt;p&gt;The &lt;dfn id=dom-media-seekable title=dom-media-seekable&gt;&lt;code&gt;seekable&lt;/code&gt;&lt;/dfn&gt;
+   attribute must return a new static &lt;a href=#normalized-timeranges-object&gt;normalized
+
+Modified: source
+===================================================================
+--- source	2010-03-25 08:18:08 UTC (rev 4867)
++++ source	2010-03-25 09:30:10 UTC (rev 4868)
+@@ -26372,17 +26372,42 @@
+   &lt;p&gt;When the user agent is required to &lt;dfn
+   title=&quot;dom-media-seek&quot;&gt;seek&lt;/dfn&gt; to a particular &lt;var title=&quot;&quot;&gt;new
+   playback position&lt;/var&gt; in the &lt;span&gt;media resource&lt;/span&gt;, it means
+-  that the user agent must run the following steps:&lt;/p&gt;
++  that the user agent must run the following steps. This algorithm
++  interacts closely with the &lt;span&gt;event loop&lt;/span&gt; mechanism; in
++  particular, it has a &lt;span&gt;synchronous
++  section&lt;/span&gt; (which is triggered as part of the &lt;span&gt;event
++  loop&lt;/span&gt; algorithm). Steps in that section are marked with
++  &amp;#x231B;.&lt;/p&gt;
+ 
+   &lt;ol&gt;
+ 
+    &lt;li&gt;&lt;p&gt;If the &lt;span&gt;media element&lt;/span&gt;'s &lt;code
+    title=&quot;dom-media-readyState&quot;&gt;readyState&lt;/code&gt; is &lt;code
+-   title=&quot;dom-media-HAVE_NOTHING&quot;&gt;HAVE_NOTHING&lt;/code&gt;, then the user
+-   agent must raise an &lt;code&gt;INVALID_STATE_ERR&lt;/code&gt; exception (if
+-   the seek was in response to a DOM method call or setting of an IDL
+-   attribute), and abort these steps.&lt;/p&gt;&lt;/li&gt;
++   title=&quot;dom-media-HAVE_NOTHING&quot;&gt;HAVE_NOTHING&lt;/code&gt;, then raise an
++   &lt;code&gt;INVALID_STATE_ERR&lt;/code&gt; exception (if the seek was in
++   response to a DOM method call or setting of an IDL attribute), and
++   abort these steps.&lt;/p&gt;&lt;/li&gt;
+ 
++   &lt;li&gt;&lt;p&gt;If the element's &lt;code
++   title=&quot;dom-media-seeking&quot;&gt;seeking&lt;/code&gt; IDL attribute is true,
++   then another instance of this algorithm is already running. Abort
++   that other instance of the algorithm without waiting for the step
++   that it is running to complete.&lt;/p&gt;&lt;/li&gt;
++
++   &lt;li&gt;&lt;p&gt;Set the &lt;code title=&quot;dom-media-seeking&quot;&gt;seeking&lt;/code&gt; IDL
++   attribute to true.&lt;/p&gt;&lt;/li&gt;
++
++   &lt;li id=&quot;seekUpdate&quot;&gt;&lt;p&gt;&lt;span&gt;Queue a task&lt;/span&gt; to &lt;span&gt;fire a
++   simple event&lt;/span&gt; named &lt;code
++   title=&quot;event-media-timeupdate&quot;&gt;timeupdate&lt;/code&gt; at the
++   element.&lt;/p&gt;&lt;/li&gt;
++
++   &lt;li&gt;&lt;p&gt;If the seek was in response to a DOM method call or setting
++   of an IDL attribute, then continue the script. The remainder of
++   these steps must be run asynchronously. With the exception of the
++   steps marked with &amp;#x231B;, they could be aborted at any time by
++   another instance of this algorithm being invoked.&lt;/p&gt;&lt;/li&gt;
++
+    &lt;li&gt;&lt;p&gt;If the &lt;var title=&quot;&quot;&gt;new playback position&lt;/var&gt; is later
+    than the end of the &lt;span&gt;media resource&lt;/span&gt;, then let it be the
+    end of the &lt;span&gt;media resource&lt;/span&gt; instead.&lt;/p&gt;&lt;/li&gt;
+@@ -26393,53 +26418,55 @@
+ 
+    &lt;li&gt;&lt;p&gt;If the (possibly now changed) &lt;var title=&quot;&quot;&gt;new playback
+    position&lt;/var&gt; is not in one of the ranges given in the &lt;code
+-   title=&quot;dom-media-seekable&quot;&gt;seekable&lt;/code&gt; attribute, then the user
+-   agent must raise an &lt;code&gt;INDEX_SIZE_ERR&lt;/code&gt; exception (if the
+-   seek was in response to a DOM method call or setting of an IDL
+-   attribute), and abort these steps.&lt;/p&gt;&lt;/li&gt;
++   title=&quot;dom-media-seekable&quot;&gt;seekable&lt;/code&gt; attribute, then let it
++   be the position in one of the ranges given in the &lt;code
++   title=&quot;dom-media-seekable&quot;&gt;seekable&lt;/code&gt; attribute that is the
++   nearest to the &lt;var title=&quot;&quot;&gt;new playback position&lt;/var&gt;. If two
++   positions both satisfy that constraint (i.e. the &lt;var title=&quot;&quot;&gt;new
++   playback position&lt;/var&gt; is exactly in the middle of a range in the
++   &lt;code title=&quot;dom-media-seekable&quot;&gt;seekable&lt;/code&gt; attribute) then
++   use the position that is closest to the &lt;span&gt;current playback
++   position&lt;/span&gt;. If there are no ranges given in the &lt;code
++   title=&quot;dom-media-seekable&quot;&gt;seekable&lt;/code&gt; attribute then set the
++   &lt;code title=&quot;dom-media-seeking&quot;&gt;seeking&lt;/code&gt; IDL attribute to
++   false and abort these steps.&lt;/p&gt;&lt;/li&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;The &lt;span&gt;current playback position&lt;/span&gt; must be set to
+-   the given &lt;var title=&quot;&quot;&gt;new playback position&lt;/var&gt;.&lt;/p&gt;&lt;/li&gt;
++   &lt;li&gt;&lt;p&gt;Set the &lt;span&gt;current playback position&lt;/span&gt; to the given
++   &lt;var title=&quot;&quot;&gt;new playback position&lt;/var&gt;.&lt;/p&gt;&lt;/li&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;The &lt;code title=&quot;dom-media-seeking&quot;&gt;seeking&lt;/code&gt; IDL
+-   attribute must be set to true.&lt;/p&gt;&lt;/li&gt;
+-
+-   &lt;li id=&quot;seekUpdate&quot;&gt;&lt;p&gt;The user agent must &lt;span&gt;queue a
+-   task&lt;/span&gt; to &lt;span&gt;fire a simple event&lt;/span&gt; named &lt;code
+-   title=&quot;event-media-timeupdate&quot;&gt;timeupdate&lt;/code&gt; at the element.&lt;/p&gt;&lt;/li&gt;
+-
+    &lt;li&gt;&lt;p&gt;If the &lt;span&gt;media element&lt;/span&gt; was &lt;span&gt;potentially
+    playing&lt;/span&gt; immediately before it started seeking, but seeking
+    caused its &lt;code title=&quot;dom-media-readyState&quot;&gt;readyState&lt;/code&gt;
+    attribute to change to a value lower than &lt;code
+-   title=&quot;dom-media-HAVE_FUTURE_DATA&quot;&gt;HAVE_FUTURE_DATA&lt;/code&gt;, the
+-   user agent must &lt;span&gt;queue a task&lt;/span&gt; to &lt;span&gt;fire a simple
+-   event&lt;/span&gt; named &lt;code title=&quot;event-media-waiting&quot;&gt;waiting&lt;/code&gt; at
+-   the element.&lt;/p&gt;&lt;/li&gt;
++   title=&quot;dom-media-HAVE_FUTURE_DATA&quot;&gt;HAVE_FUTURE_DATA&lt;/code&gt;, then
++   &lt;span&gt;queue a task&lt;/span&gt; to &lt;span&gt;fire a simple event&lt;/span&gt; named
++   &lt;code title=&quot;event-media-waiting&quot;&gt;waiting&lt;/code&gt; at the
++   element.&lt;/p&gt;&lt;/li&gt;
+ 
+    &lt;li&gt;&lt;p&gt;If, when it reaches this step, the user agent has still not
+    established whether or not the &lt;span&gt;media data&lt;/span&gt; for the &lt;var
+    title=&quot;&quot;&gt;new playback position&lt;/var&gt; is available, and, if it is,
+-   decoded enough data to play back that position, the user agent must
+-   &lt;span&gt;queue a task&lt;/span&gt; to &lt;span&gt;fire a simple event&lt;/span&gt;
+-   named &lt;code title=&quot;event-media-seeking&quot;&gt;seeking&lt;/code&gt; at the
+-   element.&lt;/p&gt;&lt;/li&gt;
++   decoded enough data to play back that position, then &lt;span&gt;queue a
++   task&lt;/span&gt; to &lt;span&gt;fire a simple event&lt;/span&gt; named &lt;code
++   title=&quot;event-media-seeking&quot;&gt;seeking&lt;/code&gt; at the element.&lt;/p&gt;&lt;/li&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;If the seek was in response to a DOM method call or setting
+-   of an IDL attribute, then continue the script. The remainder of
+-   these steps must be run asynchronously.&lt;/p&gt;&lt;/li&gt;
++   &lt;li&gt;&lt;p&gt;Wait until it has established whether or not the &lt;span&gt;media
++   data&lt;/span&gt; for the &lt;var title=&quot;&quot;&gt;new playback position&lt;/var&gt; is
++   available, and, if it is, until it has decoded enough data to play
++   back that position.&lt;/p&gt;&lt;/li&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;The user agent must wait until it has established whether or
+-   not the &lt;span&gt;media data&lt;/span&gt; for the &lt;var title=&quot;&quot;&gt;new playback
+-   position&lt;/var&gt; is available, and, if it is, until it has decoded
+-   enough data to play back that position.&lt;/p&gt;&lt;/li&gt;
++   &lt;li&gt;&lt;p&gt;&lt;span&gt;Await a stable state&lt;/span&gt;. The &lt;span&gt;synchronous
++   section&lt;/span&gt; consists of all the remaining steps of this
++   algorithm. (Steps in the &lt;span&gt;synchronous section&lt;/span&gt; are
++   marked with &amp;#x231B;.)&lt;/p&gt;&lt;/li&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;The &lt;code title=&quot;dom-media-seeking&quot;&gt;seeking&lt;/code&gt; IDL
+-   attribute must be set to false.&lt;/p&gt;&lt;/li&gt;
++   &lt;li&gt;&lt;p&gt;&amp;#x231B; Set the &lt;code
++   title=&quot;dom-media-seeking&quot;&gt;seeking&lt;/code&gt; IDL attribute to
++   false.&lt;/p&gt;&lt;/li&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;The user agent must &lt;span&gt;queue a task&lt;/span&gt; to &lt;span&gt;fire
+-   a simple event&lt;/span&gt; named &lt;code
+-   title=&quot;event-media-seeked&quot;&gt;seeked&lt;/code&gt; at the element.&lt;/p&gt;&lt;/li&gt;
++   &lt;li&gt;&lt;p&gt;&amp;#x231B; &lt;span&gt;Queue a task&lt;/span&gt; to &lt;span&gt;fire a simple
++   event&lt;/span&gt; named &lt;code title=&quot;event-media-seeked&quot;&gt;seeked&lt;/code&gt;
++   at the element.&lt;/p&gt;&lt;/li&gt;
+ 
+   &lt;/ol&gt;
+ 
+
+
+</PRE>
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="011739.html">[html5] r4867 - [e] (0) I am incompetent at this editing thing.
+</A></li>
+	<LI>Next message: <A HREF="011741.html">[html5] r4869 - [e] (0) We're trying to avoid negative space,	not avoid the actual ranges...
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#11740">[ date ]</a>
+              <a href="thread.html#11740">[ thread ]</a>
+              <a href="subject.html#11740">[ subject ]</a>
+              <a href="author.html#11740">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/commit-watchers-whatwg.org">More information about the Commit-Watchers
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

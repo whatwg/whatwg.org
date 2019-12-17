@@ -1,0 +1,299 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [html5] r886 - /
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commit-watchers%40lists.whatwg.org?Subject=Re%3A%20%5Bhtml5%5D%20r886%20-%20/&In-Reply-To=%3C20070613223410.7207512294F%40looneymail-a5.g.dreamhost.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="007805.html">
+   <LINK REL="Next"  HREF="007807.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[html5] r886 - /</H1>
+<!--htdig_noindex-->
+    <B>whatwg at whatwg.org</B> 
+    <A HREF="mailto:commit-watchers%40lists.whatwg.org?Subject=Re%3A%20%5Bhtml5%5D%20r886%20-%20/&In-Reply-To=%3C20070613223410.7207512294F%40looneymail-a5.g.dreamhost.com%3E"
+       TITLE="[html5] r886 - /">whatwg at whatwg.org
+       </A><BR>
+    <I>Wed Jun 13 15:34:10 PDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="007805.html">[html5] r885 - /
+</A></li>
+        <LI>Next message: <A HREF="007807.html">[html5] r887 - /
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#7806">[ date ]</a>
+              <a href="thread.html#7806">[ thread ]</a>
+              <a href="subject.html#7806">[ subject ]</a>
+              <a href="author.html#7806">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Author: ianh
+Date: 2007-06-13 15:34:08 -0700 (Wed, 13 Jun 2007)
+New Revision: 886
+
+Modified:
+   index
+   source
+Log:
+[t] (0) Support the insane comment stuff in CDATA and RCDATA blocks
+
+Modified: index
+===================================================================
+--- index	2007-06-13 21:36:19 UTC (rev 885)
++++ index	2007-06-13 22:34:08 UTC (rev 886)
+@@ -32306,10 +32306,25 @@
+   &lt;p&gt;Void elements can't have any contents (since there's no end tag, no
+    content can be put between the start tag and the end tag.)
+ 
+-  &lt;p&gt;CDATA elements can have &lt;a href=&quot;#text1&quot; title=syntax-text&gt;text&lt;/a&gt;, but
+-   the text must not contain the two character sequence &quot;&lt;code&gt;&lt;/&lt;/code&gt;&quot;
+-   (U+003C LESS-THAN SIGN, U+002F SOLIDUS).
++  &lt;p&gt;CDATA elements can have &lt;a href=&quot;#text1&quot; title=syntax-text&gt;text&lt;/a&gt;,
++   but:
+ 
++  &lt;ul&gt;
++   &lt;li&gt;The text must not contain the two character sequence &quot;&lt;code
++    title=&quot;&quot;&gt;&lt;/&lt;/code&gt;&quot; (U+003C LESS-THAN SIGN, U+002F SOLIDUS).
++
++   &lt;li&gt;For every occurrence of the four character sequence &quot;&lt;code
++    title=&quot;&quot;&gt;&lt;!--&lt;/code&gt;&quot; (U+003C LESS-THAN SIGN, U+0021 EXCLAMATION MARK,
++    U+002D HYPHEN-MINUS, U+002D HYPHEN-MINUS), there must be a corresponding
++    three-character sequence &quot;&lt;code title=&quot;&quot;&gt;--&gt;&lt;/code&gt;&quot; (U+002D
++    HYPHEN-MINUS, U+002D HYPHEN-MINUS, U+003E GREATER-THAN SIGN) whose U+003E
++    GREATER-THAN SIGN (&gt;) character occurs later in the text than the
++    U+003C LESS-THAN SIGN (&lt;) character of the first sequence. (This means
++    the hyphens from the &quot;&lt;code title=&quot;&quot;&gt;&lt;!--&lt;/code&gt;&quot; part can overlap
++    those in the &quot;&lt;code title=&quot;&quot;&gt;--&gt;&lt;/code&gt;&quot; part, as in &quot;&lt;code
++    title=&quot;&quot;&gt;&amp;lt!--&gt;&lt;/code&gt;&quot;.)
++  &lt;/ul&gt;
++
+   &lt;p&gt;RCDATA elements can have &lt;a href=&quot;#text1&quot; title=syntax-text&gt;text&lt;/a&gt; and
+    &lt;a href=&quot;#character0&quot; title=syntax-entities&gt;character entity
+    references&lt;/a&gt;, but the text must not contain the character U+003C
+@@ -33435,7 +33450,10 @@
+    id=content2&gt;content model flag&lt;/dfn&gt; that is set after certain tokens are
+    emitted. The flag has several states: &lt;em title=&quot;&quot;&gt;PCDATA&lt;/em&gt;, &lt;em
+    title=&quot;&quot;&gt;RCDATA&lt;/em&gt;, &lt;em title=&quot;&quot;&gt;CDATA&lt;/em&gt;, and &lt;em
+-   title=&quot;&quot;&gt;PLAINTEXT&lt;/em&gt;. Initially it is in the PCDATA state.
++   title=&quot;&quot;&gt;PLAINTEXT&lt;/em&gt;. Initially it must be in the PCDATA state. In the
++   RCDATA and CDATA states, a further &lt;dfn id=escape&gt;escape flag&lt;/dfn&gt; is
++   used to control the behaviour of the tokeniser. It is either true or
++   false, and initially must be set to the false state.
+ 
+   &lt;p&gt;The output of the tokenisation step is a series of zero or more of the
+    following tokens: DOCTYPE, start tag, end tag, comment, character,
+@@ -33477,14 +33495,49 @@
+ 
+      &lt;dd&gt;Otherwise: treat it as per the &quot;anything else&quot; entry below.
+ 
++     &lt;dt&gt;U+002D HYPHEN-MINUS (-)
++
++     &lt;dd&gt;
++      &lt;p&gt;If the &lt;a href=&quot;#content2&quot;&gt;content model flag&lt;/a&gt; is set to either
++       the RCDATA state or the CDATA state, and the &lt;a href=&quot;#escape&quot;&gt;escape
++       flag&lt;/a&gt; is false, and there are at least three characters before this
++       one in the input stream, and the last four characters in the input
++       stream, including this one, are U+003C LESS-THAN SIGN, U+0021
++       EXCLAMATION MARK, U+002D HYPHEN-MINUS, and U+002D HYPHEN-MINUS
++       (&quot;&lt;!--&quot;), then set the &lt;a href=&quot;#escape&quot;&gt;escape flag&lt;/a&gt; to true.&lt;/p&gt;
++
++      &lt;p&gt;In any case, emit the input character as a character token. Stay in
++       the &lt;a href=&quot;#data-state&quot;&gt;data state&lt;/a&gt;.&lt;/p&gt;
++
+      &lt;dt&gt;U+003C LESS-THAN SIGN (&lt;)
+ 
+-     &lt;dd&gt;When the &lt;a href=&quot;#content2&quot;&gt;content model flag&lt;/a&gt; is set to a
+-      state other than the PLAINTEXT state: switch to the &lt;a
+-      href=&quot;#tag-open&quot;&gt;tag open state&lt;/a&gt;.
++     &lt;dd&gt;When the &lt;a href=&quot;#content2&quot;&gt;content model flag&lt;/a&gt; is set to the
++      PCDATA state: switch to the &lt;a href=&quot;#tag-open&quot;&gt;tag open state&lt;/a&gt;.
+ 
++     &lt;dd&gt;When the &lt;a href=&quot;#content2&quot;&gt;content model flag&lt;/a&gt; is set to either
++      the RCDATA state or the CDATA state and the &lt;a href=&quot;#escape&quot;&gt;escape
++      flag&lt;/a&gt; is false: switch to the &lt;a href=&quot;#tag-open&quot;&gt;tag open
++      state&lt;/a&gt;.
++
+      &lt;dd&gt;Otherwise: treat it as per the &quot;anything else&quot; entry below.
+ 
++     &lt;dt&gt;U+003E GREATER-THAN SIGN (&gt;)
++
++     &lt;dd&gt;
++      &lt;p&gt;If the &lt;a href=&quot;#content2&quot;&gt;content model flag&lt;/a&gt; is set to either
++       the RCDATA state or the CDATA state, and the &lt;a href=&quot;#escape&quot;&gt;escape
++       flag&lt;/a&gt; is true, and the last three characters in the input stream
++       including this one are U+002D HYPHEN-MINUS, U+002D HYPHEN-MINUS,
++       U+003E GREATER-THAN SIGN (&quot;--&gt;&quot;), set the &lt;a href=&quot;#escape&quot;&gt;escape
++       flag&lt;/a&gt; to false.&lt;/p&gt;
++      &lt;!-- no need to check
++      that there are enough characters, since you can only run into
++      this if the flag is true in the first place, which requires four
++      characters. --&gt;
++      
++      &lt;p&gt;In any case, emit the input character as a character token. Stay in
++       the &lt;a href=&quot;#data-state&quot;&gt;data state&lt;/a&gt;.&lt;/p&gt;
++
+      &lt;dt&gt;EOF
+ 
+      &lt;dd&gt;Emit an end-of-file token.
+@@ -34795,9 +34848,6 @@
+      &lt;ul&gt;
+       &lt;li&gt;Comment parsing is different.
+ 
+-      &lt;li&gt;The following is considered one script block (!):
+-       &lt;pre&gt;&lt;script&gt;&lt;!-- document.write('&lt;/script&gt;'); --&gt;&lt;/script&gt;&lt;/pre&gt;
+-
+       &lt;li&gt;&lt;code title=&quot;&quot;&gt;&lt;/br&gt;&lt;/code&gt; and &lt;code title=&quot;&quot;&gt;&lt;/p&gt;&lt;/code&gt; do
+        magical things.
+ 
+
+Modified: source
+===================================================================
+--- source	2007-06-13 21:36:19 UTC (rev 885)
++++ source	2007-06-13 22:34:08 UTC (rev 886)
+@@ -29831,9 +29831,28 @@
+   tag.)&lt;/p&gt;
+ 
+   &lt;p&gt;CDATA elements can have &lt;span title=&quot;syntax-text&quot;&gt;text&lt;/span&gt;,
+-  but the text must not contain the two character sequence
+-  &quot;&lt;code&gt;&lt;/&lt;/code&gt;&quot; (U+003C LESS-THAN SIGN, U+002F SOLIDUS).&lt;/p&gt;
++  but:&lt;/p&gt;
+ 
++  &lt;ul&gt;
++
++   &lt;li&gt;The text must not contain the two character sequence &quot;&lt;code
++   title=&quot;&quot;&gt;&lt;/&lt;/code&gt;&quot; (U+003C LESS-THAN SIGN, U+002F
++   SOLIDUS).&lt;/li&gt;
++
++   &lt;li&gt;For every occurrence of the four character sequence &quot;&lt;code
++   title=&quot;&quot;&gt;&lt;!--&lt;/code&gt;&quot; (U+003C LESS-THAN SIGN, U+0021 EXCLAMATION
++   MARK, U+002D HYPHEN-MINUS, U+002D HYPHEN-MINUS), there must be a
++   corresponding three-character sequence &quot;&lt;code
++   title=&quot;&quot;&gt;--&gt;&lt;/code&gt;&quot; (U+002D HYPHEN-MINUS, U+002D HYPHEN-MINUS,
++   U+003E GREATER-THAN SIGN) whose U+003E GREATER-THAN SIGN (&gt;)
++   character occurs later in the text than the U+003C LESS-THAN SIGN
++   (&lt;) character of the first sequence. (This means the hyphens
++   from the &quot;&lt;code title=&quot;&quot;&gt;&lt;!--&lt;/code&gt;&quot; part can overlap those in
++   the &quot;&lt;code title=&quot;&quot;&gt;--&gt;&lt;/code&gt;&quot; part, as in &quot;&lt;code
++   title=&quot;&quot;&gt;&amp;lt!--&gt;&lt;/code&gt;&quot;.)&lt;/li&gt;
++
++  &lt;/ul&gt;
++
+   &lt;p&gt;RCDATA elements can have &lt;span title=&quot;syntax-text&quot;&gt;text&lt;/span&gt;
+   and &lt;span title=&quot;syntax-entities&quot;&gt;character entity
+   references&lt;/span&gt;, but the text must not contain the character
+@@ -31026,7 +31045,11 @@
+   model flag&lt;/dfn&gt; that is set after certain tokens are emitted. The
+   flag has several states: &lt;em title=&quot;&quot;&gt;PCDATA&lt;/em&gt;, &lt;em
+   title=&quot;&quot;&gt;RCDATA&lt;/em&gt;, &lt;em title=&quot;&quot;&gt;CDATA&lt;/em&gt;, and &lt;em
+-  title=&quot;&quot;&gt;PLAINTEXT&lt;/em&gt;. Initially it is in the PCDATA state.&lt;/p&gt;
++  title=&quot;&quot;&gt;PLAINTEXT&lt;/em&gt;. Initially it must be in the PCDATA
++  state. In the RCDATA and CDATA states, a further &lt;dfn&gt;escape
++  flag&lt;/dfn&gt; is used to control the behaviour of the tokeniser. It is
++  either true or false, and initially must be set to the false
++  state.&lt;/p&gt;
+ 
+   &lt;p&gt;The output of the tokenisation step is a series of zero or more
+   of the following tokens: DOCTYPE, start tag, end tag, comment,
+@@ -31069,13 +31092,50 @@
+      state&lt;/span&gt;.&lt;/dd&gt;
+      &lt;dd&gt;Otherwise: treat it as per the &quot;anything else&quot; entry below.&lt;/dd&gt;
+ 
++     &lt;dt&gt;U+002D HYPHEN-MINUS (-)&lt;/dt&gt;
++     &lt;dd&gt;
++
++      &lt;p&gt;If the &lt;span&gt;content model flag&lt;/span&gt; is set to either the
++      RCDATA state or the CDATA state, and the &lt;span&gt;escape flag&lt;/span&gt;
++      is false, and there are at least three characters before this
++      one in the input stream, and the last four characters in the
++      input stream, including this one, are U+003C LESS-THAN SIGN,
++      U+0021 EXCLAMATION MARK, U+002D HYPHEN-MINUS, and U+002D
++      HYPHEN-MINUS (&quot;&lt;!--&quot;), then set the &lt;span&gt;escape flag&lt;/span&gt;
++      to true.&lt;/p&gt;
++
++      &lt;p&gt;In any case, emit the input character as a character
++      token. Stay in the &lt;span&gt;data state&lt;/span&gt;.&lt;/p&gt;
++
++     &lt;/dd&gt;
++
+      &lt;dt&gt;U+003C LESS-THAN SIGN (&lt;)&lt;/dt&gt;
+-     &lt;dd&gt;When the &lt;span&gt;content model flag&lt;/span&gt; is set to a state
+-     other than the PLAINTEXT state: switch to the &lt;span&gt;tag open
+-     state&lt;/span&gt;.&lt;/dd&gt;
++     &lt;dd&gt;When the &lt;span&gt;content model flag&lt;/span&gt; is set to the PCDATA
++     state: switch to the &lt;span&gt;tag open state&lt;/span&gt;.&lt;/dd&gt;
++     &lt;dd&gt;When the &lt;span&gt;content model flag&lt;/span&gt; is set to either the
++     RCDATA state or the CDATA state and the &lt;span&gt;escape flag&lt;/span&gt;
++     is false: switch to the &lt;span&gt;tag open state&lt;/span&gt;.&lt;/dd&gt;
+      &lt;dd&gt;Otherwise: treat it as per the &quot;anything else&quot; entry
+      below.&lt;/dd&gt;
+ 
++     &lt;dt&gt;U+003E GREATER-THAN SIGN (&gt;)&lt;/dt&gt;
++     &lt;dd&gt;
++
++      &lt;p&gt;If the &lt;span&gt;content model flag&lt;/span&gt; is set to either the
++      RCDATA state or the CDATA state, and the &lt;span&gt;escape
++      flag&lt;/span&gt; is true, and the last three characters in the input
++      stream including this one are U+002D HYPHEN-MINUS, U+002D
++      HYPHEN-MINUS, U+003E GREATER-THAN SIGN (&quot;--&gt;&quot;), set the
++      &lt;span&gt;escape flag&lt;/span&gt; to false.&lt;/p&gt; &lt;!-- no need to check
++      that there are enough characters, since you can only run into
++      this if the flag is true in the first place, which requires four
++      characters. --&gt;
++
++      &lt;p&gt;In any case, emit the input character as a character
++      token. Stay in the &lt;span&gt;data state&lt;/span&gt;.&lt;/p&gt;
++
++     &lt;/dd&gt;
++
+      &lt;dt&gt;EOF&lt;/dt&gt;
+      &lt;dd&gt;Emit an end-of-file token.&lt;/dd&gt;
+ 
+@@ -32183,10 +32243,6 @@
+ 
+       &lt;li&gt;Comment parsing is different.&lt;/li&gt;
+ 
+-      &lt;li&gt;The following is considered one script block (!):
+-       &lt;pre&gt;&lt;script&gt;&lt;!-- document.write('&lt;/script&gt;'); --&gt;&lt;/script&gt;&lt;/pre&gt;
+-      &lt;/li&gt;
+-
+       &lt;li&gt;&lt;code title=&quot;&quot;&gt;&lt;/br&gt;&lt;/code&gt; and &lt;code title=&quot;&quot;&gt;&lt;/p&gt;&lt;/code&gt; do magical
+       things.&lt;/li&gt;
+ 
+
+
+</PRE>
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="007805.html">[html5] r885 - /
+</A></li>
+	<LI>Next message: <A HREF="007807.html">[html5] r887 - /
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#7806">[ date ]</a>
+              <a href="thread.html#7806">[ thread ]</a>
+              <a href="subject.html#7806">[ subject ]</a>
+              <a href="author.html#7806">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/commit-watchers-whatwg.org">More information about the Commit-Watchers
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

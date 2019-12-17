@@ -1,0 +1,407 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [html5] r6545 - [giow] (1) Make networkState changes have	better-defined order relative to 'susp [...]
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commit-watchers%40lists.whatwg.org?Subject=Re%3A%20%5Bhtml5%5D%20r6545%20-%20%5Bgiow%5D%20%281%29%20Make%20networkState%20changes%20have%0A%09better-defined%20order%20relative%20to%20%27susp%20%5B...%5D&In-Reply-To=%3C20110908215724.9B19C1C84004%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="013411.html">
+   <LINK REL="Next"  HREF="013413.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[html5] r6545 - [giow] (1) Make networkState changes have	better-defined order relative to 'susp [...]</H1>
+<!--htdig_noindex-->
+    <B>whatwg at whatwg.org</B> 
+    <A HREF="mailto:commit-watchers%40lists.whatwg.org?Subject=Re%3A%20%5Bhtml5%5D%20r6545%20-%20%5Bgiow%5D%20%281%29%20Make%20networkState%20changes%20have%0A%09better-defined%20order%20relative%20to%20%27susp%20%5B...%5D&In-Reply-To=%3C20110908215724.9B19C1C84004%40ps20323.dreamhostps.com%3E"
+       TITLE="[html5] r6545 - [giow] (1) Make networkState changes have	better-defined order relative to 'susp [...]">whatwg at whatwg.org
+       </A><BR>
+    <I>Thu Sep  8 14:57:24 PDT 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="013411.html">[html5] r6544 - [giow] (0) Make 'suspend' fire when the media is	loaded. Fixing http://www.w3.or [...]
+</A></li>
+        <LI>Next message: <A HREF="013413.html">[html5] r6546 - [e] (0) markup error in previous checkin
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#13412">[ date ]</a>
+              <a href="thread.html#13412">[ thread ]</a>
+              <a href="subject.html#13412">[ subject ]</a>
+              <a href="author.html#13412">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Author: ianh
+Date: 2011-09-08 14:57:20 -0700 (Thu, 08 Sep 2011)
+New Revision: 6545
+
+Modified:
+   complete.html
+   index
+   source
+Log:
+[giow] (1) Make networkState changes have better-defined order relative to 'suspend' and 'progress' events.
+Fixing <A HREF="http://www.w3.org/Bugs/Public/show_bug.cgi?id=12608">http://www.w3.org/Bugs/Public/show_bug.cgi?id=12608</A>
+
+Modified: complete.html
+===================================================================
+--- complete.html	2011-09-08 20:47:10 UTC (rev 6544)
++++ complete.html	2011-09-08 21:57:20 UTC (rev 6545)
+@@ -27359,6 +27359,8 @@
+      event&lt;/a&gt; named &lt;code title=event-media-suspend&gt;&lt;a href=#event-media-suspend&gt;suspend&lt;/a&gt;&lt;/code&gt; at the
+      element.&lt;/li&gt;
+ 
++     &lt;li&gt;&lt;p&gt;Wait for the task to be run.&lt;/li&gt;
++
+      &lt;li&gt;&lt;p&gt;Wait for an implementation-defined event (e.g. the user
+      requesting that the media element begin playback).&lt;/li&gt;
+ 
+@@ -27384,9 +27386,10 @@
+     &lt;code&gt;&lt;a href=#the-canvas-element&gt;canvas&lt;/a&gt;&lt;/code&gt; gets tainted when the video is drawn on
+     it.&lt;/p&gt;
+ 
+-    &lt;p&gt;Every 350ms (&plusmn;200ms) or for every byte received, whichever
+-    is &lt;em&gt;least&lt;/em&gt; frequent, &lt;a href=#queue-a-task&gt;queue a task&lt;/a&gt; to
+-    &lt;a href=#fire-a-simple-event&gt;fire a simple event&lt;/a&gt; named &lt;code title=event-media-progress&gt;&lt;a href=#event-media-progress&gt;progress&lt;/a&gt;&lt;/code&gt; at the element.&lt;/p&gt;
++    &lt;p&gt;While the load is not suspended (see below), every 350ms
++    (&plusmn;200ms) or for every byte received, whichever is
++    &lt;em&gt;least&lt;/em&gt; frequent, &lt;a href=#queue-a-task&gt;queue a task&lt;/a&gt; to &lt;a href=#fire-a-simple-event&gt;fire a
++    simple event&lt;/a&gt; named &lt;code title=event-media-progress&gt;&lt;a href=#event-media-progress&gt;progress&lt;/a&gt;&lt;/code&gt; at the element.&lt;/p&gt;
+ 
+     &lt;p&gt;The &lt;dfn id=stall-timeout&gt;stall timeout&lt;/dfn&gt; is a user-agent defined length of
+     time, which should be about three seconds. When a &lt;a href=#media-element&gt;media
+@@ -27403,16 +27406,18 @@
+     throttled automatically by the user agent, e.g. to balance the
+     download with other connections sharing the same bandwidth.&lt;/p&gt;
+ 
+-    &lt;p&gt;User agents may decide to not download more content at any
+-    time, e.g. after buffering five minutes of a one hour media
+-    resource, while waiting for the user to decide whether to play the
+-    resource or not, or while waiting for user input in an interactive
+-    resource. When a &lt;a href=#media-element&gt;media element&lt;/a&gt;'s download has been
+-    suspended, the user agent must set the &lt;code title=dom-media-networkState&gt;&lt;a href=#dom-media-networkstate&gt;networkState&lt;/a&gt;&lt;/code&gt; to &lt;code title=dom-media-NETWORK_IDLE&gt;&lt;a href=#dom-media-network_idle&gt;NETWORK_IDLE&lt;/a&gt;&lt;/code&gt; and &lt;a href=#queue-a-task&gt;queue
+-    a task&lt;/a&gt; to &lt;a href=#fire-a-simple-event&gt;fire a simple event&lt;/a&gt; named &lt;code title=event-media-suspend&gt;&lt;a href=#event-media-suspend&gt;suspend&lt;/a&gt;&lt;/code&gt; at the element. If and
+-    when downloading of the resource resumes, the user agent must set
+-    the &lt;code title=dom-media-networkState&gt;&lt;a href=#dom-media-networkstate&gt;networkState&lt;/a&gt;&lt;/code&gt; to
+-    &lt;code title=dom-media-NETWORK_LOADING&gt;&lt;a href=#dom-media-network_loading&gt;NETWORK_LOADING&lt;/a&gt;&lt;/code&gt;.&lt;/p&gt;
++    &lt;p id=resourceSuspend&gt;User agents may decide to not download
++    more content at any time, e.g. after buffering five minutes of a
++    one hour media resource, while waiting for the user to decide
++    whether to play the resource or not, or while waiting for user
++    input in an interactive resource. When a &lt;a href=#media-element&gt;media
++    element&lt;/a&gt;'s download has been suspended, the user agent must
++    &lt;a href=#queue-a-task&gt;queue a task&lt;/a&gt; to set the &lt;code title=dom-media-networkState&gt;&lt;a href=#dom-media-networkstate&gt;networkState&lt;/a&gt;&lt;/code&gt; to &lt;code title=dom-media-NETWORK_IDLE&gt;&lt;a href=#dom-media-network_idle&gt;NETWORK_IDLE&lt;/a&gt;&lt;/code&gt; and &lt;a href=#fire-a-simple-event&gt;fire
++    a simple event&lt;/a&gt; named &lt;code title=event-media-suspend&gt;&lt;a href=#event-media-suspend&gt;suspend&lt;/a&gt;&lt;/code&gt; at the element. If and
++    when downloading of the resource resumes, the user agent must
++    &lt;a href=#queue-a-task&gt;queue a task&lt;/a&gt; to set the &lt;code title=dom-media-networkState&gt;&lt;a href=#dom-media-networkstate&gt;networkState&lt;/a&gt;&lt;/code&gt; to &lt;code title=dom-media-NETWORK_LOADING&gt;&lt;a href=#dom-media-network_loading&gt;NETWORK_LOADING&lt;/a&gt;&lt;/code&gt;. Between
++    the queuing of these tasks, the load is suspended (so &lt;code title=event-media-progress&gt;&lt;a href=#event-media-progress&gt;progress&lt;/a&gt;&lt;/code&gt; events don't fire, as
++    described above).&lt;/p&gt;
+ 
+     &lt;p class=note&gt;The &lt;code title=attr-media-preload&gt;&lt;a href=#attr-media-preload&gt;preload&lt;/a&gt;&lt;/code&gt; attribute provides a
+     hint regarding how much buffering the author thinks is advisable,
+@@ -27605,8 +27610,10 @@
+         &lt;p class=note&gt;A user agent that is attempting to reduce
+         network usage while still fetching the metadata for each
+         &lt;a href=#media-resource&gt;media resource&lt;/a&gt; would also stop buffering at this
+-        point, causing the &lt;code title=dom-media-networkState&gt;&lt;a href=#dom-media-networkstate&gt;networkState&lt;/a&gt;&lt;/code&gt; attribute
+-        to switch to the &lt;code title=dom-media-NETWORK_IDLE&gt;&lt;a href=#dom-media-network_idle&gt;NETWORK_IDLE&lt;/a&gt;&lt;/code&gt; value.&lt;/p&gt;
++        point, following &lt;a href=#resourceSuspend&gt;the rules
++        described previously&lt;/a&gt;, which involve the &lt;code title=dom-media-networkState&gt;&lt;a href=#dom-media-networkstate&gt;networkState&lt;/a&gt;&lt;/code&gt; attribute
++        switching to the &lt;code title=dom-media-NETWORK_IDLE&gt;&lt;a href=#dom-media-network_idle&gt;NETWORK_IDLE&lt;/a&gt;&lt;/code&gt; value and a
++        &lt;code title=event-suspend&gt;suspend&lt;/code&gt; event firing.&lt;/p&gt;
+ 
+        &lt;/li&gt;
+ 
+@@ -27627,10 +27634,21 @@
+       named &lt;code title=event-media-progress&gt;&lt;a href=#event-media-progress&gt;progress&lt;/a&gt;&lt;/code&gt; at the
+       &lt;a href=#media-element&gt;media element&lt;/a&gt;.&lt;/p&gt;
+ 
+-      &lt;p&gt;Then, &lt;a href=#queue-a-task&gt;queue a task&lt;/a&gt; to &lt;a href=#fire-a-simple-event&gt;fire a simple
+-      event&lt;/a&gt; named &lt;code title=event-media-suspend&gt;&lt;a href=#event-media-suspend&gt;suspend&lt;/a&gt;&lt;/code&gt; at the &lt;a href=#media-element&gt;media
++      &lt;p&gt;Then, &lt;a href=#queue-a-task&gt;queue a task&lt;/a&gt; to set the &lt;code title=dom-media-networkState&gt;&lt;a href=#dom-media-networkstate&gt;networkState&lt;/a&gt;&lt;/code&gt; to &lt;code title=dom-media-NETWORK_IDLE&gt;&lt;a href=#dom-media-network_idle&gt;NETWORK_IDLE&lt;/a&gt;&lt;/code&gt; and
++      &lt;a href=#fire-a-simple-event&gt;fire a simple event&lt;/a&gt; named &lt;code title=event-media-suspend&gt;&lt;a href=#event-media-suspend&gt;suspend&lt;/a&gt;&lt;/code&gt; at the &lt;a href=#media-element&gt;media
+       element&lt;/a&gt;.&lt;/p&gt;
+ 
++      &lt;p&gt;If the user agent ever discards any &lt;a href=#media-data&gt;media data&lt;/a&gt;
++      and then needs to resume the network activity to obtain it
++      again, then it must wait &lt;a href=#queue-a-task&gt;queue a task&lt;/a&gt; to set the
++      &lt;code title=dom-media-networkState&gt;&lt;a href=#dom-media-networkstate&gt;networkState&lt;/a&gt;&lt;/code&gt; to
++      &lt;code title=dom-media-NETWORK_LOADING&gt;&lt;a href=#dom-media-network_loading&gt;NETWORK_LOADING&lt;/a&gt;&lt;/code&gt;.&lt;/p&gt;
++
++      &lt;p class=note&gt;If the user agent can keep the &lt;a href=#media-resource&gt;media
++      resource&lt;/a&gt; loaded, then the algorithm will continue to its
++      final step below, which aborts the algorithm.&lt;/p&gt;&lt;!-- see FINAL
++      STEP below --&gt;
++
+      &lt;/dd&gt;
+ 
+ 
+@@ -27810,6 +27828,7 @@
+ 
+    &lt;/li&gt;
+ 
++   &lt;!-- this step is mentioned above, search for &quot;FINAL STEP&quot; --&gt;
+    &lt;li&gt;&lt;p&gt;If the user agent ever reaches this step (which can only
+    happen if the entire resource gets loaded and kept available):
+    abort the overall &lt;a href=#concept-media-load-algorithm title=concept-media-load-algorithm&gt;resource selection
+
+Modified: index
+===================================================================
+--- index	2011-09-08 20:47:10 UTC (rev 6544)
++++ index	2011-09-08 21:57:20 UTC (rev 6545)
+@@ -27226,6 +27226,8 @@
+      event&lt;/a&gt; named &lt;code title=event-media-suspend&gt;&lt;a href=#event-media-suspend&gt;suspend&lt;/a&gt;&lt;/code&gt; at the
+      element.&lt;/li&gt;
+ 
++     &lt;li&gt;&lt;p&gt;Wait for the task to be run.&lt;/li&gt;
++
+      &lt;li&gt;&lt;p&gt;Wait for an implementation-defined event (e.g. the user
+      requesting that the media element begin playback).&lt;/li&gt;
+ 
+@@ -27251,9 +27253,10 @@
+     &lt;code&gt;&lt;a href=#the-canvas-element&gt;canvas&lt;/a&gt;&lt;/code&gt; gets tainted when the video is drawn on
+     it.&lt;/p&gt;
+ 
+-    &lt;p&gt;Every 350ms (&plusmn;200ms) or for every byte received, whichever
+-    is &lt;em&gt;least&lt;/em&gt; frequent, &lt;a href=#queue-a-task&gt;queue a task&lt;/a&gt; to
+-    &lt;a href=#fire-a-simple-event&gt;fire a simple event&lt;/a&gt; named &lt;code title=event-media-progress&gt;&lt;a href=#event-media-progress&gt;progress&lt;/a&gt;&lt;/code&gt; at the element.&lt;/p&gt;
++    &lt;p&gt;While the load is not suspended (see below), every 350ms
++    (&plusmn;200ms) or for every byte received, whichever is
++    &lt;em&gt;least&lt;/em&gt; frequent, &lt;a href=#queue-a-task&gt;queue a task&lt;/a&gt; to &lt;a href=#fire-a-simple-event&gt;fire a
++    simple event&lt;/a&gt; named &lt;code title=event-media-progress&gt;&lt;a href=#event-media-progress&gt;progress&lt;/a&gt;&lt;/code&gt; at the element.&lt;/p&gt;
+ 
+     &lt;p&gt;The &lt;dfn id=stall-timeout&gt;stall timeout&lt;/dfn&gt; is a user-agent defined length of
+     time, which should be about three seconds. When a &lt;a href=#media-element&gt;media
+@@ -27270,16 +27273,18 @@
+     throttled automatically by the user agent, e.g. to balance the
+     download with other connections sharing the same bandwidth.&lt;/p&gt;
+ 
+-    &lt;p&gt;User agents may decide to not download more content at any
+-    time, e.g. after buffering five minutes of a one hour media
+-    resource, while waiting for the user to decide whether to play the
+-    resource or not, or while waiting for user input in an interactive
+-    resource. When a &lt;a href=#media-element&gt;media element&lt;/a&gt;'s download has been
+-    suspended, the user agent must set the &lt;code title=dom-media-networkState&gt;&lt;a href=#dom-media-networkstate&gt;networkState&lt;/a&gt;&lt;/code&gt; to &lt;code title=dom-media-NETWORK_IDLE&gt;&lt;a href=#dom-media-network_idle&gt;NETWORK_IDLE&lt;/a&gt;&lt;/code&gt; and &lt;a href=#queue-a-task&gt;queue
+-    a task&lt;/a&gt; to &lt;a href=#fire-a-simple-event&gt;fire a simple event&lt;/a&gt; named &lt;code title=event-media-suspend&gt;&lt;a href=#event-media-suspend&gt;suspend&lt;/a&gt;&lt;/code&gt; at the element. If and
+-    when downloading of the resource resumes, the user agent must set
+-    the &lt;code title=dom-media-networkState&gt;&lt;a href=#dom-media-networkstate&gt;networkState&lt;/a&gt;&lt;/code&gt; to
+-    &lt;code title=dom-media-NETWORK_LOADING&gt;&lt;a href=#dom-media-network_loading&gt;NETWORK_LOADING&lt;/a&gt;&lt;/code&gt;.&lt;/p&gt;
++    &lt;p id=resourceSuspend&gt;User agents may decide to not download
++    more content at any time, e.g. after buffering five minutes of a
++    one hour media resource, while waiting for the user to decide
++    whether to play the resource or not, or while waiting for user
++    input in an interactive resource. When a &lt;a href=#media-element&gt;media
++    element&lt;/a&gt;'s download has been suspended, the user agent must
++    &lt;a href=#queue-a-task&gt;queue a task&lt;/a&gt; to set the &lt;code title=dom-media-networkState&gt;&lt;a href=#dom-media-networkstate&gt;networkState&lt;/a&gt;&lt;/code&gt; to &lt;code title=dom-media-NETWORK_IDLE&gt;&lt;a href=#dom-media-network_idle&gt;NETWORK_IDLE&lt;/a&gt;&lt;/code&gt; and &lt;a href=#fire-a-simple-event&gt;fire
++    a simple event&lt;/a&gt; named &lt;code title=event-media-suspend&gt;&lt;a href=#event-media-suspend&gt;suspend&lt;/a&gt;&lt;/code&gt; at the element. If and
++    when downloading of the resource resumes, the user agent must
++    &lt;a href=#queue-a-task&gt;queue a task&lt;/a&gt; to set the &lt;code title=dom-media-networkState&gt;&lt;a href=#dom-media-networkstate&gt;networkState&lt;/a&gt;&lt;/code&gt; to &lt;code title=dom-media-NETWORK_LOADING&gt;&lt;a href=#dom-media-network_loading&gt;NETWORK_LOADING&lt;/a&gt;&lt;/code&gt;. Between
++    the queuing of these tasks, the load is suspended (so &lt;code title=event-media-progress&gt;&lt;a href=#event-media-progress&gt;progress&lt;/a&gt;&lt;/code&gt; events don't fire, as
++    described above).&lt;/p&gt;
+ 
+     &lt;p class=note&gt;The &lt;code title=attr-media-preload&gt;&lt;a href=#attr-media-preload&gt;preload&lt;/a&gt;&lt;/code&gt; attribute provides a
+     hint regarding how much buffering the author thinks is advisable,
+@@ -27472,8 +27477,10 @@
+         &lt;p class=note&gt;A user agent that is attempting to reduce
+         network usage while still fetching the metadata for each
+         &lt;a href=#media-resource&gt;media resource&lt;/a&gt; would also stop buffering at this
+-        point, causing the &lt;code title=dom-media-networkState&gt;&lt;a href=#dom-media-networkstate&gt;networkState&lt;/a&gt;&lt;/code&gt; attribute
+-        to switch to the &lt;code title=dom-media-NETWORK_IDLE&gt;&lt;a href=#dom-media-network_idle&gt;NETWORK_IDLE&lt;/a&gt;&lt;/code&gt; value.&lt;/p&gt;
++        point, following &lt;a href=#resourceSuspend&gt;the rules
++        described previously&lt;/a&gt;, which involve the &lt;code title=dom-media-networkState&gt;&lt;a href=#dom-media-networkstate&gt;networkState&lt;/a&gt;&lt;/code&gt; attribute
++        switching to the &lt;code title=dom-media-NETWORK_IDLE&gt;&lt;a href=#dom-media-network_idle&gt;NETWORK_IDLE&lt;/a&gt;&lt;/code&gt; value and a
++        &lt;code title=event-suspend&gt;suspend&lt;/code&gt; event firing.&lt;/p&gt;
+ 
+        &lt;/li&gt;
+ 
+@@ -27494,10 +27501,21 @@
+       named &lt;code title=event-media-progress&gt;&lt;a href=#event-media-progress&gt;progress&lt;/a&gt;&lt;/code&gt; at the
+       &lt;a href=#media-element&gt;media element&lt;/a&gt;.&lt;/p&gt;
+ 
+-      &lt;p&gt;Then, &lt;a href=#queue-a-task&gt;queue a task&lt;/a&gt; to &lt;a href=#fire-a-simple-event&gt;fire a simple
+-      event&lt;/a&gt; named &lt;code title=event-media-suspend&gt;&lt;a href=#event-media-suspend&gt;suspend&lt;/a&gt;&lt;/code&gt; at the &lt;a href=#media-element&gt;media
++      &lt;p&gt;Then, &lt;a href=#queue-a-task&gt;queue a task&lt;/a&gt; to set the &lt;code title=dom-media-networkState&gt;&lt;a href=#dom-media-networkstate&gt;networkState&lt;/a&gt;&lt;/code&gt; to &lt;code title=dom-media-NETWORK_IDLE&gt;&lt;a href=#dom-media-network_idle&gt;NETWORK_IDLE&lt;/a&gt;&lt;/code&gt; and
++      &lt;a href=#fire-a-simple-event&gt;fire a simple event&lt;/a&gt; named &lt;code title=event-media-suspend&gt;&lt;a href=#event-media-suspend&gt;suspend&lt;/a&gt;&lt;/code&gt; at the &lt;a href=#media-element&gt;media
+       element&lt;/a&gt;.&lt;/p&gt;
+ 
++      &lt;p&gt;If the user agent ever discards any &lt;a href=#media-data&gt;media data&lt;/a&gt;
++      and then needs to resume the network activity to obtain it
++      again, then it must wait &lt;a href=#queue-a-task&gt;queue a task&lt;/a&gt; to set the
++      &lt;code title=dom-media-networkState&gt;&lt;a href=#dom-media-networkstate&gt;networkState&lt;/a&gt;&lt;/code&gt; to
++      &lt;code title=dom-media-NETWORK_LOADING&gt;&lt;a href=#dom-media-network_loading&gt;NETWORK_LOADING&lt;/a&gt;&lt;/code&gt;.&lt;/p&gt;
++
++      &lt;p class=note&gt;If the user agent can keep the &lt;a href=#media-resource&gt;media
++      resource&lt;/a&gt; loaded, then the algorithm will continue to its
++      final step below, which aborts the algorithm.&lt;/p&gt;&lt;!-- see FINAL
++      STEP below --&gt;
++
+      &lt;/dd&gt;
+ 
+ 
+@@ -27677,6 +27695,7 @@
+ 
+    &lt;/li&gt;
+ 
++   &lt;!-- this step is mentioned above, search for &quot;FINAL STEP&quot; --&gt;
+    &lt;li&gt;&lt;p&gt;If the user agent ever reaches this step (which can only
+    happen if the entire resource gets loaded and kept available):
+    abort the overall &lt;a href=#concept-media-load-algorithm title=concept-media-load-algorithm&gt;resource selection
+@@ -36954,7 +36973,7 @@
+   attribute's allowed keywords correspond to alignment points in the
+   font:&lt;/p&gt;
+ 
+-  &lt;p&gt;&lt;img alt=&quot;The top of the em square is roughly at the top of the glyphs in a font, the hanging baseline is where some glyphs like &#2310; are anchored, the middle is half-way between the top of the em square and the bottom of the em square, the alphabetic baseline is where characters like &Aacute;, &yuml;, f, and &Omega; are anchored, the ideographic baseline is where glyphs like &#31169; and &#36948; are anchored, and the bottom of the em square is roughly at the bottom of the glyphs in a font. The top and bottom of the bounding box can be far from these baselines, due to glyphs extending far outside the em square.&quot; height=300 src=<A HREF="http://images.whatwg.org/baselines.png">http://images.whatwg.org/baselines.png</A> width=738&gt;&lt;/p&gt;
++  &lt;p&gt;&lt;img alt=&quot;The top of the em square is roughly at the top of the glyphs in a font, the hanging baseline is where some glyphs like &#2310; are anchored, the middle is half-way between the top of the em square and the bottom of the em square, the alphabetic baseline is where characters like &Aacute;, &amp;#x00FF;, f, and &Omega; are anchored, the ideographic baseline is where glyphs like &#31169; and &#36948; are anchored, and the bottom of the em square is roughly at the bottom of the glyphs in a font. The top and bottom of the bounding box can be far from these baselines, due to glyphs extending far outside the em square.&quot; height=300 src=<A HREF="http://images.whatwg.org/baselines.png">http://images.whatwg.org/baselines.png</A> width=738&gt;&lt;/p&gt;
+ 
+   &lt;p&gt;The keywords map to these alignment points as follows:&lt;/p&gt;
+ 
+
+Modified: source
+===================================================================
+--- source	2011-09-08 20:47:10 UTC (rev 6544)
++++ source	2011-09-08 21:57:20 UTC (rev 6545)
+@@ -29566,6 +29566,8 @@
+      title=&quot;event-media-suspend&quot;&gt;suspend&lt;/code&gt; at the
+      element.&lt;/p&gt;&lt;/li&gt;
+ 
++     &lt;li&gt;&lt;p&gt;Wait for the task to be run.&lt;/p&gt;&lt;/li&gt;
++
+      &lt;li&gt;&lt;p&gt;Wait for an implementation-defined event (e.g. the user
+      requesting that the media element begin playback).&lt;/p&gt;&lt;/li&gt;
+ 
+@@ -29596,9 +29598,10 @@
+     &lt;code&gt;canvas&lt;/code&gt; gets tainted when the video is drawn on
+     it.&lt;/p&gt;
+ 
+-    &lt;p&gt;Every 350ms (&amp;#xB1;200ms) or for every byte received, whichever
+-    is &lt;em&gt;least&lt;/em&gt; frequent, &lt;span&gt;queue a task&lt;/span&gt; to
+-    &lt;span&gt;fire a simple event&lt;/span&gt; named &lt;code
++    &lt;p&gt;While the load is not suspended (see below), every 350ms
++    (&amp;#xB1;200ms) or for every byte received, whichever is
++    &lt;em&gt;least&lt;/em&gt; frequent, &lt;span&gt;queue a task&lt;/span&gt; to &lt;span&gt;fire a
++    simple event&lt;/span&gt; named &lt;code
+     title=&quot;event-media-progress&quot;&gt;progress&lt;/code&gt; at the element.&lt;/p&gt;
+ 
+     &lt;p&gt;The &lt;dfn&gt;stall timeout&lt;/dfn&gt; is a user-agent defined length of
+@@ -29617,20 +29620,24 @@
+     throttled automatically by the user agent, e.g. to balance the
+     download with other connections sharing the same bandwidth.&lt;/p&gt;
+ 
+-    &lt;p&gt;User agents may decide to not download more content at any
+-    time, e.g. after buffering five minutes of a one hour media
+-    resource, while waiting for the user to decide whether to play the
+-    resource or not, or while waiting for user input in an interactive
+-    resource. When a &lt;span&gt;media element&lt;/span&gt;'s download has been
+-    suspended, the user agent must set the &lt;code
++    &lt;p id=&quot;resourceSuspend&quot;&gt;User agents may decide to not download
++    more content at any time, e.g. after buffering five minutes of a
++    one hour media resource, while waiting for the user to decide
++    whether to play the resource or not, or while waiting for user
++    input in an interactive resource. When a &lt;span&gt;media
++    element&lt;/span&gt;'s download has been suspended, the user agent must
++    &lt;span&gt;queue a task&lt;/span&gt; to set the &lt;code
+     title=&quot;dom-media-networkState&quot;&gt;networkState&lt;/code&gt; to &lt;code
+-    title=&quot;dom-media-NETWORK_IDLE&quot;&gt;NETWORK_IDLE&lt;/code&gt; and &lt;span&gt;queue
+-    a task&lt;/span&gt; to &lt;span&gt;fire a simple event&lt;/span&gt; named &lt;code
++    title=&quot;dom-media-NETWORK_IDLE&quot;&gt;NETWORK_IDLE&lt;/code&gt; and &lt;span&gt;fire
++    a simple event&lt;/span&gt; named &lt;code
+     title=&quot;event-media-suspend&quot;&gt;suspend&lt;/code&gt; at the element. If and
+-    when downloading of the resource resumes, the user agent must set
+-    the &lt;code title=&quot;dom-media-networkState&quot;&gt;networkState&lt;/code&gt; to
+-    &lt;code
+-    title=&quot;dom-media-NETWORK_LOADING&quot;&gt;NETWORK_LOADING&lt;/code&gt;.&lt;/p&gt;
++    when downloading of the resource resumes, the user agent must
++    &lt;span&gt;queue a task&lt;/span&gt; to set the &lt;code
++    title=&quot;dom-media-networkState&quot;&gt;networkState&lt;/code&gt; to &lt;code
++    title=&quot;dom-media-NETWORK_LOADING&quot;&gt;NETWORK_LOADING&lt;/code&gt;. Between
++    the queuing of these tasks, the load is suspended (so &lt;code
++    title=&quot;event-media-progress&quot;&gt;progress&lt;/code&gt; events don't fire, as
++    described above).&lt;/p&gt;
+ 
+     &lt;p class=&quot;note&quot;&gt;The &lt;code
+     title=&quot;attr-media-preload&quot;&gt;preload&lt;/code&gt; attribute provides a
+@@ -29854,10 +29861,12 @@
+         &lt;p class=&quot;note&quot;&gt;A user agent that is attempting to reduce
+         network usage while still fetching the metadata for each
+         &lt;span&gt;media resource&lt;/span&gt; would also stop buffering at this
+-        point, causing the &lt;code
++        point, following &lt;a href=&quot;#resourceSuspend&quot;&gt;the rules
++        described previously&lt;/a&gt;, which involve the &lt;code
+         title=&quot;dom-media-networkState&quot;&gt;networkState&lt;/code&gt; attribute
+-        to switch to the &lt;code
+-        title=&quot;dom-media-NETWORK_IDLE&quot;&gt;NETWORK_IDLE&lt;/code&gt; value.&lt;/p&gt;
++        switching to the &lt;code
++        title=&quot;dom-media-NETWORK_IDLE&quot;&gt;NETWORK_IDLE&lt;/code&gt; value and a
++        &lt;code title=&quot;event-suspend&quot;&gt;suspend&lt;/code&gt; event firing.&lt;/p&gt;
+ 
+        &lt;/li&gt;
+ 
+@@ -29881,11 +29890,25 @@
+       named &lt;code title=&quot;event-media-progress&quot;&gt;progress&lt;/code&gt; at the
+       &lt;span&gt;media element&lt;/span&gt;.&lt;/p&gt;
+ 
+-      &lt;p&gt;Then, &lt;span&gt;queue a task&lt;/span&gt; to &lt;span&gt;fire a simple
+-      event&lt;/span&gt; named &lt;code
++      &lt;p&gt;Then, &lt;span&gt;queue a task&lt;/span&gt; to set the &lt;code
++      title=&quot;dom-media-networkState&quot;&gt;networkState&lt;/code&gt; to &lt;code
++      title=&quot;dom-media-NETWORK_IDLE&quot;&gt;NETWORK_IDLE&lt;/code&gt; and
++      &lt;span&gt;fire a simple event&lt;/span&gt; named &lt;code
+       title=&quot;event-media-suspend&quot;&gt;suspend&lt;/code&gt; at the &lt;span&gt;media
+       element&lt;/span&gt;.&lt;/p&gt;
+ 
++      &lt;p&gt;If the user agent ever discards any &lt;span&gt;media data&lt;/span&gt;
++      and then needs to resume the network activity to obtain it
++      again, then it must wait &lt;span&gt;queue a task&lt;/span&gt; to set the
++      &lt;code title=&quot;dom-media-networkState&quot;&gt;networkState&lt;/code&gt; to
++      &lt;code
++      title=&quot;dom-media-NETWORK_LOADING&quot;&gt;NETWORK_LOADING&lt;/code&gt;.&lt;/p&gt;
++
++      &lt;p class=&quot;note&quot;&gt;If the user agent can keep the &lt;span&gt;media
++      resource&lt;/span&gt; loaded, then the algorithm will continue to its
++      final step below, which aborts the algorithm.&lt;/p&gt;&lt;!-- see FINAL
++      STEP below --&gt;
++
+      &lt;/dd&gt;
+ 
+ 
+@@ -30104,6 +30127,7 @@
+ 
+    &lt;/li&gt;
+ 
++   &lt;!-- this step is mentioned above, search for &quot;FINAL STEP&quot; --&gt;
+    &lt;li&gt;&lt;p&gt;If the user agent ever reaches this step (which can only
+    happen if the entire resource gets loaded and kept available):
+    abort the overall &lt;span
+
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="013411.html">[html5] r6544 - [giow] (0) Make 'suspend' fire when the media is	loaded. Fixing http://www.w3.or [...]
+</A></li>
+	<LI>Next message: <A HREF="013413.html">[html5] r6546 - [e] (0) markup error in previous checkin
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#13412">[ date ]</a>
+              <a href="thread.html#13412">[ thread ]</a>
+              <a href="subject.html#13412">[ subject ]</a>
+              <a href="author.html#13412">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/commit-watchers-whatwg.org">More information about the Commit-Watchers
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

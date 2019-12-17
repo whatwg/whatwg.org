@@ -1,0 +1,254 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [html5] Web Workers: Race-Condition setting onmessage handler?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:help%40lists.whatwg.org?Subject=Re%3A%20%5Bhtml5%5D%20Web%20Workers%3A%20Race-Condition%20setting%20onmessage%20handler%3F&In-Reply-To=%3CAANLkTinjzD9Y9b605giGhi1VNHbTyzeaoaYjhU-ms2s1%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003219.html">
+   <LINK REL="Next"  HREF="001902.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[html5] Web Workers: Race-Condition setting onmessage handler?</H1>
+<!--htdig_noindex-->
+    <B>Dmitry Titov</B> 
+    <A HREF="mailto:help%40lists.whatwg.org?Subject=Re%3A%20%5Bhtml5%5D%20Web%20Workers%3A%20Race-Condition%20setting%20onmessage%20handler%3F&In-Reply-To=%3CAANLkTinjzD9Y9b605giGhi1VNHbTyzeaoaYjhU-ms2s1%40mail.gmail.com%3E"
+       TITLE="[html5] Web Workers: Race-Condition setting onmessage handler?">dimich at chromium.org
+       </A><BR>
+    <I>Thu Aug  5 11:40:25 PDT 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003219.html">[html5] Web Workers: Race-Condition setting onmessage handler?
+</A></li>
+        <LI>Next message: <A HREF="001902.html">[html5] inline lists - correct markup?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3224">[ date ]</a>
+              <a href="thread.html#3224">[ thread ]</a>
+              <a href="subject.html#3224">[ subject ]</a>
+              <a href="author.html#3224">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>I can try to say the same thing Drew is saying shorter: Workers queue all
+messages from main page until the moment the &quot;initial script&quot; is run.
+Initial script is the JS code outside of any function. If that initial
+script registers 'onmessage', all queued messages are delivered. If it
+doesn't - queued massages are dropped.
+
+This means the worker better register 'onmessage' in its initial code, not
+from some other event handler.
+
+Dmitry
+
+On Tue, Aug 3, 2010 at 2:09 PM, Drew Wilson &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/help-whatwg.org">atwilson at chromium.org</A>&gt; wrote:
+
+&gt;<i>
+</I>&gt;<i> On Tue, Aug 3, 2010 at 1:40 PM, Rik Sagar &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/help-whatwg.org">org.whatwg at sagar.org</A>&gt; wrote:
+</I>&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> I would expect in this example that the *Worker got loaded*  message
+</I>&gt;&gt;<i> should be dropped on the floor.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> I would expect exactly the opposite - that message should be delivered.
+</I>&gt;<i>
+</I>&gt;<i> Here's the way I look at worker messaging (and events in general) - each
+</I>&gt;<i> javascript context (or &quot;thread&quot; if you will) has what amounts to an event
+</I>&gt;<i> loop. When your javascript code returns from an event handler (or, in the
+</I>&gt;<i> case of worker script, returns from an event handler or returns from
+</I>&gt;<i> executing the initial block of script), you drop back in to your event loop
+</I>&gt;<i> and start dispatching events.
+</I>&gt;<i>
+</I>&gt;<i> There are a number of things that can generate events (that can be &quot;event
+</I>&gt;<i> sources&quot;) - for example, a timer is an event source. MessagePorts (both
+</I>&gt;<i> explicit MessagePorts and also implicit ones for Dedicated Workers) are
+</I>&gt;<i> event sources, too. When you queue up an event for a MessagePort, it becomes
+</I>&gt;<i> an active event source (meaning that when the associated javascript context
+</I>&gt;<i> re-enters its event loop, that MessagePort can cause an onmessage event to
+</I>&gt;<i> be generated). The event loop traverses the various associated event sources
+</I>&gt;<i> for the javascript context (timers, message ports, etc) and fires off an
+</I>&gt;<i> event from one of the event sources (the spec doesn't specify an ordering
+</I>&gt;<i> here, so it's up to the UA to decide how to prioritize various event
+</I>&gt;<i> sources) - when it fires off the event, any handlers associated with that
+</I>&gt;<i> event will receive the event, and if there are no handlers the typical
+</I>&gt;<i> default handling of the event occurs (gets dropped on the floor, or maybe
+</I>&gt;<i> gets bubbled up in the case of DOM events, etc).
+</I>&gt;<i>
+</I>&gt;<i> So, in your case above, here's what happens - webapp_main creates a worker
+</I>&gt;<i> and then adds an &quot;onmessage&quot; handler to the worker object. Now,
+</I>&gt;<i> webapp_worker runs, sets up an onmessage handler (which, btw, will never be
+</I>&gt;<i> executed since you never send any messages to the worker in your example),
+</I>&gt;<i> then fires off a &quot;Worker got loaded&quot; message to webapp_main. Even if this
+</I>&gt;<i> code is executed before webapp_main has set its onmessage handler, the event
+</I>&gt;<i> will not get dropped on the floor - remember that all postMessage() does is
+</I>&gt;<i> put the event in the MessagePort's queue, then make that MessagePort an
+</I>&gt;<i> active event source. So as long as webapp_main sets an onmessage handler
+</I>&gt;<i> before it returns back to the event loop, there's no way for the event to
+</I>&gt;<i> get dropped on the floor because the event isn't even dispatched until you
+</I>&gt;<i> get back to the event loop.
+</I>&gt;<i>
+</I>&gt;<i> Hopefully this helps clear up some of the confusion - it's important to
+</I>&gt;<i> understand that the various flavors of postMessage() are entirely
+</I>&gt;<i> asynchronous and rely on events being dispatched from the event loop.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;&gt;<i> Thanks,
+</I>&gt;&gt;<i> Rik.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Rik Sagar, San Jose, CA 95124
+</I>&gt;&gt;<i> Visit : <A HREF="http://sagar.org/">http://sagar.org/</A>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> On Mon, Aug 2, 2010 at 10:09 AM, Drew Wilson &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/help-whatwg.org">atwilson at chromium.org</A>&gt;wrote:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> (sending from the correct address this time)
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> On Mon, Aug 2, 2010 at 7:57 AM, Jeremy Orlow &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/help-whatwg.org">jorlow at google.com</A>&gt; wrote:
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> ---------- Forwarded message ----------
+</I>&gt;&gt;&gt;&gt;<i> From: Tobias Sauerwein &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/help-whatwg.org">tobias.sauerwein at camptocamp.com</A>&gt;
+</I>&gt;&gt;&gt;&gt;<i> Date: Tue, Jul 27, 2010 at 8:46 AM
+</I>&gt;&gt;&gt;&gt;<i> Subject: [html5] Web Workers: Race-Condition setting onmessage handler?
+</I>&gt;&gt;&gt;&gt;<i> To: <A HREF="http://lists.whatwg.org/listinfo.cgi/help-whatwg.org">help at lists.whatwg.org</A>
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> Hi!
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> I am wondering what prevents a web worker from running into
+</I>&gt;&gt;&gt;&gt;<i> race-conditions when setting the onmessage handlers. I am worried about that
+</I>&gt;&gt;&gt;&gt;<i> a web worker posts a message before the main script has set up the onmessage
+</I>&gt;&gt;&gt;&gt;<i> handler, or the other way around, that the web worker posts a message before
+</I>&gt;&gt;&gt;&gt;<i> the main script has set up its onmessage handler.
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> I know that there is a message queue [1], but you can easily make up an
+</I>&gt;&gt;&gt;&gt;<i> example where a message is not enqueued:
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> Main Script:
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> var worker = new Worker(&quot;webworker.js&quot;);
+</I>&gt;&gt;&gt;&gt;&gt;<i> worker.onmessage = function(event) {
+</I>&gt;&gt;&gt;&gt;&gt;<i>     console.log('onmessage ' + event.data)
+</I>&gt;&gt;&gt;&gt;&gt;<i> };
+</I>&gt;&gt;&gt;&gt;&gt;<i> worker.postMessage(&quot;start&quot;);
+</I>&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> 'webworker.js':
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> setTimeout(
+</I>&gt;&gt;&gt;&gt;&gt;<i>     function() {
+</I>&gt;&gt;&gt;&gt;&gt;<i>         onmessage = function(event) {
+</I>&gt;&gt;&gt;&gt;&gt;<i>             postMessage(&quot;message received&quot;);
+</I>&gt;&gt;&gt;&gt;&gt;<i>         };
+</I>&gt;&gt;&gt;&gt;&gt;<i>         postMessage(&quot;done&quot;);
+</I>&gt;&gt;&gt;&gt;&gt;<i>     }, 1000);
+</I>&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> The output is (in Chromium 6.0.475.0 and Firefox 4.01b, Opera 10.70 also
+</I>&gt;&gt;&gt;&gt;<i> outputs &quot;onmessage message received&quot;):
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> onmessage done
+</I>&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> So the &quot;onmessage&quot; handler of the web worker is never called.
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> Is this the behavior the specification requests, or is it a bug in
+</I>&gt;&gt;&gt;&gt;<i> Chrome/Chromium and Firefox?
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> Tobias
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> [1]:
+</I>&gt;&gt;&gt;&gt;<i> <A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/comms.html#port-message-queue">http://www.whatwg.org/specs/web-apps/current-work/multipage/comms.html#port-message-queue</A>
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> _______________________________________________
+</I>&gt;&gt;&gt;&gt;<i> Help mailing list
+</I>&gt;&gt;&gt;&gt;<i> <A HREF="http://lists.whatwg.org/listinfo.cgi/help-whatwg.org">Help at lists.whatwg.org</A>
+</I>&gt;&gt;&gt;&gt;<i> <A HREF="http://lists.whatwg.org/listinfo.cgi/help-whatwg.org">http://lists.whatwg.org/listinfo.cgi/help-whatwg.org</A>
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> This is the correct behavior. If there is no onmessage event at the time
+</I>&gt;&gt;&gt;<i> that an event arrives at the worker's event loop, it will be dropped on the
+</I>&gt;&gt;&gt;<i> floor. The reason this happens is steps 7/8 in section 4.5 of the worker
+</I>&gt;&gt;&gt;<i> spec:
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> 7. Jump to the script's *initial code entry-point*, and let that run
+</I>&gt;&gt;&gt;<i> until it either returns, fails to catch an exception, or gets prematurely
+</I>&gt;&gt;&gt;<i> aborted by the &quot;kill a worker&lt;<A HREF="http://www.whatwg.org/specs/web-workers/current-work/#kill-a-worker">http://www.whatwg.org/specs/web-workers/current-work/#kill-a-worker</A>&gt;&quot;
+</I>&gt;&gt;&gt;<i> or &quot;terminate a worker&lt;<A HREF="http://www.whatwg.org/specs/web-workers/current-work/#terminate-a-worker">http://www.whatwg.org/specs/web-workers/current-work/#terminate-a-worker</A>&gt;&quot;
+</I>&gt;&gt;&gt;<i> algorithms defined below.
+</I>&gt;&gt;&gt;<i> 8. If worker global scope is actually a DedicatedWorkerGlobalScope&lt;<A HREF="http://www.whatwg.org/specs/web-workers/current-work/#dedicatedworkerglobalscope">http://www.whatwg.org/specs/web-workers/current-work/#dedicatedworkerglobalscope</A>&gt; object
+</I>&gt;&gt;&gt;<i> (i.e. the worker is a dedicated worker), then enable the port message
+</I>&gt;&gt;&gt;<i> queue of the worker's implicit port.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> Basically, once the initial worker script returns, the worker's port is
+</I>&gt;&gt;&gt;<i> enabled and the normal message port event delivery mechanism kicks in
+</I>&gt;&gt;&gt;<i> (including dropping unhandled messages on the floor). I can't say whether
+</I>&gt;&gt;&gt;<i> Opera's behavior is correct or not based on your description - if you
+</I>&gt;&gt;&gt;<i> increase the timeout from 1 second to 10 seconds, do you still get the
+</I>&gt;&gt;&gt;<i> &quot;onmessage message received&quot;? If so, then that may be a bug in Opera because
+</I>&gt;&gt;&gt;<i> events delivered to workers without an onmessage handler set should be
+</I>&gt;&gt;&gt;<i> dropped.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> -atw
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> _______________________________________________
+</I>&gt;&gt;&gt;<i> Help mailing list
+</I>&gt;&gt;&gt;<i> <A HREF="http://lists.whatwg.org/listinfo.cgi/help-whatwg.org">Help at lists.whatwg.org</A>
+</I>&gt;&gt;&gt;<i> <A HREF="http://lists.whatwg.org/listinfo.cgi/help-whatwg.org">http://lists.whatwg.org/listinfo.cgi/help-whatwg.org</A>
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> Help mailing list
+</I>&gt;<i> <A HREF="http://lists.whatwg.org/listinfo.cgi/help-whatwg.org">Help at lists.whatwg.org</A>
+</I>&gt;<i> <A HREF="http://lists.whatwg.org/listinfo.cgi/help-whatwg.org">http://lists.whatwg.org/listinfo.cgi/help-whatwg.org</A>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: &lt;<A HREF="http://lists.whatwg.org/pipermail/help-whatwg.org/attachments/20100805/8239c323/attachment-0002.htm">http://lists.whatwg.org/pipermail/help-whatwg.org/attachments/20100805/8239c323/attachment-0002.htm</A>&gt;
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003219.html">[html5] Web Workers: Race-Condition setting onmessage handler?
+</A></li>
+	<LI>Next message: <A HREF="001902.html">[html5] inline lists - correct markup?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3224">[ date ]</a>
+              <a href="thread.html#3224">[ thread ]</a>
+              <a href="subject.html#3224">[ subject ]</a>
+              <a href="author.html#3224">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/help-whatwg.org">More information about the Help
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

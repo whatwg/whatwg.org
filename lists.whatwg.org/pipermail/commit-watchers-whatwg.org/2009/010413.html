@@ -1,0 +1,374 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [html5] r3536 - [gw] (2) Implement handling of 301, 302, 303, 307,	and 401 responses for WebSocket.
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commit-watchers%40lists.whatwg.org?Subject=Re%3A%20%5Bhtml5%5D%20r3536%20-%20%5Bgw%5D%20%282%29%20Implement%20handling%20of%20301%2C%20302%2C%20303%2C%20307%2C%0A%09and%20401%20responses%20for%20WebSocket.&In-Reply-To=%3C20090804232340.E64021389C3%40hixie.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="010412.html">
+   <LINK REL="Next"  HREF="010414.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[html5] r3536 - [gw] (2) Implement handling of 301, 302, 303, 307,	and 401 responses for WebSocket.</H1>
+<!--htdig_noindex-->
+    <B>whatwg at whatwg.org</B> 
+    <A HREF="mailto:commit-watchers%40lists.whatwg.org?Subject=Re%3A%20%5Bhtml5%5D%20r3536%20-%20%5Bgw%5D%20%282%29%20Implement%20handling%20of%20301%2C%20302%2C%20303%2C%20307%2C%0A%09and%20401%20responses%20for%20WebSocket.&In-Reply-To=%3C20090804232340.E64021389C3%40hixie.dreamhostps.com%3E"
+       TITLE="[html5] r3536 - [gw] (2) Implement handling of 301, 302, 303, 307,	and 401 responses for WebSocket.">whatwg at whatwg.org
+       </A><BR>
+    <I>Tue Aug  4 16:23:40 PDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="010412.html">[html5] r3535 - [e] (0) Clarify that drawImage() with negative	dimensions is no different than w [...]
+</A></li>
+        <LI>Next message: <A HREF="010414.html">[html5] r3537 - [gw] (2) Clarify how context.font works regarding	relative values for font-size.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#10413">[ date ]</a>
+              <a href="thread.html#10413">[ thread ]</a>
+              <a href="subject.html#10413">[ subject ]</a>
+              <a href="author.html#10413">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Author: ianh
+Date: 2009-08-04 16:23:39 -0700 (Tue, 04 Aug 2009)
+New Revision: 3536
+
+Modified:
+   source
+Log:
+[gw] (2) Implement handling of 301, 302, 303, 307, and 401 responses for WebSocket.
+
+Modified: source
+===================================================================
+--- source	2009-08-04 05:15:25 UTC (rev 3535)
++++ source	2009-08-04 23:23:39 UTC (rev 3536)
+@@ -70012,6 +70012,9 @@
+ 
+   &lt;ol&gt;
+ 
++   &lt;!-- beware, this is very similar to the steps for what happens
++   during a redirect, in the protocol section --&gt;
++
+    &lt;li&gt;&lt;p&gt;&lt;span title=&quot;parse a url&quot;&gt;Parse&lt;/span&gt; the &lt;var
+    title=&quot;&quot;&gt;url&lt;/var&gt; argument.&lt;/p&gt;&lt;/li&gt;
+ 
+@@ -70458,12 +70461,12 @@
+ 
+    &lt;li&gt;
+ 
+-    &lt;p&gt;If the user agent is configured to use a proxy when using the
+-    Web Socket protocol to connect to host &lt;var title=&quot;&quot;&gt;host&lt;/var&gt;
+-    and/or port &lt;var title=&quot;&quot;&gt;port&lt;/var&gt;, then connect to that proxy
+-    and ask it to open a TCP/IP connection to the host given by &lt;var
+-    title=&quot;&quot;&gt;host&lt;/var&gt; and the port given by &lt;var
+-    title=&quot;&quot;&gt;port&lt;/var&gt;.&lt;/p&gt;
++    &lt;p&gt;&lt;i&gt;Connect&lt;/i&gt;: If the user agent is configured to use a proxy
++    when using the Web Socket protocol to connect to host &lt;var
++    title=&quot;&quot;&gt;host&lt;/var&gt; and/or port &lt;var title=&quot;&quot;&gt;port&lt;/var&gt;, then
++    connect to that proxy and ask it to open a TCP/IP connection to
++    the host given by &lt;var title=&quot;&quot;&gt;host&lt;/var&gt; and the port given by
++    &lt;var title=&quot;&quot;&gt;port&lt;/var&gt;.&lt;/p&gt;
+ 
+     &lt;div class=&quot;example&quot;&gt;
+ 
+@@ -70634,37 +70637,88 @@
+ 
+    &lt;li&gt;
+ 
+-    &lt;p&gt;Read the first 85 bytes from the server. If the connection
+-    closes before 85 bytes are received, or if the first 85 bytes
+-    aren't exactly equal to the following bytes, then &lt;span&gt;fail the
+-    Web Socket connection&lt;/span&gt; and abort these steps.&lt;/p&gt;
++    &lt;p&gt;Read bytes from the server until either the connection closes,
++    or a 0x0a byte is read. Let &lt;var title=&quot;&quot;&gt;header&lt;/var&gt; be these
++    bytes, including the 0x0a byte.&lt;/p&gt;
+ 
++    &lt;p&gt;If &lt;var title=&quot;&quot;&gt;header&lt;/var&gt; is not at least two bytes long,
++    or if the last two bytes aren't 0x0d and 0x0a respectively, then
++    &lt;span&gt;fail the Web Socket connection&lt;/span&gt; and abort these
++    steps.&lt;/p&gt;
++
++    &lt;p&gt;User agents may apply a timeout to this step, &lt;span title=&quot;fail
++    the Web Socket connection&quot;&gt;failing the Web Socket
++    connection&lt;/span&gt; if the server does not send back data in a
++    suitable time period.&lt;/p&gt;
++
++   &lt;/li&gt;
++
++   &lt;li&gt;
++
++    &lt;p&gt;If &lt;var title=&quot;&quot;&gt;header&lt;/var&gt; consists of 44 bytes that exactly
++    match the following, then let &lt;var title=&quot;&quot;&gt;mode&lt;/var&gt; be &lt;i
++    title=&quot;&quot;&gt;normal&lt;/i&gt;.&lt;/p&gt;
++
+     &lt;pre&gt;48 54 54 50 2f 31 2e 31  20 31 30 31 20 57 65 62
+ 20 53 6f 63 6b 65 74 20  50 72 6f 74 6f 63 6f 6c
+-20 48 61 6e 64 73 68 61  6b 65 0d 0a 55 70 67 72
+-61 64 65 3a 20 57 65 62  53 6f 63 6b 65 74 0d 0a
+-43 6f 6e 6e 65 63 74 69  6f 6e 3a 20 55 70 67 72
+-61 64 65 0d 0a&lt;/pre&gt;
++20 48 61 6e 64 73 68 61  6b 65 0d 0a&lt;/pre&gt;
+ 
+     &lt;p class=&quot;note&quot;&gt;The string
+-    &quot;HTTP/1.1&nbsp;101&nbsp;Web&nbsp;Socket&nbsp;Protocol&nbsp;Handshake&quot;, CRLF, the
+-    string &quot;Upgrade:&nbsp;WebSocket&quot;, CRLF, the string
+-    &quot;Connection:&nbsp;Upgrade&quot;, CRLF.&lt;/p&gt;
++    &quot;HTTP/1.1&nbsp;101&nbsp;Web&nbsp;Socket&nbsp;Protocol&nbsp;Handshake&quot;
++    followed by a CRLF pair.&lt;/p&gt;
+ 
+-    &lt;!-- v2 if we ever support the server requiring credentials, this
+-    is where it goes --&gt;
++    &lt;p&gt;Otherwise, let &lt;var title=&quot;&quot;&gt;code&lt;/var&gt; be the substring of
++    &lt;var title=&quot;&quot;&gt;header&lt;/var&gt; that starts from the byte after the
++    first 0x20 byte, and ends with the byte before the second 0x20
++    byte. If there are not at least two 0x20 bytes in &lt;var
++    title=&quot;&quot;&gt;header&lt;/var&gt;, then &lt;span&gt;fail the Web Socket
++    connection&lt;/span&gt; and abort these steps.&lt;/p&gt;
+ 
++    &lt;p&gt;If &lt;var title=&quot;&quot;&gt;code&lt;/var&gt;, interpreted as ASCII, is either
++    &quot;&lt;code title=&quot;&quot;&gt;301&lt;/code&gt;&quot;, &quot;&lt;code title=&quot;&quot;&gt;302&lt;/code&gt;&quot;, &quot;&lt;code
++    title=&quot;&quot;&gt;303&lt;/code&gt;&quot;, &quot;&lt;code title=&quot;&quot;&gt;307&lt;/code&gt;&quot;, then let &lt;var
++    title=&quot;&quot;&gt;mode&lt;/var&gt; be &lt;i title=&quot;&quot;&gt;redirect&lt;/i&gt;.
++
++    &lt;p&gt;If &lt;var title=&quot;&quot;&gt;code&lt;/var&gt;, interpreted as ASCII, is &quot;&lt;code
++    title=&quot;&quot;&gt;401&lt;/code&gt;&quot;, then let &lt;var title=&quot;&quot;&gt;mode&lt;/var&gt; be &lt;i
++    title=&quot;&quot;&gt;authenticate&lt;/i&gt;.
++
++    &lt;p&gt;Otherwise, &lt;span&gt;fail the Web Socket connection&lt;/span&gt; and
++    abort these steps.&lt;/p&gt;
++
++   &lt;/li&gt;
++
++   &lt;li&gt;
++
++    &lt;p&gt;If &lt;var title=&quot;&quot;&gt;mode&lt;/var&gt; is &lt;i title=&quot;&quot;&gt;normal&lt;/i&gt;, then
++    read 41 bytes from the server.&lt;/p&gt;
++
++    &lt;p&gt;If the connection closes before 41 bytes are received, or if
++    the 41 bytes aren't exactly equal to the following bytes, then
++    &lt;span&gt;fail the Web Socket connection&lt;/span&gt; and abort these
++    steps.&lt;/p&gt;
++
++    &lt;pre&gt;55 70 67 72 61 64 65 3a  20 57 65 62 53 6f 63 6b
++65 74 0d 0a 43 6f 6e 6e  65 63 74 69 6f 6e 3a 20
++55 70 67 72 61 64 65 0d  0a&lt;/pre&gt;
++
++    &lt;p class=&quot;note&quot;&gt;The string &quot;Upgrade:&nbsp;WebSocket&quot;, CRLF, the
++    string &quot;Connection:&nbsp;Upgrade&quot;, CRLF.&lt;/p&gt;
++
+     &lt;p&gt;User agents may apply a timeout to this step, &lt;span title=&quot;fail
+     the Web Socket connection&quot;&gt;failing the Web Socket
+     connection&lt;/span&gt; if the server does not respond with the above
+     bytes within a suitable time period.&lt;/p&gt;
+ 
++    &lt;p class=&quot;note&quot;&gt;This step is skipped if &lt;var title=&quot;&quot;&gt;mode&lt;/var&gt;
++    is &lt;i title=&quot;&quot;&gt;redirect&lt;/i&gt; or &lt;i title=&quot;&quot;&gt;authenticate&lt;/i&gt;.&lt;/p&gt;
++
+    &lt;/li&gt;
+ 
+    &lt;li&gt;&lt;p&gt;Let &lt;var title=&quot;&quot;&gt;headers&lt;/var&gt; be a list of name-value
+    pairs, initially empty.&lt;/p&gt;&lt;/li&gt;
+ 
+-   &lt;li id=&quot;ws-ua-header-loop&quot;&gt;&lt;p&gt;&lt;i&gt;Header&lt;/i&gt;: Let &lt;var
++   &lt;li id=&quot;ws-ua-header-loop&quot;&gt;&lt;p&gt;&lt;i title=&quot;&quot;&gt;Header&lt;/i&gt;: Let &lt;var
+    title=&quot;&quot;&gt;name&lt;/var&gt; and &lt;var title=&quot;&quot;&gt;value&lt;/var&gt; be empty byte
+    arrays.&lt;/p&gt;&lt;/li&gt;
+ 
+@@ -70818,24 +70872,8 @@
+ 
+    &lt;li id=&quot;ws-ua-headers-processing&quot;&gt;
+ 
+-    &lt;p&gt;&lt;i&gt;Headers processing&lt;/i&gt;: If there is not exactly one entry
+-    in the &lt;var title=&quot;&quot;&gt;headers&lt;/var&gt; list whose name is &quot;&lt;code
+-    title=&quot;&quot;&gt;websocket-origin&lt;/code&gt;&quot;, or if there is not exactly one
+-    entry in the &lt;var title=&quot;&quot;&gt;headers&lt;/var&gt; list whose name is &quot;&lt;code
+-    title=&quot;&quot;&gt;websocket-location&lt;/code&gt;&quot;, or if the &lt;var
+-    title=&quot;&quot;&gt;protocol&lt;/var&gt; was specified but there is not exactly one
+-    entry in the &lt;var title=&quot;&quot;&gt;headers&lt;/var&gt; list whose name is &quot;&lt;code
+-    title=&quot;&quot;&gt;websocket-protocol&lt;/code&gt;&quot;, or if there are any entries
+-    in the &lt;var title=&quot;&quot;&gt;headers&lt;/var&gt; list whose names are the empty
+-    string, then &lt;span&gt;fail the Web Socket connection&lt;/span&gt; and abort
+-    these steps.&lt;/p&gt;
++    &lt;p&gt;&lt;i&gt;Headers processing&lt;/i&gt;: Read a byte from the server.&lt;/p&gt;
+ 
+-   &lt;/li&gt;
+-
+-   &lt;li&gt;
+-
+-    &lt;p&gt;Read a byte from the server.&lt;/p&gt;
+-
+     &lt;p&gt;If the connection closes before this byte is received, or if
+     the byte is not a 0x0a byte (ASCII LF), then &lt;span&gt;fail the Web
+     Socket connection&lt;/span&gt; and abort these steps.&lt;/p&gt;
+@@ -70847,8 +70885,18 @@
+ 
+    &lt;li&gt;
+ 
+-    &lt;p&gt;Handle each entry in the &lt;var title=&quot;&quot;&gt;headers&lt;/var&gt; list as
+-    follows:&lt;/p&gt;
++    &lt;p&gt;If &lt;var title=&quot;&quot;&gt;mode&lt;/var&gt; is &lt;i title=&quot;&quot;&gt;normal&lt;/i&gt;, then: If
++    there is not exactly one entry in the &lt;var title=&quot;&quot;&gt;headers&lt;/var&gt;
++    list whose name is &quot;&lt;code title=&quot;&quot;&gt;websocket-origin&lt;/code&gt;&quot;, or if
++    there is not exactly one entry in the &lt;var title=&quot;&quot;&gt;headers&lt;/var&gt;
++    list whose name is &quot;&lt;code title=&quot;&quot;&gt;websocket-location&lt;/code&gt;&quot;, or
++    if the &lt;var title=&quot;&quot;&gt;protocol&lt;/var&gt; was specified but there is not
++    exactly one entry in the &lt;var title=&quot;&quot;&gt;headers&lt;/var&gt; list whose
++    name is &quot;&lt;code title=&quot;&quot;&gt;websocket-protocol&lt;/code&gt;&quot;, or if there
++    are any entries in the &lt;var title=&quot;&quot;&gt;headers&lt;/var&gt; list whose
++    names are the empty string, then &lt;span&gt;fail the Web Socket
++    connection&lt;/span&gt; and abort these steps. Otherwise, handle each
++    entry in the &lt;var title=&quot;&quot;&gt;headers&lt;/var&gt; list as follows:&lt;/p&gt;
+ 
+     &lt;dl class=&quot;switch&quot;&gt;
+ 
+@@ -70925,6 +70973,114 @@
+ 
+     &lt;/dl&gt;
+ 
++    &lt;hr&gt;
++
++    &lt;p&gt;If &lt;var title=&quot;&quot;&gt;mode&lt;/var&gt; is &lt;i title=&quot;&quot;&gt;redirect&lt;/i&gt;, then:
++    If there is not exactly one entry in the &lt;var
++    title=&quot;&quot;&gt;headers&lt;/var&gt; list whose name is &quot;&lt;code
++    title=&quot;&quot;&gt;location&lt;/code&gt;&quot;, then &lt;span&gt;fail the Web Socket
++    connection&lt;/span&gt; and abort these steps. Otherwise, handle each
++    entry in the &lt;var title=&quot;&quot;&gt;headers&lt;/var&gt; list as follows:&lt;/p&gt;
++
++    &lt;dl class=&quot;switch&quot;&gt;
++
++     &lt;dt&gt;If the entry's name is &quot;&lt;code
++     title=&quot;&quot;&gt;location&lt;/code&gt;&quot;&lt;/dt&gt;
++
++     &lt;dd&gt;
++
++      &lt;!-- this is very similar to the constructor's steps --&gt;
++
++      &lt;p&gt;&lt;span title=&quot;parse a url&quot;&gt;Parse&lt;/span&gt; the value of the
++      entry. If this fails, or if the parsed &lt;span&gt;URL&lt;/span&gt; does not
++      have a &lt;span title=&quot;url-scheme&quot;&gt;&lt;scheme&gt;&lt;/span&gt; component
++      whose value is either &quot;&lt;code title=&quot;&quot;&gt;ws&lt;/code&gt;&quot; or &quot;&lt;code
++      title=&quot;&quot;&gt;wss&lt;/code&gt;&quot;, when compared in an &lt;span&gt;ASCII
++      case-insensitive&lt;/span&gt; manner, then &lt;span&gt;fail the Web Socket
++      connection&lt;/span&gt; and abort these steps.&lt;/p&gt;
++
++      &lt;p&gt;If &lt;var title=&quot;&quot;&gt;secure&lt;/var&gt; is true but the newly parsed
++      &lt;span&gt;URL&lt;/span&gt;'s &lt;span
++      title=&quot;url-scheme&quot;&gt;&lt;scheme&gt;&lt;/span&gt; component is an
++      &lt;span&gt;ASCII case-insensitive&lt;/span&gt; match for &quot;&lt;code
++      title=&quot;&quot;&gt;ws&lt;/code&gt;&quot;, then &lt;span&gt;fail the Web Socket
++      connection&lt;/span&gt; and abort these steps. Otherwise, if &lt;var
++      title=&quot;&quot;&gt;secure&lt;/var&gt; is false but the newly parsed
++      &lt;span&gt;URL&lt;/span&gt;'s &lt;span
++      title=&quot;url-scheme&quot;&gt;&lt;scheme&gt;&lt;/span&gt; component is an
++      &lt;span&gt;ASCII case-insensitive&lt;/span&gt; match for &quot;&lt;code
++      title=&quot;&quot;&gt;wss&lt;/code&gt;&quot;, then set &lt;var title=&quot;&quot;&gt;secure&lt;/var&gt; to
++      true.&lt;/p&gt;
++
++      &lt;p&gt;Let &lt;var title=&quot;&quot;&gt;host&lt;/var&gt; be the value of the &lt;span
++      title=&quot;url-host&quot;&gt;&lt;host&gt;&lt;/span&gt; component of &lt;var
++      title=&quot;&quot;&gt;url&lt;/var&gt;, &lt;span&gt;converted to ASCII
++      lowercase&lt;/span&gt;.&lt;/p&gt;
++
++      &lt;p&gt;If &lt;var title=&quot;&quot;&gt;url&lt;/var&gt; has a &lt;span
++      title=&quot;url-port&quot;&gt;&lt;port&gt;&lt;/span&gt; component, then let &lt;var
++      title=&quot;&quot;&gt;port&lt;/var&gt; be that component's value; otherwise, there
++      is no explicit &lt;var title=&quot;&quot;&gt;port&lt;/var&gt;.&lt;/p&gt;
++
++      &lt;p&gt;If there is an explicit &lt;var title=&quot;&quot;&gt;port&lt;/var&gt; and the user
++      agent is configured to block access to that port, then
++      &lt;span&gt;fail the Web Socket connection&lt;/span&gt; and abort these
++      steps.&lt;/p&gt;
++
++      &lt;p&gt;Let &lt;var title=&quot;&quot;&gt;resource name&lt;/var&gt; be the value of the
++      &lt;span title=&quot;url-path&quot;&gt;&lt;path&gt;&lt;/span&gt; component (which
++      might be empty) of &lt;var title=&quot;&quot;&gt;url&lt;/var&gt;.&lt;/p&gt;
++
++      &lt;p&gt;If &lt;var title=&quot;&quot;&gt;resource name&lt;/var&gt; is the empty string, set
++      it to a single character U+002F SOLIDUS (/).&lt;/p&gt;
++
++      &lt;p&gt;If &lt;var title=&quot;&quot;&gt;url&lt;/var&gt; has a &lt;span
++      title=&quot;url-query&quot;&gt;&lt;query&gt;&lt;/span&gt; component, then append a
++      single U+003F QUESTION MARK (?) character to &lt;var
++      title=&quot;&quot;&gt;resource name&lt;/var&gt;, followed by the value of the &lt;span
++      title=&quot;url-query&quot;&gt;&lt;query&gt;&lt;/span&gt; component.&lt;/p&gt;
++
++      &lt;p&gt;Close the connection if the server has not already done
++      so.&lt;/p&gt;
++
++      &lt;p&gt;Jump back to the first step of this algorithm.&lt;/p&gt;
++
++     &lt;/dd&gt;
++
++
++     &lt;dt&gt;Any other name&lt;/dt&gt;
++
++     &lt;dd&gt;Ignore it.&lt;/dd&gt;
++
++    &lt;/dl&gt;
++
++    &lt;hr&gt;
++
++    &lt;p&gt;If &lt;var title=&quot;&quot;&gt;mode&lt;/var&gt; is &lt;i title=&quot;&quot;&gt;authenticate&lt;/i&gt;,
++    then: If there is not exactly one entry in the &lt;var
++    title=&quot;&quot;&gt;headers&lt;/var&gt; list whose name is &quot;&lt;code
++    title=&quot;&quot;&gt;www-authenticate&lt;/code&gt;&quot;, then &lt;span&gt;fail the Web Socket
++    connection&lt;/span&gt; and abort these steps. Otherwise, handle each
++    entry in the &lt;var title=&quot;&quot;&gt;headers&lt;/var&gt; list as follows:&lt;/p&gt;
++
++    &lt;dl class=&quot;switch&quot;&gt;
++
++     &lt;dt&gt;If the entry's name is &quot;&lt;code
++     title=&quot;&quot;&gt;www-authenticate&lt;/code&gt;&quot;&lt;/dt&gt;
++
++     &lt;dd&gt;&lt;p&gt;Obtain credentials in a manner consistent with the
++     requirements for handling the &lt;code&gt;WWW-Authenticate&lt;/code&gt;
++     header in HTTP, and then close the connection (if the server has
++     not already done so) and jump back to the step labeled
++     &lt;i&gt;connect&lt;/i&gt;, including the relevant authentication headers in
++     the new request. &lt;a href=&quot;#refsRFC2616&quot;&gt;[RFC2616]&lt;/a&gt;&lt;/p&gt;&lt;/dd&gt;
++
++     &lt;dt&gt;Any other name&lt;/dt&gt;
++
++     &lt;dd&gt;Ignore it.&lt;/dd&gt;
++
++    &lt;/dl&gt;
++
+    &lt;/li&gt;
+ 
+    &lt;li&gt;
+
+
+</PRE>
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="010412.html">[html5] r3535 - [e] (0) Clarify that drawImage() with negative	dimensions is no different than w [...]
+</A></li>
+	<LI>Next message: <A HREF="010414.html">[html5] r3537 - [gw] (2) Clarify how context.font works regarding	relative values for font-size.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#10413">[ date ]</a>
+              <a href="thread.html#10413">[ thread ]</a>
+              <a href="subject.html#10413">[ subject ]</a>
+              <a href="author.html#10413">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/commit-watchers-whatwg.org">More information about the Commit-Watchers
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

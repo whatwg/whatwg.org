@@ -1,0 +1,1333 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [html5] r8095 - [giow] (3) Refactor the timer code to match current	practice in WebKit, Gecko, a [...]
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commit-watchers%40lists.whatwg.org?Subject=Re%3A%20%5Bhtml5%5D%20r8095%20-%20%5Bgiow%5D%20%283%29%20Refactor%20the%20timer%20code%20to%20match%20current%0A%09practice%20in%20WebKit%2C%20Gecko%2C%20a%20%5B...%5D&In-Reply-To=%3C20130726232746.12A271536C689%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="014950.html">
+   <LINK REL="Next"  HREF="014952.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[html5] r8095 - [giow] (3) Refactor the timer code to match current	practice in WebKit, Gecko, a [...]</H1>
+<!--htdig_noindex-->
+    <B>whatwg at whatwg.org</B> 
+    <A HREF="mailto:commit-watchers%40lists.whatwg.org?Subject=Re%3A%20%5Bhtml5%5D%20r8095%20-%20%5Bgiow%5D%20%283%29%20Refactor%20the%20timer%20code%20to%20match%20current%0A%09practice%20in%20WebKit%2C%20Gecko%2C%20a%20%5B...%5D&In-Reply-To=%3C20130726232746.12A271536C689%40ps20323.dreamhostps.com%3E"
+       TITLE="[html5] r8095 - [giow] (3) Refactor the timer code to match current	practice in WebKit, Gecko, a [...]">whatwg at whatwg.org
+       </A><BR>
+    <I>Fri Jul 26 16:27:46 PDT 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="014950.html">[html5] r8094 - [giow] (0) Revert r8083,	since it leads to weird behaviour worse than just retur [...]
+</A></li>
+        <LI>Next message: <A HREF="014952.html">[html5] r8096 - [e] (0) Try to tighten more things up with respect	to events and documents and w [...]
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#14951">[ date ]</a>
+              <a href="thread.html#14951">[ thread ]</a>
+              <a href="subject.html#14951">[ subject ]</a>
+              <a href="author.html#14951">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Author: ianh
+Date: 2013-07-26 16:27:44 -0700 (Fri, 26 Jul 2013)
+New Revision: 8095
+
+Modified:
+   complete.html
+   index
+   source
+Log:
+[giow] (3) Refactor the timer code to match current practice in WebKit, Gecko, and Blink (the ones whose source I could examine)
+Fixing <A HREF="https://www.w3.org/Bugs/Public/show_bug.cgi?id=22631">https://www.w3.org/Bugs/Public/show_bug.cgi?id=22631</A>
+Affected topics: HTML
+
+Modified: complete.html
+===================================================================
+--- complete.html	2013-07-26 22:21:58 UTC (rev 8094)
++++ complete.html	2013-07-26 23:27:44 UTC (rev 8095)
+@@ -73252,7 +73252,10 @@
+ 
+    &lt;/dd&gt;
+ 
+-  &lt;/dl&gt;&lt;p class=note&gt;This API does not guarantee that timers will run exactly on schedule. Delays due
++  &lt;/dl&gt;&lt;p class=note&gt;Timers can be nested; after five such nested timers, however, the interval is
++  forced to be at least four milliseconds.&lt;/p&gt;
++
++  &lt;p class=note&gt;This API does not guarantee that timers will run exactly on schedule. Delays due
+   to CPU load, other tasks, etc, are to be expected.&lt;/p&gt;
+ 
+   &lt;div class=impl&gt;
+@@ -73264,229 +73267,230 @@
+   timers&lt;/dfn&gt;. Each entry in this lists is identified by a number, which must be unique within the
+   list for the lifetime of the object that implements the &lt;code&gt;&lt;a href=#windowtimers&gt;WindowTimers&lt;/a&gt;&lt;/code&gt; interface.&lt;/p&gt;
+ 
+-  &lt;hr&gt;&lt;p&gt;The &lt;dfn id=dom-windowtimers-settimeout title=dom-windowtimers-setTimeout&gt;&lt;code&gt;setTimeout()&lt;/code&gt;&lt;/dfn&gt; method must run
+-  the following steps:
++  &lt;hr&gt;&lt;p&gt;The &lt;dfn id=dom-windowtimers-settimeout title=dom-windowtimers-setTimeout&gt;&lt;code&gt;setTimeout()&lt;/code&gt;&lt;/dfn&gt; method must return
++  the value returned by the &lt;a href=#timer-initialization-steps&gt;timer initialization steps&lt;/a&gt;, passing them the method's
++  arguments, the object on which the method for which the algorithm is running is implemented (a
++  &lt;code&gt;&lt;a href=#window&gt;Window&lt;/a&gt;&lt;/code&gt; or &lt;code&gt;&lt;a href=#workerglobalscope&gt;WorkerGlobalScope&lt;/a&gt;&lt;/code&gt; object) as the &lt;var title=&quot;&quot;&gt;method
++  context&lt;/var&gt;, and the &lt;var title=&quot;&quot;&gt;repeat&lt;/var&gt; flag set to false.&lt;/p&gt;
+ 
+-  &lt;ol&gt;&lt;li&gt;&lt;p&gt;Let &lt;var title=&quot;&quot;&gt;handle&lt;/var&gt; be a user-agent-defined integer that is greater than zero
+-   that will identify the timeout to be set by this call in the &lt;a href=#list-of-active-timers&gt;list of active
+-   timers&lt;/a&gt;.&lt;/li&gt;
++  &lt;p&gt;The &lt;dfn id=dom-windowtimers-setinterval title=dom-windowtimers-setInterval&gt;&lt;code&gt;setInterval()&lt;/code&gt;&lt;/dfn&gt; method must
++  return the value returned by the &lt;a href=#timer-initialization-steps&gt;timer initialization steps&lt;/a&gt;, passing them the
++  method's arguments, the object on which the method for which the algorithm is running is
++  implemented (a &lt;code&gt;&lt;a href=#window&gt;Window&lt;/a&gt;&lt;/code&gt; or &lt;code&gt;&lt;a href=#workerglobalscope&gt;WorkerGlobalScope&lt;/a&gt;&lt;/code&gt; object) as the &lt;var title=&quot;&quot;&gt;method context&lt;/var&gt;, and the &lt;var title=&quot;&quot;&gt;repeat&lt;/var&gt; flag set to true.&lt;/p&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;Add an entry to the &lt;a href=#list-of-active-timers&gt;list of active timers&lt;/a&gt; for &lt;var title=&quot;&quot;&gt;handle&lt;/var&gt;.&lt;/li&gt;
++  &lt;p&gt;The &lt;dfn id=dom-windowtimers-cleartimeout title=dom-windowtimers-clearTimeout&gt;&lt;code&gt;clearTimeout()&lt;/code&gt;&lt;/dfn&gt; and &lt;dfn id=dom-windowtimers-clearinterval title=dom-windowtimers-clearInterval&gt;&lt;code&gt;clearInterval()&lt;/code&gt;&lt;/dfn&gt; methods must clear the
++  entry identified as &lt;var title=&quot;&quot;&gt;handle&lt;/var&gt; from the &lt;a href=#list-of-active-timers&gt;list of active timers&lt;/a&gt; of the
++  &lt;code&gt;&lt;a href=#windowtimers&gt;WindowTimers&lt;/a&gt;&lt;/code&gt; object on which the method was invoked, where &lt;var title=&quot;&quot;&gt;handle&lt;/var&gt;
++  is the argument passed to the method, if any. (If &lt;var title=&quot;&quot;&gt;handle&lt;/var&gt; does not identify an
++  entry in the &lt;a href=#list-of-active-timers&gt;list of active timers&lt;/a&gt; of the &lt;code&gt;&lt;a href=#windowtimers&gt;WindowTimers&lt;/a&gt;&lt;/code&gt; object on which
++  the method was invoked, the method does nothing.)&lt;/p&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;&lt;a href=#get-the-timed-task&gt;Get the timed task&lt;/a&gt; &lt;var title=&quot;&quot;&gt;handle&lt;/var&gt; in the &lt;a href=#list-of-active-timers&gt;list of active
+-   timers&lt;/a&gt;, and let &lt;var title=&quot;&quot;&gt;task&lt;/var&gt; be the result. This algorithm uses the first
+-   argument to the method (&lt;var title=&quot;&quot;&gt;handler&lt;/var&gt;) and, if there are any, the third and
+-   subsequent arguments to the method (&lt;var title=&quot;&quot;&gt;arguments&lt;/var&gt;), to establish precisely what
+-   &lt;var title=&quot;&quot;&gt;task&lt;/var&gt; does.&lt;/li&gt;
++  &lt;hr&gt;&lt;p&gt;The &lt;dfn id=timer-initialization-steps&gt;timer initialization steps&lt;/dfn&gt;, which are invoked with some method arguments, a &lt;var title=&quot;&quot;&gt;method context&lt;/var&gt;, a &lt;var title=&quot;&quot;&gt;repeat&lt;/var&gt; flag which can be true or false, and
++  optionally (and only if the &lt;var title=&quot;&quot;&gt;repeat&lt;/var&gt; flag is true) a &lt;var title=&quot;&quot;&gt;previous
++  handle&lt;/var&gt;, are as follows:&lt;/p&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;Let &lt;var title=&quot;&quot;&gt;timeout&lt;/var&gt; be the second argument to the method, or zero if the
+-   argument was omitted.&lt;/li&gt;
++  &lt;ol&gt;&lt;li&gt;&lt;p&gt;Let &lt;var title=&quot;&quot;&gt;method context proxy&lt;/var&gt; be &lt;var title=&quot;&quot;&gt;method context&lt;/var&gt; if that
++   is a &lt;code&gt;&lt;a href=#workerglobalscope&gt;WorkerGlobalScope&lt;/a&gt;&lt;/code&gt; object, or else the &lt;code&gt;&lt;a href=#windowproxy&gt;WindowProxy&lt;/a&gt;&lt;/code&gt; that corresponds
++   to &lt;var title=&quot;&quot;&gt;method context&lt;/var&gt;.&lt;/li&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;If the currently running &lt;a href=#concept-task title=concept-task&gt;task&lt;/a&gt; is a task that was created
+-   by the &lt;code title=dom-windowtimers-setTimeout&gt;&lt;a href=#dom-windowtimers-settimeout&gt;setTimeout()&lt;/a&gt;&lt;/code&gt; method, and &lt;var title=&quot;&quot;&gt;timeout&lt;/var&gt; is less than 4, then increase &lt;var title=&quot;&quot;&gt;timeout&lt;/var&gt; to 4.&lt;/li&gt;
++   &lt;li&gt;&lt;p&gt;If &lt;var title=&quot;&quot;&gt;previous handle&lt;/var&gt; was provided, let &lt;var title=&quot;&quot;&gt;handle&lt;/var&gt; be
++   &lt;var title=&quot;&quot;&gt;previous handle&lt;/var&gt;; otherwise, let &lt;var title=&quot;&quot;&gt;handle&lt;/var&gt; be a
++   user-agent-defined integer that is greater than zero that will identify the timeout to be set by
++   this call in the &lt;a href=#list-of-active-timers&gt;list of active timers&lt;/a&gt;.&lt;/li&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;Return &lt;var title=&quot;&quot;&gt;handle&lt;/var&gt;, and then continue running this algorithm
+-   asynchronously.&lt;/li&gt;
++   &lt;li&gt;&lt;p&gt;If &lt;var title=&quot;&quot;&gt;previous handle&lt;/var&gt; was not provided, add an entry to the &lt;a href=#list-of-active-timers&gt;list of
++   active timers&lt;/a&gt; for &lt;var title=&quot;&quot;&gt;handle&lt;/var&gt;.&lt;/li&gt;
+ 
+    &lt;li&gt;
+ 
+-    &lt;p&gt;If the &lt;a href=#method-context&gt;method context&lt;/a&gt; is a &lt;code&gt;&lt;a href=#window&gt;Window&lt;/a&gt;&lt;/code&gt; object, wait until the
+-    &lt;code&gt;&lt;a href=#document&gt;Document&lt;/a&gt;&lt;/code&gt; associated with the &lt;a href=#method-context&gt;method context&lt;/a&gt; has been &lt;a href=#fully-active&gt;fully
+-    active&lt;/a&gt; for a further &lt;var title=&quot;&quot;&gt;timeout&lt;/var&gt; milliseconds (not necessarily
+-    consecutively).&lt;/p&gt;
++    &lt;p&gt;Let &lt;var title=&quot;&quot;&gt;task&lt;/var&gt; be a &lt;a href=#concept-task title=concept-task&gt;task&lt;/a&gt; that runs the
++    following substeps:&lt;/p&gt;
+ 
+-    &lt;p&gt;Otherwise, if the &lt;a href=#method-context&gt;method context&lt;/a&gt; is a &lt;code&gt;&lt;a href=#workerglobalscope&gt;WorkerGlobalScope&lt;/a&gt;&lt;/code&gt; object,
+-    wait until &lt;var title=&quot;&quot;&gt;timeout&lt;/var&gt; milliseconds have passed with the worker not suspended
+-    (not necessarily consecutively).&lt;/p&gt;
++    &lt;ol&gt;&lt;li&gt;
+ 
+-    &lt;p&gt;Otherwise, act as described in the specification that defines that the
+-    &lt;code&gt;&lt;a href=#windowtimers&gt;WindowTimers&lt;/a&gt;&lt;/code&gt; interface is implemented by some other object.&lt;/p&gt;
++      &lt;p&gt;If the entry for &lt;var title=&quot;&quot;&gt;handle&lt;/var&gt; in the &lt;a href=#list-of-active-timers&gt;list of active timers&lt;/a&gt; has
++      been cleared, then abort this &lt;a href=#concept-task title=concept-task&gt;task&lt;/a&gt;'s substeps.&lt;/p&gt;
+ 
+-   &lt;/li&gt;
++     &lt;/li&gt;
+ 
+-   &lt;li&gt;
++     &lt;li&gt;
+ 
+-    &lt;p&gt;Wait until any invocations of this algorithm that had the same &lt;a href=#method-context&gt;method context&lt;/a&gt;,
+-    that started before this one, and whose &lt;var title=&quot;&quot;&gt;timeout&lt;/var&gt; is equal to or less than
+-    this one's, have completed.&lt;/p&gt;
++      &lt;p&gt;Run the appropriate set of steps from the following list:&lt;/p&gt;
+ 
+-    &lt;p class=note&gt;Argument conversion as defined by Web IDL (for example, invoking &lt;code title=&quot;&quot;&gt;toString()&lt;/code&gt; methods on objects passed as the first argument) happens in the
+-    algorithms defined in Web IDL, before this algorithm is invoked.&lt;/p&gt;
++      &lt;dl class=switch&gt;&lt;dt&gt;If the first method argument is a &lt;code&gt;Function&lt;/code&gt;&lt;/dt&gt;
+ 
+-    &lt;div class=example&gt;
++       &lt;dd&gt;
+ 
+-     &lt;p&gt;So for example, the following rather silly code will result in the log containing &quot;&lt;code title=&quot;&quot;&gt;ONE&nbsp;TWO&nbsp;&lt;/code&gt;&quot;:&lt;/p&gt;
++        &lt;p&gt;Call the &lt;code&gt;Function&lt;/code&gt;. Use the third and subsequent method arguments (if any) as
++        the arguments for invoking the &lt;code&gt;Function&lt;/code&gt;. Use &lt;var title=&quot;&quot;&gt;method context
++        proxy&lt;/var&gt; as the &lt;var title=&quot;&quot;&gt;thisArg&lt;/var&gt; for invoking the &lt;code&gt;Function&lt;/code&gt;. &lt;a href=#refsECMA262&gt;[ECMA262]&lt;/a&gt;&lt;/p&gt;
+ 
+-     &lt;pre&gt;var log = '';
+-function logger(s) { log += s + ' '; }
++       &lt;/dd&gt;
+ 
+-setTimeout({ toString: function () {
+-  setTimeout(&quot;logger('ONE')&quot;, 100);
+-  return &quot;logger('TWO')&quot;;
+-} }, 100);&lt;/pre&gt;
++       &lt;dt&gt;Otherwise&lt;/dt&gt;
+ 
+-    &lt;/div&gt;
++       &lt;dd&gt;
+ 
+-   &lt;/li&gt;
++        &lt;ol&gt;&lt;li&gt;&lt;p&gt;Let &lt;var title=&quot;&quot;&gt;script source&lt;/var&gt; be the first method argument.&lt;/li&gt;
+ 
+-   &lt;li&gt;
++         &lt;li&gt;&lt;p&gt;Let &lt;var title=&quot;&quot;&gt;script language&lt;/var&gt; be JavaScript.&lt;/li&gt;
+ 
+-    &lt;p&gt;Optionally, wait a further user-agent defined length of time.&lt;/p&gt;
++         &lt;li&gt;
+ 
+-    &lt;p class=note&gt;This is intended to allow user agents to pad timeouts as needed to optimise the
+-    power usage of the device. For example, some processors have a low-power mode where the
+-    granularity of timers is reduced; on such platforms, user agents can slow timers down to fit
+-    this schedule instead of requiring the processor to use the more accurate mode with its
+-    associated higher power usage.&lt;/p&gt;
++          &lt;p&gt;If &lt;var title=&quot;&quot;&gt;method context&lt;/var&gt; is a &lt;code&gt;&lt;a href=#window&gt;Window&lt;/a&gt;&lt;/code&gt; object, let &lt;var title=&quot;&quot;&gt;global object&lt;/var&gt; be &lt;var title=&quot;&quot;&gt;method context&lt;/var&gt;, let &lt;var title=&quot;&quot;&gt;browsing context&lt;/var&gt; be the &lt;a href=#browsing-context&gt;browsing context&lt;/a&gt; with which &lt;var title=&quot;&quot;&gt;global object&lt;/var&gt; is associated, let &lt;var title=&quot;&quot;&gt;document&lt;/var&gt; and &lt;var title=&quot;&quot;&gt;referrer source&lt;/var&gt; be the &lt;code&gt;&lt;a href=#document&gt;Document&lt;/a&gt;&lt;/code&gt; associated with &lt;var title=&quot;&quot;&gt;global object&lt;/var&gt;, let &lt;var title=&quot;&quot;&gt;character encoding&lt;/var&gt; be the &lt;a href=&quot;#document's-character-encoding&quot; title=&quot;document's character encoding&quot;&gt;character encoding&lt;/a&gt; of the &lt;code&gt;&lt;a href=#document&gt;Document&lt;/a&gt;&lt;/code&gt;
++          associated with &lt;var title=&quot;&quot;&gt;global object&lt;/var&gt; (&lt;a href=#sce-not-copy&gt;this is a
++          reference, not a copy&lt;/a&gt;), and let &lt;var title=&quot;&quot;&gt;base URL&lt;/var&gt; be the &lt;a href=#document-base-url title=&quot;document base URL&quot;&gt;base URL&lt;/a&gt; of the &lt;code&gt;&lt;a href=#document&gt;Document&lt;/a&gt;&lt;/code&gt; associated with &lt;var title=&quot;&quot;&gt;global object&lt;/var&gt; (&lt;a href=#sbu-not-copy&gt;this is a reference, not a
++          copy&lt;/a&gt;).&lt;/p&gt;
+ 
+-   &lt;/li&gt;
++          &lt;p&gt;Otherwise, &lt;var title=&quot;&quot;&gt;method context&lt;/var&gt; is a &lt;code&gt;&lt;a href=#workerglobalscope&gt;WorkerGlobalScope&lt;/a&gt;&lt;/code&gt; object;
++          let &lt;var title=&quot;&quot;&gt;global object&lt;/var&gt;, &lt;var title=&quot;&quot;&gt;browsing context&lt;/var&gt;, &lt;var title=&quot;&quot;&gt;document&lt;/var&gt;, &lt;var title=&quot;&quot;&gt;referrer source&lt;/var&gt;, &lt;var title=&quot;&quot;&gt;character
++          encoding&lt;/var&gt;, and &lt;var title=&quot;&quot;&gt;base URL&lt;/var&gt; be the &lt;a href=&quot;#script's-global-object&quot;&gt;script's global object&lt;/a&gt;,
++          &lt;a href=&quot;#script's-browsing-context&quot;&gt;script's browsing context&lt;/a&gt;, &lt;a href=&quot;#script's-document&quot;&gt;script's document&lt;/a&gt;, &lt;a href=&quot;#script's-referrer-source&quot;&gt;script's
++          referrer source&lt;/a&gt;, &lt;a href=&quot;#script's-url-character-encoding&quot;&gt;script's URL character encoding&lt;/a&gt;, and &lt;a href=&quot;#script's-base-url&quot;&gt;script's
++          base URL&lt;/a&gt; (respectively) of the &lt;a href=#concept-script title=concept-script&gt;script&lt;/a&gt; that the
++          &lt;a href=#run-a-worker&gt;run a worker&lt;/a&gt; algorithm created when it created &lt;var title=&quot;&quot;&gt;method
++          context&lt;/var&gt;.&lt;/p&gt;
+ 
+-   &lt;li&gt;
++         &lt;/li&gt;
+ 
+-    &lt;p&gt;&lt;a href=#queue-a-task title=&quot;queue a task&quot;&gt;Queue&lt;/a&gt; the &lt;a href=#concept-task title=concept-task&gt;task&lt;/a&gt; &lt;var title=&quot;&quot;&gt;task&lt;/var&gt;.&lt;/p&gt;
++         &lt;li&gt;
+ 
+-    &lt;p class=note&gt;Once the task has been processed, it is safe to remove the entry for &lt;var title=&quot;&quot;&gt;handle&lt;/var&gt; from the &lt;a href=#list-of-active-timers&gt;list of active timers&lt;/a&gt; (there is no way for the
+-    entry's existence to be detected past this point, so it does not technically matter one way or
+-    the other).&lt;/p&gt;
++          &lt;p&gt;&lt;a href=#create-a-script&gt;Create a script&lt;/a&gt; using &lt;var title=&quot;&quot;&gt;script source&lt;/var&gt; as the script
++          source, the &lt;a href=#url&gt;URL&lt;/a&gt; where &lt;var title=&quot;&quot;&gt;script source&lt;/var&gt; can be found, &lt;var title=&quot;&quot;&gt;scripting language&lt;/var&gt; as the scripting language, &lt;var title=&quot;&quot;&gt;global
++          object&lt;/var&gt; as the global object, &lt;var title=&quot;&quot;&gt;browsing context&lt;/var&gt; as the browsing
++          context, &lt;var title=&quot;&quot;&gt;document&lt;/var&gt; as the document, &lt;var title=&quot;&quot;&gt;referrer source&lt;/var&gt;
++          as the referrer source, &lt;var title=&quot;&quot;&gt;character encoding&lt;/var&gt; as the URL character
++          encoding, and &lt;var title=&quot;&quot;&gt;base URL&lt;/var&gt; as the base URL.&lt;/p&gt;
+ 
+-   &lt;/li&gt;
++         &lt;/li&gt;
+ 
+-  &lt;/ol&gt;&lt;hr&gt;&lt;p&gt;The &lt;dfn id=dom-windowtimers-setinterval title=dom-windowtimers-setInterval&gt;&lt;code&gt;setInterval()&lt;/code&gt;&lt;/dfn&gt; method must run
+-  the following steps:
++        &lt;/ol&gt;&lt;/dd&gt;
+ 
+-  &lt;ol&gt;&lt;li&gt;&lt;p&gt;Let &lt;var title=&quot;&quot;&gt;handle&lt;/var&gt; be a user-agent-defined integer that is greater than zero
+-   that will identify the timeout to be set by this call in the &lt;a href=#list-of-active-timers&gt;list of active
+-   timers&lt;/a&gt;.&lt;/li&gt;
++      &lt;/dl&gt;&lt;/li&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;Add an entry to the &lt;a href=#list-of-active-timers&gt;list of active timers&lt;/a&gt; for &lt;var title=&quot;&quot;&gt;handle&lt;/var&gt;.&lt;/li&gt;
++     &lt;li&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;&lt;a href=#get-the-timed-task&gt;Get the timed task&lt;/a&gt; &lt;var title=&quot;&quot;&gt;handle&lt;/var&gt; in the &lt;a href=#list-of-active-timers&gt;list of active
+-   timers&lt;/a&gt;, and let &lt;var title=&quot;&quot;&gt;task&lt;/var&gt; be the result. This algorithm uses the first
+-   argument to the method (&lt;var title=&quot;&quot;&gt;handler&lt;/var&gt;) and, if there are any, the third and
+-   subsequent arguments to the method (&lt;var title=&quot;&quot;&gt;arguments&lt;/var&gt;), to establish precisely what
+-   &lt;var title=&quot;&quot;&gt;task&lt;/var&gt; does.&lt;/li&gt;
++      &lt;p&gt;If the &lt;var title=&quot;&quot;&gt;repeat&lt;/var&gt; flag is true, then call &lt;a href=#timer-initialization-steps&gt;timer initialization
++      steps&lt;/a&gt; again, passing them the same method arguments, the same &lt;var title=&quot;&quot;&gt;method
++      context&lt;/var&gt;, with the &lt;var title=&quot;&quot;&gt;repeat&lt;/var&gt; flag still set to true, and with the &lt;var title=&quot;&quot;&gt;previous handle&lt;/var&gt; set to &lt;var title=&quot;&quot;&gt;handler&lt;/var&gt;.&lt;/p&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;Let &lt;var title=&quot;&quot;&gt;timeout&lt;/var&gt; be the second argument to the method, or zero if the
+-   argument was omitted.&lt;/li&gt;
++     &lt;/li&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;If &lt;var title=&quot;&quot;&gt;timeout&lt;/var&gt; is less than 4, then increase &lt;var title=&quot;&quot;&gt;timeout&lt;/var&gt;
+-   to 4.&lt;/li&gt; &lt;!-- (but see note below about IE) --&gt;
++    &lt;/ol&gt;&lt;/li&gt;
+ 
++   &lt;li&gt;&lt;p&gt;Let &lt;var title=&quot;&quot;&gt;timeout&lt;/var&gt; be the second method argument, or zero if the argument was
++   omitted.&lt;/li&gt;
++
++   &lt;li&gt;&lt;p&gt;If the currently running &lt;a href=#concept-task title=concept-task&gt;task&lt;/a&gt; is a task that was created
++   by this algorithm, then let &lt;var title=&quot;&quot;&gt;nesting level&lt;/var&gt; be the &lt;a href=#concept-task title=concept-task&gt;task&lt;/a&gt;'s &lt;a href=#timer-nesting-level&gt;timer nesting level&lt;/a&gt;. Otherwise, let &lt;var title=&quot;&quot;&gt;nesting level&lt;/var&gt; be zero.&lt;/li&gt;
++
++   &lt;li&gt;&lt;p&gt;If &lt;var title=&quot;&quot;&gt;nesting level&lt;/var&gt; is greater than 5, and &lt;var title=&quot;&quot;&gt;timeout&lt;/var&gt; is
++   less than 4, then increase &lt;var title=&quot;&quot;&gt;timeout&lt;/var&gt; to 4.&lt;/li&gt;
++
++   &lt;li&gt;&lt;p&gt;Increment &lt;var title=&quot;&quot;&gt;nesting level&lt;/var&gt; by one.&lt;/li&gt;
++
++   &lt;li&gt;&lt;p&gt;Let &lt;var title=&quot;&quot;&gt;task&lt;/var&gt;'s &lt;dfn id=timer-nesting-level&gt;timer nesting level&lt;/dfn&gt; be &lt;var title=&quot;&quot;&gt;nesting
++   level&lt;/var&gt;.&lt;/li&gt;
++
+    &lt;li&gt;&lt;p&gt;Return &lt;var title=&quot;&quot;&gt;handle&lt;/var&gt;, and then continue running this algorithm
+    asynchronously.&lt;/li&gt;
+ 
+-   &lt;!-- Note: IE doesn't actually run intervals with duration zero, it aborts roughly here in the
+-   algorithm for them. --&gt;
+-
+    &lt;li&gt;
+ 
+-    &lt;p&gt;&lt;i title=&quot;&quot;&gt;Wait&lt;/i&gt;: If the &lt;a href=#method-context&gt;method context&lt;/a&gt; is a &lt;code&gt;&lt;a href=#window&gt;Window&lt;/a&gt;&lt;/code&gt; object,
+-    wait until the &lt;code&gt;&lt;a href=#document&gt;Document&lt;/a&gt;&lt;/code&gt; associated with the &lt;a href=#method-context&gt;method context&lt;/a&gt; has been
+-    &lt;a href=#fully-active&gt;fully active&lt;/a&gt; for a further &lt;var title=&quot;&quot;&gt;interval&lt;/var&gt; milliseconds (not
+-    necessarily consecutively).&lt;/p&gt;
++    &lt;p&gt;If &lt;var title=&quot;&quot;&gt;method context&lt;/var&gt; is a &lt;code&gt;&lt;a href=#window&gt;Window&lt;/a&gt;&lt;/code&gt; object, wait until the
++    &lt;code&gt;&lt;a href=#document&gt;Document&lt;/a&gt;&lt;/code&gt; associated with &lt;var title=&quot;&quot;&gt;method context&lt;/var&gt; has been &lt;a href=#fully-active&gt;fully
++    active&lt;/a&gt; for a further &lt;var title=&quot;&quot;&gt;timeout&lt;/var&gt; milliseconds (not necessarily
++    consecutively).&lt;/p&gt;
+ 
+-    &lt;p&gt;Otherwise, if the &lt;a href=#method-context&gt;method context&lt;/a&gt; is a &lt;code&gt;&lt;a href=#workerglobalscope&gt;WorkerGlobalScope&lt;/a&gt;&lt;/code&gt; object,
+-    wait until &lt;var title=&quot;&quot;&gt;interval&lt;/var&gt; milliseconds have passed with the worker not suspended
++    &lt;p&gt;Otherwise, &lt;var title=&quot;&quot;&gt;method context&lt;/var&gt; is a &lt;code&gt;&lt;a href=#workerglobalscope&gt;WorkerGlobalScope&lt;/a&gt;&lt;/code&gt; object;
++    wait until &lt;var title=&quot;&quot;&gt;timeout&lt;/var&gt; milliseconds have passed with the worker not suspended
+     (not necessarily consecutively).&lt;/p&gt;
+ 
+-    &lt;p&gt;Otherwise, act as described in the specification that defines that the
+-    &lt;code&gt;&lt;a href=#windowtimers&gt;WindowTimers&lt;/a&gt;&lt;/code&gt; interface is implemented by some other object.&lt;/p&gt;
+-
+    &lt;/li&gt;
+ 
+    &lt;li&gt;
+ 
+-    &lt;p&gt;Optionally, wait a further user-agent defined length of time.&lt;/p&gt;
++    &lt;p&gt;Wait until any invocations of this algorithm that had the same &lt;var title=&quot;&quot;&gt;method
++    context&lt;/var&gt;, that started before this one, and whose &lt;var title=&quot;&quot;&gt;timeout&lt;/var&gt; is equal to
++    or less than this one's, have completed.&lt;/p&gt;
+ 
+-    &lt;p class=note&gt;This is intended to allow user agents to pad timeouts as needed to optimise the
+-    power usage of the device. For example, some processors have a low-power mode where the
+-    granularity of timers is reduced; on such platforms, user agents can slow timers down to fit
+-    this schedule instead of requiring the processor to use the more accurate mode with its
+-    associated higher power usage.&lt;/p&gt;
++    &lt;p class=note&gt;Argument conversion as defined by Web IDL (for example, invoking &lt;code title=&quot;&quot;&gt;toString()&lt;/code&gt; methods on objects passed as the first argument) happens in the
++    algorithms defined in Web IDL, before this algorithm is invoked.&lt;/p&gt;
+ 
+-   &lt;/li&gt;
++    &lt;div class=example&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;&lt;a href=#queue-a-task title=&quot;queue a task&quot;&gt;Queue&lt;/a&gt; the &lt;var title=&quot;&quot;&gt;task&lt;/var&gt; &lt;a href=#concept-task title=concept-task&gt;task&lt;/a&gt;.&lt;/li&gt;
++     &lt;p&gt;So for example, the following rather silly code will result in the log containing &quot;&lt;code title=&quot;&quot;&gt;ONE&nbsp;TWO&nbsp;&lt;/code&gt;&quot;:&lt;/p&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;Return to the step labeled &lt;i&gt;wait&lt;/i&gt;.&lt;/li&gt;
++     &lt;pre&gt;var log = '';
++function logger(s) { log += s + ' '; }
+ 
+-  &lt;/ol&gt;&lt;hr&gt;&lt;p&gt;The &lt;dfn id=dom-windowtimers-cleartimeout title=dom-windowtimers-clearTimeout&gt;&lt;code&gt;clearTimeout()&lt;/code&gt;&lt;/dfn&gt; and &lt;dfn id=dom-windowtimers-clearinterval title=dom-windowtimers-clearInterval&gt;&lt;code&gt;clearInterval()&lt;/code&gt;&lt;/dfn&gt; methods must clear the
+-  entry identified as &lt;var title=&quot;&quot;&gt;handle&lt;/var&gt; from the &lt;a href=#list-of-active-timers&gt;list of active timers&lt;/a&gt; of the
+-  &lt;code&gt;&lt;a href=#windowtimers&gt;WindowTimers&lt;/a&gt;&lt;/code&gt; object on which the method was invoked, where &lt;var title=&quot;&quot;&gt;handle&lt;/var&gt;
+-  is the argument passed to the method, if any. (If &lt;var title=&quot;&quot;&gt;handle&lt;/var&gt; does not identify an
+-  entry in the &lt;a href=#list-of-active-timers&gt;list of active timers&lt;/a&gt; of the &lt;code&gt;&lt;a href=#windowtimers&gt;WindowTimers&lt;/a&gt;&lt;/code&gt; object on which
+-  the method was invoked, the method does nothing.)&lt;/p&gt;
++setTimeout({ toString: function () {
++  setTimeout(&quot;logger('ONE')&quot;, 100);
++  return &quot;logger('TWO')&quot;;
++} }, 100);&lt;/pre&gt;
+ 
+-  &lt;hr&gt;&lt;p&gt;The &lt;dfn id=method-context&gt;method context&lt;/dfn&gt;, when referenced by the algorithms in this section, is the object
+-  on which the method for which the algorithm is running is implemented (a &lt;code&gt;&lt;a href=#window&gt;Window&lt;/a&gt;&lt;/code&gt; or
+-  &lt;code&gt;&lt;a href=#workerglobalscope&gt;WorkerGlobalScope&lt;/a&gt;&lt;/code&gt; object). The &lt;dfn id=method-context-proxy&gt;method context proxy&lt;/dfn&gt; is the &lt;a href=#method-context&gt;method
+-  context&lt;/a&gt; if that is a &lt;code&gt;&lt;a href=#workerglobalscope&gt;WorkerGlobalScope&lt;/a&gt;&lt;/code&gt; object, or else the
+-  &lt;code&gt;&lt;a href=#windowproxy&gt;WindowProxy&lt;/a&gt;&lt;/code&gt; that corresponds to the &lt;a href=#method-context&gt;method context&lt;/a&gt;.&lt;/p&gt;
++    &lt;/div&gt;
+ 
+-  &lt;p&gt;When the above methods are invoked and try to &lt;dfn id=get-the-timed-task&gt;get the timed task&lt;/dfn&gt; &lt;var title=&quot;&quot;&gt;handle&lt;/var&gt; in list &lt;var title=&quot;&quot;&gt;list&lt;/var&gt;, they must run the following steps:&lt;/p&gt;
++   &lt;/li&gt;
+ 
+-  &lt;ol&gt;&lt;li&gt;
++   &lt;li&gt;
+ 
+-    &lt;p&gt;If the first argument to the invoked method is a &lt;code&gt;Function&lt;/code&gt;, then return a &lt;a href=#concept-task title=concept-task&gt;task&lt;/a&gt; that runs the following substeps, and then abort these steps:
++    &lt;p&gt;Optionally, wait a further user-agent defined length of time.&lt;/p&gt;
+ 
+-    &lt;ol&gt;&lt;li&gt;&lt;p&gt;If the entry for &lt;var title=&quot;&quot;&gt;handle&lt;/var&gt; in &lt;var title=&quot;&quot;&gt;list&lt;/var&gt; has been
+-     cleared, then abort this &lt;a href=#concept-task title=concept-task&gt;task&lt;/a&gt;'s substeps.&lt;/li&gt;
++    &lt;p class=note&gt;This is intended to allow user agents to pad timeouts as needed to optimise the
++    power usage of the device. For example, some processors have a low-power mode where the
++    granularity of timers is reduced; on such platforms, user agents can slow timers down to fit
++    this schedule instead of requiring the processor to use the more accurate mode with its
++    associated higher power usage.&lt;/p&gt;
+ 
+-     &lt;li&gt;
++   &lt;/li&gt;
+ 
+-      &lt;p&gt;Call the &lt;code&gt;Function&lt;/code&gt;. Use the third and subsequent arguments to the invoked
+-      method (if any) as the arguments for invoking the &lt;code&gt;Function&lt;/code&gt;. Use the &lt;a href=#method-context-proxy&gt;method
+-      context proxy&lt;/a&gt; as the &lt;var title=&quot;&quot;&gt;thisArg&lt;/var&gt; for invoking the
+-      &lt;code&gt;Function&lt;/code&gt;. &lt;a href=#refsECMA262&gt;[ECMA262]&lt;/a&gt;&lt;/p&gt;
++   &lt;li&gt;
+ 
+-     &lt;/li&gt;
++    &lt;p&gt;&lt;a href=#queue-a-task title=&quot;queue a task&quot;&gt;Queue&lt;/a&gt; the &lt;a href=#concept-task title=concept-task&gt;task&lt;/a&gt; &lt;var title=&quot;&quot;&gt;task&lt;/var&gt;.&lt;/p&gt;
+ 
+-    &lt;/ol&gt;&lt;p&gt;Otherwise, continue with the remaining steps.&lt;/p&gt;
++    &lt;p class=note&gt;Once the task has been processed, if the &lt;var title=&quot;&quot;&gt;repeat&lt;/var&gt; flag is
++    false, it is safe to remove the entry for &lt;var title=&quot;&quot;&gt;handle&lt;/var&gt; from the &lt;a href=#list-of-active-timers&gt;list of
++    active timers&lt;/a&gt; (there is no way for the entry's existence to be detected past this point,
++    so it does not technically matter one way or the other).&lt;/p&gt;
+ 
+    &lt;/li&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;Let &lt;var title=&quot;&quot;&gt;script source&lt;/var&gt; be the first argument to the method.&lt;/li&gt;
++  &lt;/ol&gt;&lt;p&gt;The &lt;a href=#task-source&gt;task source&lt;/a&gt; for these &lt;a href=#concept-task title=concept-task&gt;tasks&lt;/a&gt; is the
++  &lt;dfn id=timer-task-source&gt;timer task source&lt;/dfn&gt;.&lt;/p&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;Let &lt;var title=&quot;&quot;&gt;script language&lt;/var&gt; be JavaScript.&lt;/li&gt;
++  &lt;/div&gt;
+ 
+-   &lt;li&gt;
++  &lt;div class=example&gt;
+ 
+-    &lt;p&gt;If the &lt;a href=#method-context&gt;method context&lt;/a&gt; is a &lt;code&gt;&lt;a href=#window&gt;Window&lt;/a&gt;&lt;/code&gt; object, let &lt;var title=&quot;&quot;&gt;global
+-    object&lt;/var&gt; be the &lt;a href=#method-context&gt;method context&lt;/a&gt;, let &lt;var title=&quot;&quot;&gt;browsing context&lt;/var&gt; be the
+-    &lt;a href=#browsing-context&gt;browsing context&lt;/a&gt; with which &lt;var title=&quot;&quot;&gt;global object&lt;/var&gt; is associated, let
+-    &lt;var title=&quot;&quot;&gt;document&lt;/var&gt; and &lt;var title=&quot;&quot;&gt;referrer source&lt;/var&gt; be the
+-    &lt;code&gt;&lt;a href=#document&gt;Document&lt;/a&gt;&lt;/code&gt; associated with &lt;var title=&quot;&quot;&gt;global object&lt;/var&gt;, let &lt;var title=&quot;&quot;&gt;character encoding&lt;/var&gt; be the &lt;a href=&quot;#document's-character-encoding&quot; title=&quot;document's character encoding&quot;&gt;character
+-    encoding&lt;/a&gt; of the &lt;code&gt;&lt;a href=#document&gt;Document&lt;/a&gt;&lt;/code&gt; associated with &lt;var title=&quot;&quot;&gt;global object&lt;/var&gt;
+-    (&lt;a href=#sce-not-copy&gt;this is a reference, not a copy&lt;/a&gt;), and let &lt;var title=&quot;&quot;&gt;base
+-    URL&lt;/var&gt; be the &lt;a href=#document-base-url title=&quot;document base URL&quot;&gt;base URL&lt;/a&gt; of the &lt;code&gt;&lt;a href=#document&gt;Document&lt;/a&gt;&lt;/code&gt;
+-    associated with &lt;var title=&quot;&quot;&gt;global object&lt;/var&gt; (&lt;a href=#sbu-not-copy&gt;this is a reference,
+-    not a copy&lt;/a&gt;).&lt;/p&gt;
++   &lt;p&gt;To run tasks of several milliseconds back to back without any delay, while still yielding back
++   to the browser to avoid starving the user interface (and to avoid the browser killing the script
++   for hogging the CPU), simply queue the next timer before performing work:&lt;/p&gt;
+ 
+-    &lt;p&gt;Otherwise, if the &lt;a href=#method-context&gt;method context&lt;/a&gt; is a &lt;code&gt;&lt;a href=#workerglobalscope&gt;WorkerGlobalScope&lt;/a&gt;&lt;/code&gt; object, let
+-    &lt;var title=&quot;&quot;&gt;global object&lt;/var&gt;, &lt;var title=&quot;&quot;&gt;browsing context&lt;/var&gt;, &lt;var title=&quot;&quot;&gt;document&lt;/var&gt;, &lt;var title=&quot;&quot;&gt;referrer source&lt;/var&gt;, &lt;var title=&quot;&quot;&gt;character
+-    encoding&lt;/var&gt;, and &lt;var title=&quot;&quot;&gt;base URL&lt;/var&gt; be the &lt;a href=&quot;#script's-global-object&quot;&gt;script's global object&lt;/a&gt;,
+-    &lt;a href=&quot;#script's-browsing-context&quot;&gt;script's browsing context&lt;/a&gt;, &lt;a href=&quot;#script's-document&quot;&gt;script's document&lt;/a&gt;, &lt;a href=&quot;#script's-referrer-source&quot;&gt;script's referrer
+-    source&lt;/a&gt;, &lt;a href=&quot;#script's-url-character-encoding&quot;&gt;script's URL character encoding&lt;/a&gt;, and &lt;a href=&quot;#script's-base-url&quot;&gt;script's base URL&lt;/a&gt;
+-    (respectively) of the &lt;a href=#concept-script title=concept-script&gt;script&lt;/a&gt; that the &lt;a href=#run-a-worker&gt;run a
+-    worker&lt;/a&gt; algorithm created when it created the &lt;a href=#method-context&gt;method context&lt;/a&gt;.&lt;/p&gt;
++   &lt;pre&gt;function doExpensiveWork() {
++  var done = false;
++  // ...
++  // this part of the function takes up to five milliseconds
++  // set done to true if we're done
++  // ...
++  return done;
++}
+ 
+-    &lt;p&gt;Otherwise, act as described in the specification that defines that the
+-    &lt;code&gt;&lt;a href=#windowtimers&gt;WindowTimers&lt;/a&gt;&lt;/code&gt; interface is implemented by some other object.&lt;/p&gt;
++function rescheduleWork() {
++  var handle = setTimeout(rescheduleWork, 0); // preschedule next iteration
++  if (doExpensiveWork())
++    clearTimeout(handle); // clear the timeout if we don't need it
++}
+ 
+-   &lt;/li&gt;
++function scheduleWork() {
++  setTimeout(rescheduleWork, 0);
++}
+ 
+-   &lt;li&gt;&lt;p&gt;Return a &lt;a href=#concept-task title=concept-task&gt;task&lt;/a&gt; that checks if the entry for &lt;var title=&quot;&quot;&gt;handle&lt;/var&gt; in &lt;var title=&quot;&quot;&gt;list&lt;/var&gt; has been cleared, and if it has not, &lt;a href=#create-a-script title=&quot;create a script&quot;&gt;creates a script&lt;/a&gt; using &lt;var title=&quot;&quot;&gt;script source&lt;/var&gt; as the
+-   script source, the &lt;a href=#url&gt;URL&lt;/a&gt; where &lt;var title=&quot;&quot;&gt;script source&lt;/var&gt; can be found, &lt;var title=&quot;&quot;&gt;scripting language&lt;/var&gt; as the scripting language, &lt;var title=&quot;&quot;&gt;global object&lt;/var&gt; as
+-   the global object, &lt;var title=&quot;&quot;&gt;browsing context&lt;/var&gt; as the browsing context, &lt;var title=&quot;&quot;&gt;document&lt;/var&gt; as the document, &lt;var title=&quot;&quot;&gt;referrer source&lt;/var&gt; as the referrer
+-   source, &lt;var title=&quot;&quot;&gt;character encoding&lt;/var&gt; as the URL character encoding, and &lt;var title=&quot;&quot;&gt;base URL&lt;/var&gt; as the base URL.&lt;/li&gt;
++scheduleWork(); // queues a task to do lots of work&lt;/pre&gt;
+ 
+-  &lt;/ol&gt;&lt;hr&gt;&lt;p&gt;The &lt;a href=#task-source&gt;task source&lt;/a&gt; for these &lt;a href=#concept-task title=concept-task&gt;tasks&lt;/a&gt; is the
+-  &lt;dfn id=timer-task-source&gt;timer task source&lt;/dfn&gt;.&lt;/p&gt;
+-
+   &lt;/div&gt;
+ 
+ 
+-
+   &lt;h3 id=user-prompts&gt;&lt;span class=secno&gt;7.4 &lt;/span&gt;User prompts&lt;/h3&gt;
+ 
+   &lt;!--
+
+Modified: index
+===================================================================
+--- index	2013-07-26 22:21:58 UTC (rev 8094)
++++ index	2013-07-26 23:27:44 UTC (rev 8095)
+@@ -73252,7 +73252,10 @@
+ 
+    &lt;/dd&gt;
+ 
+-  &lt;/dl&gt;&lt;p class=note&gt;This API does not guarantee that timers will run exactly on schedule. Delays due
++  &lt;/dl&gt;&lt;p class=note&gt;Timers can be nested; after five such nested timers, however, the interval is
++  forced to be at least four milliseconds.&lt;/p&gt;
++
++  &lt;p class=note&gt;This API does not guarantee that timers will run exactly on schedule. Delays due
+   to CPU load, other tasks, etc, are to be expected.&lt;/p&gt;
+ 
+   &lt;div class=impl&gt;
+@@ -73264,229 +73267,230 @@
+   timers&lt;/dfn&gt;. Each entry in this lists is identified by a number, which must be unique within the
+   list for the lifetime of the object that implements the &lt;code&gt;&lt;a href=#windowtimers&gt;WindowTimers&lt;/a&gt;&lt;/code&gt; interface.&lt;/p&gt;
+ 
+-  &lt;hr&gt;&lt;p&gt;The &lt;dfn id=dom-windowtimers-settimeout title=dom-windowtimers-setTimeout&gt;&lt;code&gt;setTimeout()&lt;/code&gt;&lt;/dfn&gt; method must run
+-  the following steps:
++  &lt;hr&gt;&lt;p&gt;The &lt;dfn id=dom-windowtimers-settimeout title=dom-windowtimers-setTimeout&gt;&lt;code&gt;setTimeout()&lt;/code&gt;&lt;/dfn&gt; method must return
++  the value returned by the &lt;a href=#timer-initialization-steps&gt;timer initialization steps&lt;/a&gt;, passing them the method's
++  arguments, the object on which the method for which the algorithm is running is implemented (a
++  &lt;code&gt;&lt;a href=#window&gt;Window&lt;/a&gt;&lt;/code&gt; or &lt;code&gt;&lt;a href=#workerglobalscope&gt;WorkerGlobalScope&lt;/a&gt;&lt;/code&gt; object) as the &lt;var title=&quot;&quot;&gt;method
++  context&lt;/var&gt;, and the &lt;var title=&quot;&quot;&gt;repeat&lt;/var&gt; flag set to false.&lt;/p&gt;
+ 
+-  &lt;ol&gt;&lt;li&gt;&lt;p&gt;Let &lt;var title=&quot;&quot;&gt;handle&lt;/var&gt; be a user-agent-defined integer that is greater than zero
+-   that will identify the timeout to be set by this call in the &lt;a href=#list-of-active-timers&gt;list of active
+-   timers&lt;/a&gt;.&lt;/li&gt;
++  &lt;p&gt;The &lt;dfn id=dom-windowtimers-setinterval title=dom-windowtimers-setInterval&gt;&lt;code&gt;setInterval()&lt;/code&gt;&lt;/dfn&gt; method must
++  return the value returned by the &lt;a href=#timer-initialization-steps&gt;timer initialization steps&lt;/a&gt;, passing them the
++  method's arguments, the object on which the method for which the algorithm is running is
++  implemented (a &lt;code&gt;&lt;a href=#window&gt;Window&lt;/a&gt;&lt;/code&gt; or &lt;code&gt;&lt;a href=#workerglobalscope&gt;WorkerGlobalScope&lt;/a&gt;&lt;/code&gt; object) as the &lt;var title=&quot;&quot;&gt;method context&lt;/var&gt;, and the &lt;var title=&quot;&quot;&gt;repeat&lt;/var&gt; flag set to true.&lt;/p&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;Add an entry to the &lt;a href=#list-of-active-timers&gt;list of active timers&lt;/a&gt; for &lt;var title=&quot;&quot;&gt;handle&lt;/var&gt;.&lt;/li&gt;
++  &lt;p&gt;The &lt;dfn id=dom-windowtimers-cleartimeout title=dom-windowtimers-clearTimeout&gt;&lt;code&gt;clearTimeout()&lt;/code&gt;&lt;/dfn&gt; and &lt;dfn id=dom-windowtimers-clearinterval title=dom-windowtimers-clearInterval&gt;&lt;code&gt;clearInterval()&lt;/code&gt;&lt;/dfn&gt; methods must clear the
++  entry identified as &lt;var title=&quot;&quot;&gt;handle&lt;/var&gt; from the &lt;a href=#list-of-active-timers&gt;list of active timers&lt;/a&gt; of the
++  &lt;code&gt;&lt;a href=#windowtimers&gt;WindowTimers&lt;/a&gt;&lt;/code&gt; object on which the method was invoked, where &lt;var title=&quot;&quot;&gt;handle&lt;/var&gt;
++  is the argument passed to the method, if any. (If &lt;var title=&quot;&quot;&gt;handle&lt;/var&gt; does not identify an
++  entry in the &lt;a href=#list-of-active-timers&gt;list of active timers&lt;/a&gt; of the &lt;code&gt;&lt;a href=#windowtimers&gt;WindowTimers&lt;/a&gt;&lt;/code&gt; object on which
++  the method was invoked, the method does nothing.)&lt;/p&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;&lt;a href=#get-the-timed-task&gt;Get the timed task&lt;/a&gt; &lt;var title=&quot;&quot;&gt;handle&lt;/var&gt; in the &lt;a href=#list-of-active-timers&gt;list of active
+-   timers&lt;/a&gt;, and let &lt;var title=&quot;&quot;&gt;task&lt;/var&gt; be the result. This algorithm uses the first
+-   argument to the method (&lt;var title=&quot;&quot;&gt;handler&lt;/var&gt;) and, if there are any, the third and
+-   subsequent arguments to the method (&lt;var title=&quot;&quot;&gt;arguments&lt;/var&gt;), to establish precisely what
+-   &lt;var title=&quot;&quot;&gt;task&lt;/var&gt; does.&lt;/li&gt;
++  &lt;hr&gt;&lt;p&gt;The &lt;dfn id=timer-initialization-steps&gt;timer initialization steps&lt;/dfn&gt;, which are invoked with some method arguments, a &lt;var title=&quot;&quot;&gt;method context&lt;/var&gt;, a &lt;var title=&quot;&quot;&gt;repeat&lt;/var&gt; flag which can be true or false, and
++  optionally (and only if the &lt;var title=&quot;&quot;&gt;repeat&lt;/var&gt; flag is true) a &lt;var title=&quot;&quot;&gt;previous
++  handle&lt;/var&gt;, are as follows:&lt;/p&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;Let &lt;var title=&quot;&quot;&gt;timeout&lt;/var&gt; be the second argument to the method, or zero if the
+-   argument was omitted.&lt;/li&gt;
++  &lt;ol&gt;&lt;li&gt;&lt;p&gt;Let &lt;var title=&quot;&quot;&gt;method context proxy&lt;/var&gt; be &lt;var title=&quot;&quot;&gt;method context&lt;/var&gt; if that
++   is a &lt;code&gt;&lt;a href=#workerglobalscope&gt;WorkerGlobalScope&lt;/a&gt;&lt;/code&gt; object, or else the &lt;code&gt;&lt;a href=#windowproxy&gt;WindowProxy&lt;/a&gt;&lt;/code&gt; that corresponds
++   to &lt;var title=&quot;&quot;&gt;method context&lt;/var&gt;.&lt;/li&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;If the currently running &lt;a href=#concept-task title=concept-task&gt;task&lt;/a&gt; is a task that was created
+-   by the &lt;code title=dom-windowtimers-setTimeout&gt;&lt;a href=#dom-windowtimers-settimeout&gt;setTimeout()&lt;/a&gt;&lt;/code&gt; method, and &lt;var title=&quot;&quot;&gt;timeout&lt;/var&gt; is less than 4, then increase &lt;var title=&quot;&quot;&gt;timeout&lt;/var&gt; to 4.&lt;/li&gt;
++   &lt;li&gt;&lt;p&gt;If &lt;var title=&quot;&quot;&gt;previous handle&lt;/var&gt; was provided, let &lt;var title=&quot;&quot;&gt;handle&lt;/var&gt; be
++   &lt;var title=&quot;&quot;&gt;previous handle&lt;/var&gt;; otherwise, let &lt;var title=&quot;&quot;&gt;handle&lt;/var&gt; be a
++   user-agent-defined integer that is greater than zero that will identify the timeout to be set by
++   this call in the &lt;a href=#list-of-active-timers&gt;list of active timers&lt;/a&gt;.&lt;/li&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;Return &lt;var title=&quot;&quot;&gt;handle&lt;/var&gt;, and then continue running this algorithm
+-   asynchronously.&lt;/li&gt;
++   &lt;li&gt;&lt;p&gt;If &lt;var title=&quot;&quot;&gt;previous handle&lt;/var&gt; was not provided, add an entry to the &lt;a href=#list-of-active-timers&gt;list of
++   active timers&lt;/a&gt; for &lt;var title=&quot;&quot;&gt;handle&lt;/var&gt;.&lt;/li&gt;
+ 
+    &lt;li&gt;
+ 
+-    &lt;p&gt;If the &lt;a href=#method-context&gt;method context&lt;/a&gt; is a &lt;code&gt;&lt;a href=#window&gt;Window&lt;/a&gt;&lt;/code&gt; object, wait until the
+-    &lt;code&gt;&lt;a href=#document&gt;Document&lt;/a&gt;&lt;/code&gt; associated with the &lt;a href=#method-context&gt;method context&lt;/a&gt; has been &lt;a href=#fully-active&gt;fully
+-    active&lt;/a&gt; for a further &lt;var title=&quot;&quot;&gt;timeout&lt;/var&gt; milliseconds (not necessarily
+-    consecutively).&lt;/p&gt;
++    &lt;p&gt;Let &lt;var title=&quot;&quot;&gt;task&lt;/var&gt; be a &lt;a href=#concept-task title=concept-task&gt;task&lt;/a&gt; that runs the
++    following substeps:&lt;/p&gt;
+ 
+-    &lt;p&gt;Otherwise, if the &lt;a href=#method-context&gt;method context&lt;/a&gt; is a &lt;code&gt;&lt;a href=#workerglobalscope&gt;WorkerGlobalScope&lt;/a&gt;&lt;/code&gt; object,
+-    wait until &lt;var title=&quot;&quot;&gt;timeout&lt;/var&gt; milliseconds have passed with the worker not suspended
+-    (not necessarily consecutively).&lt;/p&gt;
++    &lt;ol&gt;&lt;li&gt;
+ 
+-    &lt;p&gt;Otherwise, act as described in the specification that defines that the
+-    &lt;code&gt;&lt;a href=#windowtimers&gt;WindowTimers&lt;/a&gt;&lt;/code&gt; interface is implemented by some other object.&lt;/p&gt;
++      &lt;p&gt;If the entry for &lt;var title=&quot;&quot;&gt;handle&lt;/var&gt; in the &lt;a href=#list-of-active-timers&gt;list of active timers&lt;/a&gt; has
++      been cleared, then abort this &lt;a href=#concept-task title=concept-task&gt;task&lt;/a&gt;'s substeps.&lt;/p&gt;
+ 
+-   &lt;/li&gt;
++     &lt;/li&gt;
+ 
+-   &lt;li&gt;
++     &lt;li&gt;
+ 
+-    &lt;p&gt;Wait until any invocations of this algorithm that had the same &lt;a href=#method-context&gt;method context&lt;/a&gt;,
+-    that started before this one, and whose &lt;var title=&quot;&quot;&gt;timeout&lt;/var&gt; is equal to or less than
+-    this one's, have completed.&lt;/p&gt;
++      &lt;p&gt;Run the appropriate set of steps from the following list:&lt;/p&gt;
+ 
+-    &lt;p class=note&gt;Argument conversion as defined by Web IDL (for example, invoking &lt;code title=&quot;&quot;&gt;toString()&lt;/code&gt; methods on objects passed as the first argument) happens in the
+-    algorithms defined in Web IDL, before this algorithm is invoked.&lt;/p&gt;
++      &lt;dl class=switch&gt;&lt;dt&gt;If the first method argument is a &lt;code&gt;Function&lt;/code&gt;&lt;/dt&gt;
+ 
+-    &lt;div class=example&gt;
++       &lt;dd&gt;
+ 
+-     &lt;p&gt;So for example, the following rather silly code will result in the log containing &quot;&lt;code title=&quot;&quot;&gt;ONE&nbsp;TWO&nbsp;&lt;/code&gt;&quot;:&lt;/p&gt;
++        &lt;p&gt;Call the &lt;code&gt;Function&lt;/code&gt;. Use the third and subsequent method arguments (if any) as
++        the arguments for invoking the &lt;code&gt;Function&lt;/code&gt;. Use &lt;var title=&quot;&quot;&gt;method context
++        proxy&lt;/var&gt; as the &lt;var title=&quot;&quot;&gt;thisArg&lt;/var&gt; for invoking the &lt;code&gt;Function&lt;/code&gt;. &lt;a href=#refsECMA262&gt;[ECMA262]&lt;/a&gt;&lt;/p&gt;
+ 
+-     &lt;pre&gt;var log = '';
+-function logger(s) { log += s + ' '; }
++       &lt;/dd&gt;
+ 
+-setTimeout({ toString: function () {
+-  setTimeout(&quot;logger('ONE')&quot;, 100);
+-  return &quot;logger('TWO')&quot;;
+-} }, 100);&lt;/pre&gt;
++       &lt;dt&gt;Otherwise&lt;/dt&gt;
+ 
+-    &lt;/div&gt;
++       &lt;dd&gt;
+ 
+-   &lt;/li&gt;
++        &lt;ol&gt;&lt;li&gt;&lt;p&gt;Let &lt;var title=&quot;&quot;&gt;script source&lt;/var&gt; be the first method argument.&lt;/li&gt;
+ 
+-   &lt;li&gt;
++         &lt;li&gt;&lt;p&gt;Let &lt;var title=&quot;&quot;&gt;script language&lt;/var&gt; be JavaScript.&lt;/li&gt;
+ 
+-    &lt;p&gt;Optionally, wait a further user-agent defined length of time.&lt;/p&gt;
++         &lt;li&gt;
+ 
+-    &lt;p class=note&gt;This is intended to allow user agents to pad timeouts as needed to optimise the
+-    power usage of the device. For example, some processors have a low-power mode where the
+-    granularity of timers is reduced; on such platforms, user agents can slow timers down to fit
+-    this schedule instead of requiring the processor to use the more accurate mode with its
+-    associated higher power usage.&lt;/p&gt;
++          &lt;p&gt;If &lt;var title=&quot;&quot;&gt;method context&lt;/var&gt; is a &lt;code&gt;&lt;a href=#window&gt;Window&lt;/a&gt;&lt;/code&gt; object, let &lt;var title=&quot;&quot;&gt;global object&lt;/var&gt; be &lt;var title=&quot;&quot;&gt;method context&lt;/var&gt;, let &lt;var title=&quot;&quot;&gt;browsing context&lt;/var&gt; be the &lt;a href=#browsing-context&gt;browsing context&lt;/a&gt; with which &lt;var title=&quot;&quot;&gt;global object&lt;/var&gt; is associated, let &lt;var title=&quot;&quot;&gt;document&lt;/var&gt; and &lt;var title=&quot;&quot;&gt;referrer source&lt;/var&gt; be the &lt;code&gt;&lt;a href=#document&gt;Document&lt;/a&gt;&lt;/code&gt; associated with &lt;var title=&quot;&quot;&gt;global object&lt;/var&gt;, let &lt;var title=&quot;&quot;&gt;character encoding&lt;/var&gt; be the &lt;a href=&quot;#document's-character-encoding&quot; title=&quot;document's character encoding&quot;&gt;character encoding&lt;/a&gt; of the &lt;code&gt;&lt;a href=#document&gt;Document&lt;/a&gt;&lt;/code&gt;
++          associated with &lt;var title=&quot;&quot;&gt;global object&lt;/var&gt; (&lt;a href=#sce-not-copy&gt;this is a
++          reference, not a copy&lt;/a&gt;), and let &lt;var title=&quot;&quot;&gt;base URL&lt;/var&gt; be the &lt;a href=#document-base-url title=&quot;document base URL&quot;&gt;base URL&lt;/a&gt; of the &lt;code&gt;&lt;a href=#document&gt;Document&lt;/a&gt;&lt;/code&gt; associated with &lt;var title=&quot;&quot;&gt;global object&lt;/var&gt; (&lt;a href=#sbu-not-copy&gt;this is a reference, not a
++          copy&lt;/a&gt;).&lt;/p&gt;
+ 
+-   &lt;/li&gt;
++          &lt;p&gt;Otherwise, &lt;var title=&quot;&quot;&gt;method context&lt;/var&gt; is a &lt;code&gt;&lt;a href=#workerglobalscope&gt;WorkerGlobalScope&lt;/a&gt;&lt;/code&gt; object;
++          let &lt;var title=&quot;&quot;&gt;global object&lt;/var&gt;, &lt;var title=&quot;&quot;&gt;browsing context&lt;/var&gt;, &lt;var title=&quot;&quot;&gt;document&lt;/var&gt;, &lt;var title=&quot;&quot;&gt;referrer source&lt;/var&gt;, &lt;var title=&quot;&quot;&gt;character
++          encoding&lt;/var&gt;, and &lt;var title=&quot;&quot;&gt;base URL&lt;/var&gt; be the &lt;a href=&quot;#script's-global-object&quot;&gt;script's global object&lt;/a&gt;,
++          &lt;a href=&quot;#script's-browsing-context&quot;&gt;script's browsing context&lt;/a&gt;, &lt;a href=&quot;#script's-document&quot;&gt;script's document&lt;/a&gt;, &lt;a href=&quot;#script's-referrer-source&quot;&gt;script's
++          referrer source&lt;/a&gt;, &lt;a href=&quot;#script's-url-character-encoding&quot;&gt;script's URL character encoding&lt;/a&gt;, and &lt;a href=&quot;#script's-base-url&quot;&gt;script's
++          base URL&lt;/a&gt; (respectively) of the &lt;a href=#concept-script title=concept-script&gt;script&lt;/a&gt; that the
++          &lt;a href=#run-a-worker&gt;run a worker&lt;/a&gt; algorithm created when it created &lt;var title=&quot;&quot;&gt;method
++          context&lt;/var&gt;.&lt;/p&gt;
+ 
+-   &lt;li&gt;
++         &lt;/li&gt;
+ 
+-    &lt;p&gt;&lt;a href=#queue-a-task title=&quot;queue a task&quot;&gt;Queue&lt;/a&gt; the &lt;a href=#concept-task title=concept-task&gt;task&lt;/a&gt; &lt;var title=&quot;&quot;&gt;task&lt;/var&gt;.&lt;/p&gt;
++         &lt;li&gt;
+ 
+-    &lt;p class=note&gt;Once the task has been processed, it is safe to remove the entry for &lt;var title=&quot;&quot;&gt;handle&lt;/var&gt; from the &lt;a href=#list-of-active-timers&gt;list of active timers&lt;/a&gt; (there is no way for the
+-    entry's existence to be detected past this point, so it does not technically matter one way or
+-    the other).&lt;/p&gt;
++          &lt;p&gt;&lt;a href=#create-a-script&gt;Create a script&lt;/a&gt; using &lt;var title=&quot;&quot;&gt;script source&lt;/var&gt; as the script
++          source, the &lt;a href=#url&gt;URL&lt;/a&gt; where &lt;var title=&quot;&quot;&gt;script source&lt;/var&gt; can be found, &lt;var title=&quot;&quot;&gt;scripting language&lt;/var&gt; as the scripting language, &lt;var title=&quot;&quot;&gt;global
++          object&lt;/var&gt; as the global object, &lt;var title=&quot;&quot;&gt;browsing context&lt;/var&gt; as the browsing
++          context, &lt;var title=&quot;&quot;&gt;document&lt;/var&gt; as the document, &lt;var title=&quot;&quot;&gt;referrer source&lt;/var&gt;
++          as the referrer source, &lt;var title=&quot;&quot;&gt;character encoding&lt;/var&gt; as the URL character
++          encoding, and &lt;var title=&quot;&quot;&gt;base URL&lt;/var&gt; as the base URL.&lt;/p&gt;
+ 
+-   &lt;/li&gt;
++         &lt;/li&gt;
+ 
+-  &lt;/ol&gt;&lt;hr&gt;&lt;p&gt;The &lt;dfn id=dom-windowtimers-setinterval title=dom-windowtimers-setInterval&gt;&lt;code&gt;setInterval()&lt;/code&gt;&lt;/dfn&gt; method must run
+-  the following steps:
++        &lt;/ol&gt;&lt;/dd&gt;
+ 
+-  &lt;ol&gt;&lt;li&gt;&lt;p&gt;Let &lt;var title=&quot;&quot;&gt;handle&lt;/var&gt; be a user-agent-defined integer that is greater than zero
+-   that will identify the timeout to be set by this call in the &lt;a href=#list-of-active-timers&gt;list of active
+-   timers&lt;/a&gt;.&lt;/li&gt;
++      &lt;/dl&gt;&lt;/li&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;Add an entry to the &lt;a href=#list-of-active-timers&gt;list of active timers&lt;/a&gt; for &lt;var title=&quot;&quot;&gt;handle&lt;/var&gt;.&lt;/li&gt;
++     &lt;li&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;&lt;a href=#get-the-timed-task&gt;Get the timed task&lt;/a&gt; &lt;var title=&quot;&quot;&gt;handle&lt;/var&gt; in the &lt;a href=#list-of-active-timers&gt;list of active
+-   timers&lt;/a&gt;, and let &lt;var title=&quot;&quot;&gt;task&lt;/var&gt; be the result. This algorithm uses the first
+-   argument to the method (&lt;var title=&quot;&quot;&gt;handler&lt;/var&gt;) and, if there are any, the third and
+-   subsequent arguments to the method (&lt;var title=&quot;&quot;&gt;arguments&lt;/var&gt;), to establish precisely what
+-   &lt;var title=&quot;&quot;&gt;task&lt;/var&gt; does.&lt;/li&gt;
++      &lt;p&gt;If the &lt;var title=&quot;&quot;&gt;repeat&lt;/var&gt; flag is true, then call &lt;a href=#timer-initialization-steps&gt;timer initialization
++      steps&lt;/a&gt; again, passing them the same method arguments, the same &lt;var title=&quot;&quot;&gt;method
++      context&lt;/var&gt;, with the &lt;var title=&quot;&quot;&gt;repeat&lt;/var&gt; flag still set to true, and with the &lt;var title=&quot;&quot;&gt;previous handle&lt;/var&gt; set to &lt;var title=&quot;&quot;&gt;handler&lt;/var&gt;.&lt;/p&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;Let &lt;var title=&quot;&quot;&gt;timeout&lt;/var&gt; be the second argument to the method, or zero if the
+-   argument was omitted.&lt;/li&gt;
++     &lt;/li&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;If &lt;var title=&quot;&quot;&gt;timeout&lt;/var&gt; is less than 4, then increase &lt;var title=&quot;&quot;&gt;timeout&lt;/var&gt;
+-   to 4.&lt;/li&gt; &lt;!-- (but see note below about IE) --&gt;
++    &lt;/ol&gt;&lt;/li&gt;
+ 
++   &lt;li&gt;&lt;p&gt;Let &lt;var title=&quot;&quot;&gt;timeout&lt;/var&gt; be the second method argument, or zero if the argument was
++   omitted.&lt;/li&gt;
++
++   &lt;li&gt;&lt;p&gt;If the currently running &lt;a href=#concept-task title=concept-task&gt;task&lt;/a&gt; is a task that was created
++   by this algorithm, then let &lt;var title=&quot;&quot;&gt;nesting level&lt;/var&gt; be the &lt;a href=#concept-task title=concept-task&gt;task&lt;/a&gt;'s &lt;a href=#timer-nesting-level&gt;timer nesting level&lt;/a&gt;. Otherwise, let &lt;var title=&quot;&quot;&gt;nesting level&lt;/var&gt; be zero.&lt;/li&gt;
++
++   &lt;li&gt;&lt;p&gt;If &lt;var title=&quot;&quot;&gt;nesting level&lt;/var&gt; is greater than 5, and &lt;var title=&quot;&quot;&gt;timeout&lt;/var&gt; is
++   less than 4, then increase &lt;var title=&quot;&quot;&gt;timeout&lt;/var&gt; to 4.&lt;/li&gt;
++
++   &lt;li&gt;&lt;p&gt;Increment &lt;var title=&quot;&quot;&gt;nesting level&lt;/var&gt; by one.&lt;/li&gt;
++
++   &lt;li&gt;&lt;p&gt;Let &lt;var title=&quot;&quot;&gt;task&lt;/var&gt;'s &lt;dfn id=timer-nesting-level&gt;timer nesting level&lt;/dfn&gt; be &lt;var title=&quot;&quot;&gt;nesting
++   level&lt;/var&gt;.&lt;/li&gt;
++
+    &lt;li&gt;&lt;p&gt;Return &lt;var title=&quot;&quot;&gt;handle&lt;/var&gt;, and then continue running this algorithm
+    asynchronously.&lt;/li&gt;
+ 
+-   &lt;!-- Note: IE doesn't actually run intervals with duration zero, it aborts roughly here in the
+-   algorithm for them. --&gt;
+-
+    &lt;li&gt;
+ 
+-    &lt;p&gt;&lt;i title=&quot;&quot;&gt;Wait&lt;/i&gt;: If the &lt;a href=#method-context&gt;method context&lt;/a&gt; is a &lt;code&gt;&lt;a href=#window&gt;Window&lt;/a&gt;&lt;/code&gt; object,
+-    wait until the &lt;code&gt;&lt;a href=#document&gt;Document&lt;/a&gt;&lt;/code&gt; associated with the &lt;a href=#method-context&gt;method context&lt;/a&gt; has been
+-    &lt;a href=#fully-active&gt;fully active&lt;/a&gt; for a further &lt;var title=&quot;&quot;&gt;interval&lt;/var&gt; milliseconds (not
+-    necessarily consecutively).&lt;/p&gt;
++    &lt;p&gt;If &lt;var title=&quot;&quot;&gt;method context&lt;/var&gt; is a &lt;code&gt;&lt;a href=#window&gt;Window&lt;/a&gt;&lt;/code&gt; object, wait until the
++    &lt;code&gt;&lt;a href=#document&gt;Document&lt;/a&gt;&lt;/code&gt; associated with &lt;var title=&quot;&quot;&gt;method context&lt;/var&gt; has been &lt;a href=#fully-active&gt;fully
++    active&lt;/a&gt; for a further &lt;var title=&quot;&quot;&gt;timeout&lt;/var&gt; milliseconds (not necessarily
++    consecutively).&lt;/p&gt;
+ 
+-    &lt;p&gt;Otherwise, if the &lt;a href=#method-context&gt;method context&lt;/a&gt; is a &lt;code&gt;&lt;a href=#workerglobalscope&gt;WorkerGlobalScope&lt;/a&gt;&lt;/code&gt; object,
+-    wait until &lt;var title=&quot;&quot;&gt;interval&lt;/var&gt; milliseconds have passed with the worker not suspended
++    &lt;p&gt;Otherwise, &lt;var title=&quot;&quot;&gt;method context&lt;/var&gt; is a &lt;code&gt;&lt;a href=#workerglobalscope&gt;WorkerGlobalScope&lt;/a&gt;&lt;/code&gt; object;
++    wait until &lt;var title=&quot;&quot;&gt;timeout&lt;/var&gt; milliseconds have passed with the worker not suspended
+     (not necessarily consecutively).&lt;/p&gt;
+ 
+-    &lt;p&gt;Otherwise, act as described in the specification that defines that the
+-    &lt;code&gt;&lt;a href=#windowtimers&gt;WindowTimers&lt;/a&gt;&lt;/code&gt; interface is implemented by some other object.&lt;/p&gt;
+-
+    &lt;/li&gt;
+ 
+    &lt;li&gt;
+ 
+-    &lt;p&gt;Optionally, wait a further user-agent defined length of time.&lt;/p&gt;
++    &lt;p&gt;Wait until any invocations of this algorithm that had the same &lt;var title=&quot;&quot;&gt;method
++    context&lt;/var&gt;, that started before this one, and whose &lt;var title=&quot;&quot;&gt;timeout&lt;/var&gt; is equal to
++    or less than this one's, have completed.&lt;/p&gt;
+ 
+-    &lt;p class=note&gt;This is intended to allow user agents to pad timeouts as needed to optimise the
+-    power usage of the device. For example, some processors have a low-power mode where the
+-    granularity of timers is reduced; on such platforms, user agents can slow timers down to fit
+-    this schedule instead of requiring the processor to use the more accurate mode with its
+-    associated higher power usage.&lt;/p&gt;
++    &lt;p class=note&gt;Argument conversion as defined by Web IDL (for example, invoking &lt;code title=&quot;&quot;&gt;toString()&lt;/code&gt; methods on objects passed as the first argument) happens in the
++    algorithms defined in Web IDL, before this algorithm is invoked.&lt;/p&gt;
+ 
+-   &lt;/li&gt;
++    &lt;div class=example&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;&lt;a href=#queue-a-task title=&quot;queue a task&quot;&gt;Queue&lt;/a&gt; the &lt;var title=&quot;&quot;&gt;task&lt;/var&gt; &lt;a href=#concept-task title=concept-task&gt;task&lt;/a&gt;.&lt;/li&gt;
++     &lt;p&gt;So for example, the following rather silly code will result in the log containing &quot;&lt;code title=&quot;&quot;&gt;ONE&nbsp;TWO&nbsp;&lt;/code&gt;&quot;:&lt;/p&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;Return to the step labeled &lt;i&gt;wait&lt;/i&gt;.&lt;/li&gt;
++     &lt;pre&gt;var log = '';
++function logger(s) { log += s + ' '; }
+ 
+-  &lt;/ol&gt;&lt;hr&gt;&lt;p&gt;The &lt;dfn id=dom-windowtimers-cleartimeout title=dom-windowtimers-clearTimeout&gt;&lt;code&gt;clearTimeout()&lt;/code&gt;&lt;/dfn&gt; and &lt;dfn id=dom-windowtimers-clearinterval title=dom-windowtimers-clearInterval&gt;&lt;code&gt;clearInterval()&lt;/code&gt;&lt;/dfn&gt; methods must clear the
+-  entry identified as &lt;var title=&quot;&quot;&gt;handle&lt;/var&gt; from the &lt;a href=#list-of-active-timers&gt;list of active timers&lt;/a&gt; of the
+-  &lt;code&gt;&lt;a href=#windowtimers&gt;WindowTimers&lt;/a&gt;&lt;/code&gt; object on which the method was invoked, where &lt;var title=&quot;&quot;&gt;handle&lt;/var&gt;
+-  is the argument passed to the method, if any. (If &lt;var title=&quot;&quot;&gt;handle&lt;/var&gt; does not identify an
+-  entry in the &lt;a href=#list-of-active-timers&gt;list of active timers&lt;/a&gt; of the &lt;code&gt;&lt;a href=#windowtimers&gt;WindowTimers&lt;/a&gt;&lt;/code&gt; object on which
+-  the method was invoked, the method does nothing.)&lt;/p&gt;
++setTimeout({ toString: function () {
++  setTimeout(&quot;logger('ONE')&quot;, 100);
++  return &quot;logger('TWO')&quot;;
++} }, 100);&lt;/pre&gt;
+ 
+-  &lt;hr&gt;&lt;p&gt;The &lt;dfn id=method-context&gt;method context&lt;/dfn&gt;, when referenced by the algorithms in this section, is the object
+-  on which the method for which the algorithm is running is implemented (a &lt;code&gt;&lt;a href=#window&gt;Window&lt;/a&gt;&lt;/code&gt; or
+-  &lt;code&gt;&lt;a href=#workerglobalscope&gt;WorkerGlobalScope&lt;/a&gt;&lt;/code&gt; object). The &lt;dfn id=method-context-proxy&gt;method context proxy&lt;/dfn&gt; is the &lt;a href=#method-context&gt;method
+-  context&lt;/a&gt; if that is a &lt;code&gt;&lt;a href=#workerglobalscope&gt;WorkerGlobalScope&lt;/a&gt;&lt;/code&gt; object, or else the
+-  &lt;code&gt;&lt;a href=#windowproxy&gt;WindowProxy&lt;/a&gt;&lt;/code&gt; that corresponds to the &lt;a href=#method-context&gt;method context&lt;/a&gt;.&lt;/p&gt;
++    &lt;/div&gt;
+ 
+-  &lt;p&gt;When the above methods are invoked and try to &lt;dfn id=get-the-timed-task&gt;get the timed task&lt;/dfn&gt; &lt;var title=&quot;&quot;&gt;handle&lt;/var&gt; in list &lt;var title=&quot;&quot;&gt;list&lt;/var&gt;, they must run the following steps:&lt;/p&gt;
++   &lt;/li&gt;
+ 
+-  &lt;ol&gt;&lt;li&gt;
++   &lt;li&gt;
+ 
+-    &lt;p&gt;If the first argument to the invoked method is a &lt;code&gt;Function&lt;/code&gt;, then return a &lt;a href=#concept-task title=concept-task&gt;task&lt;/a&gt; that runs the following substeps, and then abort these steps:
++    &lt;p&gt;Optionally, wait a further user-agent defined length of time.&lt;/p&gt;
+ 
+-    &lt;ol&gt;&lt;li&gt;&lt;p&gt;If the entry for &lt;var title=&quot;&quot;&gt;handle&lt;/var&gt; in &lt;var title=&quot;&quot;&gt;list&lt;/var&gt; has been
+-     cleared, then abort this &lt;a href=#concept-task title=concept-task&gt;task&lt;/a&gt;'s substeps.&lt;/li&gt;
++    &lt;p class=note&gt;This is intended to allow user agents to pad timeouts as needed to optimise the
++    power usage of the device. For example, some processors have a low-power mode where the
++    granularity of timers is reduced; on such platforms, user agents can slow timers down to fit
++    this schedule instead of requiring the processor to use the more accurate mode with its
++    associated higher power usage.&lt;/p&gt;
+ 
+-     &lt;li&gt;
++   &lt;/li&gt;
+ 
+-      &lt;p&gt;Call the &lt;code&gt;Function&lt;/code&gt;. Use the third and subsequent arguments to the invoked
+-      method (if any) as the arguments for invoking the &lt;code&gt;Function&lt;/code&gt;. Use the &lt;a href=#method-context-proxy&gt;method
+-      context proxy&lt;/a&gt; as the &lt;var title=&quot;&quot;&gt;thisArg&lt;/var&gt; for invoking the
+-      &lt;code&gt;Function&lt;/code&gt;. &lt;a href=#refsECMA262&gt;[ECMA262]&lt;/a&gt;&lt;/p&gt;
++   &lt;li&gt;
+ 
+-     &lt;/li&gt;
++    &lt;p&gt;&lt;a href=#queue-a-task title=&quot;queue a task&quot;&gt;Queue&lt;/a&gt; the &lt;a href=#concept-task title=concept-task&gt;task&lt;/a&gt; &lt;var title=&quot;&quot;&gt;task&lt;/var&gt;.&lt;/p&gt;
+ 
+-    &lt;/ol&gt;&lt;p&gt;Otherwise, continue with the remaining steps.&lt;/p&gt;
++    &lt;p class=note&gt;Once the task has been processed, if the &lt;var title=&quot;&quot;&gt;repeat&lt;/var&gt; flag is
++    false, it is safe to remove the entry for &lt;var title=&quot;&quot;&gt;handle&lt;/var&gt; from the &lt;a href=#list-of-active-timers&gt;list of
++    active timers&lt;/a&gt; (there is no way for the entry's existence to be detected past this point,
++    so it does not technically matter one way or the other).&lt;/p&gt;
+ 
+    &lt;/li&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;Let &lt;var title=&quot;&quot;&gt;script source&lt;/var&gt; be the first argument to the method.&lt;/li&gt;
++  &lt;/ol&gt;&lt;p&gt;The &lt;a href=#task-source&gt;task source&lt;/a&gt; for these &lt;a href=#concept-task title=concept-task&gt;tasks&lt;/a&gt; is the
++  &lt;dfn id=timer-task-source&gt;timer task source&lt;/dfn&gt;.&lt;/p&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;Let &lt;var title=&quot;&quot;&gt;script language&lt;/var&gt; be JavaScript.&lt;/li&gt;
++  &lt;/div&gt;
+ 
+-   &lt;li&gt;
++  &lt;div class=example&gt;
+ 
+-    &lt;p&gt;If the &lt;a href=#method-context&gt;method context&lt;/a&gt; is a &lt;code&gt;&lt;a href=#window&gt;Window&lt;/a&gt;&lt;/code&gt; object, let &lt;var title=&quot;&quot;&gt;global
+-    object&lt;/var&gt; be the &lt;a href=#method-context&gt;method context&lt;/a&gt;, let &lt;var title=&quot;&quot;&gt;browsing context&lt;/var&gt; be the
+-    &lt;a href=#browsing-context&gt;browsing context&lt;/a&gt; with which &lt;var title=&quot;&quot;&gt;global object&lt;/var&gt; is associated, let
+-    &lt;var title=&quot;&quot;&gt;document&lt;/var&gt; and &lt;var title=&quot;&quot;&gt;referrer source&lt;/var&gt; be the
+-    &lt;code&gt;&lt;a href=#document&gt;Document&lt;/a&gt;&lt;/code&gt; associated with &lt;var title=&quot;&quot;&gt;global object&lt;/var&gt;, let &lt;var title=&quot;&quot;&gt;character encoding&lt;/var&gt; be the &lt;a href=&quot;#document's-character-encoding&quot; title=&quot;document's character encoding&quot;&gt;character
+-    encoding&lt;/a&gt; of the &lt;code&gt;&lt;a href=#document&gt;Document&lt;/a&gt;&lt;/code&gt; associated with &lt;var title=&quot;&quot;&gt;global object&lt;/var&gt;
+-    (&lt;a href=#sce-not-copy&gt;this is a reference, not a copy&lt;/a&gt;), and let &lt;var title=&quot;&quot;&gt;base
+-    URL&lt;/var&gt; be the &lt;a href=#document-base-url title=&quot;document base URL&quot;&gt;base URL&lt;/a&gt; of the &lt;code&gt;&lt;a href=#document&gt;Document&lt;/a&gt;&lt;/code&gt;
+-    associated with &lt;var title=&quot;&quot;&gt;global object&lt;/var&gt; (&lt;a href=#sbu-not-copy&gt;this is a reference,
+-    not a copy&lt;/a&gt;).&lt;/p&gt;
++   &lt;p&gt;To run tasks of several milliseconds back to back without any delay, while still yielding back
++   to the browser to avoid starving the user interface (and to avoid the browser killing the script
++   for hogging the CPU), simply queue the next timer before performing work:&lt;/p&gt;
+ 
+-    &lt;p&gt;Otherwise, if the &lt;a href=#method-context&gt;method context&lt;/a&gt; is a &lt;code&gt;&lt;a href=#workerglobalscope&gt;WorkerGlobalScope&lt;/a&gt;&lt;/code&gt; object, let
+-    &lt;var title=&quot;&quot;&gt;global object&lt;/var&gt;, &lt;var title=&quot;&quot;&gt;browsing context&lt;/var&gt;, &lt;var title=&quot;&quot;&gt;document&lt;/var&gt;, &lt;var title=&quot;&quot;&gt;referrer source&lt;/var&gt;, &lt;var title=&quot;&quot;&gt;character
+-    encoding&lt;/var&gt;, and &lt;var title=&quot;&quot;&gt;base URL&lt;/var&gt; be the &lt;a href=&quot;#script's-global-object&quot;&gt;script's global object&lt;/a&gt;,
+-    &lt;a href=&quot;#script's-browsing-context&quot;&gt;script's browsing context&lt;/a&gt;, &lt;a href=&quot;#script's-document&quot;&gt;script's document&lt;/a&gt;, &lt;a href=&quot;#script's-referrer-source&quot;&gt;script's referrer
+-    source&lt;/a&gt;, &lt;a href=&quot;#script's-url-character-encoding&quot;&gt;script's URL character encoding&lt;/a&gt;, and &lt;a href=&quot;#script's-base-url&quot;&gt;script's base URL&lt;/a&gt;
+-    (respectively) of the &lt;a href=#concept-script title=concept-script&gt;script&lt;/a&gt; that the &lt;a href=#run-a-worker&gt;run a
+-    worker&lt;/a&gt; algorithm created when it created the &lt;a href=#method-context&gt;method context&lt;/a&gt;.&lt;/p&gt;
++   &lt;pre&gt;function doExpensiveWork() {
++  var done = false;
++  // ...
++  // this part of the function takes up to five milliseconds
++  // set done to true if we're done
++  // ...
++  return done;
++}
+ 
+-    &lt;p&gt;Otherwise, act as described in the specification that defines that the
+-    &lt;code&gt;&lt;a href=#windowtimers&gt;WindowTimers&lt;/a&gt;&lt;/code&gt; interface is implemented by some other object.&lt;/p&gt;
++function rescheduleWork() {
++  var handle = setTimeout(rescheduleWork, 0); // preschedule next iteration
++  if (doExpensiveWork())
++    clearTimeout(handle); // clear the timeout if we don't need it
++}
+ 
+-   &lt;/li&gt;
++function scheduleWork() {
++  setTimeout(rescheduleWork, 0);
++}
+ 
+-   &lt;li&gt;&lt;p&gt;Return a &lt;a href=#concept-task title=concept-task&gt;task&lt;/a&gt; that checks if the entry for &lt;var title=&quot;&quot;&gt;handle&lt;/var&gt; in &lt;var title=&quot;&quot;&gt;list&lt;/var&gt; has been cleared, and if it has not, &lt;a href=#create-a-script title=&quot;create a script&quot;&gt;creates a script&lt;/a&gt; using &lt;var title=&quot;&quot;&gt;script source&lt;/var&gt; as the
+-   script source, the &lt;a href=#url&gt;URL&lt;/a&gt; where &lt;var title=&quot;&quot;&gt;script source&lt;/var&gt; can be found, &lt;var title=&quot;&quot;&gt;scripting language&lt;/var&gt; as the scripting language, &lt;var title=&quot;&quot;&gt;global object&lt;/var&gt; as
+-   the global object, &lt;var title=&quot;&quot;&gt;browsing context&lt;/var&gt; as the browsing context, &lt;var title=&quot;&quot;&gt;document&lt;/var&gt; as the document, &lt;var title=&quot;&quot;&gt;referrer source&lt;/var&gt; as the referrer
+-   source, &lt;var title=&quot;&quot;&gt;character encoding&lt;/var&gt; as the URL character encoding, and &lt;var title=&quot;&quot;&gt;base URL&lt;/var&gt; as the base URL.&lt;/li&gt;
++scheduleWork(); // queues a task to do lots of work&lt;/pre&gt;
+ 
+-  &lt;/ol&gt;&lt;hr&gt;&lt;p&gt;The &lt;a href=#task-source&gt;task source&lt;/a&gt; for these &lt;a href=#concept-task title=concept-task&gt;tasks&lt;/a&gt; is the
+-  &lt;dfn id=timer-task-source&gt;timer task source&lt;/dfn&gt;.&lt;/p&gt;
+-
+   &lt;/div&gt;
+ 
+ 
+-
+   &lt;h3 id=user-prompts&gt;&lt;span class=secno&gt;7.4 &lt;/span&gt;User prompts&lt;/h3&gt;
+ 
+   &lt;!--
+
+Modified: source
+===================================================================
+--- source	2013-07-26 22:21:58 UTC (rev 8094)
++++ source	2013-07-26 23:27:44 UTC (rev 8095)
+@@ -81983,6 +81983,9 @@
+ 
+   &lt;/dl&gt;
+ 
++  &lt;p class=&quot;note&quot;&gt;Timers can be nested; after five such nested timers, however, the interval is
++  forced to be at least four milliseconds.&lt;/p&gt;
++
+   &lt;p class=&quot;note&quot;&gt;This API does not guarantee that timers will run exactly on schedule. Delays due
+   to CPU load, other tasks, etc, are to be expected.&lt;/p&gt;
+ 
+@@ -81997,271 +82000,268 @@
+ 
+   &lt;hr&gt;
+ 
+-  &lt;p&gt;The &lt;dfn title=&quot;dom-windowtimers-setTimeout&quot;&gt;&lt;code&gt;setTimeout()&lt;/code&gt;&lt;/dfn&gt; method must run
+-  the following steps:
++  &lt;p&gt;The &lt;dfn title=&quot;dom-windowtimers-setTimeout&quot;&gt;&lt;code&gt;setTimeout()&lt;/code&gt;&lt;/dfn&gt; method must return
++  the value returned by the &lt;span&gt;timer initialization steps&lt;/span&gt;, passing them the method's
++  arguments, the object on which the method for which the algorithm is running is implemented (a
++  &lt;code&gt;Window&lt;/code&gt; or &lt;code&gt;WorkerGlobalScope&lt;/code&gt; object) as the &lt;var title=&quot;&quot;&gt;method
++  context&lt;/var&gt;, and the &lt;var title=&quot;&quot;&gt;repeat&lt;/var&gt; flag set to false.&lt;/p&gt;
+ 
+-  &lt;ol&gt;
++  &lt;p&gt;The &lt;dfn title=&quot;dom-windowtimers-setInterval&quot;&gt;&lt;code&gt;setInterval()&lt;/code&gt;&lt;/dfn&gt; method must
++  return the value returned by the &lt;span&gt;timer initialization steps&lt;/span&gt;, passing them the
++  method's arguments, the object on which the method for which the algorithm is running is
++  implemented (a &lt;code&gt;Window&lt;/code&gt; or &lt;code&gt;WorkerGlobalScope&lt;/code&gt; object) as the &lt;var
++  title=&quot;&quot;&gt;method context&lt;/var&gt;, and the &lt;var title=&quot;&quot;&gt;repeat&lt;/var&gt; flag set to true.&lt;/p&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;Let &lt;var title=&quot;&quot;&gt;handle&lt;/var&gt; be a user-agent-defined integer that is greater than zero
+-   that will identify the timeout to be set by this call in the &lt;span&gt;list of active
+-   timers&lt;/span&gt;.&lt;/p&gt;&lt;/li&gt;
++  &lt;p&gt;The &lt;dfn title=&quot;dom-windowtimers-clearTimeout&quot;&gt;&lt;code&gt;clearTimeout()&lt;/code&gt;&lt;/dfn&gt; and &lt;dfn
++  title=&quot;dom-windowtimers-clearInterval&quot;&gt;&lt;code&gt;clearInterval()&lt;/code&gt;&lt;/dfn&gt; methods must clear the
++  entry identified as &lt;var title=&quot;&quot;&gt;handle&lt;/var&gt; from the &lt;span&gt;list of active timers&lt;/span&gt; of the
++  &lt;code&gt;WindowTimers&lt;/code&gt; object on which the method was invoked, where &lt;var title=&quot;&quot;&gt;handle&lt;/var&gt;
++  is the argument passed to the method, if any. (If &lt;var title=&quot;&quot;&gt;handle&lt;/var&gt; does not identify an
++  entry in the &lt;span&gt;list of active timers&lt;/span&gt; of the &lt;code&gt;WindowTimers&lt;/code&gt; object on which
++  the method was invoked, the method does nothing.)&lt;/p&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;Add an entry to the &lt;span&gt;list of active timers&lt;/span&gt; for &lt;var
+-   title=&quot;&quot;&gt;handle&lt;/var&gt;.&lt;/p&gt;&lt;/li&gt;
++  &lt;hr&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;&lt;span&gt;Get the timed task&lt;/span&gt; &lt;var title=&quot;&quot;&gt;handle&lt;/var&gt; in the &lt;span&gt;list of active
+-   timers&lt;/span&gt;, and let &lt;var title=&quot;&quot;&gt;task&lt;/var&gt; be the result. This algorithm uses the first
+-   argument to the method (&lt;var title=&quot;&quot;&gt;handler&lt;/var&gt;) and, if there are any, the third and
+-   subsequent arguments to the method (&lt;var title=&quot;&quot;&gt;arguments&lt;/var&gt;), to establish precisely what
+-   &lt;var title=&quot;&quot;&gt;task&lt;/var&gt; does.&lt;/p&gt;&lt;/li&gt;
++  &lt;p&gt;The &lt;dfn&gt;timer initialization steps&lt;/dfn&gt;, which are invoked with some method arguments, a &lt;var
++  title=&quot;&quot;&gt;method context&lt;/var&gt;, a &lt;var title=&quot;&quot;&gt;repeat&lt;/var&gt; flag which can be true or false, and
++  optionally (and only if the &lt;var title=&quot;&quot;&gt;repeat&lt;/var&gt; flag is true) a &lt;var title=&quot;&quot;&gt;previous
++  handle&lt;/var&gt;, are as follows:&lt;/p&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;Let &lt;var title=&quot;&quot;&gt;timeout&lt;/var&gt; be the second argument to the method, or zero if the
+-   argument was omitted.&lt;/p&gt;&lt;/li&gt;
++  &lt;ol&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;If the currently running &lt;span title=&quot;concept-task&quot;&gt;task&lt;/span&gt; is a task that was created
+-   by the &lt;code title=&quot;dom-windowtimers-setTimeout&quot;&gt;setTimeout()&lt;/code&gt; method, and &lt;var
+-   title=&quot;&quot;&gt;timeout&lt;/var&gt; is less than 4, then increase &lt;var title=&quot;&quot;&gt;timeout&lt;/var&gt; to 4.&lt;/p&gt;&lt;/li&gt;
++   &lt;li&gt;&lt;p&gt;Let &lt;var title=&quot;&quot;&gt;method context proxy&lt;/var&gt; be &lt;var title=&quot;&quot;&gt;method context&lt;/var&gt; if that
++   is a &lt;code&gt;WorkerGlobalScope&lt;/code&gt; object, or else the &lt;code&gt;WindowProxy&lt;/code&gt; that corresponds
++   to &lt;var title=&quot;&quot;&gt;method context&lt;/var&gt;.&lt;/p&gt;&lt;/li&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;Return &lt;var title=&quot;&quot;&gt;handle&lt;/var&gt;, and then continue running this algorithm
+-   asynchronously.&lt;/p&gt;&lt;/li&gt;
++   &lt;li&gt;&lt;p&gt;If &lt;var title=&quot;&quot;&gt;previous handle&lt;/var&gt; was provided, let &lt;var title=&quot;&quot;&gt;handle&lt;/var&gt; be
++   &lt;var title=&quot;&quot;&gt;previous handle&lt;/var&gt;; otherwise, let &lt;var title=&quot;&quot;&gt;handle&lt;/var&gt; be a
++   user-agent-defined integer that is greater than zero that will identify the timeout to be set by
++   this call in the &lt;span&gt;list of active timers&lt;/span&gt;.&lt;/p&gt;&lt;/li&gt;
+ 
++   &lt;li&gt;&lt;p&gt;If &lt;var title=&quot;&quot;&gt;previous handle&lt;/var&gt; was not provided, add an entry to the &lt;span&gt;list of
++   active timers&lt;/span&gt; for &lt;var title=&quot;&quot;&gt;handle&lt;/var&gt;.&lt;/p&gt;&lt;/li&gt;
++
+    &lt;li&gt;
+ 
+-    &lt;p&gt;If the &lt;span&gt;method context&lt;/span&gt; is a &lt;code&gt;Window&lt;/code&gt; object, wait until the
+-    &lt;code&gt;Document&lt;/code&gt; associated with the &lt;span&gt;method context&lt;/span&gt; has been &lt;span&gt;fully
+-    active&lt;/span&gt; for a further &lt;var title=&quot;&quot;&gt;timeout&lt;/var&gt; milliseconds (not necessarily
+-    consecutively).&lt;/p&gt;
++    &lt;p&gt;Let &lt;var title=&quot;&quot;&gt;task&lt;/var&gt; be a &lt;span title=&quot;concept-task&quot;&gt;task&lt;/span&gt; that runs the
++    following substeps:&lt;/p&gt;
+ 
+-    &lt;p&gt;Otherwise, if the &lt;span&gt;method context&lt;/span&gt; is a &lt;code&gt;WorkerGlobalScope&lt;/code&gt; object,
+-    wait until &lt;var title=&quot;&quot;&gt;timeout&lt;/var&gt; milliseconds have passed with the worker not suspended
+-    (not necessarily consecutively).&lt;/p&gt;
++    &lt;ol&gt;
+ 
+-    &lt;p&gt;Otherwise, act as described in the specification that defines that the
+-    &lt;code&gt;WindowTimers&lt;/code&gt; interface is implemented by some other object.&lt;/p&gt;
++     &lt;li&gt;
+ 
+-   &lt;/li&gt;
++      &lt;p&gt;If the entry for &lt;var title=&quot;&quot;&gt;handle&lt;/var&gt; in the &lt;span&gt;list of active timers&lt;/span&gt; has
++      been cleared, then abort this &lt;span title=&quot;concept-task&quot;&gt;task&lt;/span&gt;'s substeps.&lt;/p&gt;
+ 
+-   &lt;li&gt;
++     &lt;/li&gt;
+ 
+-    &lt;p&gt;Wait until any invocations of this algorithm that had the same &lt;span&gt;method context&lt;/span&gt;,
+-    that started before this one, and whose &lt;var title=&quot;&quot;&gt;timeout&lt;/var&gt; is equal to or less than
+-    this one's, have completed.&lt;/p&gt;
++     &lt;li&gt;
+ 
+-    &lt;p class=&quot;note&quot;&gt;Argument conversion as defined by Web IDL (for example, invoking &lt;code
+-    title=&quot;&quot;&gt;toString()&lt;/code&gt; methods on objects passed as the first argument) happens in the
+-    algorithms defined in Web IDL, before this algorithm is invoked.&lt;/p&gt;
++      &lt;p&gt;Run the appropriate set of steps from the following list:&lt;/p&gt;
+ 
+-    &lt;div class=&quot;example&quot;&gt;
++      &lt;dl class=&quot;switch&quot;&gt;
+ 
+-     &lt;p&gt;So for example, the following rather silly code will result in the log containing &quot;&lt;code
+-     title=&quot;&quot;&gt;ONE&nbsp;TWO&nbsp;&lt;/code&gt;&quot;:&lt;/p&gt;
++       &lt;dt&gt;If the first method argument is a &lt;code&gt;Function&lt;/code&gt;&lt;/dt&gt;
+ 
+-     &lt;pre&gt;var log = '';
+-function logger(s) { log += s + ' '; }
++       &lt;dd&gt;
+ 
+-setTimeout({ toString: function () {
+-  setTimeout(&quot;logger('ONE')&quot;, 100);
+-  return &quot;logger('TWO')&quot;;
+-} }, 100);&lt;/pre&gt;
++        &lt;p&gt;Call the &lt;code&gt;Function&lt;/code&gt;. Use the third and subsequent method arguments (if any) as
++        the arguments for invoking the &lt;code&gt;Function&lt;/code&gt;. Use &lt;var title=&quot;&quot;&gt;method context
++        proxy&lt;/var&gt; as the &lt;var title=&quot;&quot;&gt;thisArg&lt;/var&gt; for invoking the &lt;code&gt;Function&lt;/code&gt;. &lt;a
++        href=&quot;#refsECMA262&quot;&gt;[ECMA262]&lt;/a&gt;&lt;/p&gt;
+ 
+-    &lt;/div&gt;
++       &lt;/dd&gt;
+ 
+-   &lt;/li&gt;
++       &lt;dt&gt;Otherwise&lt;/dt&gt;
+ 
+-   &lt;li&gt;
++       &lt;dd&gt;
+ 
+-    &lt;p&gt;Optionally, wait a further user-agent defined length of time.&lt;/p&gt;
++        &lt;ol&gt;
+ 
+-    &lt;p class=&quot;note&quot;&gt;This is intended to allow user agents to pad timeouts as needed to optimise the
+-    power usage of the device. For example, some processors have a low-power mode where the
+-    granularity of timers is reduced; on such platforms, user agents can slow timers down to fit
+-    this schedule instead of requiring the processor to use the more accurate mode with its
+-    associated higher power usage.&lt;/p&gt;
++         &lt;li&gt;&lt;p&gt;Let &lt;var title=&quot;&quot;&gt;script source&lt;/var&gt; be the first method argument.&lt;/p&gt;&lt;/li&gt;
+ 
+-   &lt;/li&gt;
++         &lt;li&gt;&lt;p&gt;Let &lt;var title=&quot;&quot;&gt;script language&lt;/var&gt; be JavaScript.&lt;/p&gt;&lt;/li&gt;
+ 
+-   &lt;li&gt;
++         &lt;li&gt;
+ 
+-    &lt;p&gt;&lt;span title=&quot;queue a task&quot;&gt;Queue&lt;/span&gt; the &lt;span title=&quot;concept-task&quot;&gt;task&lt;/span&gt; &lt;var
+-    title=&quot;&quot;&gt;task&lt;/var&gt;.&lt;/p&gt;
++          &lt;p&gt;If &lt;var title=&quot;&quot;&gt;method context&lt;/var&gt; is a &lt;code&gt;Window&lt;/code&gt; object, let &lt;var
++          title=&quot;&quot;&gt;global object&lt;/var&gt; be &lt;var title=&quot;&quot;&gt;method context&lt;/var&gt;, let &lt;var
++          title=&quot;&quot;&gt;browsing context&lt;/var&gt; be the &lt;span&gt;browsing context&lt;/span&gt; with which &lt;var
++          title=&quot;&quot;&gt;global object&lt;/var&gt; is associated, let &lt;var title=&quot;&quot;&gt;document&lt;/var&gt; and &lt;var
++          title=&quot;&quot;&gt;referrer source&lt;/var&gt; be the &lt;code&gt;Document&lt;/code&gt; associated with &lt;var
++          title=&quot;&quot;&gt;global object&lt;/var&gt;, let &lt;var title=&quot;&quot;&gt;character encoding&lt;/var&gt; be the &lt;span
++          title=&quot;document's character encoding&quot;&gt;character encoding&lt;/span&gt; of the &lt;code&gt;Document&lt;/code&gt;
++          associated with &lt;var title=&quot;&quot;&gt;global object&lt;/var&gt; (&lt;a href=&quot;#sce-not-copy&quot;&gt;this is a
++          reference, not a copy&lt;/a&gt;), and let &lt;var title=&quot;&quot;&gt;base URL&lt;/var&gt; be the &lt;span
++          title=&quot;document base URL&quot;&gt;base URL&lt;/span&gt; of the &lt;code&gt;Document&lt;/code&gt; associated with &lt;var
++          title=&quot;&quot;&gt;global object&lt;/var&gt; (&lt;a href=&quot;#sbu-not-copy&quot;&gt;this is a reference, not a
++          copy&lt;/a&gt;).&lt;/p&gt;
+ 
+-    &lt;p class=&quot;note&quot;&gt;Once the task has been processed, it is safe to remove the entry for &lt;var
+-    title=&quot;&quot;&gt;handle&lt;/var&gt; from the &lt;span&gt;list of active timers&lt;/span&gt; (there is no way for the
+-    entry's existence to be detected past this point, so it does not technically matter one way or
+-    the other).&lt;/p&gt;
++          &lt;p&gt;Otherwise, &lt;var title=&quot;&quot;&gt;method context&lt;/var&gt; is a &lt;code&gt;WorkerGlobalScope&lt;/code&gt; object;
++          let &lt;var title=&quot;&quot;&gt;global object&lt;/var&gt;, &lt;var title=&quot;&quot;&gt;browsing context&lt;/var&gt;, &lt;var
++          title=&quot;&quot;&gt;document&lt;/var&gt;, &lt;var title=&quot;&quot;&gt;referrer source&lt;/var&gt;, &lt;var title=&quot;&quot;&gt;character
++          encoding&lt;/var&gt;, and &lt;var title=&quot;&quot;&gt;base URL&lt;/var&gt; be the &lt;span&gt;script's global object&lt;/span&gt;,
++          &lt;span&gt;script's browsing context&lt;/span&gt;, &lt;span&gt;script's document&lt;/span&gt;, &lt;span&gt;script's
++          referrer source&lt;/span&gt;, &lt;span&gt;script's URL character encoding&lt;/span&gt;, and &lt;span&gt;script's
++          base URL&lt;/span&gt; (respectively) of the &lt;span title=&quot;concept-script&quot;&gt;script&lt;/span&gt; that the
++          &lt;span&gt;run a worker&lt;/span&gt; algorithm created when it created &lt;var title=&quot;&quot;&gt;method
++          context&lt;/var&gt;.&lt;/p&gt;
+ 
+-   &lt;/li&gt;
++         &lt;/li&gt;
+ 
+-  &lt;/ol&gt;
++         &lt;li&gt;
+ 
+-  &lt;hr&gt;
++          &lt;p&gt;&lt;span&gt;Create a script&lt;/span&gt; using &lt;var title=&quot;&quot;&gt;script source&lt;/var&gt; as the script
++          source, the &lt;span&gt;URL&lt;/span&gt; where &lt;var title=&quot;&quot;&gt;script source&lt;/var&gt; can be found, &lt;var
++          title=&quot;&quot;&gt;scripting language&lt;/var&gt; as the scripting language, &lt;var title=&quot;&quot;&gt;global
++          object&lt;/var&gt; as the global object, &lt;var title=&quot;&quot;&gt;browsing context&lt;/var&gt; as the browsing
++          context, &lt;var title=&quot;&quot;&gt;document&lt;/var&gt; as the document, &lt;var title=&quot;&quot;&gt;referrer source&lt;/var&gt;
++          as the referrer source, &lt;var title=&quot;&quot;&gt;character encoding&lt;/var&gt; as the URL character
++          encoding, and &lt;var title=&quot;&quot;&gt;base URL&lt;/var&gt; as the base URL.&lt;/p&gt;
+ 
+-  &lt;p&gt;The &lt;dfn title=&quot;dom-windowtimers-setInterval&quot;&gt;&lt;code&gt;setInterval()&lt;/code&gt;&lt;/dfn&gt; method must run
+-  the following steps:
++         &lt;/li&gt;
+ 
+-  &lt;ol&gt;
++        &lt;/ol&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;Let &lt;var title=&quot;&quot;&gt;handle&lt;/var&gt; be a user-agent-defined integer that is greater than zero
+-   that will identify the timeout to be set by this call in the &lt;span&gt;list of active
+-   timers&lt;/span&gt;.&lt;/p&gt;&lt;/li&gt;
++       &lt;/dd&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;Add an entry to the &lt;span&gt;list of active timers&lt;/span&gt; for &lt;var
+-   title=&quot;&quot;&gt;handle&lt;/var&gt;.&lt;/p&gt;&lt;/li&gt;
++      &lt;/dl&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;&lt;span&gt;Get the timed task&lt;/span&gt; &lt;var title=&quot;&quot;&gt;handle&lt;/var&gt; in the &lt;span&gt;list of active
+-   timers&lt;/span&gt;, and let &lt;var title=&quot;&quot;&gt;task&lt;/var&gt; be the result. This algorithm uses the first
+-   argument to the method (&lt;var title=&quot;&quot;&gt;handler&lt;/var&gt;) and, if there are any, the third and
+-   subsequent arguments to the method (&lt;var title=&quot;&quot;&gt;arguments&lt;/var&gt;), to establish precisely what
+-   &lt;var title=&quot;&quot;&gt;task&lt;/var&gt; does.&lt;/p&gt;&lt;/li&gt;
++     &lt;/li&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;Let &lt;var title=&quot;&quot;&gt;timeout&lt;/var&gt; be the second argument to the method, or zero if the
+-   argument was omitted.&lt;/p&gt;&lt;/li&gt;
++     &lt;li&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;If &lt;var title=&quot;&quot;&gt;timeout&lt;/var&gt; is less than 4, then increase &lt;var title=&quot;&quot;&gt;timeout&lt;/var&gt;
+-   to 4.&lt;/p&gt;&lt;/li&gt; &lt;!-- (but see note below about IE) --&gt;
++      &lt;p&gt;If the &lt;var title=&quot;&quot;&gt;repeat&lt;/var&gt; flag is true, then call &lt;span&gt;timer initialization
++      steps&lt;/span&gt; again, passing them the same method arguments, the same &lt;var title=&quot;&quot;&gt;method
++      context&lt;/var&gt;, with the &lt;var title=&quot;&quot;&gt;repeat&lt;/var&gt; flag still set to true, and with the &lt;var
++      title=&quot;&quot;&gt;previous handle&lt;/var&gt; set to &lt;var title=&quot;&quot;&gt;handler&lt;/var&gt;.&lt;/p&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;Return &lt;var title=&quot;&quot;&gt;handle&lt;/var&gt;, and then continue running this algorithm
+-   asynchronously.&lt;/p&gt;&lt;/li&gt;
++     &lt;/li&gt;
+ 
+-   &lt;!-- Note: IE doesn't actually run intervals with duration zero, it aborts roughly here in the
+-   algorithm for them. --&gt;
++    &lt;/ol&gt;
+ 
+-   &lt;li&gt;
++   &lt;/li&gt;
+ 
+-    &lt;p&gt;&lt;i title=&quot;&quot;&gt;Wait&lt;/i&gt;: If the &lt;span&gt;method context&lt;/span&gt; is a &lt;code&gt;Window&lt;/code&gt; object,
+-    wait until the &lt;code&gt;Document&lt;/code&gt; associated with the &lt;span&gt;method context&lt;/span&gt; has been
+-    &lt;span&gt;fully active&lt;/span&gt; for a further &lt;var title=&quot;&quot;&gt;interval&lt;/var&gt; milliseconds (not
+-    necessarily consecutively).&lt;/p&gt;
++   &lt;li&gt;&lt;p&gt;Let &lt;var title=&quot;&quot;&gt;timeout&lt;/var&gt; be the second method argument, or zero if the argument was
++   omitted.&lt;/p&gt;&lt;/li&gt;
+ 
+-    &lt;p&gt;Otherwise, if the &lt;span&gt;method context&lt;/span&gt; is a &lt;code&gt;WorkerGlobalScope&lt;/code&gt; object,
+-    wait until &lt;var title=&quot;&quot;&gt;interval&lt;/var&gt; milliseconds have passed with the worker not suspended
+-    (not necessarily consecutively).&lt;/p&gt;
++   &lt;li&gt;&lt;p&gt;If the currently running &lt;span title=&quot;concept-task&quot;&gt;task&lt;/span&gt; is a task that was created
++   by this algorithm, then let &lt;var title=&quot;&quot;&gt;nesting level&lt;/var&gt; be the &lt;span
++   title=&quot;concept-task&quot;&gt;task&lt;/span&gt;'s &lt;span&gt;timer nesting level&lt;/span&gt;. Otherwise, let &lt;var
++   title=&quot;&quot;&gt;nesting level&lt;/var&gt; be zero.&lt;/p&gt;&lt;/li&gt;
+ 
+-    &lt;p&gt;Otherwise, act as described in the specification that defines that the
+-    &lt;code&gt;WindowTimers&lt;/code&gt; interface is implemented by some other object.&lt;/p&gt;
++   &lt;li&gt;&lt;p&gt;If &lt;var title=&quot;&quot;&gt;nesting level&lt;/var&gt; is greater than 5, and &lt;var title=&quot;&quot;&gt;timeout&lt;/var&gt; is
++   less than 4, then increase &lt;var title=&quot;&quot;&gt;timeout&lt;/var&gt; to 4.&lt;/p&gt;&lt;/li&gt;
+ 
+-   &lt;/li&gt;
++   &lt;li&gt;&lt;p&gt;Increment &lt;var title=&quot;&quot;&gt;nesting level&lt;/var&gt; by one.&lt;/p&gt;&lt;/li&gt;
+ 
++   &lt;li&gt;&lt;p&gt;Let &lt;var title=&quot;&quot;&gt;task&lt;/var&gt;'s &lt;dfn&gt;timer nesting level&lt;/dfn&gt; be &lt;var title=&quot;&quot;&gt;nesting
++   level&lt;/var&gt;.&lt;/p&gt;&lt;/li&gt;
++
++   &lt;li&gt;&lt;p&gt;Return &lt;var title=&quot;&quot;&gt;handle&lt;/var&gt;, and then continue running this algorithm
++   asynchronously.&lt;/p&gt;&lt;/li&gt;
++
+    &lt;li&gt;
+ 
+-    &lt;p&gt;Optionally, wait a further user-agent defined length of time.&lt;/p&gt;
++    &lt;p&gt;If &lt;var title=&quot;&quot;&gt;method context&lt;/var&gt; is a &lt;code&gt;Window&lt;/code&gt; object, wait until the
++    &lt;code&gt;Document&lt;/code&gt; associated with &lt;var title=&quot;&quot;&gt;method context&lt;/var&gt; has been &lt;span&gt;fully
++    active&lt;/span&gt; for a further &lt;var title=&quot;&quot;&gt;timeout&lt;/var&gt; milliseconds (not necessarily
++    consecutively).&lt;/p&gt;
+ 
+-    &lt;p class=&quot;note&quot;&gt;This is intended to allow user agents to pad timeouts as needed to optimise the
+-    power usage of the device. For example, some processors have a low-power mode where the
+-    granularity of timers is reduced; on such platforms, user agents can slow timers down to fit
+-    this schedule instead of requiring the processor to use the more accurate mode with its
+-    associated higher power usage.&lt;/p&gt;
++    &lt;p&gt;Otherwise, &lt;var title=&quot;&quot;&gt;method context&lt;/var&gt; is a &lt;code&gt;WorkerGlobalScope&lt;/code&gt; object;
++    wait until &lt;var title=&quot;&quot;&gt;timeout&lt;/var&gt; milliseconds have passed with the worker not suspended
++    (not necessarily consecutively).&lt;/p&gt;
+ 
+    &lt;/li&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;&lt;span title=&quot;queue a task&quot;&gt;Queue&lt;/span&gt; the &lt;var title=&quot;&quot;&gt;task&lt;/var&gt; &lt;span
+-   title=&quot;concept-task&quot;&gt;task&lt;/span&gt;.&lt;/p&gt;&lt;/li&gt;
++   &lt;li&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;Return to the step labeled &lt;i&gt;wait&lt;/i&gt;.&lt;/p&gt;&lt;/li&gt;
++    &lt;p&gt;Wait until any invocations of this algorithm that had the same &lt;var title=&quot;&quot;&gt;method
++    context&lt;/var&gt;, that started before this one, and whose &lt;var title=&quot;&quot;&gt;timeout&lt;/var&gt; is equal to
++    or less than this one's, have completed.&lt;/p&gt;
+ 
+-  &lt;/ol&gt;
++    &lt;p class=&quot;note&quot;&gt;Argument conversion as defined by Web IDL (for example, invoking &lt;code
++    title=&quot;&quot;&gt;toString()&lt;/code&gt; methods on objects passed as the first argument) happens in the
++    algorithms defined in Web IDL, before this algorithm is invoked.&lt;/p&gt;
+ 
+-  &lt;hr&gt;
++    &lt;div class=&quot;example&quot;&gt;
+ 
+-  &lt;p&gt;The &lt;dfn title=&quot;dom-windowtimers-clearTimeout&quot;&gt;&lt;code&gt;clearTimeout()&lt;/code&gt;&lt;/dfn&gt; and &lt;dfn
+-  title=&quot;dom-windowtimers-clearInterval&quot;&gt;&lt;code&gt;clearInterval()&lt;/code&gt;&lt;/dfn&gt; methods must clear the
+-  entry identified as &lt;var title=&quot;&quot;&gt;handle&lt;/var&gt; from the &lt;span&gt;list of active timers&lt;/span&gt; of the
+-  &lt;code&gt;WindowTimers&lt;/code&gt; object on which the method was invoked, where &lt;var title=&quot;&quot;&gt;handle&lt;/var&gt;
+-  is the argument passed to the method, if any. (If &lt;var title=&quot;&quot;&gt;handle&lt;/var&gt; does not identify an
+-  entry in the &lt;span&gt;list of active timers&lt;/span&gt; of the &lt;code&gt;WindowTimers&lt;/code&gt; object on which
+-  the method was invoked, the method does nothing.)&lt;/p&gt;
++     &lt;p&gt;So for example, the following rather silly code will result in the log containing &quot;&lt;code
++     title=&quot;&quot;&gt;ONE&nbsp;TWO&nbsp;&lt;/code&gt;&quot;:&lt;/p&gt;
+ 
+-  &lt;hr&gt;
++     &lt;pre&gt;var log = '';
++function logger(s) { log += s + ' '; }
+ 
+-  &lt;p&gt;The &lt;dfn&gt;method context&lt;/dfn&gt;, when referenced by the algorithms in this section, is the object
+-  on which the method for which the algorithm is running is implemented (a &lt;code&gt;Window&lt;/code&gt; or
+-  &lt;code&gt;WorkerGlobalScope&lt;/code&gt; object). The &lt;dfn&gt;method context proxy&lt;/dfn&gt; is the &lt;span&gt;method
+-  context&lt;/span&gt; if that is a &lt;code&gt;WorkerGlobalScope&lt;/code&gt; object, or else the
+-  &lt;code&gt;WindowProxy&lt;/code&gt; that corresponds to the &lt;span&gt;method context&lt;/span&gt;.&lt;/p&gt;
++setTimeout({ toString: function () {
++  setTimeout(&quot;logger('ONE')&quot;, 100);
++  return &quot;logger('TWO')&quot;;
++} }, 100);&lt;/pre&gt;
+ 
+-  &lt;p&gt;When the above methods are invoked and try to &lt;dfn&gt;get the timed task&lt;/dfn&gt; &lt;var
+-  title=&quot;&quot;&gt;handle&lt;/var&gt; in list &lt;var title=&quot;&quot;&gt;list&lt;/var&gt;, they must run the following steps:&lt;/p&gt;
++    &lt;/div&gt;
+ 
+-  &lt;ol&gt;
++   &lt;/li&gt;
+ 
+    &lt;li&gt;
+ 
+-    &lt;p&gt;If the first argument to the invoked method is a &lt;code&gt;Function&lt;/code&gt;, then return a &lt;span
+-    title=&quot;concept-task&quot;&gt;task&lt;/span&gt; that runs the following substeps, and then abort these steps:
++    &lt;p&gt;Optionally, wait a further user-agent defined length of time.&lt;/p&gt;
+ 
+-    &lt;ol&gt;
++    &lt;p class=&quot;note&quot;&gt;This is intended to allow user agents to pad timeouts as needed to optimise the
++    power usage of the device. For example, some processors have a low-power mode where the
++    granularity of timers is reduced; on such platforms, user agents can slow timers down to fit
++    this schedule instead of requiring the processor to use the more accurate mode with its
++    associated higher power usage.&lt;/p&gt;
+ 
+-     &lt;li&gt;&lt;p&gt;If the entry for &lt;var title=&quot;&quot;&gt;handle&lt;/var&gt; in &lt;var title=&quot;&quot;&gt;list&lt;/var&gt; has been
+-     cleared, then abort this &lt;span title=&quot;concept-task&quot;&gt;task&lt;/span&gt;'s substeps.&lt;/p&gt;&lt;/li&gt;
++   &lt;/li&gt;
+ 
+-     &lt;li&gt;
++   &lt;li&gt;
+ 
+-      &lt;p&gt;Call the &lt;code&gt;Function&lt;/code&gt;. Use the third and subsequent arguments to the invoked
+-      method (if any) as the arguments for invoking the &lt;code&gt;Function&lt;/code&gt;. Use the &lt;span&gt;method
+-      context proxy&lt;/span&gt; as the &lt;var title=&quot;&quot;&gt;thisArg&lt;/var&gt; for invoking the
+-      &lt;code&gt;Function&lt;/code&gt;. &lt;a href=&quot;#refsECMA262&quot;&gt;[ECMA262]&lt;/a&gt;&lt;/p&gt;
++    &lt;p&gt;&lt;span title=&quot;queue a task&quot;&gt;Queue&lt;/span&gt; the &lt;span title=&quot;concept-task&quot;&gt;task&lt;/span&gt; &lt;var
++    title=&quot;&quot;&gt;task&lt;/var&gt;.&lt;/p&gt;
+ 
+-     &lt;/li&gt;
++    &lt;p class=&quot;note&quot;&gt;Once the task has been processed, if the &lt;var title=&quot;&quot;&gt;repeat&lt;/var&gt; flag is
++    false, it is safe to remove the entry for &lt;var title=&quot;&quot;&gt;handle&lt;/var&gt; from the &lt;span&gt;list of
++    active timers&lt;/span&gt; (there is no way for the entry's existence to be detected past this point,
++    so it does not technically matter one way or the other).&lt;/p&gt;
+ 
+-    &lt;/ol&gt;
+-
+-    &lt;p&gt;Otherwise, continue with the remaining steps.&lt;/p&gt;
+-
+    &lt;/li&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;Let &lt;var title=&quot;&quot;&gt;script source&lt;/var&gt; be the first argument to the method.&lt;/p&gt;&lt;/li&gt;
++  &lt;/ol&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;Let &lt;var title=&quot;&quot;&gt;script language&lt;/var&gt; be JavaScript.&lt;/p&gt;&lt;/li&gt;
++  &lt;p&gt;The &lt;span&gt;task source&lt;/span&gt; for these &lt;span title=&quot;concept-task&quot;&gt;tasks&lt;/span&gt; is the
++  &lt;dfn&gt;timer task source&lt;/dfn&gt;.&lt;/p&gt;
+ 
+-   &lt;li&gt;
++  &lt;/div&gt;
+ 
+-    &lt;p&gt;If the &lt;span&gt;method context&lt;/span&gt; is a &lt;code&gt;Window&lt;/code&gt; object, let &lt;var title=&quot;&quot;&gt;global
+-    object&lt;/var&gt; be the &lt;span&gt;method context&lt;/span&gt;, let &lt;var title=&quot;&quot;&gt;browsing context&lt;/var&gt; be the
+-    &lt;span&gt;browsing context&lt;/span&gt; with which &lt;var title=&quot;&quot;&gt;global object&lt;/var&gt; is associated, let
+-    &lt;var title=&quot;&quot;&gt;document&lt;/var&gt; and &lt;var title=&quot;&quot;&gt;referrer source&lt;/var&gt; be the
+-    &lt;code&gt;Document&lt;/code&gt; associated with &lt;var title=&quot;&quot;&gt;global object&lt;/var&gt;, let &lt;var
+-    title=&quot;&quot;&gt;character encoding&lt;/var&gt; be the &lt;span title=&quot;document's character encoding&quot;&gt;character
+-    encoding&lt;/span&gt; of the &lt;code&gt;Document&lt;/code&gt; associated with &lt;var title=&quot;&quot;&gt;global object&lt;/var&gt;
+-    (&lt;a href=&quot;#sce-not-copy&quot;&gt;this is a reference, not a copy&lt;/a&gt;), and let &lt;var title=&quot;&quot;&gt;base
+-    URL&lt;/var&gt; be the &lt;span title=&quot;document base URL&quot;&gt;base URL&lt;/span&gt; of the &lt;code&gt;Document&lt;/code&gt;
+-    associated with &lt;var title=&quot;&quot;&gt;global object&lt;/var&gt; (&lt;a href=&quot;#sbu-not-copy&quot;&gt;this is a reference,
+-    not a copy&lt;/a&gt;).&lt;/p&gt;
++  &lt;div class=&quot;example&quot;&gt;
+ 
+-    &lt;p&gt;Otherwise, if the &lt;span&gt;method context&lt;/span&gt; is a &lt;code&gt;WorkerGlobalScope&lt;/code&gt; object, let
+-    &lt;var title=&quot;&quot;&gt;global object&lt;/var&gt;, &lt;var title=&quot;&quot;&gt;browsing context&lt;/var&gt;, &lt;var
+-    title=&quot;&quot;&gt;document&lt;/var&gt;, &lt;var title=&quot;&quot;&gt;referrer source&lt;/var&gt;, &lt;var title=&quot;&quot;&gt;character
+-    encoding&lt;/var&gt;, and &lt;var title=&quot;&quot;&gt;base URL&lt;/var&gt; be the &lt;span&gt;script's global object&lt;/span&gt;,
+-    &lt;span&gt;script's browsing context&lt;/span&gt;, &lt;span&gt;script's document&lt;/span&gt;, &lt;span&gt;script's referrer
+-    source&lt;/span&gt;, &lt;span&gt;script's URL character encoding&lt;/span&gt;, and &lt;span&gt;script's base URL&lt;/span&gt;
+-    (respectively) of the &lt;span title=&quot;concept-script&quot;&gt;script&lt;/span&gt; that the &lt;span&gt;run a
+-    worker&lt;/span&gt; algorithm created when it created the &lt;span&gt;method context&lt;/span&gt;.&lt;/p&gt;
++   &lt;p&gt;To run tasks of several milliseconds back to back without any delay, while still yielding back
++   to the browser to avoid starving the user interface (and to avoid the browser killing the script
++   for hogging the CPU), simply queue the next timer before performing work:&lt;/p&gt;
+ 
+-    &lt;p&gt;Otherwise, act as described in the specification that defines that the
+-    &lt;code&gt;WindowTimers&lt;/code&gt; interface is implemented by some other object.&lt;/p&gt;
++   &lt;pre&gt;function doExpensiveWork() {
++  var done = false;
++  // ...
++  // this part of the function takes up to five milliseconds
++  // set done to true if we're done
++  // ...
++  return done;
++}
+ 
+-   &lt;/li&gt;
++function rescheduleWork() {
++  var handle = setTimeout(rescheduleWork, 0); // preschedule next iteration
++  if (doExpensiveWork())
++    clearTimeout(handle); // clear the timeout if we don't need it
++}
+ 
+-   &lt;li&gt;&lt;p&gt;Return a &lt;span title=&quot;concept-task&quot;&gt;task&lt;/span&gt; that checks if the entry for &lt;var
+-   title=&quot;&quot;&gt;handle&lt;/var&gt; in &lt;var title=&quot;&quot;&gt;list&lt;/var&gt; has been cleared, and if it has not, &lt;span
+-   title=&quot;create a script&quot;&gt;creates a script&lt;/span&gt; using &lt;var title=&quot;&quot;&gt;script source&lt;/var&gt; as the
+-   script source, the &lt;span&gt;URL&lt;/span&gt; where &lt;var title=&quot;&quot;&gt;script source&lt;/var&gt; can be found, &lt;var
+-   title=&quot;&quot;&gt;scripting language&lt;/var&gt; as the scripting language, &lt;var title=&quot;&quot;&gt;global object&lt;/var&gt; as
+-   the global object, &lt;var title=&quot;&quot;&gt;browsing context&lt;/var&gt; as the browsing context, &lt;var
+-   title=&quot;&quot;&gt;document&lt;/var&gt; as the document, &lt;var title=&quot;&quot;&gt;referrer source&lt;/var&gt; as the referrer
+-   source, &lt;var title=&quot;&quot;&gt;character encoding&lt;/var&gt; as the URL character encoding, and &lt;var
+-   title=&quot;&quot;&gt;base URL&lt;/var&gt; as the base URL.&lt;/p&gt;&lt;/li&gt;
++function scheduleWork() {
++  setTimeout(rescheduleWork, 0);
++}
+ 
+-  &lt;/ol&gt;
++scheduleWork(); // queues a task to do lots of work&lt;/pre&gt;
+ 
+-  &lt;hr&gt;
+-
+-  &lt;p&gt;The &lt;span&gt;task source&lt;/span&gt; for these &lt;span title=&quot;concept-task&quot;&gt;tasks&lt;/span&gt; is the
+-  &lt;dfn&gt;timer task source&lt;/dfn&gt;.&lt;/p&gt;
+-
+   &lt;/div&gt;
+ 
+ 
+-
+   &lt;h3&gt;User prompts&lt;/h3&gt;
+ 
+   &lt;!--
+
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="014950.html">[html5] r8094 - [giow] (0) Revert r8083,	since it leads to weird behaviour worse than just retur [...]
+</A></li>
+	<LI>Next message: <A HREF="014952.html">[html5] r8096 - [e] (0) Try to tighten more things up with respect	to events and documents and w [...]
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#14951">[ date ]</a>
+              <a href="thread.html#14951">[ thread ]</a>
+              <a href="subject.html#14951">[ subject ]</a>
+              <a href="author.html#14951">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/commit-watchers-whatwg.org">More information about the Commit-Watchers
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

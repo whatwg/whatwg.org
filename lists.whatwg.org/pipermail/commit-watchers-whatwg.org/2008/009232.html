@@ -1,0 +1,445 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [html5] r2347 - [gwr] (2) Allow an obsolete appcache to be renewed.	Move the manifest storing to [...]
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commit-watchers%40lists.whatwg.org?Subject=Re%3A%20%5Bhtml5%5D%20r2347%20-%20%5Bgwr%5D%20%282%29%20Allow%20an%20obsolete%20appcache%20to%20be%20renewed.%0A%09Move%20the%20manifest%20storing%20to%20%5B...%5D&In-Reply-To=%3C20081016105324.2100E38EDC6%40hixie.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="009231.html">
+   <LINK REL="Next"  HREF="009233.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[html5] r2347 - [gwr] (2) Allow an obsolete appcache to be renewed.	Move the manifest storing to [...]</H1>
+<!--htdig_noindex-->
+    <B>whatwg at whatwg.org</B> 
+    <A HREF="mailto:commit-watchers%40lists.whatwg.org?Subject=Re%3A%20%5Bhtml5%5D%20r2347%20-%20%5Bgwr%5D%20%282%29%20Allow%20an%20obsolete%20appcache%20to%20be%20renewed.%0A%09Move%20the%20manifest%20storing%20to%20%5B...%5D&In-Reply-To=%3C20081016105324.2100E38EDC6%40hixie.dreamhostps.com%3E"
+       TITLE="[html5] r2347 - [gwr] (2) Allow an obsolete appcache to be renewed.	Move the manifest storing to [...]">whatwg at whatwg.org
+       </A><BR>
+    <I>Thu Oct 16 03:53:24 PDT 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="009231.html">[html5] r2346 - [gwr] (2) Appcache: Fix a number of race conditions;	introduce the concept of th [...]
+</A></li>
+        <LI>Next message: <A HREF="009233.html">[html5] r2348 - [gwr] (2) Appcache: Handle errors for dynamic and	master entries differently, si [...]
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#9232">[ date ]</a>
+              <a href="thread.html#9232">[ thread ]</a>
+              <a href="subject.html#9232">[ subject ]</a>
+              <a href="author.html#9232">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Author: ianh
+Date: 2008-10-16 03:53:23 -0700 (Thu, 16 Oct 2008)
+New Revision: 2347
+
+Modified:
+   index
+   source
+Log:
+[gwr] (2) Allow an obsolete appcache to be renewed. Move the manifest storing to later in the process to reduce more race conditions. Use 'obsolete' as the event name instead of 'error' when the cache is made obsolete. Support obsolete caches in the API.
+
+Modified: index
+===================================================================
+--- index	2008-10-16 10:32:32 UTC (rev 2346)
++++ index	2008-10-16 10:53:23 UTC (rev 2347)
+@@ -33835,16 +33835,13 @@
+   &lt;p&gt;Each group of application caches for the same manifest URL has a
+   common &lt;dfn id=concept-appcache-status title=concept-appcache-status&gt;update status&lt;/dfn&gt;,
+   which is one of the following: &lt;i&gt;idle&lt;/i&gt;, &lt;i&gt;checking&lt;/i&gt;,
+-  &lt;i&gt;downloading&lt;/i&gt;. Initially, the &lt;a href=#concept-appcache-status title=concept-appcache-status&gt;update status&lt;/a&gt; of a group of
+-  application caches is &lt;i&gt;idle&lt;/i&gt;.&lt;/p&gt;
++  &lt;i&gt;downloading&lt;/i&gt;.&lt;/p&gt;
+ 
+   &lt;p&gt;Each group of application caches for the same manifest URL also
+   has a common &lt;dfn id=concept-appcache-lifecycle title=concept-appcache-lifecycle&gt;lifecycle
+   status&lt;/dfn&gt;, which is one of the following: &lt;i&gt;new&lt;/i&gt;,
+-  &lt;i&gt;mature&lt;/i&gt;, &lt;i&gt;obsolete&lt;/i&gt;. Initially, when the first applicaion
+-  cache in a group is created, its &lt;a href=#concept-appcache-lifecycle title=concept-appcache-lifecycle&gt;lifecycle status&lt;/a&gt; is
+-  &lt;i&gt;new&lt;/i&gt;. A &lt;dfn id=relevant-application-cache&gt;relevant application cache&lt;/dfn&gt; is an
+-  &lt;a href=#application-cache&gt;application cache&lt;/a&gt; whose &lt;a href=#concept-appcache-lifecycle title=concept-appcache-lifecycle&gt;lifecycle status&lt;/a&gt; is
++  &lt;i&gt;mature&lt;/i&gt;, &lt;i&gt;obsolete&lt;/i&gt;. A &lt;dfn id=relevant-application-cache&gt;relevant application
++  cache&lt;/dfn&gt; is an &lt;a href=#application-cache&gt;application cache&lt;/a&gt; whose &lt;a href=#concept-appcache-lifecycle title=concept-appcache-lifecycle&gt;lifecycle status&lt;/a&gt; is
+   &lt;i&gt;mature&lt;/i&gt;.&lt;/p&gt;
+ 
+   &lt;p id=appcache-history-1&gt;A &lt;a href=#browsing-context&gt;browsing context&lt;/a&gt; is
+@@ -34351,7 +34348,8 @@
+      specific cache), and there is no &lt;a href=#application-cache&gt;application cache&lt;/a&gt;
+      identified by &lt;var title=&quot;&quot;&gt;manifest URL&lt;/var&gt; whose &lt;a href=#concept-appcache-lifecycle title=concept-appcache-lifecycle&gt;lifecycle status&lt;/a&gt; is not
+      &lt;i&gt;obsolete&lt;/i&gt;, then create a new &lt;a href=#application-cache&gt;application cache&lt;/a&gt;
+-     identified with that URL.&lt;/li&gt;
++     identified with that URL and set the group's &lt;a href=#concept-appcache-lifecycle title=concept-appcache-lifecycle&gt;lifecycle status&lt;/a&gt; to
++     &lt;i&gt;new&lt;/i&gt;.&lt;/li&gt;
+ 
+      &lt;li id=flagAsCandidateForCache&gt;&lt;p&gt;If these steps were invoked
+      with a new &lt;a href=#concept-appcache-master title=concept-appcache-master&gt;master&lt;/a&gt;
+@@ -34616,10 +34614,6 @@
+ 
+     &lt;/ol&gt;&lt;/li&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;Store &lt;var title=&quot;&quot;&gt;manifest&lt;/var&gt; in &lt;var title=&quot;&quot;&gt;new
+-   cache&lt;/var&gt;, if it's not there already, and categorize this entry
+-   (whether newly added or not) as &lt;a href=#concept-appcache-manifest title=concept-appcache-manifest&gt;the manifest&lt;/a&gt;.&lt;/li&gt;
+-
+    &lt;li&gt;&lt;p&gt;Store the list of &lt;a href=#concept-appcache-fallback-ns title=concept-appcache-fallback-ns&gt;fallback namespaces&lt;/a&gt;,
+    and the URLs of the &lt;a href=#concept-appcache-fallback title=concept-appcache-fallback&gt;fallback entries&lt;/a&gt; that they
+    map to, in &lt;var title=&quot;&quot;&gt;new cache&lt;/var&gt;.&lt;/li&gt;
+@@ -34645,6 +34639,10 @@
+ 
+    &lt;/li&gt;
+ 
++   &lt;li&gt;&lt;p&gt;Store &lt;var title=&quot;&quot;&gt;manifest&lt;/var&gt; in &lt;var title=&quot;&quot;&gt;new
++   cache&lt;/var&gt;, if it's not there already, and categorize this entry
++   (whether newly added or not) as &lt;a href=#concept-appcache-manifest title=concept-appcache-manifest&gt;the manifest&lt;/a&gt;.&lt;/li&gt;
++
+    &lt;li&gt;
+ 
+     &lt;p&gt;If this is a &lt;a href=#concept-appcache-cache title=concept-appcache-cache&gt;cache
+@@ -34695,13 +34693,13 @@
+    attempt&lt;/a&gt;, then discard &lt;var title=&quot;&quot;&gt;cache&lt;/var&gt; and abort
+    the update process.&lt;/li&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;&lt;a href=#fire-a-simple-event&gt;Fire a simple event&lt;/a&gt; called &lt;code title=event-error&gt;&lt;a href=#event-error&gt;error&lt;/a&gt;&lt;/code&gt; at the
++   &lt;li&gt;&lt;p&gt;&lt;a href=#fire-a-simple-event&gt;Fire a simple event&lt;/a&gt; called &lt;code title=event-obsolete&gt;obsolete&lt;/code&gt; at the
+    &lt;code&gt;&lt;a href=#applicationcache&gt;ApplicationCache&lt;/a&gt;&lt;/code&gt; singleton of each &lt;a href=#browsing-context&gt;browsing
+    context&lt;/a&gt; whose &lt;a href=#active-document&gt;active document&lt;/a&gt; is associated
+    with a cache in &lt;var title=&quot;&quot;&gt;cache group&lt;/var&gt;. The default action
+    of this event should be the display of some sort of user interface
+    indicating to the user that the application is no longer available
+-   for offline use.&lt;/li&gt; &lt;!-- XXX another event maybe? --&gt;
++   for offline use.&lt;/li&gt;
+ 
+    &lt;li&gt;&lt;p&gt;Set the &lt;a href=#concept-appcache-lifecycle title=concept-appcache-lifecycle&gt;lifecycle
+    status&lt;/a&gt; of &lt;var title=&quot;&quot;&gt;cache group&lt;/var&gt; to
+@@ -34944,6 +34942,7 @@
+   const unsigned short &lt;a href=#dom-appcache-checking title=dom-appcache-CHECKING&gt;CHECKING&lt;/a&gt; = 2;
+   const unsigned short &lt;a href=#dom-appcache-downloading title=dom-appcache-DOWNLOADING&gt;DOWNLOADING&lt;/a&gt; = 3;
+   const unsigned short &lt;a href=#dom-appcache-updateready title=dom-appcache-UPDATEREADY&gt;UPDATEREADY&lt;/a&gt; = 4;
++  const unsigned short &lt;a href=#dom-appcache-obsolete title=dom-appcache-OBSOLETE&gt;OBSOLETE&lt;/a&gt; = 5;
+   readonly attribute unsigned short &lt;a href=#dom-appcache-status title=dom-appcache-status&gt;status&lt;/a&gt;;
+ 
+   // updates
+@@ -34964,6 +34963,7 @@
+            attribute &lt;span&gt;EventListener&lt;/span&gt; &lt;a href=#handler-appcache-onprogress title=handler-appcache-onprogress&gt;onprogress&lt;/a&gt;;
+            attribute &lt;span&gt;EventListener&lt;/span&gt; &lt;a href=#handler-appcache-onupdateready title=handler-appcache-onupdateready&gt;onupdateready&lt;/a&gt;;
+            attribute &lt;span&gt;EventListener&lt;/span&gt; &lt;a href=#handler-appcache-oncached title=handler-appcache-oncached&gt;oncached&lt;/a&gt;;
++           attribute &lt;span&gt;EventListener&lt;/span&gt; &lt;a href=#handler-appcache-onobsolete title=handler-appcache-onobsolete&gt;onobsolete&lt;/a&gt;;
+ 
+ };&lt;/pre&gt;
+ 
+@@ -35004,35 +35004,45 @@
+ 
+    &lt;dd&gt;&lt;p&gt;The &lt;code&gt;&lt;a href=#applicationcache&gt;ApplicationCache&lt;/a&gt;&lt;/code&gt; object is associated with
+    an &lt;a href=#application-cache&gt;application cache&lt;/a&gt; whose group is in the &lt;i&gt;idle&lt;/i&gt;
+-   &lt;span title=concept-appcache-states&gt;update status&lt;/span&gt;, and
+-   that application cache is the newest cache in its group that
+-   contains a resource categorized as a &lt;a href=#concept-appcache-manifest title=concept-appcache-manifest&gt;manifest&lt;/a&gt;.&lt;/dd&gt;
++   &lt;a href=#concept-appcache-status title=concept-appcache-status&gt;update status&lt;/a&gt; and the
++   &lt;i&gt;mature&lt;/i&gt; &lt;a href=#concept-appcache-lifecycle title=concept-appcache-lifecycle&gt;lifecycle
++   status&lt;/a&gt; and that application cache is the newest cache in its
++   group.&lt;/dd&gt;
+ 
+    &lt;dt&gt;&lt;dfn id=dom-appcache-checking title=dom-appcache-CHECKING&gt;&lt;code&gt;CHECKING&lt;/code&gt;&lt;/dfn&gt;
+    (numeric value 2)&lt;/dt&gt;
+ 
+    &lt;dd&gt;&lt;p&gt;The &lt;code&gt;&lt;a href=#applicationcache&gt;ApplicationCache&lt;/a&gt;&lt;/code&gt; object is associated with
+    an &lt;a href=#application-cache&gt;application cache&lt;/a&gt; whose group is in the
+-   &lt;i&gt;checking&lt;/i&gt; &lt;span title=concept-appcache-states&gt;update
+-   status&lt;/span&gt;.&lt;/dd&gt;
++   &lt;i&gt;checking&lt;/i&gt; &lt;a href=#concept-appcache-status title=concept-appcache-status&gt;update
++   status&lt;/a&gt;.&lt;/dd&gt;
+ 
+    &lt;dt&gt;&lt;dfn id=dom-appcache-downloading title=dom-appcache-DOWNLOADING&gt;&lt;code&gt;DOWNLOADING&lt;/code&gt;&lt;/dfn&gt;
+    (numeric value 3)&lt;/dt&gt;
+ 
+    &lt;dd&gt;&lt;p&gt;The &lt;code&gt;&lt;a href=#applicationcache&gt;ApplicationCache&lt;/a&gt;&lt;/code&gt; object is associated with
+    an &lt;a href=#application-cache&gt;application cache&lt;/a&gt; whose group is in the
+-   &lt;i&gt;downloading&lt;/i&gt; &lt;span title=concept-appcache-states&gt;update
+-   status&lt;/span&gt;.&lt;/dd&gt;
++   &lt;i&gt;downloading&lt;/i&gt; &lt;a href=#concept-appcache-status title=concept-appcache-status&gt;update
++   status&lt;/a&gt;.&lt;/dd&gt;
+ 
+    &lt;dt&gt;&lt;dfn id=dom-appcache-updateready title=dom-appcache-UPDATEREADY&gt;&lt;code&gt;UPDATEREADY&lt;/code&gt;&lt;/dfn&gt;
+    (numeric value 4)&lt;/dt&gt;
+ 
+    &lt;dd&gt;&lt;p&gt;The &lt;code&gt;&lt;a href=#applicationcache&gt;ApplicationCache&lt;/a&gt;&lt;/code&gt; object is associated with
+    an &lt;a href=#application-cache&gt;application cache&lt;/a&gt; whose group is in the &lt;i&gt;idle&lt;/i&gt;
+-   &lt;span title=concept-appcache-states&gt;update status&lt;/span&gt;, but
+-   that application cache is &lt;em&gt;not&lt;/em&gt; the newest cache in its
+-   group that contains a resource categorized as a &lt;a href=#concept-appcache-manifest title=concept-appcache-manifest&gt;manifest&lt;/a&gt;.&lt;/dd&gt;
++   &lt;a href=#concept-appcache-status title=concept-appcache-status&gt;update status&lt;/a&gt; and the
++   &lt;i&gt;mature&lt;/i&gt; &lt;a href=#concept-appcache-lifecycle title=concept-appcache-lifecycle&gt;lifecycle
++   status&lt;/a&gt; but that application cache is &lt;em&gt;not&lt;/em&gt; the newest
++   cache in its group.&lt;/dd&gt;
+ 
++   &lt;dt&gt;&lt;dfn id=dom-appcache-obsolete title=dom-appcache-OBSOLETE&gt;&lt;code&gt;OBSOLETE&lt;/code&gt;&lt;/dfn&gt;
++   (numeric value 5)&lt;/dt&gt;
++
++   &lt;dd&gt;&lt;p&gt;The &lt;code&gt;&lt;a href=#applicationcache&gt;ApplicationCache&lt;/a&gt;&lt;/code&gt; object is associated with
++   an &lt;a href=#application-cache&gt;application cache&lt;/a&gt; whose group is in the
++   &lt;i&gt;obsolete&lt;/i&gt; &lt;a href=#concept-appcache-lifecycle title=concept-appcache-lifecycle&gt;lifecycle
++   status&lt;/a&gt;.&lt;/dd&gt;
++
+   &lt;/dl&gt;&lt;p&gt;The &lt;dfn id=dom-appcache-length title=dom-appcache-length&gt;&lt;code&gt;length&lt;/code&gt;&lt;/dfn&gt;
+   attribute must return the number of &lt;a href=#concept-appcache-dynamic title=concept-appcache-dynamic&gt;dynamic entries&lt;/a&gt; in the
+   &lt;a href=#application-cache&gt;application cache&lt;/a&gt; with which the
+@@ -35153,11 +35163,16 @@
+    associated. (By definition, this is the same as the one that was
+    found in the previous step.)&lt;/li&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;Check that there is an application cache in the same group
+-   as &lt;var title=&quot;&quot;&gt;cache&lt;/var&gt; which has an entry categorized as a
+-   &lt;a href=#concept-appcache-manifest title=concept-appcache-manifest&gt;manifest&lt;/a&gt; that has is
+-   newer than &lt;var title=&quot;&quot;&gt;cache&lt;/var&gt;. If there is not, then raise
+-   an &lt;code&gt;INVALID_STATE_ERR&lt;/code&gt; exception and abort these
++   &lt;li&gt;&lt;p&gt;If the group of &lt;a href=#application-cache title=&quot;application cache&quot;&gt;application
++   caches&lt;/a&gt; to which &lt;var title=&quot;&quot;&gt;cache&lt;/var&gt; belongs has the
++   &lt;a href=#concept-appcache-lifecycle title=concept-appcache-lifecycle&gt;lifecycle status&lt;/a&gt;
++   &lt;i&gt;obsolete&lt;/i&gt;, unassociate &lt;var title=&quot;&quot;&gt;document&lt;/var&gt; from &lt;var title=&quot;&quot;&gt;cache&lt;/var&gt; and abort these steps.&lt;/li&gt;
++
++   &lt;li&gt;&lt;p&gt;Otherwise, check that there is an application cache in the
++   same group as &lt;var title=&quot;&quot;&gt;cache&lt;/var&gt; which has an entry
++   categorized as a &lt;a href=#concept-appcache-manifest title=concept-appcache-manifest&gt;manifest&lt;/a&gt; that is newer
++   than &lt;var title=&quot;&quot;&gt;cache&lt;/var&gt;. If there is not, then raise an
++   &lt;code&gt;INVALID_STATE_ERR&lt;/code&gt; exception and abort these
+    steps.&lt;/li&gt;
+ 
+    &lt;li&gt;&lt;p&gt;Let &lt;var title=&quot;&quot;&gt;new cache&lt;/var&gt; be the newest
+@@ -35212,6 +35227,12 @@
+    &lt;dd&gt;&lt;p&gt;Must be invoked whenever a &lt;code title=event-cached&gt;cached&lt;/code&gt; event is targeted at or bubbles
+    through the &lt;code&gt;&lt;a href=#applicationcache&gt;ApplicationCache&lt;/a&gt;&lt;/code&gt; object.&lt;/dd&gt;
+ 
++
++   &lt;dt&gt;&lt;dfn id=handler-appcache-onobsolete title=handler-appcache-onobsolete&gt;&lt;code&gt;onobsolete&lt;/code&gt;&lt;/dfn&gt;&lt;/dt&gt;
++
++   &lt;dd&gt;&lt;p&gt;Must be invoked whenever an &lt;code title=event-obsolete&gt;obsolete&lt;/code&gt; event is targeted at or bubbles
++   through the &lt;code&gt;&lt;a href=#applicationcache&gt;ApplicationCache&lt;/a&gt;&lt;/code&gt; object.&lt;/dd&gt;
++
+   &lt;/dl&gt;&lt;h4 id=browser-state&gt;&lt;span class=secno&gt;5.7.7 &lt;/span&gt;Browser state&lt;/h4&gt;
+ 
+   &lt;p&gt;The &lt;dfn id=dom-navigator-online title=dom-navigator-onLine&gt;&lt;code&gt;navigator.onLine&lt;/code&gt;&lt;/dfn&gt;
+
+Modified: source
+===================================================================
+--- source	2008-10-16 10:32:32 UTC (rev 2346)
++++ source	2008-10-16 10:53:23 UTC (rev 2347)
+@@ -38390,19 +38390,14 @@
+   &lt;p&gt;Each group of application caches for the same manifest URL has a
+   common &lt;dfn title=&quot;concept-appcache-status&quot;&gt;update status&lt;/dfn&gt;,
+   which is one of the following: &lt;i&gt;idle&lt;/i&gt;, &lt;i&gt;checking&lt;/i&gt;,
+-  &lt;i&gt;downloading&lt;/i&gt;. Initially, the &lt;span
+-  title=&quot;concept-appcache-status&quot;&gt;update status&lt;/span&gt; of a group of
+-  application caches is &lt;i&gt;idle&lt;/i&gt;.&lt;/p&gt;
++  &lt;i&gt;downloading&lt;/i&gt;.&lt;/p&gt;
+ 
+   &lt;p&gt;Each group of application caches for the same manifest URL also
+   has a common &lt;dfn title=&quot;concept-appcache-lifecycle&quot;&gt;lifecycle
+   status&lt;/dfn&gt;, which is one of the following: &lt;i&gt;new&lt;/i&gt;,
+-  &lt;i&gt;mature&lt;/i&gt;, &lt;i&gt;obsolete&lt;/i&gt;. Initially, when the first applicaion
+-  cache in a group is created, its &lt;span
++  &lt;i&gt;mature&lt;/i&gt;, &lt;i&gt;obsolete&lt;/i&gt;. A &lt;dfn&gt;relevant application
++  cache&lt;/dfn&gt; is an &lt;span&gt;application cache&lt;/span&gt; whose &lt;span
+   title=&quot;concept-appcache-lifecycle&quot;&gt;lifecycle status&lt;/span&gt; is
+-  &lt;i&gt;new&lt;/i&gt;. A &lt;dfn&gt;relevant application cache&lt;/dfn&gt; is an
+-  &lt;span&gt;application cache&lt;/span&gt; whose &lt;span
+-  title=&quot;concept-appcache-lifecycle&quot;&gt;lifecycle status&lt;/span&gt; is
+   &lt;i&gt;mature&lt;/i&gt;.&lt;/p&gt;
+ 
+   &lt;p id=&quot;appcache-history-1&quot;&gt;A &lt;span&gt;browsing context&lt;/span&gt; is
+@@ -38999,7 +38994,9 @@
+      identified by &lt;var title=&quot;&quot;&gt;manifest URL&lt;/var&gt; whose &lt;span
+      title=&quot;concept-appcache-lifecycle&quot;&gt;lifecycle status&lt;/span&gt; is not
+      &lt;i&gt;obsolete&lt;/i&gt;, then create a new &lt;span&gt;application cache&lt;/span&gt;
+-     identified with that URL.&lt;/p&gt;&lt;/li&gt;
++     identified with that URL and set the group's &lt;span
++     title=&quot;concept-appcache-lifecycle&quot;&gt;lifecycle status&lt;/span&gt; to
++     &lt;i&gt;new&lt;/i&gt;.&lt;/p&gt;&lt;/li&gt;
+ 
+      &lt;li id=&quot;flagAsCandidateForCache&quot;&gt;&lt;p&gt;If these steps were invoked
+      with a new &lt;span title=&quot;concept-appcache-master&quot;&gt;master&lt;/span&gt;
+@@ -39309,11 +39306,6 @@
+ 
+    &lt;/li&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;Store &lt;var title=&quot;&quot;&gt;manifest&lt;/var&gt; in &lt;var title=&quot;&quot;&gt;new
+-   cache&lt;/var&gt;, if it's not there already, and categorize this entry
+-   (whether newly added or not) as &lt;span
+-   title=&quot;concept-appcache-manifest&quot;&gt;the manifest&lt;/span&gt;.&lt;/p&gt;&lt;/li&gt;
+-
+    &lt;li&gt;&lt;p&gt;Store the list of &lt;span
+    title=&quot;concept-appcache-fallback-ns&quot;&gt;fallback namespaces&lt;/span&gt;,
+    and the URLs of the &lt;span
+@@ -39343,6 +39335,11 @@
+ 
+    &lt;/li&gt;
+ 
++   &lt;li&gt;&lt;p&gt;Store &lt;var title=&quot;&quot;&gt;manifest&lt;/var&gt; in &lt;var title=&quot;&quot;&gt;new
++   cache&lt;/var&gt;, if it's not there already, and categorize this entry
++   (whether newly added or not) as &lt;span
++   title=&quot;concept-appcache-manifest&quot;&gt;the manifest&lt;/span&gt;.&lt;/p&gt;&lt;/li&gt;
++
+    &lt;li&gt;
+ 
+     &lt;p&gt;If this is a &lt;span title=&quot;concept-appcache-cache&quot;&gt;cache
+@@ -39402,13 +39399,13 @@
+    the update process.&lt;/p&gt;&lt;/li&gt;
+ 
+    &lt;li&gt;&lt;p&gt;&lt;span&gt;Fire a simple event&lt;/span&gt; called &lt;code
+-   title=&quot;event-error&quot;&gt;error&lt;/code&gt; at the
++   title=&quot;event-obsolete&quot;&gt;obsolete&lt;/code&gt; at the
+    &lt;code&gt;ApplicationCache&lt;/code&gt; singleton of each &lt;span&gt;browsing
+    context&lt;/span&gt; whose &lt;span&gt;active document&lt;/span&gt; is associated
+    with a cache in &lt;var title=&quot;&quot;&gt;cache group&lt;/var&gt;. The default action
+    of this event should be the display of some sort of user interface
+    indicating to the user that the application is no longer available
+-   for offline use.&lt;/p&gt;&lt;/li&gt; &lt;!-- XXX another event maybe? --&gt;
++   for offline use.&lt;/p&gt;&lt;/li&gt;
+ 
+    &lt;li&gt;&lt;p&gt;Set the &lt;span title=&quot;concept-appcache-lifecycle&quot;&gt;lifecycle
+    status&lt;/span&gt; of &lt;var title=&quot;&quot;&gt;cache group&lt;/var&gt; to
+@@ -39696,6 +39693,7 @@
+   const unsigned short &lt;span title=&quot;dom-appcache-CHECKING&quot;&gt;CHECKING&lt;/span&gt; = 2;
+   const unsigned short &lt;span title=&quot;dom-appcache-DOWNLOADING&quot;&gt;DOWNLOADING&lt;/span&gt; = 3;
+   const unsigned short &lt;span title=&quot;dom-appcache-UPDATEREADY&quot;&gt;UPDATEREADY&lt;/span&gt; = 4;
++  const unsigned short &lt;span title=&quot;dom-appcache-OBSOLETE&quot;&gt;OBSOLETE&lt;/span&gt; = 5;
+   readonly attribute unsigned short &lt;span title=&quot;dom-appcache-status&quot;&gt;status&lt;/span&gt;;
+ 
+   // updates
+@@ -39716,6 +39714,7 @@
+            attribute &lt;span&gt;EventListener&lt;/span&gt; &lt;span title=&quot;handler-appcache-onprogress&quot;&gt;onprogress&lt;/span&gt;;
+            attribute &lt;span&gt;EventListener&lt;/span&gt; &lt;span title=&quot;handler-appcache-onupdateready&quot;&gt;onupdateready&lt;/span&gt;;
+            attribute &lt;span&gt;EventListener&lt;/span&gt; &lt;span title=&quot;handler-appcache-oncached&quot;&gt;oncached&lt;/span&gt;;
++           attribute &lt;span&gt;EventListener&lt;/span&gt; &lt;span title=&quot;handler-appcache-onobsolete&quot;&gt;onobsolete&lt;/span&gt;;
+ 
+ };&lt;/pre&gt;
+ 
+@@ -39759,17 +39758,17 @@
+ 
+    &lt;dd&gt;&lt;p&gt;The &lt;code&gt;ApplicationCache&lt;/code&gt; object is associated with
+    an &lt;span&gt;application cache&lt;/span&gt; whose group is in the &lt;i&gt;idle&lt;/i&gt;
+-   &lt;span title=&quot;concept-appcache-states&quot;&gt;update status&lt;/span&gt;, and
+-   that application cache is the newest cache in its group that
+-   contains a resource categorized as a &lt;span
+-   title=&quot;concept-appcache-manifest&quot;&gt;manifest&lt;/span&gt;.&lt;/p&gt;&lt;/dd&gt;
++   &lt;span title=&quot;concept-appcache-status&quot;&gt;update status&lt;/span&gt; and the
++   &lt;i&gt;mature&lt;/i&gt; &lt;span title=&quot;concept-appcache-lifecycle&quot;&gt;lifecycle
++   status&lt;/span&gt; and that application cache is the newest cache in its
++   group.&lt;/p&gt;&lt;/dd&gt;
+ 
+    &lt;dt&gt;&lt;dfn title=&quot;dom-appcache-CHECKING&quot;&gt;&lt;code&gt;CHECKING&lt;/code&gt;&lt;/dfn&gt;
+    (numeric value 2)&lt;/dt&gt;
+ 
+    &lt;dd&gt;&lt;p&gt;The &lt;code&gt;ApplicationCache&lt;/code&gt; object is associated with
+    an &lt;span&gt;application cache&lt;/span&gt; whose group is in the
+-   &lt;i&gt;checking&lt;/i&gt; &lt;span title=&quot;concept-appcache-states&quot;&gt;update
++   &lt;i&gt;checking&lt;/i&gt; &lt;span title=&quot;concept-appcache-status&quot;&gt;update
+    status&lt;/span&gt;.&lt;/p&gt;&lt;/dd&gt;
+ 
+    &lt;dt&gt;&lt;dfn title=&quot;dom-appcache-DOWNLOADING&quot;&gt;&lt;code&gt;DOWNLOADING&lt;/code&gt;&lt;/dfn&gt;
+@@ -39777,7 +39776,7 @@
+ 
+    &lt;dd&gt;&lt;p&gt;The &lt;code&gt;ApplicationCache&lt;/code&gt; object is associated with
+    an &lt;span&gt;application cache&lt;/span&gt; whose group is in the
+-   &lt;i&gt;downloading&lt;/i&gt; &lt;span title=&quot;concept-appcache-states&quot;&gt;update
++   &lt;i&gt;downloading&lt;/i&gt; &lt;span title=&quot;concept-appcache-status&quot;&gt;update
+    status&lt;/span&gt;.&lt;/p&gt;&lt;/dd&gt;
+ 
+    &lt;dt&gt;&lt;dfn title=&quot;dom-appcache-UPDATEREADY&quot;&gt;&lt;code&gt;UPDATEREADY&lt;/code&gt;&lt;/dfn&gt;
+@@ -39785,11 +39784,19 @@
+ 
+    &lt;dd&gt;&lt;p&gt;The &lt;code&gt;ApplicationCache&lt;/code&gt; object is associated with
+    an &lt;span&gt;application cache&lt;/span&gt; whose group is in the &lt;i&gt;idle&lt;/i&gt;
+-   &lt;span title=&quot;concept-appcache-states&quot;&gt;update status&lt;/span&gt;, but
+-   that application cache is &lt;em&gt;not&lt;/em&gt; the newest cache in its
+-   group that contains a resource categorized as a &lt;span
+-   title=&quot;concept-appcache-manifest&quot;&gt;manifest&lt;/span&gt;.&lt;/p&gt;&lt;/dd&gt;
++   &lt;span title=&quot;concept-appcache-status&quot;&gt;update status&lt;/span&gt; and the
++   &lt;i&gt;mature&lt;/i&gt; &lt;span title=&quot;concept-appcache-lifecycle&quot;&gt;lifecycle
++   status&lt;/span&gt; but that application cache is &lt;em&gt;not&lt;/em&gt; the newest
++   cache in its group.&lt;/p&gt;&lt;/dd&gt;
+ 
++   &lt;dt&gt;&lt;dfn title=&quot;dom-appcache-OBSOLETE&quot;&gt;&lt;code&gt;OBSOLETE&lt;/code&gt;&lt;/dfn&gt;
++   (numeric value 5)&lt;/dt&gt;
++
++   &lt;dd&gt;&lt;p&gt;The &lt;code&gt;ApplicationCache&lt;/code&gt; object is associated with
++   an &lt;span&gt;application cache&lt;/span&gt; whose group is in the
++   &lt;i&gt;obsolete&lt;/i&gt; &lt;span title=&quot;concept-appcache-lifecycle&quot;&gt;lifecycle
++   status&lt;/span&gt;.&lt;/p&gt;&lt;/dd&gt;
++
+   &lt;/dl&gt;
+ 
+   &lt;p&gt;The &lt;dfn title=&quot;dom-appcache-length&quot;&gt;&lt;code&gt;length&lt;/code&gt;&lt;/dfn&gt;
+@@ -39935,11 +39942,18 @@
+    associated. (By definition, this is the same as the one that was
+    found in the previous step.)&lt;/p&gt;&lt;/li&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;Check that there is an application cache in the same group
+-   as &lt;var title=&quot;&quot;&gt;cache&lt;/var&gt; which has an entry categorized as a
+-   &lt;span title=&quot;concept-appcache-manifest&quot;&gt;manifest&lt;/span&gt; that has is
+-   newer than &lt;var title=&quot;&quot;&gt;cache&lt;/var&gt;. If there is not, then raise
+-   an &lt;code&gt;INVALID_STATE_ERR&lt;/code&gt; exception and abort these
++   &lt;li&gt;&lt;p&gt;If the group of &lt;span title=&quot;application cache&quot;&gt;application
++   caches&lt;/span&gt; to which &lt;var title=&quot;&quot;&gt;cache&lt;/var&gt; belongs has the
++   &lt;span title=&quot;concept-appcache-lifecycle&quot;&gt;lifecycle status&lt;/span&gt;
++   &lt;i&gt;obsolete&lt;/i&gt;, unassociate &lt;var title=&quot;&quot;&gt;document&lt;/var&gt; from &lt;var
++   title=&quot;&quot;&gt;cache&lt;/var&gt; and abort these steps.&lt;/p&gt;&lt;/li&gt;
++
++   &lt;li&gt;&lt;p&gt;Otherwise, check that there is an application cache in the
++   same group as &lt;var title=&quot;&quot;&gt;cache&lt;/var&gt; which has an entry
++   categorized as a &lt;span
++   title=&quot;concept-appcache-manifest&quot;&gt;manifest&lt;/span&gt; that is newer
++   than &lt;var title=&quot;&quot;&gt;cache&lt;/var&gt;. If there is not, then raise an
++   &lt;code&gt;INVALID_STATE_ERR&lt;/code&gt; exception and abort these
+    steps.&lt;/p&gt;&lt;/li&gt;
+ 
+    &lt;li&gt;&lt;p&gt;Let &lt;var title=&quot;&quot;&gt;new cache&lt;/var&gt; be the newest
+@@ -40009,6 +40023,13 @@
+    title=&quot;event-cached&quot;&gt;cached&lt;/code&gt; event is targeted at or bubbles
+    through the &lt;code&gt;ApplicationCache&lt;/code&gt; object.&lt;/p&gt;&lt;/dd&gt;
+ 
++
++   &lt;dt&gt;&lt;dfn title=&quot;handler-appcache-onobsolete&quot;&gt;&lt;code&gt;onobsolete&lt;/code&gt;&lt;/dfn&gt;&lt;/dt&gt;
++
++   &lt;dd&gt;&lt;p&gt;Must be invoked whenever an &lt;code
++   title=&quot;event-obsolete&quot;&gt;obsolete&lt;/code&gt; event is targeted at or bubbles
++   through the &lt;code&gt;ApplicationCache&lt;/code&gt; object.&lt;/p&gt;&lt;/dd&gt;
++
+   &lt;/dl&gt;
+ 
+ 
+
+
+</PRE>
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="009231.html">[html5] r2346 - [gwr] (2) Appcache: Fix a number of race conditions;	introduce the concept of th [...]
+</A></li>
+	<LI>Next message: <A HREF="009233.html">[html5] r2348 - [gwr] (2) Appcache: Handle errors for dynamic and	master entries differently, si [...]
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#9232">[ date ]</a>
+              <a href="thread.html#9232">[ thread ]</a>
+              <a href="subject.html#9232">[ subject ]</a>
+              <a href="author.html#9232">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/commit-watchers-whatwg.org">More information about the Commit-Watchers
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

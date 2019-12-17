@@ -1,0 +1,1761 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [html5] r5666 - [giow] (2) Parser: don't convert 0000 to FFFD in	the input stream processor, ins [...]
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commit-watchers%40lists.whatwg.org?Subject=Re%3A%20%5Bhtml5%5D%20r5666%20-%20%5Bgiow%5D%20%282%29%20Parser%3A%20don%27t%20convert%200000%20to%20FFFD%20in%0A%09the%20input%20stream%20processor%2C%20ins%20%5B...%5D&In-Reply-To=%3C20101102020854.5A3ED8058217%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="012532.html">
+   <LINK REL="Next"  HREF="012534.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[html5] r5666 - [giow] (2) Parser: don't convert 0000 to FFFD in	the input stream processor, ins [...]</H1>
+<!--htdig_noindex-->
+    <B>whatwg at whatwg.org</B> 
+    <A HREF="mailto:commit-watchers%40lists.whatwg.org?Subject=Re%3A%20%5Bhtml5%5D%20r5666%20-%20%5Bgiow%5D%20%282%29%20Parser%3A%20don%27t%20convert%200000%20to%20FFFD%20in%0A%09the%20input%20stream%20processor%2C%20ins%20%5B...%5D&In-Reply-To=%3C20101102020854.5A3ED8058217%40ps20323.dreamhostps.com%3E"
+       TITLE="[html5] r5666 - [giow] (2) Parser: don't convert 0000 to FFFD in	the input stream processor, ins [...]">whatwg at whatwg.org
+       </A><BR>
+    <I>Mon Nov  1 19:08:54 PDT 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="012532.html">[html5] r5665 - [e] (0) note for dnd
+</A></li>
+        <LI>Next message: <A HREF="012534.html">[html5] r5667 - [giow] (0) that's a token list, not a boolean, oops
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#12533">[ date ]</a>
+              <a href="thread.html#12533">[ thread ]</a>
+              <a href="subject.html#12533">[ subject ]</a>
+              <a href="author.html#12533">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Author: ianh
+Date: 2010-11-01 19:08:52 -0700 (Mon, 01 Nov 2010)
+New Revision: 5666
+
+Modified:
+   complete.html
+   index
+   source
+Log:
+[giow] (2) Parser: don't convert 0000 to FFFD in the input stream processor, instead do it (mostly) in the tokenizer, so that we can instead swallow 0000s in body.
+Fixing <A HREF="http://www.w3.org/Bugs/Public/show_bug.cgi?id=9659">http://www.w3.org/Bugs/Public/show_bug.cgi?id=9659</A>
+
+Modified: complete.html
+===================================================================
+--- complete.html	2010-11-02 01:06:04 UTC (rev 5665)
++++ complete.html	2010-11-02 02:08:52 UTC (rev 5666)
+@@ -75503,12 +75503,12 @@
+   motivated by a desire to increase the resilience of user agents in
+   the face of na&iuml;ve transcoders.&lt;/p&gt;
+ 
+-  &lt;p&gt;All U+0000 NULL characters and code points in the range U+D800 to
+-  U+DFFF&lt;!-- surrogates not allowed e.g. in UTF-8, and we don't want
+-  them to suddenly turn into codepoints when they go through a UTF-16
+-  pipe --&gt; in the input must be replaced by U+FFFD REPLACEMENT
+-  CHARACTERs. Any occurrences of such characters and code points are
+-  &lt;a href=#parse-error title=&quot;parse error&quot;&gt;parse errors&lt;/a&gt;.&lt;/p&gt;
++  &lt;p&gt;Code points in the range U+D800 to U+DFFF&lt;!-- surrogates are not
++  allowed e.g. in UTF-8, and we don't want them to suddenly turn into
++  codepoints when they go through a UTF-16 pipe --&gt; in the input must
++  be replaced by U+FFFD REPLACEMENT CHARACTERs. Any occurrences of
++  such characters and code points are &lt;a href=#parse-error title=&quot;parse error&quot;&gt;parse
++  errors&lt;/a&gt;.&lt;/p&gt;
+ 
+   &lt;p&gt;Any occurrences of any characters in the ranges U+0001 to U+0008,
+   &lt;!-- HT, LF allowed --&gt; &lt;!-- U+000B is in the next list --&gt; &lt;!-- FF,
+@@ -76147,6 +76147,10 @@
+    &lt;dt&gt;U+003C LESS-THAN SIGN (&lt;)&lt;/dt&gt;
+    &lt;dd&gt;Switch to the &lt;a href=#tag-open-state&gt;tag open state&lt;/a&gt;.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Emit the &lt;a href=#current-input-character&gt;current input
++   character&lt;/a&gt; as a character token.&lt;/dd&gt;
++
+    &lt;dt&gt;EOF&lt;/dt&gt;
+    &lt;dd&gt;Emit an end-of-file token.&lt;/dd&gt;
+ 
+@@ -76178,6 +76182,10 @@
+    &lt;dt&gt;U+003C LESS-THAN SIGN (&lt;)&lt;/dt&gt;
+    &lt;dd&gt;Switch to the &lt;a href=#rcdata-less-than-sign-state&gt;RCDATA less-than sign state&lt;/a&gt;.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Emit a U+FFFD REPLACEMENT CHARACTER
++   character token.&lt;/dd&gt;
++
+    &lt;dt&gt;EOF&lt;/dt&gt;
+    &lt;dd&gt;Emit an end-of-file token.&lt;/dd&gt;
+ 
+@@ -76205,6 +76213,10 @@
+   &lt;dl class=switch&gt;&lt;dt&gt;U+003C LESS-THAN SIGN (&lt;)&lt;/dt&gt;
+    &lt;dd&gt;Switch to the &lt;a href=#rawtext-less-than-sign-state&gt;RAWTEXT less-than sign state&lt;/a&gt;.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Emit a U+FFFD REPLACEMENT CHARACTER
++   character token.&lt;/dd&gt;
++
+    &lt;dt&gt;EOF&lt;/dt&gt;
+    &lt;dd&gt;Emit an end-of-file token.&lt;/dd&gt;
+ 
+@@ -76219,6 +76231,10 @@
+   &lt;dl class=switch&gt;&lt;dt&gt;U+003C LESS-THAN SIGN (&lt;)&lt;/dt&gt;
+    &lt;dd&gt;Switch to the &lt;a href=#script-data-less-than-sign-state&gt;script data less-than sign state&lt;/a&gt;.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Emit a U+FFFD REPLACEMENT CHARACTER
++   character token.&lt;/dd&gt;
++
+    &lt;dt&gt;EOF&lt;/dt&gt;
+    &lt;dd&gt;Emit an end-of-file token.&lt;/dd&gt;
+ 
+@@ -76230,7 +76246,11 @@
+ 
+   &lt;p&gt;Consume the &lt;a href=#next-input-character&gt;next input character&lt;/a&gt;:&lt;/p&gt;
+ 
+-  &lt;dl class=switch&gt;&lt;dt&gt;EOF&lt;/dt&gt;
++  &lt;dl class=switch&gt;&lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Emit a U+FFFD REPLACEMENT CHARACTER
++   character token.&lt;/dd&gt;
++
++   &lt;dt&gt;EOF&lt;/dt&gt;
+    &lt;dd&gt;Emit an end-of-file token.&lt;/dd&gt;
+ 
+    &lt;dt&gt;Anything else&lt;/dt&gt;
+@@ -76322,6 +76342,10 @@
+    character&lt;/a&gt; (add 0x0020 to the character's code point) to the
+    current tag token's tag name.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Append a U+FFFD REPLACEMENT CHARACTER
++   character to the current tag token's tag name.&lt;/dd&gt;
++
+    &lt;dt&gt;EOF&lt;/dt&gt;
+    &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Reconsume the EOF character in the
+    &lt;a href=#data-state&gt;data state&lt;/a&gt;.&lt;/dd&gt;
+@@ -76628,6 +76652,10 @@
+    &lt;dd&gt;&lt;p&gt;Switch to the &lt;a href=#script-data-escaped-less-than-sign-state&gt;script data escaped less-than sign
+    state&lt;/a&gt;.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Emit a U+FFFD REPLACEMENT CHARACTER
++   character token.&lt;/dd&gt;
++
+    &lt;dt&gt;EOF&lt;/dt&gt;
+    &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Reconsume the EOF character in the
+    &lt;a href=#data-state&gt;data state&lt;/a&gt;.&lt;/dd&gt;
+@@ -76648,6 +76676,11 @@
+    &lt;dd&gt;&lt;p&gt;Switch to the &lt;a href=#script-data-escaped-less-than-sign-state&gt;script data escaped less-than sign
+    state&lt;/a&gt;.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Switch to the &lt;a href=#script-data-escaped-state&gt;script data
++   escaped state&lt;/a&gt;. Emit a U+FFFD REPLACEMENT CHARACTER character
++   token.&lt;/dd&gt;
++
+    &lt;dt&gt;EOF&lt;/dt&gt;
+    &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Reconsume the EOF character in the
+    &lt;a href=#data-state&gt;data state&lt;/a&gt;.&lt;/dd&gt;
+@@ -76671,6 +76704,11 @@
+    &lt;dd&gt;Switch to the &lt;a href=#script-data-state&gt;script data state&lt;/a&gt;. Emit a U+003E
+    GREATER-THAN SIGN character token.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Switch to the &lt;a href=#script-data-escaped-state&gt;script data
++   escaped state&lt;/a&gt;. Emit a U+FFFD REPLACEMENT CHARACTER character
++   token.&lt;/dd&gt;
++
+    &lt;dt&gt;EOF&lt;/dt&gt;
+    &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Reconsume the EOF character in the
+    &lt;a href=#data-state&gt;data state&lt;/a&gt;.&lt;/dd&gt;
+@@ -76821,6 +76859,10 @@
+    sign state&lt;/a&gt;. Emit a U+003C LESS-THAN SIGN character
+    token.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Emit a U+FFFD REPLACEMENT CHARACTER
++   character token.&lt;/dd&gt;
++
+    &lt;dt&gt;EOF&lt;/dt&gt;
+    &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Reconsume the EOF character in the
+    &lt;a href=#data-state&gt;data state&lt;/a&gt;.&lt;/dd&gt;
+@@ -76842,6 +76884,11 @@
+    sign state&lt;/a&gt;. Emit a U+003C LESS-THAN SIGN character
+    token.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Switch to the &lt;a href=#script-data-double-escaped-state&gt;script data
++   double escaped state&lt;/a&gt;. Emit a U+FFFD REPLACEMENT CHARACTER
++   character token.&lt;/dd&gt;
++
+    &lt;dt&gt;EOF&lt;/dt&gt;
+    &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Reconsume the EOF character in the
+    &lt;a href=#data-state&gt;data state&lt;/a&gt;.&lt;/dd&gt;
+@@ -76867,6 +76914,11 @@
+    &lt;dd&gt;Switch to the &lt;a href=#script-data-state&gt;script data state&lt;/a&gt;. Emit a U+003E
+    GREATER-THAN SIGN character token.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Switch to the &lt;a href=#script-data-double-escaped-state&gt;script data
++   double escaped state&lt;/a&gt;. Emit a U+FFFD REPLACEMENT CHARACTER
++   character token.&lt;/dd&gt;
++
+    &lt;dt&gt;EOF&lt;/dt&gt;
+    &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Reconsume the EOF character in the
+    &lt;a href=#data-state&gt;data state&lt;/a&gt;.&lt;/dd&gt;
+@@ -76945,6 +76997,12 @@
+    value to the empty string. Switch to the &lt;a href=#attribute-name-state&gt;attribute name
+    state&lt;/a&gt;.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Start a new attribute in the current
++   tag token. Set that attribute's name to a U+FFFD REPLACEMENT
++   CHARACTER character, and its value to the empty string. Switch to
++   the &lt;a href=#attribute-name-state&gt;attribute name state&lt;/a&gt;.&lt;/dd&gt;
++
+    &lt;dt&gt;U+0022 QUOTATION MARK (&quot;)&lt;/dt&gt;
+    &lt;dt&gt;U+0027 APOSTROPHE (')&lt;/dt&gt;
+    &lt;dt&gt;U+003C LESS-THAN SIGN (&lt;)&lt;/dt&gt;
+@@ -76958,8 +77016,8 @@
+ 
+    &lt;dt&gt;Anything else&lt;/dt&gt;
+    &lt;dd&gt;Start a new attribute in the current tag token. Set that
+-   attribute's name to the &lt;a href=#current-input-character&gt;current input character&lt;/a&gt;, and its value to
+-   the empty string. Switch to the &lt;a href=#attribute-name-state&gt;attribute name
++   attribute's name to the &lt;a href=#current-input-character&gt;current input character&lt;/a&gt;, and
++   its value to the empty string. Switch to the &lt;a href=#attribute-name-state&gt;attribute name
+    state&lt;/a&gt;.&lt;/dd&gt;
+ 
+   &lt;/dl&gt;&lt;h5 id=attribute-name-state&gt;&lt;span class=secno&gt;12.2.4.35 &lt;/span&gt;&lt;dfn&gt;Attribute name state&lt;/dfn&gt;&lt;/h5&gt;
+@@ -76988,6 +77046,10 @@
+    character&lt;/a&gt; (add 0x0020 to the character's code point) to the
+    current attribute's name.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Append a U+FFFD REPLACEMENT CHARACTER
++   character to the current attribute's name.&lt;/dd&gt;
++
+    &lt;dt&gt;U+0022 QUOTATION MARK (&quot;)&lt;/dt&gt;
+    &lt;dt&gt;U+0027 APOSTROPHE (')&lt;/dt&gt;
+    &lt;dt&gt;U+003C LESS-THAN SIGN (&lt;)&lt;/dt&gt;
+@@ -77039,6 +77101,12 @@
+    and its value to the empty string. Switch to the &lt;a href=#attribute-name-state&gt;attribute
+    name state&lt;/a&gt;.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Start a new attribute in the current
++   tag token. Set that attribute's name to a U+FFFD REPLACEMENT
++   CHARACTER character, and its value to the empty string. Switch to
++   the &lt;a href=#attribute-name-state&gt;attribute name state&lt;/a&gt;.&lt;/dd&gt;
++
+    &lt;dt&gt;U+0022 QUOTATION MARK (&quot;)&lt;/dt&gt;
+    &lt;dt&gt;U+0027 APOSTROPHE (')&lt;/dt&gt;
+    &lt;dt&gt;U+003C LESS-THAN SIGN (&lt;)&lt;/dt&gt;
+@@ -77076,6 +77144,11 @@
+    &lt;dt&gt;U+0027 APOSTROPHE (')&lt;/dt&gt;
+    &lt;dd&gt;Switch to the &lt;a href=#attribute-value-(single-quoted)-state&gt;attribute value (single-quoted) state&lt;/a&gt;.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Append a U+FFFD REPLACEMENT CHARACTER
++   character to the current attribute's value. Switch to the
++   &lt;a href=#attribute-value-(unquoted)-state&gt;attribute value (unquoted) state&lt;/a&gt;.&lt;/dd&gt;
++
+    &lt;dt&gt;U+003E GREATER-THAN SIGN (&gt;)&lt;/dt&gt;
+    &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Switch to the &lt;a href=#data-state&gt;data
+    state&lt;/a&gt;. Emit the current tag token.&lt;/dd&gt;
+@@ -77108,6 +77181,10 @@
+    state&lt;/a&gt;, with the &lt;a href=#additional-allowed-character&gt;additional allowed character&lt;/a&gt;
+    being U+0022 QUOTATION MARK (&quot;).&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Append a U+FFFD REPLACEMENT CHARACTER
++   character to the current attribute's value.&lt;/dd&gt;
++
+    &lt;dt&gt;EOF&lt;/dt&gt;
+    &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Reconsume the EOF character in the
+    &lt;a href=#data-state&gt;data state&lt;/a&gt;.&lt;/dd&gt;
+@@ -77157,6 +77234,10 @@
+    &lt;dd&gt;Switch to the &lt;a href=#data-state&gt;data state&lt;/a&gt;. Emit the current tag
+    token.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Append a U+FFFD REPLACEMENT CHARACTER
++   character to the current attribute's value.&lt;/dd&gt;
++
+    &lt;dt&gt;U+0022 QUOTATION MARK (&quot;)&lt;/dt&gt;
+    &lt;dt&gt;U+0027 APOSTROPHE (')&lt;/dt&gt;
+    &lt;dt&gt;U+003C LESS-THAN SIGN (&lt;)&lt;/dt&gt;
+@@ -77235,12 +77316,13 @@
+   &lt;p&gt;Consume every character up to and including the first U+003E
+   GREATER-THAN SIGN character (&gt;) or the end of the file (EOF),
+   whichever comes first. Emit a comment token whose data is the
+-  concatenation of all the characters starting from and including
+-  the character that caused the state machine to switch into the
+-  bogus comment state, up to and including the character immediately
+-  before the last consumed character (i.e. up to the character just
+-  before the U+003E or EOF character). (If the comment was started
+-  by the end of the file (EOF), the token is empty.)&lt;/p&gt;
++  concatenation of all the characters starting from and including the
++  character that caused the state machine to switch into the bogus
++  comment state, up to and including the character immediately before
++  the last consumed character (i.e. up to the character just before
++  the U+003E or EOF character), but with any U+0000 NULL characters
++  replaced by U+FFFD REPLACEMENT CHARACTER characters. (If the comment
++  was started by the end of the file (EOF), the token is empty.)&lt;/p&gt;
+ 
+   &lt;p&gt;Switch to the &lt;a href=#data-state&gt;data state&lt;/a&gt;.&lt;/p&gt;
+ 
+@@ -77280,6 +77362,11 @@
+   &lt;dl class=switch&gt;&lt;dt&gt;U+002D HYPHEN-MINUS (-)&lt;/dt&gt;
+    &lt;dd&gt;Switch to the &lt;a href=#comment-start-dash-state&gt;comment start dash state&lt;/a&gt;.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Append a U+FFFD REPLACEMENT CHARACTER
++   character to the comment token's data. Switch to the &lt;a href=#comment-state&gt;comment
++   state&lt;/a&gt;.&lt;/dd&gt;
++
+    &lt;dt&gt;U+003E GREATER-THAN SIGN (&gt;)&lt;/dt&gt;
+    &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Switch to the &lt;a href=#data-state&gt;data
+    state&lt;/a&gt;. Emit the comment token.&lt;/dd&gt; &lt;!-- see comment in
+@@ -77300,6 +77387,12 @@
+   &lt;dl class=switch&gt;&lt;dt&gt;U+002D HYPHEN-MINUS (-)&lt;/dt&gt;
+    &lt;dd&gt;Switch to the &lt;a href=#comment-end-state&gt;comment end state&lt;/a&gt;&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Append a U+002D HYPHEN-MINUS
++   character (-) and a U+FFFD REPLACEMENT CHARACTER character to the
++   comment token's data. Switch to the &lt;a href=#comment-state&gt;comment
++   state&lt;/a&gt;.&lt;/dd&gt;
++
+    &lt;dt&gt;U+003E GREATER-THAN SIGN (&gt;)&lt;/dt&gt;
+    &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Switch to the &lt;a href=#data-state&gt;data
+    state&lt;/a&gt;. Emit the comment token.&lt;/dd&gt;
+@@ -77321,6 +77414,10 @@
+   &lt;dl class=switch&gt;&lt;dt&gt;U+002D HYPHEN-MINUS (-)&lt;/dt&gt;
+    &lt;dd&gt;Switch to the &lt;a href=#comment-end-dash-state&gt;comment end dash state&lt;/a&gt;&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Append a U+FFFD REPLACEMENT CHARACTER
++   character to the comment token's data.&lt;/dd&gt;
++
+    &lt;dt&gt;EOF&lt;/dt&gt;
+    &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Emit the comment token. Reconsume the
+    EOF character in the &lt;a href=#data-state&gt;data state&lt;/a&gt;.&lt;/dd&gt; &lt;!-- see comment
+@@ -77337,6 +77434,12 @@
+   &lt;dl class=switch&gt;&lt;dt&gt;U+002D HYPHEN-MINUS (-)&lt;/dt&gt;
+    &lt;dd&gt;Switch to the &lt;a href=#comment-end-state&gt;comment end state&lt;/a&gt;&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Append a U+002D HYPHEN-MINUS
++   character (-) and a U+FFFD REPLACEMENT CHARACTER character to the
++   comment token's data. Switch to the &lt;a href=#comment-state&gt;comment
++   state&lt;/a&gt;.&lt;/dd&gt;
++
+    &lt;dt&gt;EOF&lt;/dt&gt;
+    &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Emit the comment token. Reconsume the
+    EOF character in the &lt;a href=#data-state&gt;data state&lt;/a&gt;.&lt;/dd&gt; &lt;!-- see comment
+@@ -77355,6 +77458,12 @@
+    &lt;dd&gt;Switch to the &lt;a href=#data-state&gt;data state&lt;/a&gt;. Emit the comment
+    token.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Append two U+002D HYPHEN-MINUS
++   characters (-) and a U+FFFD REPLACEMENT CHARACTER character to the
++   comment token's data. Switch to the &lt;a href=#comment-state&gt;comment
++   state&lt;/a&gt;.&lt;/dd&gt;
++
+    &lt;dt&gt;U+0021 EXCLAMATION MARK (!)&lt;/dt&gt;
+    &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Switch to the &lt;a href=#comment-end-bang-state&gt;comment end bang
+    state&lt;/a&gt;.&lt;/dd&gt;
+@@ -77390,6 +77499,12 @@
+    &lt;dd&gt;Switch to the &lt;a href=#data-state&gt;data state&lt;/a&gt;. Emit the comment
+    token.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Append two U+002D HYPHEN-MINUS
++   characters (-), a U+0021 EXCLAMATION MARK character (!), and a
++   U+FFFD REPLACEMENT CHARACTER character to the comment token's data.
++   Switch to the &lt;a href=#comment-state&gt;comment state&lt;/a&gt;.&lt;/dd&gt;
++
+    &lt;dt&gt;EOF&lt;/dt&gt;
+    &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Emit the comment token. Reconsume
+    the EOF character in the &lt;a href=#data-state&gt;data state&lt;/a&gt;.&lt;/dd&gt; &lt;!-- see
+@@ -77438,6 +77553,11 @@
+    character's code point). Switch to the &lt;a href=#doctype-name-state&gt;DOCTYPE name
+    state&lt;/a&gt;.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Set the token's name to a U+FFFD
++   REPLACEMENT CHARACTER character. Switch to the &lt;a href=#doctype-name-state&gt;DOCTYPE name
++   state&lt;/a&gt;.&lt;/dd&gt;
++
+    &lt;dt&gt;U+003E GREATER-THAN SIGN (&gt;)&lt;/dt&gt;
+    &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Create a new DOCTYPE token. Set its
+    &lt;i&gt;force-quirks flag&lt;/i&gt; to &lt;i&gt;on&lt;/i&gt;. Switch to the &lt;a href=#data-state&gt;data
+@@ -77473,6 +77593,10 @@
+    character&lt;/a&gt; (add 0x0020 to the character's code point) to the
+    current DOCTYPE token's name.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Append a U+FFFD REPLACEMENT CHARACTER
++   character to the current DOCTYPE token's name.&lt;/dd&gt;
++
+    &lt;dt&gt;EOF&lt;/dt&gt;
+    &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Set the DOCTYPE token's
+    &lt;i&gt;force-quirks flag&lt;/i&gt; to &lt;i&gt;on&lt;/i&gt;. Emit that DOCTYPE token.
+@@ -77602,6 +77726,10 @@
+   &lt;dl class=switch&gt;&lt;dt&gt;U+0022 QUOTATION MARK (&quot;)&lt;/dt&gt;
+    &lt;dd&gt;Switch to the &lt;a href=#after-doctype-public-identifier-state&gt;after DOCTYPE public identifier state&lt;/a&gt;.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Append a U+FFFD REPLACEMENT CHARACTER
++   character to the current DOCTYPE token's public identifier.&lt;/dd&gt;
++
+    &lt;dt&gt;U+003E GREATER-THAN SIGN (&gt;)&lt;/dt&gt;
+    &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Set the DOCTYPE token's
+    &lt;i&gt;force-quirks flag&lt;/i&gt; to &lt;i&gt;on&lt;/i&gt;. Switch to the &lt;a href=#data-state&gt;data
+@@ -77613,8 +77741,8 @@
+    Reconsume the EOF character in the &lt;a href=#data-state&gt;data state&lt;/a&gt;.&lt;/dd&gt;
+ 
+    &lt;dt&gt;Anything else&lt;/dt&gt;
+-   &lt;dd&gt;Append the &lt;a href=#current-input-character&gt;current input character&lt;/a&gt; to the current DOCTYPE
+-   token's public identifier.&lt;/dd&gt;
++   &lt;dd&gt;Append the &lt;a href=#current-input-character&gt;current input character&lt;/a&gt; to the current
++   DOCTYPE token's public identifier.&lt;/dd&gt;
+ 
+   &lt;/dl&gt;&lt;h5 id=doctype-public-identifier-(single-quoted)-state&gt;&lt;span class=secno&gt;12.2.4.59 &lt;/span&gt;&lt;dfn&gt;DOCTYPE public identifier (single-quoted) state&lt;/dfn&gt;&lt;/h5&gt;
+ 
+@@ -77623,6 +77751,10 @@
+   &lt;dl class=switch&gt;&lt;dt&gt;U+0027 APOSTROPHE (')&lt;/dt&gt;
+    &lt;dd&gt;Switch to the &lt;a href=#after-doctype-public-identifier-state&gt;after DOCTYPE public identifier state&lt;/a&gt;.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Append a U+FFFD REPLACEMENT CHARACTER
++   character to the current DOCTYPE token's public identifier.&lt;/dd&gt;
++
+    &lt;dt&gt;U+003E GREATER-THAN SIGN (&gt;)&lt;/dt&gt;
+    &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Set the DOCTYPE token's
+    &lt;i&gt;force-quirks flag&lt;/i&gt; to &lt;i&gt;on&lt;/i&gt;. Switch to the &lt;a href=#data-state&gt;data
+@@ -77634,8 +77766,8 @@
+    Reconsume the EOF character in the &lt;a href=#data-state&gt;data state&lt;/a&gt;.&lt;/dd&gt;
+ 
+    &lt;dt&gt;Anything else&lt;/dt&gt;
+-   &lt;dd&gt;Append the &lt;a href=#current-input-character&gt;current input character&lt;/a&gt; to the current DOCTYPE
+-   token's public identifier.&lt;/dd&gt;
++   &lt;dd&gt;Append the &lt;a href=#current-input-character&gt;current input character&lt;/a&gt; to the current
++   DOCTYPE token's public identifier.&lt;/dd&gt;
+ 
+   &lt;/dl&gt;&lt;h5 id=after-doctype-public-identifier-state&gt;&lt;span class=secno&gt;12.2.4.60 &lt;/span&gt;&lt;dfn&gt;After DOCTYPE public identifier state&lt;/dfn&gt;&lt;/h5&gt;
+ 
+@@ -77789,6 +77921,10 @@
+    &lt;dd&gt;Switch to the &lt;a href=#after-doctype-system-identifier-state&gt;after DOCTYPE system identifier
+    state&lt;/a&gt;.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Append a U+FFFD REPLACEMENT CHARACTER
++   character to the current DOCTYPE token's system identifier.&lt;/dd&gt;
++
+    &lt;dt&gt;U+003E GREATER-THAN SIGN (&gt;)&lt;/dt&gt;
+    &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Set the DOCTYPE token's
+    &lt;i&gt;force-quirks flag&lt;/i&gt; to &lt;i&gt;on&lt;/i&gt;. Switch to the &lt;a href=#data-state&gt;data
+@@ -77811,6 +77947,10 @@
+    &lt;dd&gt;Switch to the &lt;a href=#after-doctype-system-identifier-state&gt;after DOCTYPE system identifier
+    state&lt;/a&gt;.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Append a U+FFFD REPLACEMENT CHARACTER
++   character to the current DOCTYPE token's system identifier.&lt;/dd&gt;
++
+    &lt;dt&gt;U+003E GREATER-THAN SIGN (&gt;)&lt;/dt&gt;
+    &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Set the DOCTYPE token's
+    &lt;i&gt;force-quirks flag&lt;/i&gt; to &lt;i&gt;on&lt;/i&gt;. Switch to the &lt;a href=#data-state&gt;data
+@@ -77873,7 +78013,9 @@
+   end of the file (EOF), whichever comes first. Emit a series of
+   character tokens consisting of all the characters consumed except
+   the matching three character sequence at the end (if one was found
+-  before the end of the file).&lt;/p&gt;
++  before the end of the file)&lt;!--(not needed; taken care of by the
++  tree constructor), but with any U+0000 NULL characters replaced by
++  U+FFFD REPLACEMENT CHARACTER characters--&gt;.&lt;/p&gt;
+ 
+   &lt;p&gt;Switch to the &lt;a href=#data-state&gt;data state&lt;/a&gt;.&lt;/p&gt;
+ 
+@@ -79068,29 +79210,44 @@
+   &lt;p&gt;When the &lt;a href=#insertion-mode&gt;insertion mode&lt;/a&gt; is &quot;&lt;a href=#parsing-main-inbody title=&quot;insertion
+   mode: in body&quot;&gt;in body&lt;/a&gt;&quot;, tokens must be handled as follows:&lt;/p&gt;
+ 
+-  &lt;dl class=switch&gt;&lt;dt&gt;A character token&lt;/dt&gt;
++  &lt;dl class=switch&gt;&lt;dt&gt;A character token that is U+0000 NULL&lt;/dt&gt;
+    &lt;dd&gt;
+ 
++    &lt;p&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Ignore the token.&lt;/p&gt;
++
++    &lt;!-- The D-Link DSL-G604T ADSL router has a zero byte in its
++         configuration UI before a &lt;frameset&gt;, which is why U+0000 is
++         special-cased here.
++         refs: <A HREF="https://bugzilla.mozilla.org/show_bug.cgi?id=563526">https://bugzilla.mozilla.org/show_bug.cgi?id=563526</A>
++               <A HREF="http://www.w3.org/Bugs/Public/show_bug.cgi?id=9659">http://www.w3.org/Bugs/Public/show_bug.cgi?id=9659</A>
++    --&gt;
++
++   &lt;/dd&gt;
++
++   &lt;dt&gt;A character token that is one of U+0009 CHARACTER TABULATION,
++   U+000A LINE FEED (LF), U+000C FORM FEED (FF), U+000D CARRIAGE
++   RETURN (CR), or U+0020 SPACE&lt;/dt&gt;
++   &lt;dd&gt;
++
+     &lt;p&gt;&lt;a href=#reconstruct-the-active-formatting-elements&gt;Reconstruct the active formatting elements&lt;/a&gt;, if
+     any.&lt;/p&gt;
+ 
+     &lt;p&gt;&lt;a href=#insert-a-character title=&quot;insert a character&quot;&gt;Insert the token's
+     character&lt;/a&gt; into the &lt;a href=#current-node&gt;current node&lt;/a&gt;.&lt;/p&gt;
+ 
+-    &lt;p&gt;If the token is not one of U+0009 CHARACTER TABULATION, U+000A
+-    LINE FEED (LF), U+000C FORM FEED (FF), U+000D CARRIAGE RETURN
+-    (CR), U+0020 SPACE, or U+FFFD REPLACEMENT CHARACTER, then set the
+-    &lt;a href=#frameset-ok-flag&gt;frameset-ok flag&lt;/a&gt; to &quot;not ok&quot;.&lt;/p&gt;
++   &lt;/dd&gt;
+ 
+-    &lt;!-- U+FFFD REPLACEMENT CHARACTER is in this list because the
+-         D-Link DSL-G604T ADSL router has a zero byte in its
+-         configuration UI before a &lt;frameset&gt;. Zero bytes get
+-         converted to U+FFFD, which (without that character in this
+-         list) would mean the &lt;frameset&gt; would be ignored.
+-         refs: <A HREF="https://bugzilla.mozilla.org/show_bug.cgi?id=563526">https://bugzilla.mozilla.org/show_bug.cgi?id=563526</A>
+-               <A HREF="http://www.w3.org/Bugs/Public/show_bug.cgi?id=9659">http://www.w3.org/Bugs/Public/show_bug.cgi?id=9659</A>
+-    --&gt;
++   &lt;dt&gt;Any other character token&lt;/dt&gt;
++   &lt;dd&gt;
+ 
++    &lt;p&gt;&lt;a href=#reconstruct-the-active-formatting-elements&gt;Reconstruct the active formatting elements&lt;/a&gt;, if
++    any.&lt;/p&gt;
++
++    &lt;p&gt;&lt;a href=#insert-a-character title=&quot;insert a character&quot;&gt;Insert the token's
++    character&lt;/a&gt; into the &lt;a href=#current-node&gt;current node&lt;/a&gt;.&lt;/p&gt;
++
++    &lt;p&gt;Set the &lt;a href=#frameset-ok-flag&gt;frameset-ok flag&lt;/a&gt; to &quot;not ok&quot;.&lt;/p&gt;
++
+    &lt;/dd&gt;
+ 
+    &lt;dt&gt;A comment token&lt;/dt&gt;
+@@ -80312,6 +80469,10 @@
+     &lt;p&gt;&lt;a href=#insert-a-character title=&quot;insert a character&quot;&gt;Insert the token's
+     character&lt;/a&gt; into the &lt;a href=#current-node&gt;current node&lt;/a&gt;.&lt;/p&gt;
+ 
++    &lt;p class=note&gt;This can never be a U+0000 NULL character; the
++    tokenizer converts those to U+FFFD REPLACEMENT CHARACTER
++    characters.&lt;/p&gt;
++
+    &lt;/dd&gt;
+ 
+    &lt;dt&gt;An end-of-file token&lt;/dt&gt;
+@@ -81108,8 +81269,13 @@
+   &lt;p&gt;When the &lt;a href=#insertion-mode&gt;insertion mode&lt;/a&gt; is &quot;&lt;a href=#parsing-main-inselect title=&quot;insertion
+   mode: in select&quot;&gt;in select&lt;/a&gt;&quot;, tokens must be handled as follows:&lt;/p&gt;
+ 
+-  &lt;dl class=switch&gt;&lt;dt&gt;A character token&lt;/dt&gt;
++  &lt;dl class=switch&gt;&lt;dt&gt;A character token that is U+0000 NULL&lt;/dt&gt;
+    &lt;dd&gt;
++    &lt;p&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Ignore the token.&lt;/p&gt;
++   &lt;/dd&gt;
++
++   &lt;dt&gt;Any other character token&lt;/dt&gt;
++   &lt;dd&gt;
+     &lt;p&gt;&lt;a href=#insert-a-character title=&quot;insert a character&quot;&gt;Insert the token's
+     character&lt;/a&gt; into the &lt;a href=#current-node&gt;current node&lt;/a&gt;.&lt;/p&gt;
+    &lt;/dd&gt;
+@@ -81309,17 +81475,33 @@
+ 
+     &lt;/ol&gt;&lt;/dd&gt;
+ 
+-   &lt;dt&gt;A character token&lt;/dt&gt;
++   &lt;dt&gt;A character token that is U+0000 NULL&lt;/dt&gt;
+    &lt;dd&gt;
+ 
++    &lt;p&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. &lt;a href=#insert-a-character title=&quot;insert a
++    character&quot;&gt;Insert a U+FFFD REPLACEMENT CHARACTER character&lt;/a&gt;
++    into the &lt;a href=#current-node&gt;current node&lt;/a&gt;.&lt;/p&gt;
++
++   &lt;/dd&gt;
++
++   &lt;dt&gt;A character token that is one of U+0009 CHARACTER TABULATION,
++   U+000A LINE FEED (LF), U+000C FORM FEED (FF), U+000D CARRIAGE
++   RETURN (CR), or U+0020 SPACE&lt;/dt&gt;
++   &lt;dd&gt;
++
+     &lt;p&gt;&lt;a href=#insert-a-character title=&quot;insert a character&quot;&gt;Insert the token's
+     character&lt;/a&gt; into the &lt;a href=#current-node&gt;current node&lt;/a&gt;.&lt;/p&gt;
+ 
+-    &lt;p&gt;If the token is not one of U+0009 CHARACTER TABULATION, U+000A
+-    LINE FEED (LF), U+000C FORM FEED (FF), U+000D CARRIAGE RETURN
+-    (CR), or U+0020 SPACE, then set the &lt;a href=#frameset-ok-flag&gt;frameset-ok
+-    flag&lt;/a&gt; to &quot;not ok&quot;.&lt;/p&gt;
++   &lt;/dd&gt;
+ 
++   &lt;dt&gt;Any other character token&lt;/dt&gt;
++   &lt;dd&gt;
++
++    &lt;p&gt;&lt;a href=#insert-a-character title=&quot;insert a character&quot;&gt;Insert the token's
++    character&lt;/a&gt; into the &lt;a href=#current-node&gt;current node&lt;/a&gt;.&lt;/p&gt;
++
++    &lt;p&gt;Set the &lt;a href=#frameset-ok-flag&gt;frameset-ok flag&lt;/a&gt; to &quot;not ok&quot;.&lt;/p&gt;
++
+    &lt;/dd&gt;
+ 
+    &lt;dt&gt;A comment token&lt;/dt&gt;
+
+Modified: index
+===================================================================
+--- index	2010-11-02 01:06:04 UTC (rev 5665)
++++ index	2010-11-02 02:08:52 UTC (rev 5666)
+@@ -71417,12 +71417,12 @@
+   motivated by a desire to increase the resilience of user agents in
+   the face of na&iuml;ve transcoders.&lt;/p&gt;
+ 
+-  &lt;p&gt;All U+0000 NULL characters and code points in the range U+D800 to
+-  U+DFFF&lt;!-- surrogates not allowed e.g. in UTF-8, and we don't want
+-  them to suddenly turn into codepoints when they go through a UTF-16
+-  pipe --&gt; in the input must be replaced by U+FFFD REPLACEMENT
+-  CHARACTERs. Any occurrences of such characters and code points are
+-  &lt;a href=#parse-error title=&quot;parse error&quot;&gt;parse errors&lt;/a&gt;.&lt;/p&gt;
++  &lt;p&gt;Code points in the range U+D800 to U+DFFF&lt;!-- surrogates are not
++  allowed e.g. in UTF-8, and we don't want them to suddenly turn into
++  codepoints when they go through a UTF-16 pipe --&gt; in the input must
++  be replaced by U+FFFD REPLACEMENT CHARACTERs. Any occurrences of
++  such characters and code points are &lt;a href=#parse-error title=&quot;parse error&quot;&gt;parse
++  errors&lt;/a&gt;.&lt;/p&gt;
+ 
+   &lt;p&gt;Any occurrences of any characters in the ranges U+0001 to U+0008,
+   &lt;!-- HT, LF allowed --&gt; &lt;!-- U+000B is in the next list --&gt; &lt;!-- FF,
+@@ -72061,6 +72061,10 @@
+    &lt;dt&gt;U+003C LESS-THAN SIGN (&lt;)&lt;/dt&gt;
+    &lt;dd&gt;Switch to the &lt;a href=#tag-open-state&gt;tag open state&lt;/a&gt;.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Emit the &lt;a href=#current-input-character&gt;current input
++   character&lt;/a&gt; as a character token.&lt;/dd&gt;
++
+    &lt;dt&gt;EOF&lt;/dt&gt;
+    &lt;dd&gt;Emit an end-of-file token.&lt;/dd&gt;
+ 
+@@ -72092,6 +72096,10 @@
+    &lt;dt&gt;U+003C LESS-THAN SIGN (&lt;)&lt;/dt&gt;
+    &lt;dd&gt;Switch to the &lt;a href=#rcdata-less-than-sign-state&gt;RCDATA less-than sign state&lt;/a&gt;.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Emit a U+FFFD REPLACEMENT CHARACTER
++   character token.&lt;/dd&gt;
++
+    &lt;dt&gt;EOF&lt;/dt&gt;
+    &lt;dd&gt;Emit an end-of-file token.&lt;/dd&gt;
+ 
+@@ -72119,6 +72127,10 @@
+   &lt;dl class=switch&gt;&lt;dt&gt;U+003C LESS-THAN SIGN (&lt;)&lt;/dt&gt;
+    &lt;dd&gt;Switch to the &lt;a href=#rawtext-less-than-sign-state&gt;RAWTEXT less-than sign state&lt;/a&gt;.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Emit a U+FFFD REPLACEMENT CHARACTER
++   character token.&lt;/dd&gt;
++
+    &lt;dt&gt;EOF&lt;/dt&gt;
+    &lt;dd&gt;Emit an end-of-file token.&lt;/dd&gt;
+ 
+@@ -72133,6 +72145,10 @@
+   &lt;dl class=switch&gt;&lt;dt&gt;U+003C LESS-THAN SIGN (&lt;)&lt;/dt&gt;
+    &lt;dd&gt;Switch to the &lt;a href=#script-data-less-than-sign-state&gt;script data less-than sign state&lt;/a&gt;.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Emit a U+FFFD REPLACEMENT CHARACTER
++   character token.&lt;/dd&gt;
++
+    &lt;dt&gt;EOF&lt;/dt&gt;
+    &lt;dd&gt;Emit an end-of-file token.&lt;/dd&gt;
+ 
+@@ -72144,7 +72160,11 @@
+ 
+   &lt;p&gt;Consume the &lt;a href=#next-input-character&gt;next input character&lt;/a&gt;:&lt;/p&gt;
+ 
+-  &lt;dl class=switch&gt;&lt;dt&gt;EOF&lt;/dt&gt;
++  &lt;dl class=switch&gt;&lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Emit a U+FFFD REPLACEMENT CHARACTER
++   character token.&lt;/dd&gt;
++
++   &lt;dt&gt;EOF&lt;/dt&gt;
+    &lt;dd&gt;Emit an end-of-file token.&lt;/dd&gt;
+ 
+    &lt;dt&gt;Anything else&lt;/dt&gt;
+@@ -72236,6 +72256,10 @@
+    character&lt;/a&gt; (add 0x0020 to the character's code point) to the
+    current tag token's tag name.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Append a U+FFFD REPLACEMENT CHARACTER
++   character to the current tag token's tag name.&lt;/dd&gt;
++
+    &lt;dt&gt;EOF&lt;/dt&gt;
+    &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Reconsume the EOF character in the
+    &lt;a href=#data-state&gt;data state&lt;/a&gt;.&lt;/dd&gt;
+@@ -72542,6 +72566,10 @@
+    &lt;dd&gt;&lt;p&gt;Switch to the &lt;a href=#script-data-escaped-less-than-sign-state&gt;script data escaped less-than sign
+    state&lt;/a&gt;.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Emit a U+FFFD REPLACEMENT CHARACTER
++   character token.&lt;/dd&gt;
++
+    &lt;dt&gt;EOF&lt;/dt&gt;
+    &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Reconsume the EOF character in the
+    &lt;a href=#data-state&gt;data state&lt;/a&gt;.&lt;/dd&gt;
+@@ -72562,6 +72590,11 @@
+    &lt;dd&gt;&lt;p&gt;Switch to the &lt;a href=#script-data-escaped-less-than-sign-state&gt;script data escaped less-than sign
+    state&lt;/a&gt;.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Switch to the &lt;a href=#script-data-escaped-state&gt;script data
++   escaped state&lt;/a&gt;. Emit a U+FFFD REPLACEMENT CHARACTER character
++   token.&lt;/dd&gt;
++
+    &lt;dt&gt;EOF&lt;/dt&gt;
+    &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Reconsume the EOF character in the
+    &lt;a href=#data-state&gt;data state&lt;/a&gt;.&lt;/dd&gt;
+@@ -72585,6 +72618,11 @@
+    &lt;dd&gt;Switch to the &lt;a href=#script-data-state&gt;script data state&lt;/a&gt;. Emit a U+003E
+    GREATER-THAN SIGN character token.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Switch to the &lt;a href=#script-data-escaped-state&gt;script data
++   escaped state&lt;/a&gt;. Emit a U+FFFD REPLACEMENT CHARACTER character
++   token.&lt;/dd&gt;
++
+    &lt;dt&gt;EOF&lt;/dt&gt;
+    &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Reconsume the EOF character in the
+    &lt;a href=#data-state&gt;data state&lt;/a&gt;.&lt;/dd&gt;
+@@ -72735,6 +72773,10 @@
+    sign state&lt;/a&gt;. Emit a U+003C LESS-THAN SIGN character
+    token.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Emit a U+FFFD REPLACEMENT CHARACTER
++   character token.&lt;/dd&gt;
++
+    &lt;dt&gt;EOF&lt;/dt&gt;
+    &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Reconsume the EOF character in the
+    &lt;a href=#data-state&gt;data state&lt;/a&gt;.&lt;/dd&gt;
+@@ -72756,6 +72798,11 @@
+    sign state&lt;/a&gt;. Emit a U+003C LESS-THAN SIGN character
+    token.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Switch to the &lt;a href=#script-data-double-escaped-state&gt;script data
++   double escaped state&lt;/a&gt;. Emit a U+FFFD REPLACEMENT CHARACTER
++   character token.&lt;/dd&gt;
++
+    &lt;dt&gt;EOF&lt;/dt&gt;
+    &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Reconsume the EOF character in the
+    &lt;a href=#data-state&gt;data state&lt;/a&gt;.&lt;/dd&gt;
+@@ -72781,6 +72828,11 @@
+    &lt;dd&gt;Switch to the &lt;a href=#script-data-state&gt;script data state&lt;/a&gt;. Emit a U+003E
+    GREATER-THAN SIGN character token.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Switch to the &lt;a href=#script-data-double-escaped-state&gt;script data
++   double escaped state&lt;/a&gt;. Emit a U+FFFD REPLACEMENT CHARACTER
++   character token.&lt;/dd&gt;
++
+    &lt;dt&gt;EOF&lt;/dt&gt;
+    &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Reconsume the EOF character in the
+    &lt;a href=#data-state&gt;data state&lt;/a&gt;.&lt;/dd&gt;
+@@ -72859,6 +72911,12 @@
+    value to the empty string. Switch to the &lt;a href=#attribute-name-state&gt;attribute name
+    state&lt;/a&gt;.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Start a new attribute in the current
++   tag token. Set that attribute's name to a U+FFFD REPLACEMENT
++   CHARACTER character, and its value to the empty string. Switch to
++   the &lt;a href=#attribute-name-state&gt;attribute name state&lt;/a&gt;.&lt;/dd&gt;
++
+    &lt;dt&gt;U+0022 QUOTATION MARK (&quot;)&lt;/dt&gt;
+    &lt;dt&gt;U+0027 APOSTROPHE (')&lt;/dt&gt;
+    &lt;dt&gt;U+003C LESS-THAN SIGN (&lt;)&lt;/dt&gt;
+@@ -72872,8 +72930,8 @@
+ 
+    &lt;dt&gt;Anything else&lt;/dt&gt;
+    &lt;dd&gt;Start a new attribute in the current tag token. Set that
+-   attribute's name to the &lt;a href=#current-input-character&gt;current input character&lt;/a&gt;, and its value to
+-   the empty string. Switch to the &lt;a href=#attribute-name-state&gt;attribute name
++   attribute's name to the &lt;a href=#current-input-character&gt;current input character&lt;/a&gt;, and
++   its value to the empty string. Switch to the &lt;a href=#attribute-name-state&gt;attribute name
+    state&lt;/a&gt;.&lt;/dd&gt;
+ 
+   &lt;/dl&gt;&lt;h5 id=attribute-name-state&gt;&lt;span class=secno&gt;10.2.4.35 &lt;/span&gt;&lt;dfn&gt;Attribute name state&lt;/dfn&gt;&lt;/h5&gt;
+@@ -72902,6 +72960,10 @@
+    character&lt;/a&gt; (add 0x0020 to the character's code point) to the
+    current attribute's name.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Append a U+FFFD REPLACEMENT CHARACTER
++   character to the current attribute's name.&lt;/dd&gt;
++
+    &lt;dt&gt;U+0022 QUOTATION MARK (&quot;)&lt;/dt&gt;
+    &lt;dt&gt;U+0027 APOSTROPHE (')&lt;/dt&gt;
+    &lt;dt&gt;U+003C LESS-THAN SIGN (&lt;)&lt;/dt&gt;
+@@ -72953,6 +73015,12 @@
+    and its value to the empty string. Switch to the &lt;a href=#attribute-name-state&gt;attribute
+    name state&lt;/a&gt;.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Start a new attribute in the current
++   tag token. Set that attribute's name to a U+FFFD REPLACEMENT
++   CHARACTER character, and its value to the empty string. Switch to
++   the &lt;a href=#attribute-name-state&gt;attribute name state&lt;/a&gt;.&lt;/dd&gt;
++
+    &lt;dt&gt;U+0022 QUOTATION MARK (&quot;)&lt;/dt&gt;
+    &lt;dt&gt;U+0027 APOSTROPHE (')&lt;/dt&gt;
+    &lt;dt&gt;U+003C LESS-THAN SIGN (&lt;)&lt;/dt&gt;
+@@ -72990,6 +73058,11 @@
+    &lt;dt&gt;U+0027 APOSTROPHE (')&lt;/dt&gt;
+    &lt;dd&gt;Switch to the &lt;a href=#attribute-value-(single-quoted)-state&gt;attribute value (single-quoted) state&lt;/a&gt;.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Append a U+FFFD REPLACEMENT CHARACTER
++   character to the current attribute's value. Switch to the
++   &lt;a href=#attribute-value-(unquoted)-state&gt;attribute value (unquoted) state&lt;/a&gt;.&lt;/dd&gt;
++
+    &lt;dt&gt;U+003E GREATER-THAN SIGN (&gt;)&lt;/dt&gt;
+    &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Switch to the &lt;a href=#data-state&gt;data
+    state&lt;/a&gt;. Emit the current tag token.&lt;/dd&gt;
+@@ -73022,6 +73095,10 @@
+    state&lt;/a&gt;, with the &lt;a href=#additional-allowed-character&gt;additional allowed character&lt;/a&gt;
+    being U+0022 QUOTATION MARK (&quot;).&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Append a U+FFFD REPLACEMENT CHARACTER
++   character to the current attribute's value.&lt;/dd&gt;
++
+    &lt;dt&gt;EOF&lt;/dt&gt;
+    &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Reconsume the EOF character in the
+    &lt;a href=#data-state&gt;data state&lt;/a&gt;.&lt;/dd&gt;
+@@ -73071,6 +73148,10 @@
+    &lt;dd&gt;Switch to the &lt;a href=#data-state&gt;data state&lt;/a&gt;. Emit the current tag
+    token.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Append a U+FFFD REPLACEMENT CHARACTER
++   character to the current attribute's value.&lt;/dd&gt;
++
+    &lt;dt&gt;U+0022 QUOTATION MARK (&quot;)&lt;/dt&gt;
+    &lt;dt&gt;U+0027 APOSTROPHE (')&lt;/dt&gt;
+    &lt;dt&gt;U+003C LESS-THAN SIGN (&lt;)&lt;/dt&gt;
+@@ -73149,12 +73230,13 @@
+   &lt;p&gt;Consume every character up to and including the first U+003E
+   GREATER-THAN SIGN character (&gt;) or the end of the file (EOF),
+   whichever comes first. Emit a comment token whose data is the
+-  concatenation of all the characters starting from and including
+-  the character that caused the state machine to switch into the
+-  bogus comment state, up to and including the character immediately
+-  before the last consumed character (i.e. up to the character just
+-  before the U+003E or EOF character). (If the comment was started
+-  by the end of the file (EOF), the token is empty.)&lt;/p&gt;
++  concatenation of all the characters starting from and including the
++  character that caused the state machine to switch into the bogus
++  comment state, up to and including the character immediately before
++  the last consumed character (i.e. up to the character just before
++  the U+003E or EOF character), but with any U+0000 NULL characters
++  replaced by U+FFFD REPLACEMENT CHARACTER characters. (If the comment
++  was started by the end of the file (EOF), the token is empty.)&lt;/p&gt;
+ 
+   &lt;p&gt;Switch to the &lt;a href=#data-state&gt;data state&lt;/a&gt;.&lt;/p&gt;
+ 
+@@ -73194,6 +73276,11 @@
+   &lt;dl class=switch&gt;&lt;dt&gt;U+002D HYPHEN-MINUS (-)&lt;/dt&gt;
+    &lt;dd&gt;Switch to the &lt;a href=#comment-start-dash-state&gt;comment start dash state&lt;/a&gt;.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Append a U+FFFD REPLACEMENT CHARACTER
++   character to the comment token's data. Switch to the &lt;a href=#comment-state&gt;comment
++   state&lt;/a&gt;.&lt;/dd&gt;
++
+    &lt;dt&gt;U+003E GREATER-THAN SIGN (&gt;)&lt;/dt&gt;
+    &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Switch to the &lt;a href=#data-state&gt;data
+    state&lt;/a&gt;. Emit the comment token.&lt;/dd&gt; &lt;!-- see comment in
+@@ -73214,6 +73301,12 @@
+   &lt;dl class=switch&gt;&lt;dt&gt;U+002D HYPHEN-MINUS (-)&lt;/dt&gt;
+    &lt;dd&gt;Switch to the &lt;a href=#comment-end-state&gt;comment end state&lt;/a&gt;&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Append a U+002D HYPHEN-MINUS
++   character (-) and a U+FFFD REPLACEMENT CHARACTER character to the
++   comment token's data. Switch to the &lt;a href=#comment-state&gt;comment
++   state&lt;/a&gt;.&lt;/dd&gt;
++
+    &lt;dt&gt;U+003E GREATER-THAN SIGN (&gt;)&lt;/dt&gt;
+    &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Switch to the &lt;a href=#data-state&gt;data
+    state&lt;/a&gt;. Emit the comment token.&lt;/dd&gt;
+@@ -73235,6 +73328,10 @@
+   &lt;dl class=switch&gt;&lt;dt&gt;U+002D HYPHEN-MINUS (-)&lt;/dt&gt;
+    &lt;dd&gt;Switch to the &lt;a href=#comment-end-dash-state&gt;comment end dash state&lt;/a&gt;&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Append a U+FFFD REPLACEMENT CHARACTER
++   character to the comment token's data.&lt;/dd&gt;
++
+    &lt;dt&gt;EOF&lt;/dt&gt;
+    &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Emit the comment token. Reconsume the
+    EOF character in the &lt;a href=#data-state&gt;data state&lt;/a&gt;.&lt;/dd&gt; &lt;!-- see comment
+@@ -73251,6 +73348,12 @@
+   &lt;dl class=switch&gt;&lt;dt&gt;U+002D HYPHEN-MINUS (-)&lt;/dt&gt;
+    &lt;dd&gt;Switch to the &lt;a href=#comment-end-state&gt;comment end state&lt;/a&gt;&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Append a U+002D HYPHEN-MINUS
++   character (-) and a U+FFFD REPLACEMENT CHARACTER character to the
++   comment token's data. Switch to the &lt;a href=#comment-state&gt;comment
++   state&lt;/a&gt;.&lt;/dd&gt;
++
+    &lt;dt&gt;EOF&lt;/dt&gt;
+    &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Emit the comment token. Reconsume the
+    EOF character in the &lt;a href=#data-state&gt;data state&lt;/a&gt;.&lt;/dd&gt; &lt;!-- see comment
+@@ -73269,6 +73372,12 @@
+    &lt;dd&gt;Switch to the &lt;a href=#data-state&gt;data state&lt;/a&gt;. Emit the comment
+    token.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Append two U+002D HYPHEN-MINUS
++   characters (-) and a U+FFFD REPLACEMENT CHARACTER character to the
++   comment token's data. Switch to the &lt;a href=#comment-state&gt;comment
++   state&lt;/a&gt;.&lt;/dd&gt;
++
+    &lt;dt&gt;U+0021 EXCLAMATION MARK (!)&lt;/dt&gt;
+    &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Switch to the &lt;a href=#comment-end-bang-state&gt;comment end bang
+    state&lt;/a&gt;.&lt;/dd&gt;
+@@ -73304,6 +73413,12 @@
+    &lt;dd&gt;Switch to the &lt;a href=#data-state&gt;data state&lt;/a&gt;. Emit the comment
+    token.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Append two U+002D HYPHEN-MINUS
++   characters (-), a U+0021 EXCLAMATION MARK character (!), and a
++   U+FFFD REPLACEMENT CHARACTER character to the comment token's data.
++   Switch to the &lt;a href=#comment-state&gt;comment state&lt;/a&gt;.&lt;/dd&gt;
++
+    &lt;dt&gt;EOF&lt;/dt&gt;
+    &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Emit the comment token. Reconsume
+    the EOF character in the &lt;a href=#data-state&gt;data state&lt;/a&gt;.&lt;/dd&gt; &lt;!-- see
+@@ -73352,6 +73467,11 @@
+    character's code point). Switch to the &lt;a href=#doctype-name-state&gt;DOCTYPE name
+    state&lt;/a&gt;.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Set the token's name to a U+FFFD
++   REPLACEMENT CHARACTER character. Switch to the &lt;a href=#doctype-name-state&gt;DOCTYPE name
++   state&lt;/a&gt;.&lt;/dd&gt;
++
+    &lt;dt&gt;U+003E GREATER-THAN SIGN (&gt;)&lt;/dt&gt;
+    &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Create a new DOCTYPE token. Set its
+    &lt;i&gt;force-quirks flag&lt;/i&gt; to &lt;i&gt;on&lt;/i&gt;. Switch to the &lt;a href=#data-state&gt;data
+@@ -73387,6 +73507,10 @@
+    character&lt;/a&gt; (add 0x0020 to the character's code point) to the
+    current DOCTYPE token's name.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Append a U+FFFD REPLACEMENT CHARACTER
++   character to the current DOCTYPE token's name.&lt;/dd&gt;
++
+    &lt;dt&gt;EOF&lt;/dt&gt;
+    &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Set the DOCTYPE token's
+    &lt;i&gt;force-quirks flag&lt;/i&gt; to &lt;i&gt;on&lt;/i&gt;. Emit that DOCTYPE token.
+@@ -73516,6 +73640,10 @@
+   &lt;dl class=switch&gt;&lt;dt&gt;U+0022 QUOTATION MARK (&quot;)&lt;/dt&gt;
+    &lt;dd&gt;Switch to the &lt;a href=#after-doctype-public-identifier-state&gt;after DOCTYPE public identifier state&lt;/a&gt;.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Append a U+FFFD REPLACEMENT CHARACTER
++   character to the current DOCTYPE token's public identifier.&lt;/dd&gt;
++
+    &lt;dt&gt;U+003E GREATER-THAN SIGN (&gt;)&lt;/dt&gt;
+    &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Set the DOCTYPE token's
+    &lt;i&gt;force-quirks flag&lt;/i&gt; to &lt;i&gt;on&lt;/i&gt;. Switch to the &lt;a href=#data-state&gt;data
+@@ -73527,8 +73655,8 @@
+    Reconsume the EOF character in the &lt;a href=#data-state&gt;data state&lt;/a&gt;.&lt;/dd&gt;
+ 
+    &lt;dt&gt;Anything else&lt;/dt&gt;
+-   &lt;dd&gt;Append the &lt;a href=#current-input-character&gt;current input character&lt;/a&gt; to the current DOCTYPE
+-   token's public identifier.&lt;/dd&gt;
++   &lt;dd&gt;Append the &lt;a href=#current-input-character&gt;current input character&lt;/a&gt; to the current
++   DOCTYPE token's public identifier.&lt;/dd&gt;
+ 
+   &lt;/dl&gt;&lt;h5 id=doctype-public-identifier-(single-quoted)-state&gt;&lt;span class=secno&gt;10.2.4.59 &lt;/span&gt;&lt;dfn&gt;DOCTYPE public identifier (single-quoted) state&lt;/dfn&gt;&lt;/h5&gt;
+ 
+@@ -73537,6 +73665,10 @@
+   &lt;dl class=switch&gt;&lt;dt&gt;U+0027 APOSTROPHE (')&lt;/dt&gt;
+    &lt;dd&gt;Switch to the &lt;a href=#after-doctype-public-identifier-state&gt;after DOCTYPE public identifier state&lt;/a&gt;.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Append a U+FFFD REPLACEMENT CHARACTER
++   character to the current DOCTYPE token's public identifier.&lt;/dd&gt;
++
+    &lt;dt&gt;U+003E GREATER-THAN SIGN (&gt;)&lt;/dt&gt;
+    &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Set the DOCTYPE token's
+    &lt;i&gt;force-quirks flag&lt;/i&gt; to &lt;i&gt;on&lt;/i&gt;. Switch to the &lt;a href=#data-state&gt;data
+@@ -73548,8 +73680,8 @@
+    Reconsume the EOF character in the &lt;a href=#data-state&gt;data state&lt;/a&gt;.&lt;/dd&gt;
+ 
+    &lt;dt&gt;Anything else&lt;/dt&gt;
+-   &lt;dd&gt;Append the &lt;a href=#current-input-character&gt;current input character&lt;/a&gt; to the current DOCTYPE
+-   token's public identifier.&lt;/dd&gt;
++   &lt;dd&gt;Append the &lt;a href=#current-input-character&gt;current input character&lt;/a&gt; to the current
++   DOCTYPE token's public identifier.&lt;/dd&gt;
+ 
+   &lt;/dl&gt;&lt;h5 id=after-doctype-public-identifier-state&gt;&lt;span class=secno&gt;10.2.4.60 &lt;/span&gt;&lt;dfn&gt;After DOCTYPE public identifier state&lt;/dfn&gt;&lt;/h5&gt;
+ 
+@@ -73703,6 +73835,10 @@
+    &lt;dd&gt;Switch to the &lt;a href=#after-doctype-system-identifier-state&gt;after DOCTYPE system identifier
+    state&lt;/a&gt;.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Append a U+FFFD REPLACEMENT CHARACTER
++   character to the current DOCTYPE token's system identifier.&lt;/dd&gt;
++
+    &lt;dt&gt;U+003E GREATER-THAN SIGN (&gt;)&lt;/dt&gt;
+    &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Set the DOCTYPE token's
+    &lt;i&gt;force-quirks flag&lt;/i&gt; to &lt;i&gt;on&lt;/i&gt;. Switch to the &lt;a href=#data-state&gt;data
+@@ -73725,6 +73861,10 @@
+    &lt;dd&gt;Switch to the &lt;a href=#after-doctype-system-identifier-state&gt;after DOCTYPE system identifier
+    state&lt;/a&gt;.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Append a U+FFFD REPLACEMENT CHARACTER
++   character to the current DOCTYPE token's system identifier.&lt;/dd&gt;
++
+    &lt;dt&gt;U+003E GREATER-THAN SIGN (&gt;)&lt;/dt&gt;
+    &lt;dd&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Set the DOCTYPE token's
+    &lt;i&gt;force-quirks flag&lt;/i&gt; to &lt;i&gt;on&lt;/i&gt;. Switch to the &lt;a href=#data-state&gt;data
+@@ -73787,7 +73927,9 @@
+   end of the file (EOF), whichever comes first. Emit a series of
+   character tokens consisting of all the characters consumed except
+   the matching three character sequence at the end (if one was found
+-  before the end of the file).&lt;/p&gt;
++  before the end of the file)&lt;!--(not needed; taken care of by the
++  tree constructor), but with any U+0000 NULL characters replaced by
++  U+FFFD REPLACEMENT CHARACTER characters--&gt;.&lt;/p&gt;
+ 
+   &lt;p&gt;Switch to the &lt;a href=#data-state&gt;data state&lt;/a&gt;.&lt;/p&gt;
+ 
+@@ -74982,29 +75124,44 @@
+   &lt;p&gt;When the &lt;a href=#insertion-mode&gt;insertion mode&lt;/a&gt; is &quot;&lt;a href=#parsing-main-inbody title=&quot;insertion
+   mode: in body&quot;&gt;in body&lt;/a&gt;&quot;, tokens must be handled as follows:&lt;/p&gt;
+ 
+-  &lt;dl class=switch&gt;&lt;dt&gt;A character token&lt;/dt&gt;
++  &lt;dl class=switch&gt;&lt;dt&gt;A character token that is U+0000 NULL&lt;/dt&gt;
+    &lt;dd&gt;
+ 
++    &lt;p&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Ignore the token.&lt;/p&gt;
++
++    &lt;!-- The D-Link DSL-G604T ADSL router has a zero byte in its
++         configuration UI before a &lt;frameset&gt;, which is why U+0000 is
++         special-cased here.
++         refs: <A HREF="https://bugzilla.mozilla.org/show_bug.cgi?id=563526">https://bugzilla.mozilla.org/show_bug.cgi?id=563526</A>
++               <A HREF="http://www.w3.org/Bugs/Public/show_bug.cgi?id=9659">http://www.w3.org/Bugs/Public/show_bug.cgi?id=9659</A>
++    --&gt;
++
++   &lt;/dd&gt;
++
++   &lt;dt&gt;A character token that is one of U+0009 CHARACTER TABULATION,
++   U+000A LINE FEED (LF), U+000C FORM FEED (FF), U+000D CARRIAGE
++   RETURN (CR), or U+0020 SPACE&lt;/dt&gt;
++   &lt;dd&gt;
++
+     &lt;p&gt;&lt;a href=#reconstruct-the-active-formatting-elements&gt;Reconstruct the active formatting elements&lt;/a&gt;, if
+     any.&lt;/p&gt;
+ 
+     &lt;p&gt;&lt;a href=#insert-a-character title=&quot;insert a character&quot;&gt;Insert the token's
+     character&lt;/a&gt; into the &lt;a href=#current-node&gt;current node&lt;/a&gt;.&lt;/p&gt;
+ 
+-    &lt;p&gt;If the token is not one of U+0009 CHARACTER TABULATION, U+000A
+-    LINE FEED (LF), U+000C FORM FEED (FF), U+000D CARRIAGE RETURN
+-    (CR), U+0020 SPACE, or U+FFFD REPLACEMENT CHARACTER, then set the
+-    &lt;a href=#frameset-ok-flag&gt;frameset-ok flag&lt;/a&gt; to &quot;not ok&quot;.&lt;/p&gt;
++   &lt;/dd&gt;
+ 
+-    &lt;!-- U+FFFD REPLACEMENT CHARACTER is in this list because the
+-         D-Link DSL-G604T ADSL router has a zero byte in its
+-         configuration UI before a &lt;frameset&gt;. Zero bytes get
+-         converted to U+FFFD, which (without that character in this
+-         list) would mean the &lt;frameset&gt; would be ignored.
+-         refs: <A HREF="https://bugzilla.mozilla.org/show_bug.cgi?id=563526">https://bugzilla.mozilla.org/show_bug.cgi?id=563526</A>
+-               <A HREF="http://www.w3.org/Bugs/Public/show_bug.cgi?id=9659">http://www.w3.org/Bugs/Public/show_bug.cgi?id=9659</A>
+-    --&gt;
++   &lt;dt&gt;Any other character token&lt;/dt&gt;
++   &lt;dd&gt;
+ 
++    &lt;p&gt;&lt;a href=#reconstruct-the-active-formatting-elements&gt;Reconstruct the active formatting elements&lt;/a&gt;, if
++    any.&lt;/p&gt;
++
++    &lt;p&gt;&lt;a href=#insert-a-character title=&quot;insert a character&quot;&gt;Insert the token's
++    character&lt;/a&gt; into the &lt;a href=#current-node&gt;current node&lt;/a&gt;.&lt;/p&gt;
++
++    &lt;p&gt;Set the &lt;a href=#frameset-ok-flag&gt;frameset-ok flag&lt;/a&gt; to &quot;not ok&quot;.&lt;/p&gt;
++
+    &lt;/dd&gt;
+ 
+    &lt;dt&gt;A comment token&lt;/dt&gt;
+@@ -76226,6 +76383,10 @@
+     &lt;p&gt;&lt;a href=#insert-a-character title=&quot;insert a character&quot;&gt;Insert the token's
+     character&lt;/a&gt; into the &lt;a href=#current-node&gt;current node&lt;/a&gt;.&lt;/p&gt;
+ 
++    &lt;p class=note&gt;This can never be a U+0000 NULL character; the
++    tokenizer converts those to U+FFFD REPLACEMENT CHARACTER
++    characters.&lt;/p&gt;
++
+    &lt;/dd&gt;
+ 
+    &lt;dt&gt;An end-of-file token&lt;/dt&gt;
+@@ -77022,8 +77183,13 @@
+   &lt;p&gt;When the &lt;a href=#insertion-mode&gt;insertion mode&lt;/a&gt; is &quot;&lt;a href=#parsing-main-inselect title=&quot;insertion
+   mode: in select&quot;&gt;in select&lt;/a&gt;&quot;, tokens must be handled as follows:&lt;/p&gt;
+ 
+-  &lt;dl class=switch&gt;&lt;dt&gt;A character token&lt;/dt&gt;
++  &lt;dl class=switch&gt;&lt;dt&gt;A character token that is U+0000 NULL&lt;/dt&gt;
+    &lt;dd&gt;
++    &lt;p&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. Ignore the token.&lt;/p&gt;
++   &lt;/dd&gt;
++
++   &lt;dt&gt;Any other character token&lt;/dt&gt;
++   &lt;dd&gt;
+     &lt;p&gt;&lt;a href=#insert-a-character title=&quot;insert a character&quot;&gt;Insert the token's
+     character&lt;/a&gt; into the &lt;a href=#current-node&gt;current node&lt;/a&gt;.&lt;/p&gt;
+    &lt;/dd&gt;
+@@ -77223,17 +77389,33 @@
+ 
+     &lt;/ol&gt;&lt;/dd&gt;
+ 
+-   &lt;dt&gt;A character token&lt;/dt&gt;
++   &lt;dt&gt;A character token that is U+0000 NULL&lt;/dt&gt;
+    &lt;dd&gt;
+ 
++    &lt;p&gt;&lt;a href=#parse-error&gt;Parse error&lt;/a&gt;. &lt;a href=#insert-a-character title=&quot;insert a
++    character&quot;&gt;Insert a U+FFFD REPLACEMENT CHARACTER character&lt;/a&gt;
++    into the &lt;a href=#current-node&gt;current node&lt;/a&gt;.&lt;/p&gt;
++
++   &lt;/dd&gt;
++
++   &lt;dt&gt;A character token that is one of U+0009 CHARACTER TABULATION,
++   U+000A LINE FEED (LF), U+000C FORM FEED (FF), U+000D CARRIAGE
++   RETURN (CR), or U+0020 SPACE&lt;/dt&gt;
++   &lt;dd&gt;
++
+     &lt;p&gt;&lt;a href=#insert-a-character title=&quot;insert a character&quot;&gt;Insert the token's
+     character&lt;/a&gt; into the &lt;a href=#current-node&gt;current node&lt;/a&gt;.&lt;/p&gt;
+ 
+-    &lt;p&gt;If the token is not one of U+0009 CHARACTER TABULATION, U+000A
+-    LINE FEED (LF), U+000C FORM FEED (FF), U+000D CARRIAGE RETURN
+-    (CR), or U+0020 SPACE, then set the &lt;a href=#frameset-ok-flag&gt;frameset-ok
+-    flag&lt;/a&gt; to &quot;not ok&quot;.&lt;/p&gt;
++   &lt;/dd&gt;
+ 
++   &lt;dt&gt;Any other character token&lt;/dt&gt;
++   &lt;dd&gt;
++
++    &lt;p&gt;&lt;a href=#insert-a-character title=&quot;insert a character&quot;&gt;Insert the token's
++    character&lt;/a&gt; into the &lt;a href=#current-node&gt;current node&lt;/a&gt;.&lt;/p&gt;
++
++    &lt;p&gt;Set the &lt;a href=#frameset-ok-flag&gt;frameset-ok flag&lt;/a&gt; to &quot;not ok&quot;.&lt;/p&gt;
++
+    &lt;/dd&gt;
+ 
+    &lt;dt&gt;A comment token&lt;/dt&gt;
+
+Modified: source
+===================================================================
+--- source	2010-11-02 01:06:04 UTC (rev 5665)
++++ source	2010-11-02 02:08:52 UTC (rev 5666)
+@@ -86658,12 +86658,12 @@
+   motivated by a desire to increase the resilience of user agents in
+   the face of na&iuml;ve transcoders.&lt;/p&gt;
+ 
+-  &lt;p&gt;All U+0000 NULL characters and code points in the range U+D800 to
+-  U+DFFF&lt;!-- surrogates not allowed e.g. in UTF-8, and we don't want
+-  them to suddenly turn into codepoints when they go through a UTF-16
+-  pipe --&gt; in the input must be replaced by U+FFFD REPLACEMENT
+-  CHARACTERs. Any occurrences of such characters and code points are
+-  &lt;span title=&quot;parse error&quot;&gt;parse errors&lt;/span&gt;.&lt;/p&gt;
++  &lt;p&gt;Code points in the range U+D800 to U+DFFF&lt;!-- surrogates are not
++  allowed e.g. in UTF-8, and we don't want them to suddenly turn into
++  codepoints when they go through a UTF-16 pipe --&gt; in the input must
++  be replaced by U+FFFD REPLACEMENT CHARACTERs. Any occurrences of
++  such characters and code points are &lt;span title=&quot;parse error&quot;&gt;parse
++  errors&lt;/span&gt;.&lt;/p&gt;
+ 
+   &lt;p&gt;Any occurrences of any characters in the ranges U+0001 to U+0008,
+   &lt;!-- HT, LF allowed --&gt; &lt;!-- U+000B is in the next list --&gt; &lt;!-- FF,
+@@ -87399,6 +87399,10 @@
+    &lt;dt&gt;U+003C LESS-THAN SIGN (&lt;)&lt;/dt&gt;
+    &lt;dd&gt;Switch to the &lt;span&gt;tag open state&lt;/span&gt;.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;span&gt;Parse error&lt;/span&gt;. Emit the &lt;span&gt;current input
++   character&lt;/span&gt; as a character token.&lt;/dd&gt;
++
+    &lt;dt&gt;EOF&lt;/dt&gt;
+    &lt;dd&gt;Emit an end-of-file token.&lt;/dd&gt;
+ 
+@@ -87435,6 +87439,10 @@
+    &lt;dt&gt;U+003C LESS-THAN SIGN (&lt;)&lt;/dt&gt;
+    &lt;dd&gt;Switch to the &lt;span&gt;RCDATA less-than sign state&lt;/span&gt;.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;span&gt;Parse error&lt;/span&gt;. Emit a U+FFFD REPLACEMENT CHARACTER
++   character token.&lt;/dd&gt;
++
+    &lt;dt&gt;EOF&lt;/dt&gt;
+    &lt;dd&gt;Emit an end-of-file token.&lt;/dd&gt;
+ 
+@@ -87467,6 +87475,10 @@
+    &lt;dt&gt;U+003C LESS-THAN SIGN (&lt;)&lt;/dt&gt;
+    &lt;dd&gt;Switch to the &lt;span&gt;RAWTEXT less-than sign state&lt;/span&gt;.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;span&gt;Parse error&lt;/span&gt;. Emit a U+FFFD REPLACEMENT CHARACTER
++   character token.&lt;/dd&gt;
++
+    &lt;dt&gt;EOF&lt;/dt&gt;
+    &lt;dd&gt;Emit an end-of-file token.&lt;/dd&gt;
+ 
+@@ -87486,6 +87498,10 @@
+    &lt;dt&gt;U+003C LESS-THAN SIGN (&lt;)&lt;/dt&gt;
+    &lt;dd&gt;Switch to the &lt;span&gt;script data less-than sign state&lt;/span&gt;.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;span&gt;Parse error&lt;/span&gt;. Emit a U+FFFD REPLACEMENT CHARACTER
++   character token.&lt;/dd&gt;
++
+    &lt;dt&gt;EOF&lt;/dt&gt;
+    &lt;dd&gt;Emit an end-of-file token.&lt;/dd&gt;
+ 
+@@ -87502,6 +87518,10 @@
+ 
+   &lt;dl class=&quot;switch&quot;&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;span&gt;Parse error&lt;/span&gt;. Emit a U+FFFD REPLACEMENT CHARACTER
++   character token.&lt;/dd&gt;
++
+    &lt;dt&gt;EOF&lt;/dt&gt;
+    &lt;dd&gt;Emit an end-of-file token.&lt;/dd&gt;
+ 
+@@ -87609,6 +87629,10 @@
+    character&lt;/span&gt; (add 0x0020 to the character's code point) to the
+    current tag token's tag name.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;span&gt;Parse error&lt;/span&gt;. Append a U+FFFD REPLACEMENT CHARACTER
++   character to the current tag token's tag name.&lt;/dd&gt;
++
+    &lt;dt&gt;EOF&lt;/dt&gt;
+    &lt;dd&gt;&lt;span&gt;Parse error&lt;/span&gt;. Reconsume the EOF character in the
+    &lt;span&gt;data state&lt;/span&gt;.&lt;/dd&gt;
+@@ -87975,6 +87999,10 @@
+    &lt;dd&gt;&lt;p&gt;Switch to the &lt;span&gt;script data escaped less-than sign
+    state&lt;/span&gt;.&lt;/p&gt;&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;span&gt;Parse error&lt;/span&gt;. Emit a U+FFFD REPLACEMENT CHARACTER
++   character token.&lt;/dd&gt;
++
+    &lt;dt&gt;EOF&lt;/dt&gt;
+    &lt;dd&gt;&lt;span&gt;Parse error&lt;/span&gt;. Reconsume the EOF character in the
+    &lt;span&gt;data state&lt;/span&gt;.&lt;/dd&gt;
+@@ -88000,6 +88028,11 @@
+    &lt;dd&gt;&lt;p&gt;Switch to the &lt;span&gt;script data escaped less-than sign
+    state&lt;/span&gt;.&lt;/p&gt;&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;span&gt;Parse error&lt;/span&gt;. Switch to the &lt;span&gt;script data
++   escaped state&lt;/span&gt;. Emit a U+FFFD REPLACEMENT CHARACTER character
++   token.&lt;/dd&gt;
++
+    &lt;dt&gt;EOF&lt;/dt&gt;
+    &lt;dd&gt;&lt;span&gt;Parse error&lt;/span&gt;. Reconsume the EOF character in the
+    &lt;span&gt;data state&lt;/span&gt;.&lt;/dd&gt;
+@@ -88028,6 +88061,11 @@
+    &lt;dd&gt;Switch to the &lt;span&gt;script data state&lt;/span&gt;. Emit a U+003E
+    GREATER-THAN SIGN character token.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;span&gt;Parse error&lt;/span&gt;. Switch to the &lt;span&gt;script data
++   escaped state&lt;/span&gt;. Emit a U+FFFD REPLACEMENT CHARACTER character
++   token.&lt;/dd&gt;
++
+    &lt;dt&gt;EOF&lt;/dt&gt;
+    &lt;dd&gt;&lt;span&gt;Parse error&lt;/span&gt;. Reconsume the EOF character in the
+    &lt;span&gt;data state&lt;/span&gt;.&lt;/dd&gt;
+@@ -88204,6 +88242,10 @@
+    sign state&lt;/span&gt;. Emit a U+003C LESS-THAN SIGN character
+    token.&lt;/p&gt;&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;span&gt;Parse error&lt;/span&gt;. Emit a U+FFFD REPLACEMENT CHARACTER
++   character token.&lt;/dd&gt;
++
+    &lt;dt&gt;EOF&lt;/dt&gt;
+    &lt;dd&gt;&lt;span&gt;Parse error&lt;/span&gt;. Reconsume the EOF character in the
+    &lt;span&gt;data state&lt;/span&gt;.&lt;/dd&gt;
+@@ -88230,6 +88272,11 @@
+    sign state&lt;/span&gt;. Emit a U+003C LESS-THAN SIGN character
+    token.&lt;/p&gt;&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;span&gt;Parse error&lt;/span&gt;. Switch to the &lt;span&gt;script data
++   double escaped state&lt;/span&gt;. Emit a U+FFFD REPLACEMENT CHARACTER
++   character token.&lt;/dd&gt;
++
+    &lt;dt&gt;EOF&lt;/dt&gt;
+    &lt;dd&gt;&lt;span&gt;Parse error&lt;/span&gt;. Reconsume the EOF character in the
+    &lt;span&gt;data state&lt;/span&gt;.&lt;/dd&gt;
+@@ -88260,6 +88307,11 @@
+    &lt;dd&gt;Switch to the &lt;span&gt;script data state&lt;/span&gt;. Emit a U+003E
+    GREATER-THAN SIGN character token.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;span&gt;Parse error&lt;/span&gt;. Switch to the &lt;span&gt;script data
++   double escaped state&lt;/span&gt;. Emit a U+FFFD REPLACEMENT CHARACTER
++   character token.&lt;/dd&gt;
++
+    &lt;dt&gt;EOF&lt;/dt&gt;
+    &lt;dd&gt;&lt;span&gt;Parse error&lt;/span&gt;. Reconsume the EOF character in the
+    &lt;span&gt;data state&lt;/span&gt;.&lt;/dd&gt;
+@@ -88354,6 +88406,12 @@
+    value to the empty string. Switch to the &lt;span&gt;attribute name
+    state&lt;/span&gt;.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;span&gt;Parse error&lt;/span&gt;. Start a new attribute in the current
++   tag token. Set that attribute's name to a U+FFFD REPLACEMENT
++   CHARACTER character, and its value to the empty string. Switch to
++   the &lt;span&gt;attribute name state&lt;/span&gt;.&lt;/dd&gt;
++
+    &lt;dt&gt;U+0022 QUOTATION MARK (&quot;)&lt;/dt&gt;
+    &lt;dt&gt;U+0027 APOSTROPHE (')&lt;/dt&gt;
+    &lt;dt&gt;U+003C LESS-THAN SIGN (&lt;)&lt;/dt&gt;
+@@ -88367,8 +88425,8 @@
+ 
+    &lt;dt&gt;Anything else&lt;/dt&gt;
+    &lt;dd&gt;Start a new attribute in the current tag token. Set that
+-   attribute's name to the &lt;span&gt;current input character&lt;/span&gt;, and its value to
+-   the empty string. Switch to the &lt;span&gt;attribute name
++   attribute's name to the &lt;span&gt;current input character&lt;/span&gt;, and
++   its value to the empty string. Switch to the &lt;span&gt;attribute name
+    state&lt;/span&gt;.&lt;/dd&gt;
+ 
+   &lt;/dl&gt;
+@@ -88402,6 +88460,10 @@
+    character&lt;/span&gt; (add 0x0020 to the character's code point) to the
+    current attribute's name.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;span&gt;Parse error&lt;/span&gt;. Append a U+FFFD REPLACEMENT CHARACTER
++   character to the current attribute's name.&lt;/dd&gt;
++
+    &lt;dt&gt;U+0022 QUOTATION MARK (&quot;)&lt;/dt&gt;
+    &lt;dt&gt;U+0027 APOSTROPHE (')&lt;/dt&gt;
+    &lt;dt&gt;U+003C LESS-THAN SIGN (&lt;)&lt;/dt&gt;
+@@ -88457,6 +88519,12 @@
+    and its value to the empty string. Switch to the &lt;span&gt;attribute
+    name state&lt;/span&gt;.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;span&gt;Parse error&lt;/span&gt;. Start a new attribute in the current
++   tag token. Set that attribute's name to a U+FFFD REPLACEMENT
++   CHARACTER character, and its value to the empty string. Switch to
++   the &lt;span&gt;attribute name state&lt;/span&gt;.&lt;/dd&gt;
++
+    &lt;dt&gt;U+0022 QUOTATION MARK (&quot;)&lt;/dt&gt;
+    &lt;dt&gt;U+0027 APOSTROPHE (')&lt;/dt&gt;
+    &lt;dt&gt;U+003C LESS-THAN SIGN (&lt;)&lt;/dt&gt;
+@@ -88499,6 +88567,11 @@
+    &lt;dt&gt;U+0027 APOSTROPHE (')&lt;/dt&gt;
+    &lt;dd&gt;Switch to the &lt;span&gt;attribute value (single-quoted) state&lt;/span&gt;.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;span&gt;Parse error&lt;/span&gt;. Append a U+FFFD REPLACEMENT CHARACTER
++   character to the current attribute's value. Switch to the
++   &lt;span&gt;attribute value (unquoted) state&lt;/span&gt;.&lt;/dd&gt;
++
+    &lt;dt&gt;U+003E GREATER-THAN SIGN (&gt;)&lt;/dt&gt;
+    &lt;dd&gt;&lt;span&gt;Parse error&lt;/span&gt;. Switch to the &lt;span&gt;data
+    state&lt;/span&gt;. Emit the current tag token.&lt;/dd&gt;
+@@ -88536,6 +88609,10 @@
+    state&lt;/span&gt;, with the &lt;span&gt;additional allowed character&lt;/span&gt;
+    being U+0022 QUOTATION MARK (&quot;).&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;span&gt;Parse error&lt;/span&gt;. Append a U+FFFD REPLACEMENT CHARACTER
++   character to the current attribute's value.&lt;/dd&gt;
++
+    &lt;dt&gt;EOF&lt;/dt&gt;
+    &lt;dd&gt;&lt;span&gt;Parse error&lt;/span&gt;. Reconsume the EOF character in the
+    &lt;span&gt;data state&lt;/span&gt;.&lt;/dd&gt;
+@@ -88595,6 +88672,10 @@
+    &lt;dd&gt;Switch to the &lt;span&gt;data state&lt;/span&gt;. Emit the current tag
+    token.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;span&gt;Parse error&lt;/span&gt;. Append a U+FFFD REPLACEMENT CHARACTER
++   character to the current attribute's value.&lt;/dd&gt;
++
+    &lt;dt&gt;U+0022 QUOTATION MARK (&quot;)&lt;/dt&gt;
+    &lt;dt&gt;U+0027 APOSTROPHE (')&lt;/dt&gt;
+    &lt;dt&gt;U+003C LESS-THAN SIGN (&lt;)&lt;/dt&gt;
+@@ -88686,12 +88767,13 @@
+   &lt;p&gt;Consume every character up to and including the first U+003E
+   GREATER-THAN SIGN character (&gt;) or the end of the file (EOF),
+   whichever comes first. Emit a comment token whose data is the
+-  concatenation of all the characters starting from and including
+-  the character that caused the state machine to switch into the
+-  bogus comment state, up to and including the character immediately
+-  before the last consumed character (i.e. up to the character just
+-  before the U+003E or EOF character). (If the comment was started
+-  by the end of the file (EOF), the token is empty.)&lt;/p&gt;
++  concatenation of all the characters starting from and including the
++  character that caused the state machine to switch into the bogus
++  comment state, up to and including the character immediately before
++  the last consumed character (i.e. up to the character just before
++  the U+003E or EOF character), but with any U+0000 NULL characters
++  replaced by U+FFFD REPLACEMENT CHARACTER characters. (If the comment
++  was started by the end of the file (EOF), the token is empty.)&lt;/p&gt;
+ 
+   &lt;p&gt;Switch to the &lt;span&gt;data state&lt;/span&gt;.&lt;/p&gt;
+ 
+@@ -88734,6 +88816,11 @@
+    &lt;dt&gt;U+002D HYPHEN-MINUS (-)&lt;/dt&gt;
+    &lt;dd&gt;Switch to the &lt;span&gt;comment start dash state&lt;/span&gt;.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;span&gt;Parse error&lt;/span&gt;. Append a U+FFFD REPLACEMENT CHARACTER
++   character to the comment token's data. Switch to the &lt;span&gt;comment
++   state&lt;/span&gt;.&lt;/dd&gt;
++
+    &lt;dt&gt;U+003E GREATER-THAN SIGN (&gt;)&lt;/dt&gt;
+    &lt;dd&gt;&lt;span&gt;Parse error&lt;/span&gt;. Switch to the &lt;span&gt;data
+    state&lt;/span&gt;. Emit the comment token.&lt;/dd&gt; &lt;!-- see comment in
+@@ -88759,6 +88846,12 @@
+    &lt;dt&gt;U+002D HYPHEN-MINUS (-)&lt;/dt&gt;
+    &lt;dd&gt;Switch to the &lt;span&gt;comment end state&lt;/span&gt;&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;span&gt;Parse error&lt;/span&gt;. Append a U+002D HYPHEN-MINUS
++   character (-) and a U+FFFD REPLACEMENT CHARACTER character to the
++   comment token's data. Switch to the &lt;span&gt;comment
++   state&lt;/span&gt;.&lt;/dd&gt;
++
+    &lt;dt&gt;U+003E GREATER-THAN SIGN (&gt;)&lt;/dt&gt;
+    &lt;dd&gt;&lt;span&gt;Parse error&lt;/span&gt;. Switch to the &lt;span&gt;data
+    state&lt;/span&gt;. Emit the comment token.&lt;/dd&gt;
+@@ -88785,6 +88878,10 @@
+    &lt;dt&gt;U+002D HYPHEN-MINUS (-)&lt;/dt&gt;
+    &lt;dd&gt;Switch to the &lt;span&gt;comment end dash state&lt;/span&gt;&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;span&gt;Parse error&lt;/span&gt;. Append a U+FFFD REPLACEMENT CHARACTER
++   character to the comment token's data.&lt;/dd&gt;
++
+    &lt;dt&gt;EOF&lt;/dt&gt;
+    &lt;dd&gt;&lt;span&gt;Parse error&lt;/span&gt;. Emit the comment token. Reconsume the
+    EOF character in the &lt;span&gt;data state&lt;/span&gt;.&lt;/dd&gt; &lt;!-- see comment
+@@ -88806,6 +88903,12 @@
+    &lt;dt&gt;U+002D HYPHEN-MINUS (-)&lt;/dt&gt;
+    &lt;dd&gt;Switch to the &lt;span&gt;comment end state&lt;/span&gt;&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;span&gt;Parse error&lt;/span&gt;. Append a U+002D HYPHEN-MINUS
++   character (-) and a U+FFFD REPLACEMENT CHARACTER character to the
++   comment token's data. Switch to the &lt;span&gt;comment
++   state&lt;/span&gt;.&lt;/dd&gt;
++
+    &lt;dt&gt;EOF&lt;/dt&gt;
+    &lt;dd&gt;&lt;span&gt;Parse error&lt;/span&gt;. Emit the comment token. Reconsume the
+    EOF character in the &lt;span&gt;data state&lt;/span&gt;.&lt;/dd&gt; &lt;!-- see comment
+@@ -88829,6 +88932,12 @@
+    &lt;dd&gt;Switch to the &lt;span&gt;data state&lt;/span&gt;. Emit the comment
+    token.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;span&gt;Parse error&lt;/span&gt;. Append two U+002D HYPHEN-MINUS
++   characters (-) and a U+FFFD REPLACEMENT CHARACTER character to the
++   comment token's data. Switch to the &lt;span&gt;comment
++   state&lt;/span&gt;.&lt;/dd&gt;
++
+    &lt;dt&gt;U+0021 EXCLAMATION MARK (!)&lt;/dt&gt;
+    &lt;dd&gt;&lt;span&gt;Parse error&lt;/span&gt;. Switch to the &lt;span&gt;comment end bang
+    state&lt;/span&gt;.&lt;/dd&gt;
+@@ -88869,6 +88978,12 @@
+    &lt;dd&gt;Switch to the &lt;span&gt;data state&lt;/span&gt;. Emit the comment
+    token.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;span&gt;Parse error&lt;/span&gt;. Append two U+002D HYPHEN-MINUS
++   characters (-), a U+0021 EXCLAMATION MARK character (!), and a
++   U+FFFD REPLACEMENT CHARACTER character to the comment token's data.
++   Switch to the &lt;span&gt;comment state&lt;/span&gt;.&lt;/dd&gt;
++
+    &lt;dt&gt;EOF&lt;/dt&gt;
+    &lt;dd&gt;&lt;span&gt;Parse error&lt;/span&gt;. Emit the comment token. Reconsume
+    the EOF character in the &lt;span&gt;data state&lt;/span&gt;.&lt;/dd&gt; &lt;!-- see
+@@ -88927,6 +89042,11 @@
+    character's code point). Switch to the &lt;span&gt;DOCTYPE name
+    state&lt;/span&gt;.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;span&gt;Parse error&lt;/span&gt;. Set the token's name to a U+FFFD
++   REPLACEMENT CHARACTER character. Switch to the &lt;span&gt;DOCTYPE name
++   state&lt;/span&gt;.&lt;/dd&gt;
++
+    &lt;dt&gt;U+003E GREATER-THAN SIGN (&gt;)&lt;/dt&gt;
+    &lt;dd&gt;&lt;span&gt;Parse error&lt;/span&gt;. Create a new DOCTYPE token. Set its
+    &lt;i&gt;force-quirks flag&lt;/i&gt; to &lt;i&gt;on&lt;/i&gt;. Switch to the &lt;span&gt;data
+@@ -88967,6 +89087,10 @@
+    character&lt;/span&gt; (add 0x0020 to the character's code point) to the
+    current DOCTYPE token's name.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;span&gt;Parse error&lt;/span&gt;. Append a U+FFFD REPLACEMENT CHARACTER
++   character to the current DOCTYPE token's name.&lt;/dd&gt;
++
+    &lt;dt&gt;EOF&lt;/dt&gt;
+    &lt;dd&gt;&lt;span&gt;Parse error&lt;/span&gt;. Set the DOCTYPE token's
+    &lt;i&gt;force-quirks flag&lt;/i&gt; to &lt;i&gt;on&lt;/i&gt;. Emit that DOCTYPE token.
+@@ -89116,6 +89240,10 @@
+    &lt;dt&gt;U+0022 QUOTATION MARK (&quot;)&lt;/dt&gt;
+    &lt;dd&gt;Switch to the &lt;span&gt;after DOCTYPE public identifier state&lt;/span&gt;.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;span&gt;Parse error&lt;/span&gt;. Append a U+FFFD REPLACEMENT CHARACTER
++   character to the current DOCTYPE token's public identifier.&lt;/dd&gt;
++
+    &lt;dt&gt;U+003E GREATER-THAN SIGN (&gt;)&lt;/dt&gt;
+    &lt;dd&gt;&lt;span&gt;Parse error&lt;/span&gt;. Set the DOCTYPE token's
+    &lt;i&gt;force-quirks flag&lt;/i&gt; to &lt;i&gt;on&lt;/i&gt;. Switch to the &lt;span&gt;data
+@@ -89127,8 +89255,8 @@
+    Reconsume the EOF character in the &lt;span&gt;data state&lt;/span&gt;.&lt;/dd&gt;
+ 
+    &lt;dt&gt;Anything else&lt;/dt&gt;
+-   &lt;dd&gt;Append the &lt;span&gt;current input character&lt;/span&gt; to the current DOCTYPE
+-   token's public identifier.&lt;/dd&gt;
++   &lt;dd&gt;Append the &lt;span&gt;current input character&lt;/span&gt; to the current
++   DOCTYPE token's public identifier.&lt;/dd&gt;
+ 
+   &lt;/dl&gt;
+ 
+@@ -89142,6 +89270,10 @@
+    &lt;dt&gt;U+0027 APOSTROPHE (')&lt;/dt&gt;
+    &lt;dd&gt;Switch to the &lt;span&gt;after DOCTYPE public identifier state&lt;/span&gt;.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;span&gt;Parse error&lt;/span&gt;. Append a U+FFFD REPLACEMENT CHARACTER
++   character to the current DOCTYPE token's public identifier.&lt;/dd&gt;
++
+    &lt;dt&gt;U+003E GREATER-THAN SIGN (&gt;)&lt;/dt&gt;
+    &lt;dd&gt;&lt;span&gt;Parse error&lt;/span&gt;. Set the DOCTYPE token's
+    &lt;i&gt;force-quirks flag&lt;/i&gt; to &lt;i&gt;on&lt;/i&gt;. Switch to the &lt;span&gt;data
+@@ -89153,8 +89285,8 @@
+    Reconsume the EOF character in the &lt;span&gt;data state&lt;/span&gt;.&lt;/dd&gt;
+ 
+    &lt;dt&gt;Anything else&lt;/dt&gt;
+-   &lt;dd&gt;Append the &lt;span&gt;current input character&lt;/span&gt; to the current DOCTYPE
+-   token's public identifier.&lt;/dd&gt;
++   &lt;dd&gt;Append the &lt;span&gt;current input character&lt;/span&gt; to the current
++   DOCTYPE token's public identifier.&lt;/dd&gt;
+ 
+   &lt;/dl&gt;
+ 
+@@ -89333,6 +89465,10 @@
+    &lt;dd&gt;Switch to the &lt;span&gt;after DOCTYPE system identifier
+    state&lt;/span&gt;.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;span&gt;Parse error&lt;/span&gt;. Append a U+FFFD REPLACEMENT CHARACTER
++   character to the current DOCTYPE token's system identifier.&lt;/dd&gt;
++
+    &lt;dt&gt;U+003E GREATER-THAN SIGN (&gt;)&lt;/dt&gt;
+    &lt;dd&gt;&lt;span&gt;Parse error&lt;/span&gt;. Set the DOCTYPE token's
+    &lt;i&gt;force-quirks flag&lt;/i&gt; to &lt;i&gt;on&lt;/i&gt;. Switch to the &lt;span&gt;data
+@@ -89360,6 +89496,10 @@
+    &lt;dd&gt;Switch to the &lt;span&gt;after DOCTYPE system identifier
+    state&lt;/span&gt;.&lt;/dd&gt;
+ 
++   &lt;dt&gt;U+0000 NULL&lt;/dt&gt;
++   &lt;dd&gt;&lt;span&gt;Parse error&lt;/span&gt;. Append a U+FFFD REPLACEMENT CHARACTER
++   character to the current DOCTYPE token's system identifier.&lt;/dd&gt;
++
+    &lt;dt&gt;U+003E GREATER-THAN SIGN (&gt;)&lt;/dt&gt;
+    &lt;dd&gt;&lt;span&gt;Parse error&lt;/span&gt;. Set the DOCTYPE token's
+    &lt;i&gt;force-quirks flag&lt;/i&gt; to &lt;i&gt;on&lt;/i&gt;. Switch to the &lt;span&gt;data
+@@ -89435,7 +89575,9 @@
+   end of the file (EOF), whichever comes first. Emit a series of
+   character tokens consisting of all the characters consumed except
+   the matching three character sequence at the end (if one was found
+-  before the end of the file).&lt;/p&gt;
++  before the end of the file)&lt;!--(not needed; taken care of by the
++  tree constructor), but with any U+0000 NULL characters replaced by
++  U+FFFD REPLACEMENT CHARACTER characters--&gt;.&lt;/p&gt;
+ 
+   &lt;p&gt;Switch to the &lt;span&gt;data state&lt;/span&gt;.&lt;/p&gt;
+ 
+@@ -90769,29 +90911,44 @@
+ 
+   &lt;dl class=&quot;switch&quot;&gt;
+ 
+-   &lt;dt&gt;A character token&lt;/dt&gt;
++   &lt;dt&gt;A character token that is U+0000 NULL&lt;/dt&gt;
+    &lt;dd&gt;
+ 
++    &lt;p&gt;&lt;span&gt;Parse error&lt;/span&gt;. Ignore the token.&lt;/p&gt;
++
++    &lt;!-- The D-Link DSL-G604T ADSL router has a zero byte in its
++         configuration UI before a &lt;frameset&gt;, which is why U+0000 is
++         special-cased here.
++         refs: <A HREF="https://bugzilla.mozilla.org/show_bug.cgi?id=563526">https://bugzilla.mozilla.org/show_bug.cgi?id=563526</A>
++               <A HREF="http://www.w3.org/Bugs/Public/show_bug.cgi?id=9659">http://www.w3.org/Bugs/Public/show_bug.cgi?id=9659</A>
++    --&gt;
++
++   &lt;/dd&gt;
++
++   &lt;dt&gt;A character token that is one of U+0009 CHARACTER TABULATION,
++   U+000A LINE FEED (LF), U+000C FORM FEED (FF), U+000D CARRIAGE
++   RETURN (CR), or U+0020 SPACE&lt;/dt&gt;
++   &lt;dd&gt;
++
+     &lt;p&gt;&lt;span&gt;Reconstruct the active formatting elements&lt;/span&gt;, if
+     any.&lt;/p&gt;
+ 
+     &lt;p&gt;&lt;span title=&quot;insert a character&quot;&gt;Insert the token's
+     character&lt;/span&gt; into the &lt;span&gt;current node&lt;/span&gt;.&lt;/p&gt;
+ 
+-    &lt;p&gt;If the token is not one of U+0009 CHARACTER TABULATION, U+000A
+-    LINE FEED (LF), U+000C FORM FEED (FF), U+000D CARRIAGE RETURN
+-    (CR), U+0020 SPACE, or U+FFFD REPLACEMENT CHARACTER, then set the
+-    &lt;span&gt;frameset-ok flag&lt;/span&gt; to &quot;not ok&quot;.&lt;/p&gt;
++   &lt;/dd&gt;
+ 
+-    &lt;!-- U+FFFD REPLACEMENT CHARACTER is in this list because the
+-         D-Link DSL-G604T ADSL router has a zero byte in its
+-         configuration UI before a &lt;frameset&gt;. Zero bytes get
+-         converted to U+FFFD, which (without that character in this
+-         list) would mean the &lt;frameset&gt; would be ignored.
+-         refs: <A HREF="https://bugzilla.mozilla.org/show_bug.cgi?id=563526">https://bugzilla.mozilla.org/show_bug.cgi?id=563526</A>
+-               <A HREF="http://www.w3.org/Bugs/Public/show_bug.cgi?id=9659">http://www.w3.org/Bugs/Public/show_bug.cgi?id=9659</A>
+-    --&gt;
++   &lt;dt&gt;Any other character token&lt;/dt&gt;
++   &lt;dd&gt;
+ 
++    &lt;p&gt;&lt;span&gt;Reconstruct the active formatting elements&lt;/span&gt;, if
++    any.&lt;/p&gt;
++
++    &lt;p&gt;&lt;span title=&quot;insert a character&quot;&gt;Insert the token's
++    character&lt;/span&gt; into the &lt;span&gt;current node&lt;/span&gt;.&lt;/p&gt;
++
++    &lt;p&gt;Set the &lt;span&gt;frameset-ok flag&lt;/span&gt; to &quot;not ok&quot;.&lt;/p&gt;
++
+    &lt;/dd&gt;
+ 
+    &lt;dt&gt;A comment token&lt;/dt&gt;
+@@ -92111,6 +92268,10 @@
+     &lt;p&gt;&lt;span title=&quot;insert a character&quot;&gt;Insert the token's
+     character&lt;/span&gt; into the &lt;span&gt;current node&lt;/span&gt;.&lt;/p&gt;
+ 
++    &lt;p class=&quot;note&quot;&gt;This can never be a U+0000 NULL character; the
++    tokenizer converts those to U+FFFD REPLACEMENT CHARACTER
++    characters.&lt;/p&gt;
++
+    &lt;/dd&gt;
+ 
+    &lt;dt&gt;An end-of-file token&lt;/dt&gt;
+@@ -92986,8 +93147,13 @@
+ 
+   &lt;dl class=&quot;switch&quot;&gt;
+ 
+-   &lt;dt&gt;A character token&lt;/dt&gt;
++   &lt;dt&gt;A character token that is U+0000 NULL&lt;/dt&gt;
+    &lt;dd&gt;
++    &lt;p&gt;&lt;span&gt;Parse error&lt;/span&gt;. Ignore the token.&lt;/p&gt;
++   &lt;/dd&gt;
++
++   &lt;dt&gt;Any other character token&lt;/dt&gt;
++   &lt;dd&gt;
+     &lt;p&gt;&lt;span title=&quot;insert a character&quot;&gt;Insert the token's
+     character&lt;/span&gt; into the &lt;span&gt;current node&lt;/span&gt;.&lt;/p&gt;
+    &lt;/dd&gt;
+@@ -93206,17 +93372,33 @@
+ 
+    &lt;/dd&gt;
+ 
+-   &lt;dt&gt;A character token&lt;/dt&gt;
++   &lt;dt&gt;A character token that is U+0000 NULL&lt;/dt&gt;
+    &lt;dd&gt;
+ 
++    &lt;p&gt;&lt;span&gt;Parse error&lt;/span&gt;. &lt;span title=&quot;insert a
++    character&quot;&gt;Insert a U+FFFD REPLACEMENT CHARACTER character&lt;/span&gt;
++    into the &lt;span&gt;current node&lt;/span&gt;.&lt;/p&gt;
++
++   &lt;/dd&gt;
++
++   &lt;dt&gt;A character token that is one of U+0009 CHARACTER TABULATION,
++   U+000A LINE FEED (LF), U+000C FORM FEED (FF), U+000D CARRIAGE
++   RETURN (CR), or U+0020 SPACE&lt;/dt&gt;
++   &lt;dd&gt;
++
+     &lt;p&gt;&lt;span title=&quot;insert a character&quot;&gt;Insert the token's
+     character&lt;/span&gt; into the &lt;span&gt;current node&lt;/span&gt;.&lt;/p&gt;
+ 
+-    &lt;p&gt;If the token is not one of U+0009 CHARACTER TABULATION, U+000A
+-    LINE FEED (LF), U+000C FORM FEED (FF), U+000D CARRIAGE RETURN
+-    (CR), or U+0020 SPACE, then set the &lt;span&gt;frameset-ok
+-    flag&lt;/span&gt; to &quot;not ok&quot;.&lt;/p&gt;
++   &lt;/dd&gt;
+ 
++   &lt;dt&gt;Any other character token&lt;/dt&gt;
++   &lt;dd&gt;
++
++    &lt;p&gt;&lt;span title=&quot;insert a character&quot;&gt;Insert the token's
++    character&lt;/span&gt; into the &lt;span&gt;current node&lt;/span&gt;.&lt;/p&gt;
++
++    &lt;p&gt;Set the &lt;span&gt;frameset-ok flag&lt;/span&gt; to &quot;not ok&quot;.&lt;/p&gt;
++
+    &lt;/dd&gt;
+ 
+    &lt;dt&gt;A comment token&lt;/dt&gt;
+
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="012532.html">[html5] r5665 - [e] (0) note for dnd
+</A></li>
+	<LI>Next message: <A HREF="012534.html">[html5] r5667 - [giow] (0) that's a token list, not a boolean, oops
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#12533">[ date ]</a>
+              <a href="thread.html#12533">[ thread ]</a>
+              <a href="subject.html#12533">[ subject ]</a>
+              <a href="author.html#12533">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/commit-watchers-whatwg.org">More information about the Commit-Watchers
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>
