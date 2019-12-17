@@ -1,0 +1,158 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [imps] Problem with the tree-construction test cases and	implied body
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:implementors%40lists.whatwg.org?Subject=Re%3A%20%5Bimps%5D%20Problem%20with%20the%20tree-construction%20test%20cases%20and%0A%09implied%20body&In-Reply-To=%3Ca9699fd20709110324m38c53ca8w5848633d388b7590%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000828.html">
+   <LINK REL="Next"  HREF="000830.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[imps] Problem with the tree-construction test cases and	implied body</H1>
+<!--htdig_noindex-->
+    <B>Thomas Broyer</B> 
+    <A HREF="mailto:implementors%40lists.whatwg.org?Subject=Re%3A%20%5Bimps%5D%20Problem%20with%20the%20tree-construction%20test%20cases%20and%0A%09implied%20body&In-Reply-To=%3Ca9699fd20709110324m38c53ca8w5848633d388b7590%40mail.gmail.com%3E"
+       TITLE="[imps] Problem with the tree-construction test cases and	implied body">t.broyer at gmail.com
+       </A><BR>
+    <I>Tue Sep 11 03:24:41 PDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000828.html">[imps] Problem with the tree-construction test cases and	implied body
+</A></li>
+        <LI>Next message: <A HREF="000830.html">[imps] Problem with the tree-construction test cases and	implied body
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#829">[ date ]</a>
+              <a href="thread.html#829">[ thread ]</a>
+              <a href="subject.html#829">[ subject ]</a>
+              <a href="author.html#829">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>2007/9/11, Anne van Kesteren:
+&gt;<i> On Tue, 11 Sep 2007 10:00:55 +0200, Thomas Broyer &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/implementors-whatwg.org">t.broyer at gmail.com</A>&gt;
+</I>&gt;<i> wrote:
+</I>&gt;<i> &gt; FYI, I've fixed it in Twintsam by testing for &quot;head&quot; in addition to
+</I>&gt;<i> &gt; &quot;body&quot; in the EOF case of the main phase. The spec could read (changes
+</I>&gt;<i> &gt; marked with &lt;ins&gt;):
+</I>&gt;<i>
+</I>&gt;<i> FWIW, I would like the specification to reflect html5lib where we did away
+</I>&gt;<i> with insertion modes and turned them all into phases (as the note in the
+</I>&gt;<i> specification suggests). I don't feel too strongly about it, but I think
+</I>&gt;<i> it would make the specification easier to read and maybe also more
+</I>&gt;<i> straightforward to implement.
+</I>
+Well, having separate phases and insertion modes allows for switching
+from any phase back to the main phase without loosing the insertion
+mode (for instance, I implemented the &quot;general CDATA/RCDATA parsing
+algorithm&quot; as an additional phase) and without having to deal with
+storing the &quot;phase where you were in when were switched to the XXX
+phase&quot;, which doesn't make the specification easier to read (YMMV).
+There's such a &quot;switch back to the attribute value state that you were
+in when were switched into this state&quot; in the tokenisation section
+which is a bit of a mess: why doesn't the &quot;consume an entity&quot;
+algorithm deal with the &quot;if nothing is returned&quot; case and the &quot;entity
+in attribute value&quot; and the &quot;entity data state&quot; just go away?
+
+On the other hand, adapting the &quot;global&quot; EOF case in the main phase to
+always build head and body elements is trivial (at least for the head,
+since we have a &quot;head element pointer&quot;; it's a bit less easier for the
+body because of the body/frameset duality, but it could be solved by
+just looking at the insertion mode: the insertion is never switched
+back to &quot;before head&quot;, &quot;in head&quot; or &quot;after head&quot; &#8211;there only are
+&quot;process as if we were in the XXX insertion mode&quot; instructions&#8211;, so
+if, at EOF, the insertion mode is one of these three values, it means
+the tree has no body or frameset element, and we can safely append a
+body element without attributes to the root node).
+
+Proposed wording:
+&lt;&lt;&lt;
+End end-of-file token:
+
+    Generate implied end tags.
+
+    If there are more than two nodes on the stack of open elements, or
+if there are two nodes but the second node is not a head node or a
+body node, this is a parse error.
+
+    Otherwise, if the parser was originally created as part of the
+HTML fragment parsing algorithm, and there's more than one element in
+the stack of open elements, and the second node on the stack of open
+elements is not a head node or a body node, then this is a parse
+error. (fragment case)
+
+    &lt;ins&gt;
+    If the head element pointer is null, create an element node with
+the tag name &quot;head&quot; and append it to the first element in the stack of
+open elements (the html element).
+
+    If the insertion mode is one of &quot;before head&quot;, &quot;in head&quot;, &quot;in head
+noscript&quot; or &quot;after head&quot;, create an element node with the tag name
+&quot;body&quot; and append it to the first element in the stack of open
+elements (the html element).
+    &lt;/ins&gt;
+
+    Stop parsing.
+&gt;&gt;&gt;<i>
+</I>
+It could also be solved with &quot;act as if a XXX token with the tag name
+YYY and no attribute had been seen and reprocess the current token&quot;
+(which would be more accurate given that the argument of not
+generating a parse error is that head, body and html start and end
+tags are optional):
+&lt;&lt;&lt;
+    If the insertion mode is &quot;before head&quot;, act as if a start tag
+token with the tag name &quot;head&quot; and no attribute had been seen and
+reprocess the current token.
+
+    Otherwise, if the insertion mode is &quot;in head noscript&quot;, act as if
+an end tag token with the tag name &quot;noscript&quot; had been seen and
+reprocess the current token.
+
+    Otherwise, if the insertion mode is &quot;in head&quot; or &quot;after head&quot;, act
+as if a start tag token with the tag name &quot;body&quot; and no attribute had
+been seen and reprocess the current token.
+&gt;&gt;&gt;<i>
+</I>
+No need to duplicate the whole thing into the fifteen insertion modes
+with only small variations in four of them.
+
+N.B.: there probably needs to be some special handling for the
+&quot;fragment case&quot;, in which one I suppose the head element shouldn't
+always be implied.
+
+-- 
+Thomas Broyer
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000828.html">[imps] Problem with the tree-construction test cases and	implied body
+</A></li>
+	<LI>Next message: <A HREF="000830.html">[imps] Problem with the tree-construction test cases and	implied body
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#829">[ date ]</a>
+              <a href="thread.html#829">[ thread ]</a>
+              <a href="subject.html#829">[ subject ]</a>
+              <a href="author.html#829">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/implementors-whatwg.org">More information about the Implementors
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

@@ -1,0 +1,416 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [html5] r8424 - [e] (0) Clean up the event loop algorithm Fixing	https://www.w3.org/Bugs/Public/ [...]
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commit-watchers%40lists.whatwg.org?Subject=Re%3A%20%5Bhtml5%5D%20r8424%20-%20%5Be%5D%20%280%29%20Clean%20up%20the%20event%20loop%20algorithm%20Fixing%0A%09https%3A//www.w3.org/Bugs/Public/%20%5B...%5D&In-Reply-To=%3C20140127202040.0DBADC3C5979%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   
+   
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[html5] r8424 - [e] (0) Clean up the event loop algorithm Fixing	https://www.w3.org/Bugs/Public/ [...]</H1>
+<!--htdig_noindex-->
+    <B>whatwg at whatwg.org</B> 
+    <A HREF="mailto:commit-watchers%40lists.whatwg.org?Subject=Re%3A%20%5Bhtml5%5D%20r8424%20-%20%5Be%5D%20%280%29%20Clean%20up%20the%20event%20loop%20algorithm%20Fixing%0A%09https%3A//www.w3.org/Bugs/Public/%20%5B...%5D&In-Reply-To=%3C20140127202040.0DBADC3C5979%40ps20323.dreamhostps.com%3E"
+       TITLE="[html5] r8424 - [e] (0) Clean up the event loop algorithm Fixing	https://www.w3.org/Bugs/Public/ [...]">whatwg at whatwg.org
+       </A><BR>
+    <I>Mon Jan 27 12:20:39 PST 2014</I>
+    <P><UL>
+        
+        
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23041">[ date ]</a>
+              <a href="thread.html#23041">[ thread ]</a>
+              <a href="subject.html#23041">[ subject ]</a>
+              <a href="author.html#23041">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Author: ianh
+Date: 2014-01-27 12:20:38 -0800 (Mon, 27 Jan 2014)
+New Revision: 8424
+
+Modified:
+   complete.html
+   index
+   source
+Log:
+[e] (0) Clean up the event loop algorithm
+Fixing <A HREF="https://www.w3.org/Bugs/Public/show_bug.cgi?id=24390">https://www.w3.org/Bugs/Public/show_bug.cgi?id=24390</A>
+Affected topics: DOM APIs, Workers
+
+Modified: complete.html
+===================================================================
+--- complete.html	2014-01-27 20:01:54 UTC (rev 8423)
++++ complete.html	2014-01-27 20:20:38 UTC (rev 8424)
+@@ -1174,7 +1174,7 @@
+        &lt;li&gt;&lt;a href=#the-workerglobalscope-common-interface&gt;&lt;span class=secno&gt;10.2.1.1 &lt;/span&gt;The &lt;code&gt;WorkerGlobalScope&lt;/code&gt; common interface&lt;/a&gt;&lt;/li&gt;
+        &lt;li&gt;&lt;a href=#dedicated-workers-and-the-dedicatedworkerglobalscope-interface&gt;&lt;span class=secno&gt;10.2.1.2 &lt;/span&gt;Dedicated workers and the &lt;code&gt;DedicatedWorkerGlobalScope&lt;/code&gt; interface&lt;/a&gt;&lt;/li&gt;
+        &lt;li&gt;&lt;a href=#shared-workers-and-the-sharedworkerglobalscope-interface&gt;&lt;span class=secno&gt;10.2.1.3 &lt;/span&gt;Shared workers and the &lt;code&gt;SharedWorkerGlobalScope&lt;/code&gt; interface&lt;/a&gt;&lt;/ol&gt;&lt;/li&gt;
+-     &lt;li&gt;&lt;a href=#the-event-loop&gt;&lt;span class=secno&gt;10.2.2 &lt;/span&gt;The event loop&lt;/a&gt;&lt;/li&gt;
++     &lt;li&gt;&lt;a href=#worker-event-loop&gt;&lt;span class=secno&gt;10.2.2 &lt;/span&gt;The event loop&lt;/a&gt;&lt;/li&gt;
+      &lt;li&gt;&lt;a href=&quot;#the-worker's-lifetime&quot;&gt;&lt;span class=secno&gt;10.2.3 &lt;/span&gt;The worker's lifetime&lt;/a&gt;&lt;/li&gt;
+      &lt;li&gt;&lt;a href=#processing-model-7&gt;&lt;span class=secno&gt;10.2.4 &lt;/span&gt;Processing model&lt;/a&gt;&lt;/li&gt;
+      &lt;li&gt;&lt;a href=#runtime-script-errors-0&gt;&lt;span class=secno&gt;10.2.5 &lt;/span&gt;Runtime script errors&lt;/a&gt;&lt;/li&gt;
+@@ -71351,11 +71351,13 @@
+ 
+   &lt;h5 id=definitions-1&gt;&lt;span class=secno&gt;7.1.4.1 &lt;/span&gt;Definitions&lt;/h5&gt;
+ 
++&lt;!--CLEANUP--&gt;
+   &lt;p&gt;To coordinate events, user interaction, scripts, rendering, networking, and so forth, user
+-  agents must use &lt;dfn id=event-loop title=&quot;event loop&quot;&gt;event loops&lt;/dfn&gt; as described in this section.&lt;/p&gt;
++  agents must use &lt;dfn id=event-loop title=&quot;event loop&quot;&gt;event loops&lt;/dfn&gt; as described in this section. There are
++  two kinds of event loops: those for &lt;a href=#browsing-context title=&quot;browsing context&quot;&gt;browsing contexts&lt;/a&gt;, and those for &lt;a href=#workers&gt;workers&lt;/a&gt;.&lt;/p&gt;
+ 
+-  &lt;p&gt;There must be at least one &lt;a href=#event-loop&gt;event loop&lt;/a&gt; per user agent, and at most one &lt;a href=#event-loop&gt;event
+-  loop&lt;/a&gt; per &lt;a href=#unit-of-related-similar-origin-browsing-contexts&gt;unit of related similar-origin browsing contexts&lt;/a&gt;.&lt;/p&gt;
++  &lt;p&gt;There must be at least one &lt;a href=#browsing-context&gt;browsing context&lt;/a&gt; &lt;a href=#event-loop&gt;event loop&lt;/a&gt; per user
++  agent, and at most one per &lt;a href=#unit-of-related-similar-origin-browsing-contexts&gt;unit of related similar-origin browsing contexts&lt;/a&gt;.&lt;/p&gt;
+ 
+   &lt;p class=note&gt;When there is more than one &lt;a href=#event-loop&gt;event loop&lt;/a&gt; for a &lt;a href=#unit-of-related-browsing-contexts&gt;unit of related
+   browsing contexts&lt;/a&gt;, complications arise when a &lt;a href=#browsing-context&gt;browsing context&lt;/a&gt; in that group
+@@ -71363,12 +71365,17 @@
+   similar-origin browsing contexts&lt;/a&gt; to another. This specification does not currently describe
+   how to handle these complications.&lt;/p&gt;
+ 
+-  &lt;p&gt;An &lt;a href=#event-loop&gt;event loop&lt;/a&gt; always has at least one &lt;a href=#browsing-context&gt;browsing context&lt;/a&gt;. If an
++&lt;!--CLEANUP--&gt;
++  &lt;p&gt;A &lt;a href=#browsing-context&gt;browsing context&lt;/a&gt; &lt;a href=#event-loop&gt;event loop&lt;/a&gt; always has at least one &lt;a href=#browsing-context&gt;browsing context&lt;/a&gt;. If such an
+   &lt;a href=#event-loop&gt;event loop&lt;/a&gt;'s &lt;a href=#browsing-context title=&quot;browsing context&quot;&gt;browsing contexts&lt;/a&gt; all go away,
+   then the &lt;a href=#event-loop&gt;event loop&lt;/a&gt; goes away as well. A &lt;a href=#browsing-context&gt;browsing context&lt;/a&gt; always has an
+   &lt;a href=#event-loop&gt;event loop&lt;/a&gt; coordinating its activities.&lt;/p&gt;
+ 
+-  &lt;p&gt;An &lt;a href=#event-loop&gt;event loop&lt;/a&gt; has one or more &lt;dfn id=task-queue title=&quot;task queue&quot;&gt;task queues&lt;/dfn&gt;. A
++  &lt;p&gt;&lt;a href=#worker-event-loop&gt;Worker event loops&lt;/a&gt; are simpler: each worker has one
++  &lt;a href=#event-loop&gt;event loop&lt;/a&gt;, and the &lt;a href=#run-a-worker title=&quot;run a worker&quot;&gt;worker processing model&lt;/a&gt;
++  manages the &lt;a href=#event-loop&gt;event loop&lt;/a&gt;'s lifetime.&lt;/p&gt;
++
++  &lt;hr&gt;&lt;p&gt;An &lt;a href=#event-loop&gt;event loop&lt;/a&gt; has one or more &lt;dfn id=task-queue title=&quot;task queue&quot;&gt;task queues&lt;/dfn&gt;. A
+   &lt;a href=#task-queue&gt;task queue&lt;/a&gt; is an ordered list of &lt;dfn id=concept-task title=concept-task&gt;tasks&lt;/dfn&gt;, which are
+   algorithms that are responsible for such work as:&lt;/p&gt;
+ 
+@@ -71408,15 +71415,17 @@
+    &lt;dd&gt;&lt;p&gt;Some elements have tasks that trigger in response to DOM manipulation, e.g. when that
+    element is &lt;a href=#insert-an-element-into-a-document title=&quot;insert an element into a document&quot;&gt;inserted into the document&lt;/a&gt;.&lt;/p&gt;
+ 
+-  &lt;/dl&gt;&lt;p&gt;Each &lt;a href=#concept-task title=concept-task&gt;task&lt;/a&gt; is associated with a &lt;code&gt;&lt;a href=#document&gt;Document&lt;/a&gt;&lt;/code&gt;; if the
++  &lt;/dl&gt;&lt;!--CLEANUP--&gt;&lt;p&gt;Each &lt;a href=#concept-task title=concept-task&gt;task&lt;/a&gt; in a &lt;a href=#browsing-context&gt;browsing context&lt;/a&gt; &lt;a href=#event-loop&gt;event loop&lt;/a&gt; is associated with a &lt;code&gt;&lt;a href=#document&gt;Document&lt;/a&gt;&lt;/code&gt;; if the
+   task was queued in the context of an element, then it is the element's &lt;code&gt;&lt;a href=#document&gt;Document&lt;/a&gt;&lt;/code&gt;; if
+   the task was queued in the context of a &lt;a href=#browsing-context&gt;browsing context&lt;/a&gt;, then it is the
+   &lt;a href=#browsing-context&gt;browsing context&lt;/a&gt;'s &lt;a href=#active-document&gt;active document&lt;/a&gt; at the time the task was queued; if
+   the task was queued by or for a &lt;a href=#concept-script title=concept-script&gt;script&lt;/a&gt; then the document is
+   the &lt;a href=#responsible-document&gt;responsible document&lt;/a&gt; specified by the script's &lt;a href=#settings-object&gt;settings object&lt;/a&gt;.&lt;/p&gt;
+ 
++&lt;!--CLEANUP--&gt;
+   &lt;p&gt;A &lt;a href=#concept-task title=concept-task&gt;task&lt;/a&gt; is intended for a specific &lt;a href=#event-loop&gt;event loop&lt;/a&gt;:
+-  the &lt;a href=#event-loop&gt;event loop&lt;/a&gt; that is handling &lt;a href=#concept-task title=concept-task&gt;tasks&lt;/a&gt; for the &lt;a href=#concept-task title=concept-task&gt;task&lt;/a&gt;'s associated &lt;code&gt;&lt;a href=#document&gt;Document&lt;/a&gt;&lt;/code&gt;.&lt;/p&gt;
++  the &lt;a href=#event-loop&gt;event loop&lt;/a&gt; that is handling &lt;a href=#concept-task title=concept-task&gt;tasks&lt;/a&gt; for the
++  &lt;a href=#concept-task title=concept-task&gt;task&lt;/a&gt;'s associated &lt;code&gt;&lt;a href=#document&gt;Document&lt;/a&gt;&lt;/code&gt; or &lt;a href=#workers&gt;worker&lt;/a&gt;.&lt;/p&gt;
+ 
+   &lt;p&gt;When a user agent is to &lt;dfn id=queue-a-task&gt;queue a task&lt;/dfn&gt;, it must add the given task to one of the &lt;a href=#task-queue title=&quot;task queue&quot;&gt;task queues&lt;/a&gt; of the relevant &lt;a href=#event-loop&gt;event loop&lt;/a&gt;.&lt;/p&gt;
+ 
+@@ -71462,8 +71471,8 @@
+   exists:&lt;/p&gt;
+ 
+   &lt;ol&gt;&lt;!-- if you add a step here, make sure to go through the spec updating references to the &quot;first
+-   step&quot; or &quot;step 1&quot; of the event loop --&gt;&lt;li&gt;&lt;p&gt;Run the oldest &lt;a href=#concept-task title=concept-task&gt;task&lt;/a&gt; on one of the &lt;a href=#event-loop&gt;event
+-   loop&lt;/a&gt;'s &lt;a href=#task-queue title=&quot;task queue&quot;&gt;task queues&lt;/a&gt;, if any, ignoring tasks whose
++   step&quot; or &quot;step 1&quot; of the event loop --&gt;&lt;!--CLEANUP--&gt;&lt;li&gt;&lt;p&gt;Run the oldest &lt;a href=#concept-task title=concept-task&gt;task&lt;/a&gt; on one of the &lt;a href=#event-loop&gt;event
++   loop&lt;/a&gt;'s &lt;a href=#task-queue title=&quot;task queue&quot;&gt;task queues&lt;/a&gt;, if any, ignoring, in the case of a &lt;a href=#browsing-context&gt;browsing context&lt;/a&gt; &lt;a href=#event-loop&gt;event loop&lt;/a&gt;, tasks whose
+    associated &lt;code&gt;&lt;a href=#document&gt;Document&lt;/a&gt;&lt;/code&gt;s are not &lt;a href=#fully-active&gt;fully active&lt;/a&gt;. The user agent may pick any
+    &lt;a href=#task-queue&gt;task queue&lt;/a&gt;.&lt;/li&gt;
+ 
+@@ -71478,8 +71487,8 @@
+ 
+    &lt;li&gt;
+ 
+-    &lt;p&gt;If this &lt;a href=#event-loop&gt;event loop&lt;/a&gt; is not a worker's &lt;a href=#event-loop&gt;event loop&lt;/a&gt;, run these
+-    substeps:&lt;/p&gt;
++    &lt;p&gt;If this &lt;a href=#event-loop&gt;event loop&lt;/a&gt; is a &lt;a href=#browsing-context&gt;browsing context&lt;/a&gt; &lt;a href=#event-loop&gt;event loop&lt;/a&gt;
++    (as opposed to a &lt;a href=#workers&gt;worker&lt;/a&gt; &lt;a href=#event-loop&gt;event loop&lt;/a&gt;), run these substeps:&lt;/p&gt;
+ 
+     &lt;ol&gt;&lt;li&gt;&lt;p&gt;&lt;a href=#perform-a-microtask-checkpoint&gt;Perform a microtask checkpoint&lt;/a&gt;.&lt;/li&gt;
+ 
+@@ -71490,9 +71499,10 @@
+ 
+     &lt;/ol&gt;&lt;/li&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;Otherwise, if this &lt;a href=#event-loop&gt;event loop&lt;/a&gt; is running for a
+-   &lt;code&gt;&lt;a href=#workerglobalscope&gt;WorkerGlobalScope&lt;/a&gt;&lt;/code&gt;, but there are no events in the &lt;a href=#event-loop&gt;event loop&lt;/a&gt;'s &lt;a href=#task-queue title=&quot;task queue&quot;&gt;task queues&lt;/a&gt; and the &lt;code&gt;&lt;a href=#workerglobalscope&gt;WorkerGlobalScope&lt;/a&gt;&lt;/code&gt; object's &lt;a href=#dom-workerglobalscope-closing title=dom-WorkerGlobalScope-closing&gt;closing&lt;/a&gt; flag is true, then destroy the &lt;a href=#event-loop&gt;event
+-   loop&lt;/a&gt;, aborting these steps.&lt;/li&gt;
++&lt;!--CLEANUP--&gt;
++   &lt;li&gt;&lt;p&gt;Otherwise, if this is a &lt;a href=#workers&gt;worker&lt;/a&gt; &lt;a href=#event-loop&gt;event loop&lt;/a&gt; (i.e. one running for a
++   &lt;code&gt;&lt;a href=#workerglobalscope&gt;WorkerGlobalScope&lt;/a&gt;&lt;/code&gt;), but there are no &lt;a href=#concept-task title=concept-task&gt;tasks&lt;/a&gt; in the &lt;a href=#event-loop&gt;event loop&lt;/a&gt;'s &lt;a href=#task-queue title=&quot;task queue&quot;&gt;task queues&lt;/a&gt; and the &lt;code&gt;&lt;a href=#workerglobalscope&gt;WorkerGlobalScope&lt;/a&gt;&lt;/code&gt; object's &lt;a href=#dom-workerglobalscope-closing title=dom-WorkerGlobalScope-closing&gt;closing&lt;/a&gt; flag is true, then destroy the &lt;a href=#event-loop&gt;event
++   loop&lt;/a&gt;, aborting these steps, resuming the &lt;a href=#run-a-worker&gt;run a worker&lt;/a&gt; steps described in the Web Workers section below.&lt;/li&gt;
+ 
+    &lt;li&gt;&lt;p&gt;Return to the first step of the &lt;a href=#event-loop&gt;event loop&lt;/a&gt;.&lt;/li&gt;
+ 
+@@ -82699,7 +82709,7 @@
+ 
+ 
+ 
+-  &lt;h4 id=the-event-loop&gt;&lt;span class=secno&gt;10.2.2 &lt;/span&gt;The event loop&lt;/h4&gt;
++  &lt;h4 id=worker-event-loop&gt;&lt;span class=secno&gt;10.2.2 &lt;/span&gt;The event loop&lt;/h4&gt;
+ 
+   &lt;p&gt;Each &lt;code&gt;&lt;a href=#workerglobalscope&gt;WorkerGlobalScope&lt;/a&gt;&lt;/code&gt; object has a distinct &lt;a href=#event-loop&gt;event loop&lt;/a&gt;, separate
+   from those used by &lt;a href=#unit-of-related-similar-origin-browsing-contexts title=&quot;unit of related similar-origin browsing contexts&quot;&gt;units of related
+
+Modified: index
+===================================================================
+--- index	2014-01-27 20:01:54 UTC (rev 8423)
++++ index	2014-01-27 20:20:38 UTC (rev 8424)
+@@ -1174,7 +1174,7 @@
+        &lt;li&gt;&lt;a href=#the-workerglobalscope-common-interface&gt;&lt;span class=secno&gt;10.2.1.1 &lt;/span&gt;The &lt;code&gt;WorkerGlobalScope&lt;/code&gt; common interface&lt;/a&gt;&lt;/li&gt;
+        &lt;li&gt;&lt;a href=#dedicated-workers-and-the-dedicatedworkerglobalscope-interface&gt;&lt;span class=secno&gt;10.2.1.2 &lt;/span&gt;Dedicated workers and the &lt;code&gt;DedicatedWorkerGlobalScope&lt;/code&gt; interface&lt;/a&gt;&lt;/li&gt;
+        &lt;li&gt;&lt;a href=#shared-workers-and-the-sharedworkerglobalscope-interface&gt;&lt;span class=secno&gt;10.2.1.3 &lt;/span&gt;Shared workers and the &lt;code&gt;SharedWorkerGlobalScope&lt;/code&gt; interface&lt;/a&gt;&lt;/ol&gt;&lt;/li&gt;
+-     &lt;li&gt;&lt;a href=#the-event-loop&gt;&lt;span class=secno&gt;10.2.2 &lt;/span&gt;The event loop&lt;/a&gt;&lt;/li&gt;
++     &lt;li&gt;&lt;a href=#worker-event-loop&gt;&lt;span class=secno&gt;10.2.2 &lt;/span&gt;The event loop&lt;/a&gt;&lt;/li&gt;
+      &lt;li&gt;&lt;a href=&quot;#the-worker's-lifetime&quot;&gt;&lt;span class=secno&gt;10.2.3 &lt;/span&gt;The worker's lifetime&lt;/a&gt;&lt;/li&gt;
+      &lt;li&gt;&lt;a href=#processing-model-7&gt;&lt;span class=secno&gt;10.2.4 &lt;/span&gt;Processing model&lt;/a&gt;&lt;/li&gt;
+      &lt;li&gt;&lt;a href=#runtime-script-errors-0&gt;&lt;span class=secno&gt;10.2.5 &lt;/span&gt;Runtime script errors&lt;/a&gt;&lt;/li&gt;
+@@ -71351,11 +71351,13 @@
+ 
+   &lt;h5 id=definitions-1&gt;&lt;span class=secno&gt;7.1.4.1 &lt;/span&gt;Definitions&lt;/h5&gt;
+ 
++&lt;!--CLEANUP--&gt;
+   &lt;p&gt;To coordinate events, user interaction, scripts, rendering, networking, and so forth, user
+-  agents must use &lt;dfn id=event-loop title=&quot;event loop&quot;&gt;event loops&lt;/dfn&gt; as described in this section.&lt;/p&gt;
++  agents must use &lt;dfn id=event-loop title=&quot;event loop&quot;&gt;event loops&lt;/dfn&gt; as described in this section. There are
++  two kinds of event loops: those for &lt;a href=#browsing-context title=&quot;browsing context&quot;&gt;browsing contexts&lt;/a&gt;, and those for &lt;a href=#workers&gt;workers&lt;/a&gt;.&lt;/p&gt;
+ 
+-  &lt;p&gt;There must be at least one &lt;a href=#event-loop&gt;event loop&lt;/a&gt; per user agent, and at most one &lt;a href=#event-loop&gt;event
+-  loop&lt;/a&gt; per &lt;a href=#unit-of-related-similar-origin-browsing-contexts&gt;unit of related similar-origin browsing contexts&lt;/a&gt;.&lt;/p&gt;
++  &lt;p&gt;There must be at least one &lt;a href=#browsing-context&gt;browsing context&lt;/a&gt; &lt;a href=#event-loop&gt;event loop&lt;/a&gt; per user
++  agent, and at most one per &lt;a href=#unit-of-related-similar-origin-browsing-contexts&gt;unit of related similar-origin browsing contexts&lt;/a&gt;.&lt;/p&gt;
+ 
+   &lt;p class=note&gt;When there is more than one &lt;a href=#event-loop&gt;event loop&lt;/a&gt; for a &lt;a href=#unit-of-related-browsing-contexts&gt;unit of related
+   browsing contexts&lt;/a&gt;, complications arise when a &lt;a href=#browsing-context&gt;browsing context&lt;/a&gt; in that group
+@@ -71363,12 +71365,17 @@
+   similar-origin browsing contexts&lt;/a&gt; to another. This specification does not currently describe
+   how to handle these complications.&lt;/p&gt;
+ 
+-  &lt;p&gt;An &lt;a href=#event-loop&gt;event loop&lt;/a&gt; always has at least one &lt;a href=#browsing-context&gt;browsing context&lt;/a&gt;. If an
++&lt;!--CLEANUP--&gt;
++  &lt;p&gt;A &lt;a href=#browsing-context&gt;browsing context&lt;/a&gt; &lt;a href=#event-loop&gt;event loop&lt;/a&gt; always has at least one &lt;a href=#browsing-context&gt;browsing context&lt;/a&gt;. If such an
+   &lt;a href=#event-loop&gt;event loop&lt;/a&gt;'s &lt;a href=#browsing-context title=&quot;browsing context&quot;&gt;browsing contexts&lt;/a&gt; all go away,
+   then the &lt;a href=#event-loop&gt;event loop&lt;/a&gt; goes away as well. A &lt;a href=#browsing-context&gt;browsing context&lt;/a&gt; always has an
+   &lt;a href=#event-loop&gt;event loop&lt;/a&gt; coordinating its activities.&lt;/p&gt;
+ 
+-  &lt;p&gt;An &lt;a href=#event-loop&gt;event loop&lt;/a&gt; has one or more &lt;dfn id=task-queue title=&quot;task queue&quot;&gt;task queues&lt;/dfn&gt;. A
++  &lt;p&gt;&lt;a href=#worker-event-loop&gt;Worker event loops&lt;/a&gt; are simpler: each worker has one
++  &lt;a href=#event-loop&gt;event loop&lt;/a&gt;, and the &lt;a href=#run-a-worker title=&quot;run a worker&quot;&gt;worker processing model&lt;/a&gt;
++  manages the &lt;a href=#event-loop&gt;event loop&lt;/a&gt;'s lifetime.&lt;/p&gt;
++
++  &lt;hr&gt;&lt;p&gt;An &lt;a href=#event-loop&gt;event loop&lt;/a&gt; has one or more &lt;dfn id=task-queue title=&quot;task queue&quot;&gt;task queues&lt;/dfn&gt;. A
+   &lt;a href=#task-queue&gt;task queue&lt;/a&gt; is an ordered list of &lt;dfn id=concept-task title=concept-task&gt;tasks&lt;/dfn&gt;, which are
+   algorithms that are responsible for such work as:&lt;/p&gt;
+ 
+@@ -71408,15 +71415,17 @@
+    &lt;dd&gt;&lt;p&gt;Some elements have tasks that trigger in response to DOM manipulation, e.g. when that
+    element is &lt;a href=#insert-an-element-into-a-document title=&quot;insert an element into a document&quot;&gt;inserted into the document&lt;/a&gt;.&lt;/p&gt;
+ 
+-  &lt;/dl&gt;&lt;p&gt;Each &lt;a href=#concept-task title=concept-task&gt;task&lt;/a&gt; is associated with a &lt;code&gt;&lt;a href=#document&gt;Document&lt;/a&gt;&lt;/code&gt;; if the
++  &lt;/dl&gt;&lt;!--CLEANUP--&gt;&lt;p&gt;Each &lt;a href=#concept-task title=concept-task&gt;task&lt;/a&gt; in a &lt;a href=#browsing-context&gt;browsing context&lt;/a&gt; &lt;a href=#event-loop&gt;event loop&lt;/a&gt; is associated with a &lt;code&gt;&lt;a href=#document&gt;Document&lt;/a&gt;&lt;/code&gt;; if the
+   task was queued in the context of an element, then it is the element's &lt;code&gt;&lt;a href=#document&gt;Document&lt;/a&gt;&lt;/code&gt;; if
+   the task was queued in the context of a &lt;a href=#browsing-context&gt;browsing context&lt;/a&gt;, then it is the
+   &lt;a href=#browsing-context&gt;browsing context&lt;/a&gt;'s &lt;a href=#active-document&gt;active document&lt;/a&gt; at the time the task was queued; if
+   the task was queued by or for a &lt;a href=#concept-script title=concept-script&gt;script&lt;/a&gt; then the document is
+   the &lt;a href=#responsible-document&gt;responsible document&lt;/a&gt; specified by the script's &lt;a href=#settings-object&gt;settings object&lt;/a&gt;.&lt;/p&gt;
+ 
++&lt;!--CLEANUP--&gt;
+   &lt;p&gt;A &lt;a href=#concept-task title=concept-task&gt;task&lt;/a&gt; is intended for a specific &lt;a href=#event-loop&gt;event loop&lt;/a&gt;:
+-  the &lt;a href=#event-loop&gt;event loop&lt;/a&gt; that is handling &lt;a href=#concept-task title=concept-task&gt;tasks&lt;/a&gt; for the &lt;a href=#concept-task title=concept-task&gt;task&lt;/a&gt;'s associated &lt;code&gt;&lt;a href=#document&gt;Document&lt;/a&gt;&lt;/code&gt;.&lt;/p&gt;
++  the &lt;a href=#event-loop&gt;event loop&lt;/a&gt; that is handling &lt;a href=#concept-task title=concept-task&gt;tasks&lt;/a&gt; for the
++  &lt;a href=#concept-task title=concept-task&gt;task&lt;/a&gt;'s associated &lt;code&gt;&lt;a href=#document&gt;Document&lt;/a&gt;&lt;/code&gt; or &lt;a href=#workers&gt;worker&lt;/a&gt;.&lt;/p&gt;
+ 
+   &lt;p&gt;When a user agent is to &lt;dfn id=queue-a-task&gt;queue a task&lt;/dfn&gt;, it must add the given task to one of the &lt;a href=#task-queue title=&quot;task queue&quot;&gt;task queues&lt;/a&gt; of the relevant &lt;a href=#event-loop&gt;event loop&lt;/a&gt;.&lt;/p&gt;
+ 
+@@ -71462,8 +71471,8 @@
+   exists:&lt;/p&gt;
+ 
+   &lt;ol&gt;&lt;!-- if you add a step here, make sure to go through the spec updating references to the &quot;first
+-   step&quot; or &quot;step 1&quot; of the event loop --&gt;&lt;li&gt;&lt;p&gt;Run the oldest &lt;a href=#concept-task title=concept-task&gt;task&lt;/a&gt; on one of the &lt;a href=#event-loop&gt;event
+-   loop&lt;/a&gt;'s &lt;a href=#task-queue title=&quot;task queue&quot;&gt;task queues&lt;/a&gt;, if any, ignoring tasks whose
++   step&quot; or &quot;step 1&quot; of the event loop --&gt;&lt;!--CLEANUP--&gt;&lt;li&gt;&lt;p&gt;Run the oldest &lt;a href=#concept-task title=concept-task&gt;task&lt;/a&gt; on one of the &lt;a href=#event-loop&gt;event
++   loop&lt;/a&gt;'s &lt;a href=#task-queue title=&quot;task queue&quot;&gt;task queues&lt;/a&gt;, if any, ignoring, in the case of a &lt;a href=#browsing-context&gt;browsing context&lt;/a&gt; &lt;a href=#event-loop&gt;event loop&lt;/a&gt;, tasks whose
+    associated &lt;code&gt;&lt;a href=#document&gt;Document&lt;/a&gt;&lt;/code&gt;s are not &lt;a href=#fully-active&gt;fully active&lt;/a&gt;. The user agent may pick any
+    &lt;a href=#task-queue&gt;task queue&lt;/a&gt;.&lt;/li&gt;
+ 
+@@ -71478,8 +71487,8 @@
+ 
+    &lt;li&gt;
+ 
+-    &lt;p&gt;If this &lt;a href=#event-loop&gt;event loop&lt;/a&gt; is not a worker's &lt;a href=#event-loop&gt;event loop&lt;/a&gt;, run these
+-    substeps:&lt;/p&gt;
++    &lt;p&gt;If this &lt;a href=#event-loop&gt;event loop&lt;/a&gt; is a &lt;a href=#browsing-context&gt;browsing context&lt;/a&gt; &lt;a href=#event-loop&gt;event loop&lt;/a&gt;
++    (as opposed to a &lt;a href=#workers&gt;worker&lt;/a&gt; &lt;a href=#event-loop&gt;event loop&lt;/a&gt;), run these substeps:&lt;/p&gt;
+ 
+     &lt;ol&gt;&lt;li&gt;&lt;p&gt;&lt;a href=#perform-a-microtask-checkpoint&gt;Perform a microtask checkpoint&lt;/a&gt;.&lt;/li&gt;
+ 
+@@ -71490,9 +71499,10 @@
+ 
+     &lt;/ol&gt;&lt;/li&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;Otherwise, if this &lt;a href=#event-loop&gt;event loop&lt;/a&gt; is running for a
+-   &lt;code&gt;&lt;a href=#workerglobalscope&gt;WorkerGlobalScope&lt;/a&gt;&lt;/code&gt;, but there are no events in the &lt;a href=#event-loop&gt;event loop&lt;/a&gt;'s &lt;a href=#task-queue title=&quot;task queue&quot;&gt;task queues&lt;/a&gt; and the &lt;code&gt;&lt;a href=#workerglobalscope&gt;WorkerGlobalScope&lt;/a&gt;&lt;/code&gt; object's &lt;a href=#dom-workerglobalscope-closing title=dom-WorkerGlobalScope-closing&gt;closing&lt;/a&gt; flag is true, then destroy the &lt;a href=#event-loop&gt;event
+-   loop&lt;/a&gt;, aborting these steps.&lt;/li&gt;
++&lt;!--CLEANUP--&gt;
++   &lt;li&gt;&lt;p&gt;Otherwise, if this is a &lt;a href=#workers&gt;worker&lt;/a&gt; &lt;a href=#event-loop&gt;event loop&lt;/a&gt; (i.e. one running for a
++   &lt;code&gt;&lt;a href=#workerglobalscope&gt;WorkerGlobalScope&lt;/a&gt;&lt;/code&gt;), but there are no &lt;a href=#concept-task title=concept-task&gt;tasks&lt;/a&gt; in the &lt;a href=#event-loop&gt;event loop&lt;/a&gt;'s &lt;a href=#task-queue title=&quot;task queue&quot;&gt;task queues&lt;/a&gt; and the &lt;code&gt;&lt;a href=#workerglobalscope&gt;WorkerGlobalScope&lt;/a&gt;&lt;/code&gt; object's &lt;a href=#dom-workerglobalscope-closing title=dom-WorkerGlobalScope-closing&gt;closing&lt;/a&gt; flag is true, then destroy the &lt;a href=#event-loop&gt;event
++   loop&lt;/a&gt;, aborting these steps, resuming the &lt;a href=#run-a-worker&gt;run a worker&lt;/a&gt; steps described in the Web Workers section below.&lt;/li&gt;
+ 
+    &lt;li&gt;&lt;p&gt;Return to the first step of the &lt;a href=#event-loop&gt;event loop&lt;/a&gt;.&lt;/li&gt;
+ 
+@@ -82699,7 +82709,7 @@
+ 
+ 
+ 
+-  &lt;h4 id=the-event-loop&gt;&lt;span class=secno&gt;10.2.2 &lt;/span&gt;The event loop&lt;/h4&gt;
++  &lt;h4 id=worker-event-loop&gt;&lt;span class=secno&gt;10.2.2 &lt;/span&gt;The event loop&lt;/h4&gt;
+ 
+   &lt;p&gt;Each &lt;code&gt;&lt;a href=#workerglobalscope&gt;WorkerGlobalScope&lt;/a&gt;&lt;/code&gt; object has a distinct &lt;a href=#event-loop&gt;event loop&lt;/a&gt;, separate
+   from those used by &lt;a href=#unit-of-related-similar-origin-browsing-contexts title=&quot;unit of related similar-origin browsing contexts&quot;&gt;units of related
+
+Modified: source
+===================================================================
+--- source	2014-01-27 20:01:54 UTC (rev 8423)
++++ source	2014-01-27 20:20:38 UTC (rev 8424)
+@@ -79688,11 +79688,13 @@
+ 
+   &lt;h5&gt;Definitions&lt;/h5&gt;
+ 
++&lt;!--CLEANUP--&gt;
+   &lt;p&gt;To coordinate events, user interaction, scripts, rendering, networking, and so forth, user
+-  agents must use &lt;dfn data-x=&quot;event loop&quot;&gt;event loops&lt;/dfn&gt; as described in this section.&lt;/p&gt;
++  agents must use &lt;dfn data-x=&quot;event loop&quot;&gt;event loops&lt;/dfn&gt; as described in this section. There are
++  two kinds of event loops: those for &lt;span data-x=&quot;browsing context&quot;&gt;browsing contexts&lt;/span&gt;, and those for &lt;a href=&quot;#workers&quot;&gt;workers&lt;/a&gt;.&lt;/p&gt;
+ 
+-  &lt;p&gt;There must be at least one &lt;span&gt;event loop&lt;/span&gt; per user agent, and at most one &lt;span&gt;event
+-  loop&lt;/span&gt; per &lt;span&gt;unit of related similar-origin browsing contexts&lt;/span&gt;.&lt;/p&gt;
++  &lt;p&gt;There must be at least one &lt;span&gt;browsing context&lt;/span&gt; &lt;span&gt;event loop&lt;/span&gt; per user
++  agent, and at most one per &lt;span&gt;unit of related similar-origin browsing contexts&lt;/span&gt;.&lt;/p&gt;
+ 
+   &lt;p class=&quot;note&quot;&gt;When there is more than one &lt;span&gt;event loop&lt;/span&gt; for a &lt;span&gt;unit of related
+   browsing contexts&lt;/span&gt;, complications arise when a &lt;span&gt;browsing context&lt;/span&gt; in that group
+@@ -79700,11 +79702,18 @@
+   similar-origin browsing contexts&lt;/span&gt; to another. This specification does not currently describe
+   how to handle these complications.&lt;/p&gt;
+ 
+-  &lt;p&gt;An &lt;span&gt;event loop&lt;/span&gt; always has at least one &lt;span&gt;browsing context&lt;/span&gt;. If an
++&lt;!--CLEANUP--&gt;
++  &lt;p&gt;A &lt;span&gt;browsing context&lt;/span&gt; &lt;span&gt;event loop&lt;/span&gt; always has at least one &lt;span&gt;browsing context&lt;/span&gt;. If such an
+   &lt;span&gt;event loop&lt;/span&gt;'s &lt;span data-x=&quot;browsing context&quot;&gt;browsing contexts&lt;/span&gt; all go away,
+   then the &lt;span&gt;event loop&lt;/span&gt; goes away as well. A &lt;span&gt;browsing context&lt;/span&gt; always has an
+   &lt;span&gt;event loop&lt;/span&gt; coordinating its activities.&lt;/p&gt;
+ 
++  &lt;p&gt;&lt;a href=&quot;#worker-event-loop&quot;&gt;Worker event loops&lt;/a&gt; are simpler: each worker has one
++  &lt;span&gt;event loop&lt;/span&gt;, and the &lt;span data-x=&quot;run a worker&quot;&gt;worker processing model&lt;/span&gt;
++  manages the &lt;span&gt;event loop&lt;/span&gt;'s lifetime.&lt;/p&gt;
++
++  &lt;hr&gt;
++
+   &lt;p&gt;An &lt;span&gt;event loop&lt;/span&gt; has one or more &lt;dfn data-x=&quot;task queue&quot;&gt;task queues&lt;/dfn&gt;. A
+   &lt;span&gt;task queue&lt;/span&gt; is an ordered list of &lt;dfn data-x=&quot;concept-task&quot;&gt;tasks&lt;/dfn&gt;, which are
+   algorithms that are responsible for such work as:&lt;/p&gt;
+@@ -79749,16 +79758,18 @@
+ 
+   &lt;/dl&gt;
+ 
+-  &lt;p&gt;Each &lt;span data-x=&quot;concept-task&quot;&gt;task&lt;/span&gt; is associated with a &lt;code&gt;Document&lt;/code&gt;; if the
++&lt;!--CLEANUP--&gt;
++  &lt;p&gt;Each &lt;span data-x=&quot;concept-task&quot;&gt;task&lt;/span&gt; in a &lt;span&gt;browsing context&lt;/span&gt; &lt;span&gt;event loop&lt;/span&gt; is associated with a &lt;code&gt;Document&lt;/code&gt;; if the
+   task was queued in the context of an element, then it is the element's &lt;code&gt;Document&lt;/code&gt;; if
+   the task was queued in the context of a &lt;span&gt;browsing context&lt;/span&gt;, then it is the
+   &lt;span&gt;browsing context&lt;/span&gt;'s &lt;span&gt;active document&lt;/span&gt; at the time the task was queued; if
+   the task was queued by or for a &lt;span data-x=&quot;concept-script&quot;&gt;script&lt;/span&gt; then the document is
+   the &lt;span&gt;responsible document&lt;/span&gt; specified by the script's &lt;span&gt;settings object&lt;/span&gt;.&lt;/p&gt;
+ 
++&lt;!--CLEANUP--&gt;
+   &lt;p&gt;A &lt;span data-x=&quot;concept-task&quot;&gt;task&lt;/span&gt; is intended for a specific &lt;span&gt;event loop&lt;/span&gt;:
+-  the &lt;span&gt;event loop&lt;/span&gt; that is handling &lt;span data-x=&quot;concept-task&quot;&gt;tasks&lt;/span&gt; for the &lt;span
+-  data-x=&quot;concept-task&quot;&gt;task&lt;/span&gt;'s associated &lt;code&gt;Document&lt;/code&gt;.&lt;/p&gt;
++  the &lt;span&gt;event loop&lt;/span&gt; that is handling &lt;span data-x=&quot;concept-task&quot;&gt;tasks&lt;/span&gt; for the
++  &lt;span data-x=&quot;concept-task&quot;&gt;task&lt;/span&gt;'s associated &lt;code&gt;Document&lt;/code&gt; or &lt;a href=&quot;#workers&quot;&gt;worker&lt;/a&gt;.&lt;/p&gt;
+ 
+   &lt;p&gt;When a user agent is to &lt;dfn&gt;queue a task&lt;/dfn&gt;, it must add the given task to one of the &lt;span
+   data-x=&quot;task queue&quot;&gt;task queues&lt;/span&gt; of the relevant &lt;span&gt;event loop&lt;/span&gt;.&lt;/p&gt;
+@@ -79813,8 +79824,9 @@
+    &lt;!-- if you add a step here, make sure to go through the spec updating references to the &quot;first
+    step&quot; or &quot;step 1&quot; of the event loop --&gt;
+ 
++&lt;!--CLEANUP--&gt;
+    &lt;li&gt;&lt;p&gt;Run the oldest &lt;span data-x=&quot;concept-task&quot;&gt;task&lt;/span&gt; on one of the &lt;span&gt;event
+-   loop&lt;/span&gt;'s &lt;span data-x=&quot;task queue&quot;&gt;task queues&lt;/span&gt;, if any, ignoring tasks whose
++   loop&lt;/span&gt;'s &lt;span data-x=&quot;task queue&quot;&gt;task queues&lt;/span&gt;, if any, ignoring, in the case of a &lt;span&gt;browsing context&lt;/span&gt; &lt;span&gt;event loop&lt;/span&gt;, tasks whose
+    associated &lt;code&gt;Document&lt;/code&gt;s are not &lt;span&gt;fully active&lt;/span&gt;. The user agent may pick any
+    &lt;span&gt;task queue&lt;/span&gt;.&lt;/p&gt;&lt;/li&gt;
+ 
+@@ -79829,8 +79841,8 @@
+ 
+    &lt;li&gt;
+ 
+-    &lt;p&gt;If this &lt;span&gt;event loop&lt;/span&gt; is not a worker's &lt;span&gt;event loop&lt;/span&gt;, run these
+-    substeps:&lt;/p&gt;
++    &lt;p&gt;If this &lt;span&gt;event loop&lt;/span&gt; is a &lt;span&gt;browsing context&lt;/span&gt; &lt;span&gt;event loop&lt;/span&gt;
++    (as opposed to a &lt;a href=&quot;#workers&quot;&gt;worker&lt;/a&gt; &lt;span&gt;event loop&lt;/span&gt;), run these substeps:&lt;/p&gt;
+ 
+     &lt;ol&gt;
+ 
+@@ -79845,11 +79857,12 @@
+ 
+    &lt;/li&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;Otherwise, if this &lt;span&gt;event loop&lt;/span&gt; is running for a
+-   &lt;code&gt;WorkerGlobalScope&lt;/code&gt;, but there are no events in the &lt;span&gt;event loop&lt;/span&gt;'s &lt;span
++&lt;!--CLEANUP--&gt;
++   &lt;li&gt;&lt;p&gt;Otherwise, if this is a &lt;a href=&quot;#workers&quot;&gt;worker&lt;/a&gt; &lt;span&gt;event loop&lt;/span&gt; (i.e. one running for a
++   &lt;code&gt;WorkerGlobalScope&lt;/code&gt;), but there are no &lt;span data-x=&quot;concept-task&quot;&gt;tasks&lt;/span&gt; in the &lt;span&gt;event loop&lt;/span&gt;'s &lt;span
+    data-x=&quot;task queue&quot;&gt;task queues&lt;/span&gt; and the &lt;code&gt;WorkerGlobalScope&lt;/code&gt; object's &lt;span
+    data-x=&quot;dom-WorkerGlobalScope-closing&quot;&gt;closing&lt;/span&gt; flag is true, then destroy the &lt;span&gt;event
+-   loop&lt;/span&gt;, aborting these steps.&lt;/p&gt;&lt;/li&gt;
++   loop&lt;/span&gt;, aborting these steps, resuming the &lt;span&gt;run a worker&lt;/span&gt; steps described in the Web Workers section below.&lt;/p&gt;&lt;/li&gt;
+ 
+    &lt;li&gt;&lt;p&gt;Return to the first step of the &lt;span&gt;event loop&lt;/span&gt;.&lt;/p&gt;&lt;/li&gt;
+ 
+@@ -92057,7 +92070,7 @@
+ 
+ 
+ 
+-  &lt;h4&gt;The event loop&lt;/h4&gt;
++  &lt;h4 id=&quot;worker-event-loop&quot;&gt;The event loop&lt;/h4&gt;
+ 
+   &lt;p&gt;Each &lt;code&gt;WorkerGlobalScope&lt;/code&gt; object has a distinct &lt;span&gt;event loop&lt;/span&gt;, separate
+   from those used by &lt;span data-x=&quot;unit of related similar-origin browsing contexts&quot;&gt;units of related
+
+
+</PRE>
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	
+	
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23041">[ date ]</a>
+              <a href="thread.html#23041">[ thread ]</a>
+              <a href="subject.html#23041">[ subject ]</a>
+              <a href="author.html#23041">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/commit-watchers-whatwg.org">More information about the Commit-Watchers
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

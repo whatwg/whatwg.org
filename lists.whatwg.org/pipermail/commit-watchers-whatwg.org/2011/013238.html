@@ -1,0 +1,291 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [html5] r6371 - [giow] (1) Change text/event-stream to drop final	events not followed by a blank [...]
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commit-watchers%40lists.whatwg.org?Subject=Re%3A%20%5Bhtml5%5D%20r6371%20-%20%5Bgiow%5D%20%281%29%20Change%20text/event-stream%20to%20drop%20final%0A%09events%20not%20followed%20by%20a%20blank%20%5B...%5D&In-Reply-To=%3C20110804215407.CDA33805C021%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="013237.html">
+   <LINK REL="Next"  HREF="013239.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[html5] r6371 - [giow] (1) Change text/event-stream to drop final	events not followed by a blank [...]</H1>
+<!--htdig_noindex-->
+    <B>whatwg at whatwg.org</B> 
+    <A HREF="mailto:commit-watchers%40lists.whatwg.org?Subject=Re%3A%20%5Bhtml5%5D%20r6371%20-%20%5Bgiow%5D%20%281%29%20Change%20text/event-stream%20to%20drop%20final%0A%09events%20not%20followed%20by%20a%20blank%20%5B...%5D&In-Reply-To=%3C20110804215407.CDA33805C021%40ps20323.dreamhostps.com%3E"
+       TITLE="[html5] r6371 - [giow] (1) Change text/event-stream to drop final	events not followed by a blank [...]">whatwg at whatwg.org
+       </A><BR>
+    <I>Thu Aug  4 14:54:07 PDT 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="013237.html">[html5] r6370 - [e] (0) accuracy Fixing	http://www.w3.org/Bugs/Public/show_bug.cgi?id=13156
+</A></li>
+        <LI>Next message: <A HREF="013239.html">[html5] r6372 - / images
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#13238">[ date ]</a>
+              <a href="thread.html#13238">[ thread ]</a>
+              <a href="subject.html#13238">[ subject ]</a>
+              <a href="author.html#13238">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Author: ianh
+Date: 2011-08-04 14:54:06 -0700 (Thu, 04 Aug 2011)
+New Revision: 6371
+
+Modified:
+   complete.html
+   source
+Log:
+[giow] (1) Change text/event-stream to drop final events not followed by a blank line, since otherwise interrupted streams would fire incomplete events.
+Fixing <A HREF="http://www.w3.org/Bugs/Public/show_bug.cgi?id=13071">http://www.w3.org/Bugs/Public/show_bug.cgi?id=13071</A>
+
+Modified: complete.html
+===================================================================
+--- complete.html	2011-08-04 21:46:02 UTC (rev 6370)
++++ complete.html	2011-08-04 21:54:06 UTC (rev 6371)
+@@ -79840,8 +79840,7 @@
+ event         = *( comment / field ) end-of-line
+ comment       = colon *any-char end-of-line
+ field         = 1*name-char [ colon [ space ] *any-char ] end-of-line
+-end-of-line   = ( cr lf / cr / lf / eof )
+-eof           = &lt; matches repeatedly at the end of the stream &gt;
++end-of-line   = ( cr lf / cr / lf )
+ 
+ ; characters
+ lf            = %x000A ; U+000A LINE FEED (LF)
+@@ -79934,11 +79933,11 @@
+ 
+    &lt;/dd&gt;
+ 
+-  &lt;/dl&gt;&lt;p&gt;Once the end of the file is reached, the user agent must &lt;a href=#dispatchMessage&gt;dispatch the event&lt;/a&gt; one final time, as
+-  defined below.&lt;/p&gt;
++  &lt;/dl&gt;&lt;p&gt;Once the end of the file is reached, any pending data must be
++  discarded. (If the file ends in the middle of an event, before the
++  final empty line, the incomplete event is not dispatched.)&lt;/p&gt;
+ 
+-
+-  &lt;p id=processField&gt;The steps to &lt;dfn title=&quot;&quot;&gt;process the
++  &lt;hr&gt;&lt;p id=processField&gt;The steps to &lt;dfn title=&quot;&quot;&gt;process the
+   field&lt;/dfn&gt; given a field name and a field value depend on the field
+   name, as given in the following list. Field names must be compared
+   literally, with no case folding performed.&lt;/p&gt;
+@@ -80089,10 +80088,11 @@
+    and also has an &quot;id&quot; field, this time with no value, which resets
+    the last event ID to the empty string (meaning no &lt;code title=http-last-event-id&gt;&lt;a href=#last-event-id&gt;Last-Event-ID&lt;/a&gt;&lt;/code&gt; header will now be
+    sent in the event of a reconnection being attempted). Finally, the
+-   last block just fires an event with the data &quot;&nbsp;third&nbsp;event&quot;
+-   (with a single leading space character). Note that the last block
+-   doesn't have to end with a blank line, the end of the stream is
+-   enough to trigger the dispatch of the last event.&lt;/p&gt;
++   last block just fires an event with the data
++   &quot;&nbsp;third&nbsp;event&quot; (with a single leading space character).
++   Note that the last still has to end with a blank line, the end of
++   the stream is not enough to trigger the dispatch of the last
++   event.&lt;/p&gt;
+ 
+    &lt;pre&gt;: test stream
+ 
+@@ -80102,12 +80102,13 @@
+ data:second event
+ id
+ 
+-data:&nbsp;&nbsp;third event&lt;/pre&gt;
++data:&nbsp;&nbsp;third event
++&lt;/pre&gt;
+   &lt;/div&gt;
+ 
+   &lt;div class=example&gt;
+ 
+-   &lt;p&gt;The following stream fires three events:&lt;/p&gt;
++   &lt;p&gt;The following stream fires two events:&lt;/p&gt;
+ 
+    &lt;pre&gt;data
+ 
+@@ -80116,9 +80117,11 @@
+ 
+ data:&lt;/pre&gt;
+ 
+-   &lt;p&gt;The first and last blocks fire events with the data set to the
+-   empty string. The middle block fires an event with the data set to
+-   a single newline character.&lt;/p&gt;
++   &lt;p&gt;The first block fires events with the data set to the empty
++   string, as would the last block if it was followed by a blank line.
++   The middle block fires an event with the data set to a single
++   newline character. The last block is discarded because it is not
++   followed by a blank line.&lt;/p&gt;
+ 
+   &lt;/div&gt;
+ 
+@@ -80128,7 +80131,8 @@
+ 
+    &lt;pre&gt;data:test
+ 
+-data:&nbsp;test&lt;/pre&gt;
++data:&nbsp;test
++&lt;/pre&gt;
+ 
+    &lt;p&gt;This is because the space after the colon is ignored if
+    present.&lt;/p&gt;
+@@ -80267,15 +80271,18 @@
+    &lt;dt&gt;Required parameters:&lt;/dt&gt;
+    &lt;dd&gt;No parameters&lt;/dd&gt;
+    &lt;dt&gt;Optional parameters:&lt;/dt&gt;
+-   &lt;dt&gt;
+-    &lt;/dt&gt;&lt;dl&gt;&lt;dt&gt;&lt;code title=&quot;&quot;&gt;charset&lt;/code&gt;&lt;/dt&gt;
++   &lt;dd&gt;
++    &lt;dl&gt;&lt;dt&gt;&lt;code title=&quot;&quot;&gt;charset&lt;/code&gt;&lt;/dt&gt;
+      &lt;dd&gt;
++
+       &lt;p&gt;The &lt;code title=&quot;&quot;&gt;charset&lt;/code&gt; parameter may be provided.
+       The parameter's value must be &quot;&lt;code title=&quot;&quot;&gt;utf-8&lt;/code&gt;&quot;.
+       This parameter serves no purpose; it is only allowed for
+       compatibility with legacy servers.&lt;/p&gt;
++
+      &lt;/dd&gt;
+-    &lt;/dl&gt;&lt;dt&gt;Encoding considerations:&lt;/dt&gt;
++    &lt;/dl&gt;&lt;/dd&gt;
++   &lt;dt&gt;Encoding considerations:&lt;/dt&gt;
+    &lt;dd&gt;Always UTF-8.&lt;/dd&gt;
+    &lt;dt&gt;Security considerations:&lt;/dt&gt;
+    &lt;dd&gt;
+
+Modified: source
+===================================================================
+--- source	2011-08-04 21:46:02 UTC (rev 6370)
++++ source	2011-08-04 21:54:06 UTC (rev 6371)
+@@ -90372,8 +90372,7 @@
+ event         = *( comment / field ) end-of-line
+ comment       = colon *any-char end-of-line
+ field         = 1*name-char [ colon [ space ] *any-char ] end-of-line
+-end-of-line   = ( cr lf / cr / lf / eof )
+-eof           = &lt; matches repeatedly at the end of the stream &gt;
++end-of-line   = ( cr lf / cr / lf )
+ 
+ ; characters
+ lf            = %x000A ; U+000A LINE FEED (LF)
+@@ -90473,10 +90472,11 @@
+ 
+   &lt;/dl&gt;
+ 
+-  &lt;p&gt;Once the end of the file is reached, the user agent must &lt;a
+-  href=&quot;#dispatchMessage&quot;&gt;dispatch the event&lt;/a&gt; one final time, as
+-  defined below.&lt;/p&gt;
++  &lt;p&gt;Once the end of the file is reached, any pending data must be
++  discarded. (If the file ends in the middle of an event, before the
++  final empty line, the incomplete event is not dispatched.)&lt;/p&gt;
+ 
++  &lt;hr&gt;
+ 
+   &lt;p id=&quot;processField&quot;&gt;The steps to &lt;dfn title=&quot;&quot;&gt;process the
+   field&lt;/dfn&gt; given a field name and a field value depend on the field
+@@ -90653,10 +90653,11 @@
+    the last event ID to the empty string (meaning no &lt;code
+    title=&quot;http-last-event-id&quot;&gt;Last-Event-ID&lt;/code&gt; header will now be
+    sent in the event of a reconnection being attempted). Finally, the
+-   last block just fires an event with the data &quot;&nbsp;third&nbsp;event&quot;
+-   (with a single leading space character). Note that the last block
+-   doesn't have to end with a blank line, the end of the stream is
+-   enough to trigger the dispatch of the last event.&lt;/p&gt;
++   last block just fires an event with the data
++   &quot;&nbsp;third&nbsp;event&quot; (with a single leading space character).
++   Note that the last still has to end with a blank line, the end of
++   the stream is not enough to trigger the dispatch of the last
++   event.&lt;/p&gt;
+ 
+    &lt;pre&gt;: test stream
+ 
+@@ -90666,12 +90667,13 @@
+ data:second event
+ id
+ 
+-data:&nbsp;&nbsp;third event&lt;/pre&gt;
++data:&nbsp;&nbsp;third event
++&lt;/pre&gt;
+   &lt;/div&gt;
+ 
+   &lt;div class=&quot;example&quot;&gt;
+ 
+-   &lt;p&gt;The following stream fires three events:&lt;/p&gt;
++   &lt;p&gt;The following stream fires two events:&lt;/p&gt;
+ 
+    &lt;pre&gt;data
+ 
+@@ -90680,9 +90682,11 @@
+ 
+ data:&lt;/pre&gt;
+ 
+-   &lt;p&gt;The first and last blocks fire events with the data set to the
+-   empty string. The middle block fires an event with the data set to
+-   a single newline character.&lt;/p&gt;
++   &lt;p&gt;The first block fires events with the data set to the empty
++   string, as would the last block if it was followed by a blank line.
++   The middle block fires an event with the data set to a single
++   newline character. The last block is discarded because it is not
++   followed by a blank line.&lt;/p&gt;
+ 
+   &lt;/div&gt;
+ 
+@@ -90692,7 +90696,8 @@
+ 
+    &lt;pre&gt;data:test
+ 
+-data:&nbsp;test&lt;/pre&gt;
++data:&nbsp;test
++&lt;/pre&gt;
+ 
+    &lt;p&gt;This is because the space after the colon is ignored if
+    present.&lt;/p&gt;
+@@ -90846,14 +90851,16 @@
+    &lt;dt&gt;Required parameters:&lt;/dt&gt;
+    &lt;dd&gt;No parameters&lt;/dd&gt;
+    &lt;dt&gt;Optional parameters:&lt;/dt&gt;
+-   &lt;dt&gt;
++   &lt;dd&gt;
+     &lt;dl&gt;
+      &lt;dt&gt;&lt;code title=&quot;&quot;&gt;charset&lt;/code&gt;&lt;/dt&gt;
+      &lt;dd&gt;
++
+       &lt;p&gt;The &lt;code title=&quot;&quot;&gt;charset&lt;/code&gt; parameter may be provided.
+       The parameter's value must be &quot;&lt;code title=&quot;&quot;&gt;utf-8&lt;/code&gt;&quot;.
+       This parameter serves no purpose; it is only allowed for
+       compatibility with legacy servers.&lt;/p&gt;
++
+      &lt;/dd&gt;
+     &lt;/dl&gt;
+    &lt;/dd&gt;
+
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="013237.html">[html5] r6370 - [e] (0) accuracy Fixing	http://www.w3.org/Bugs/Public/show_bug.cgi?id=13156
+</A></li>
+	<LI>Next message: <A HREF="013239.html">[html5] r6372 - / images
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#13238">[ date ]</a>
+              <a href="thread.html#13238">[ thread ]</a>
+              <a href="subject.html#13238">[ subject ]</a>
+              <a href="author.html#13238">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/commit-watchers-whatwg.org">More information about the Commit-Watchers
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

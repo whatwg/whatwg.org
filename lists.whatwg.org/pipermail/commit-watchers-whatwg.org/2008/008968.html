@@ -1,0 +1,526 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [html5] r2082 - [] (0) Further work on the event loop front.
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commit-watchers%40lists.whatwg.org?Subject=Re%3A%20%5Bhtml5%5D%20r2082%20-%20%5B%5D%20%280%29%20Further%20work%20on%20the%20event%20loop%20front.&In-Reply-To=%3C20080819065247.93E1B141AE8%40hixie.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="008967.html">
+   <LINK REL="Next"  HREF="008969.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[html5] r2082 - [] (0) Further work on the event loop front.</H1>
+<!--htdig_noindex-->
+    <B>whatwg at whatwg.org</B> 
+    <A HREF="mailto:commit-watchers%40lists.whatwg.org?Subject=Re%3A%20%5Bhtml5%5D%20r2082%20-%20%5B%5D%20%280%29%20Further%20work%20on%20the%20event%20loop%20front.&In-Reply-To=%3C20080819065247.93E1B141AE8%40hixie.dreamhostps.com%3E"
+       TITLE="[html5] r2082 - [] (0) Further work on the event loop front.">whatwg at whatwg.org
+       </A><BR>
+    <I>Mon Aug 18 23:52:47 PDT 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="008967.html">[html5] r2081 - [] (0) Further work on the event loop front. Also,	make 'will' link to the actua [...]
+</A></li>
+        <LI>Next message: <A HREF="008969.html">[html5] r2083 - [] (0) Further work on the event loop front. (This	should complete the bulk of t [...]
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#8968">[ date ]</a>
+              <a href="thread.html#8968">[ thread ]</a>
+              <a href="subject.html#8968">[ subject ]</a>
+              <a href="author.html#8968">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Author: ianh
+Date: 2008-08-18 23:52:46 -0700 (Mon, 18 Aug 2008)
+New Revision: 2082
+
+Modified:
+   index
+   source
+Log:
+[] (0) Further work on the event loop front.
+
+Modified: index
+===================================================================
+--- index	2008-08-19 05:58:54 UTC (rev 2081)
++++ index	2008-08-19 06:52:46 UTC (rev 2082)
+@@ -19217,15 +19217,17 @@
+ 
+    &lt;li&gt;
+     &lt;p&gt;While the fetching process is progressing, the user agent must &lt;a
+-     href=&quot;#firing6&quot;&gt;fire a progress event&lt;/a&gt; called &lt;code
+-     title=event-progress&gt;&lt;a href=&quot;#progress0&quot;&gt;progress&lt;/a&gt;&lt;/code&gt; at the
+-     element every 350ms (&amp;#xB1;200ms) or for every byte received, whichever
+-     is &lt;em&gt;least&lt;/em&gt; frequent.&lt;/p&gt;
++     href=&quot;#queue&quot;&gt;queue a task&lt;/a&gt; to &lt;a href=&quot;#firing6&quot;&gt;fire a progress
++     event&lt;/a&gt; called &lt;code title=event-progress&gt;&lt;a
++     href=&quot;#progress0&quot;&gt;progress&lt;/a&gt;&lt;/code&gt; at the element every 350ms
++     (&amp;#xB1;200ms) or for every byte received, whichever is &lt;em&gt;least&lt;/em&gt;
++     frequent.&lt;/p&gt;
+ 
+     &lt;p&gt;If at any point the user agent has received no data for more than
+-     about three seconds, the user agent must &lt;a href=&quot;#firing6&quot;&gt;fire a
+-     progress event&lt;/a&gt; called &lt;code title=event-stalled&gt;&lt;a
+-     href=&quot;#stalled&quot;&gt;stalled&lt;/a&gt;&lt;/code&gt; at the element.&lt;/p&gt;
++     about three seconds, the user agent must &lt;a href=&quot;#queue&quot;&gt;queue a
++     task&lt;/a&gt; to &lt;a href=&quot;#firing6&quot;&gt;fire a progress event&lt;/a&gt; called &lt;code
++     title=event-stalled&gt;&lt;a href=&quot;#stalled&quot;&gt;stalled&lt;/a&gt;&lt;/code&gt; at the
++     element.&lt;/p&gt;
+ 
+     &lt;p&gt;User agents may allow users to selectively block or slow &lt;a
+      href=&quot;#media9&quot;&gt;media data&lt;/a&gt; downloads. When a &lt;a href=&quot;#media7&quot;&gt;media
+@@ -19239,6 +19241,11 @@
+      The user agent must consider a resource erroneous only if it has given
+      up trying to fetch it.&lt;/p&gt;
+ 
++    &lt;p&gt;The &lt;a href=&quot;#networking&quot;&gt;networking task source&lt;/a&gt; &lt;a href=&quot;#tasks&quot;
++     title=concept-task&gt;tasks&lt;/a&gt; to process the data as it is being fetched
++     must, when appropriate, include the relevant substeps from the following
++     list:&lt;/p&gt;
++
+     &lt;dl class=switch&gt;
+      &lt;dt&gt;If the &lt;a href=&quot;#media9&quot;&gt;media data&lt;/a&gt; cannot be fetched at all,
+       due to network errors, causing the user agent to give up trying to
+@@ -19261,16 +19268,18 @@
+         href=&quot;#mediaerrnetwork&quot;&gt;MEDIA_ERR_NETWORK&lt;/a&gt;&lt;/code&gt;.
+ 
+        &lt;li&gt;The &lt;a href=&quot;#begun&quot;&gt;begun flag&lt;/a&gt; must be set to false and the
+-        user agent must &lt;a href=&quot;#firing6&quot;&gt;fire a progress event&lt;/a&gt; called
+-        &lt;code title=event-error&gt;&lt;a href=&quot;#error1&quot;&gt;error&lt;/a&gt;&lt;/code&gt; at the &lt;a
++        user agent must &lt;a href=&quot;#queue&quot;&gt;queue a task&lt;/a&gt; to &lt;a
++        href=&quot;#firing6&quot;&gt;fire a progress event&lt;/a&gt; called &lt;code
++        title=event-error&gt;&lt;a href=&quot;#error1&quot;&gt;error&lt;/a&gt;&lt;/code&gt; at the &lt;a
+         href=&quot;#media7&quot;&gt;media element&lt;/a&gt;.
+ 
+        &lt;li&gt;The element's &lt;code title=dom-media-networkState&gt;&lt;a
+         href=&quot;#networkstate&quot;&gt;networkState&lt;/a&gt;&lt;/code&gt; attribute must be
+         switched to the &lt;a href=&quot;#empty&quot; title=dom-media-EMPTY&gt;EMPTY&lt;/a&gt;
+-        value and the user agent must &lt;a href=&quot;#firing2&quot;&gt;fire a simple
+-        event&lt;/a&gt; called &lt;code title=event-emptied&gt;&lt;a
+-        href=&quot;#emptied&quot;&gt;emptied&lt;/a&gt;&lt;/code&gt; at the element.
++        value and the user agent must &lt;a href=&quot;#queue&quot;&gt;queue a task&lt;/a&gt; to &lt;a
++        href=&quot;#firing2&quot;&gt;fire a simple event&lt;/a&gt; called &lt;code
++        title=event-emptied&gt;&lt;a href=&quot;#emptied&quot;&gt;emptied&lt;/a&gt;&lt;/code&gt; at the
++        element.
+ 
+        &lt;li&gt;These steps must be aborted.
+       &lt;/ol&gt;
+@@ -19300,16 +19309,18 @@
+         href=&quot;#mediaerrdecode&quot;&gt;MEDIA_ERR_DECODE&lt;/a&gt;&lt;/code&gt;.
+ 
+        &lt;li&gt;The &lt;a href=&quot;#begun&quot;&gt;begun flag&lt;/a&gt; must be set to false and the
+-        user agent must &lt;a href=&quot;#firing6&quot;&gt;fire a progress event&lt;/a&gt; called
+-        &lt;code title=event-error&gt;&lt;a href=&quot;#error1&quot;&gt;error&lt;/a&gt;&lt;/code&gt; at the &lt;a
++        user agent must &lt;a href=&quot;#queue&quot;&gt;queue a task&lt;/a&gt; to &lt;a
++        href=&quot;#firing6&quot;&gt;fire a progress event&lt;/a&gt; called &lt;code
++        title=event-error&gt;&lt;a href=&quot;#error1&quot;&gt;error&lt;/a&gt;&lt;/code&gt; at the &lt;a
+         href=&quot;#media7&quot;&gt;media element&lt;/a&gt;.
+ 
+        &lt;li&gt;The element's &lt;code title=dom-media-networkState&gt;&lt;a
+         href=&quot;#networkstate&quot;&gt;networkState&lt;/a&gt;&lt;/code&gt; attribute must be
+         switched to the &lt;a href=&quot;#empty&quot; title=dom-media-EMPTY&gt;EMPTY&lt;/a&gt;
+-        value and the user agent must &lt;a href=&quot;#firing2&quot;&gt;fire a simple
+-        event&lt;/a&gt; called &lt;code title=event-emptied&gt;&lt;a
+-        href=&quot;#emptied&quot;&gt;emptied&lt;/a&gt;&lt;/code&gt; at the element.
++        value and the user agent must &lt;a href=&quot;#queue&quot;&gt;queue a task&lt;/a&gt; to &lt;a
++        href=&quot;#firing2&quot;&gt;fire a simple event&lt;/a&gt; called &lt;code
++        title=event-emptied&gt;&lt;a href=&quot;#emptied&quot;&gt;emptied&lt;/a&gt;&lt;/code&gt; at the
++        element.
+ 
+        &lt;li&gt;These steps must be aborted.
+       &lt;/ol&gt;
+@@ -19335,8 +19346,9 @@
+         title=dom-MediaError-MEDIA_ERR_ABORT&gt;MEDIA_ERR_ABORT&lt;/code&gt;.
+ 
+        &lt;li&gt;The &lt;a href=&quot;#begun&quot;&gt;begun flag&lt;/a&gt; must be set to false and the
+-        user agent must &lt;a href=&quot;#firing6&quot;&gt;fire a progress event&lt;/a&gt; called
+-        &lt;code title=event-abort&gt;&lt;a href=&quot;#abort&quot;&gt;abort&lt;/a&gt;&lt;/code&gt; at the &lt;a
++        user agent must &lt;a href=&quot;#queue&quot;&gt;queue a task&lt;/a&gt; to &lt;a
++        href=&quot;#firing6&quot;&gt;fire a progress event&lt;/a&gt; called &lt;code
++        title=event-abort&gt;&lt;a href=&quot;#abort&quot;&gt;abort&lt;/a&gt;&lt;/code&gt; at the &lt;a
+         href=&quot;#media7&quot;&gt;media element&lt;/a&gt;.
+ 
+        &lt;li&gt;If the &lt;a href=&quot;#media7&quot;&gt;media element&lt;/a&gt;'s &lt;code
+@@ -19346,10 +19358,10 @@
+         the element's &lt;code title=dom-media-networkState&gt;&lt;a
+         href=&quot;#networkstate&quot;&gt;networkState&lt;/a&gt;&lt;/code&gt; attribute must be
+         switched to the &lt;a href=&quot;#empty&quot; title=dom-media-EMPTY&gt;EMPTY&lt;/a&gt;
+-        value and the user agent must &lt;a href=&quot;#firing2&quot;&gt;fire a simple
+-        event&lt;/a&gt; called &lt;code title=event-emptied&gt;&lt;a
+-        href=&quot;#emptied&quot;&gt;emptied&lt;/a&gt;&lt;/code&gt; at the element. (If the &lt;code
+-        title=dom-media-networkState&gt;&lt;a
++        value and the user agent must &lt;a href=&quot;#queue&quot;&gt;queue a task&lt;/a&gt; to &lt;a
++        href=&quot;#firing2&quot;&gt;fire a simple event&lt;/a&gt; called &lt;code
++        title=event-emptied&gt;&lt;a href=&quot;#emptied&quot;&gt;emptied&lt;/a&gt;&lt;/code&gt; at the
++        element. (If the &lt;code title=dom-media-networkState&gt;&lt;a
+         href=&quot;#networkstate&quot;&gt;networkState&lt;/a&gt;&lt;/code&gt; attribute has a value
+         greater than &lt;code title=dom-media-LOADING&gt;&lt;a
+         href=&quot;#loading0&quot;&gt;LOADING&lt;/a&gt;&lt;/code&gt;, then this doesn't happen; the
+@@ -19401,14 +19413,15 @@
+ 
+        &lt;li&gt;
+         &lt;p class=note&gt;The user agent &lt;a href=&quot;#durationUpdate&quot;&gt;will&lt;/a&gt; &lt;a
+-         href=&quot;#firing2&quot;&gt;fire a simple event&lt;/a&gt; called &lt;code
+-         title=event-durationchange&gt;&lt;a
++         href=&quot;#queue&quot;&gt;queue a task&lt;/a&gt; to &lt;a href=&quot;#firing2&quot;&gt;fire a simple
++         event&lt;/a&gt; called &lt;code title=event-durationchange&gt;&lt;a
+          href=&quot;#durationchange&quot;&gt;durationchange&lt;/a&gt;&lt;/code&gt; at the element at
+          this point.
+ 
+        &lt;li&gt;
+-        &lt;p&gt;The user agent must &lt;a href=&quot;#firing2&quot;&gt;fire a simple event&lt;/a&gt;
+-         called &lt;code title=event-loadedmetadata&gt;&lt;a
++        &lt;p&gt;The user agent must &lt;a href=&quot;#queue&quot;&gt;queue a task&lt;/a&gt; to &lt;a
++         href=&quot;#firing2&quot;&gt;fire a simple event&lt;/a&gt; called &lt;code
++         title=event-loadedmetadata&gt;&lt;a
+          href=&quot;#loadedmetadata0&quot;&gt;loadedmetadata&lt;/a&gt;&lt;/code&gt; at the element.
+       &lt;/ol&gt;
+ 
+@@ -19438,14 +19451,16 @@
+          be set to true.
+ 
+        &lt;li&gt;
+-        &lt;p&gt;The user agent must &lt;a href=&quot;#firing2&quot;&gt;fire a simple event&lt;/a&gt;
+-         called &lt;code title=event-loadedfirstframe&gt;&lt;a
++        &lt;p&gt;The user agent must &lt;a href=&quot;#queue&quot;&gt;queue a task&lt;/a&gt; to &lt;a
++         href=&quot;#firing2&quot;&gt;fire a simple event&lt;/a&gt; called &lt;code
++         title=event-loadedfirstframe&gt;&lt;a
+          href=&quot;#loadedfirstframe0&quot;&gt;loadedfirstframe&lt;/a&gt;&lt;/code&gt; at the
+          element.
+ 
+        &lt;li&gt;
+-        &lt;p&gt;The user agent must &lt;a href=&quot;#firing2&quot;&gt;fire a simple event&lt;/a&gt;
+-         called &lt;code title=event-canshowcurrentframe&gt;&lt;a
++        &lt;p&gt;The user agent must &lt;a href=&quot;#queue&quot;&gt;queue a task&lt;/a&gt; to &lt;a
++         href=&quot;#firing2&quot;&gt;fire a simple event&lt;/a&gt; called &lt;code
++         title=event-canshowcurrentframe&gt;&lt;a
+          href=&quot;#canshowcurrentframe0&quot;&gt;canshowcurrentframe&lt;/a&gt;&lt;/code&gt; at the
+          element.
+       &lt;/ol&gt;
+@@ -19460,8 +19475,9 @@
+      title=dom-media-networkState&gt;&lt;a
+      href=&quot;#networkstate&quot;&gt;networkState&lt;/a&gt;&lt;/code&gt; attribute must be set to
+      &lt;code title=dom-media-LOADED&gt;&lt;a href=&quot;#loaded&quot;&gt;LOADED&lt;/a&gt;&lt;/code&gt;, and
+-     the user agent must &lt;a href=&quot;#firing6&quot;&gt;fire a progress event&lt;/a&gt; called
+-     &lt;code title=event-load&gt;&lt;a href=&quot;#load0&quot;&gt;load&lt;/a&gt;&lt;/code&gt; at the element.
++     the user agent must &lt;a href=&quot;#queue&quot;&gt;queue a task&lt;/a&gt; to &lt;a
++     href=&quot;#firing6&quot;&gt;fire a progress event&lt;/a&gt; called &lt;code
++     title=event-load&gt;&lt;a href=&quot;#load0&quot;&gt;load&lt;/a&gt;&lt;/code&gt; at the element.
+   &lt;/ol&gt;
+ 
+   &lt;p&gt;If a &lt;a href=&quot;#media7&quot;&gt;media element&lt;/a&gt; whose &lt;code
+@@ -20003,11 +20019,9 @@
+    href=&quot;#current0&quot;&gt;current playback position&lt;/a&gt; reaches the &lt;var&gt;&lt;a
+    href=&quot;#effective1&quot;&gt;effective loop end&lt;/a&gt;&lt;/var&gt;, then the user agent must
+    increase &lt;code title=dom-media-currentLoop&gt;&lt;a
+-   href=&quot;#currentloop&quot;&gt;currentLoop&lt;/a&gt;&lt;/code&gt; by 1, &lt;a href=&quot;#queue&quot;&gt;queue a
+-   task&lt;/a&gt; to &lt;a href=&quot;#firing2&quot;&gt;fire a simple event&lt;/a&gt; called &lt;code
+-   title=event-timeupdate&gt;&lt;a href=&quot;#timeupdate&quot;&gt;timeupdate&lt;/a&gt;&lt;/code&gt;, and &lt;a
+-   href=&quot;#seek&quot; title=dom-media-seek&gt;seek&lt;/a&gt; to the &lt;var&gt;&lt;a
+-   href=&quot;#effective0&quot;&gt;effective loop start&lt;/a&gt;&lt;/var&gt;.
++   href=&quot;#currentloop&quot;&gt;currentLoop&lt;/a&gt;&lt;/code&gt; by 1 and &lt;a href=&quot;#seek&quot;
++   title=dom-media-seek&gt;seek&lt;/a&gt; to the &lt;var&gt;&lt;a href=&quot;#effective0&quot;&gt;effective
++   loop start&lt;/a&gt;&lt;/var&gt;.
+ 
+   &lt;p&gt;When &lt;code title=dom-media-currentLoop&gt;&lt;a
+    href=&quot;#currentloop&quot;&gt;currentLoop&lt;/a&gt;&lt;/code&gt; is equal to the &lt;span&gt;&lt;code
+@@ -20094,10 +20108,10 @@
+      start&lt;/a&gt;&lt;/var&gt;.&lt;/p&gt;
+ 
+     &lt;p class=note&gt;If this involved a seek, the user agent &lt;a
+-     href=&quot;#seekUpdate&quot;&gt;will&lt;/a&gt; &lt;a href=&quot;#firing2&quot;&gt;fire a simple event&lt;/a&gt;
+-     called &lt;code title=event-timeupdate&gt;&lt;a
+-     href=&quot;#timeupdate&quot;&gt;timeupdate&lt;/a&gt;&lt;/code&gt; at the &lt;a href=&quot;#media7&quot;&gt;media
+-     element&lt;/a&gt;.&lt;/p&gt;
++     href=&quot;#seekUpdate&quot;&gt;will&lt;/a&gt; &lt;a href=&quot;#queue&quot;&gt;queue a task&lt;/a&gt; to &lt;a
++     href=&quot;#firing2&quot;&gt;fire a simple event&lt;/a&gt; called &lt;code
++     title=event-timeupdate&gt;&lt;a href=&quot;#timeupdate&quot;&gt;timeupdate&lt;/a&gt;&lt;/code&gt; at
++     the &lt;a href=&quot;#media7&quot;&gt;media element&lt;/a&gt;.&lt;/p&gt;
+ 
+    &lt;li&gt;
+     &lt;p&gt;The &lt;code title=dom-media-playbackRate&gt;&lt;a
+@@ -20107,10 +20121,10 @@
+ 
+     &lt;p class=note&gt;If this caused the &lt;code title=dom-media-playbackRate&gt;&lt;a
+      href=&quot;#playbackrate&quot;&gt;playbackRate&lt;/a&gt;&lt;/code&gt; attribute to change value,
+-     the user agent &lt;a href=&quot;#rateUpdate&quot;&gt;will&lt;/a&gt; &lt;a href=&quot;#firing2&quot;&gt;fire a
+-     simple event&lt;/a&gt; called &lt;code title=event-ratechange&gt;&lt;a
+-     href=&quot;#ratechange&quot;&gt;ratechange&lt;/a&gt;&lt;/code&gt; at the &lt;a href=&quot;#media7&quot;&gt;media
+-     element&lt;/a&gt;.&lt;/p&gt;
++     the user agent &lt;a href=&quot;#rateUpdate&quot;&gt;will&lt;/a&gt; &lt;a href=&quot;#queue&quot;&gt;queue a
++     task&lt;/a&gt; to &lt;a href=&quot;#firing2&quot;&gt;fire a simple event&lt;/a&gt; called &lt;code
++     title=event-ratechange&gt;&lt;a href=&quot;#ratechange&quot;&gt;ratechange&lt;/a&gt;&lt;/code&gt; at
++     the &lt;a href=&quot;#media7&quot;&gt;media element&lt;/a&gt;.&lt;/p&gt;
+ 
+    &lt;li&gt;
+     &lt;p&gt;If the &lt;a href=&quot;#media7&quot;&gt;media element&lt;/a&gt;'s &lt;code
+@@ -20127,15 +20141,9 @@
+    &lt;li&gt;
+     &lt;p&gt;If the fourth step above changed the value of &lt;code
+      title=dom-media-paused&gt;&lt;a href=&quot;#paused&quot;&gt;paused&lt;/a&gt;&lt;/code&gt;, the user
+-     agent must, after any running scripts have finished executing, and after
+-     any other events triggered by this algorithm (specifically &lt;code
+-     title=event-timeupdate&gt;&lt;a href=&quot;#timeupdate&quot;&gt;timeupdate&lt;/a&gt;&lt;/code&gt; and
+-     &lt;code title=event-ratechange&gt;&lt;a
+-     href=&quot;#ratechange&quot;&gt;ratechange&lt;/a&gt;&lt;/code&gt;) have fired, &lt;a
+-     href=&quot;#firing2&quot;&gt;fire a simple event&lt;/a&gt; called &lt;code
+-     title=event-pause&gt;&lt;a href=&quot;#pause1&quot;&gt;play&lt;/a&gt;&lt;/code&gt; at the element.
+-   &lt;/li&gt;
+-   &lt;!-- xxx queue --&gt;
++     agent must &lt;a href=&quot;#queue&quot;&gt;queue a task&lt;/a&gt; to &lt;a href=&quot;#firing2&quot;&gt;fire
++     a simple event&lt;/a&gt; called &lt;code title=event-pause&gt;&lt;a
++     href=&quot;#pause1&quot;&gt;play&lt;/a&gt;&lt;/code&gt; at the element.
+   &lt;/ol&gt;
+ 
+   &lt;p&gt;When the &lt;dfn id=pause0 title=dom-media-pause&gt;&lt;code&gt;pause()&lt;/code&gt;&lt;/dfn&gt;
+
+Modified: source
+===================================================================
+--- source	2008-08-19 05:58:54 UTC (rev 2081)
++++ source	2008-08-19 06:52:46 UTC (rev 2082)
+@@ -16714,14 +16714,14 @@
+    &lt;li&gt;
+ 
+     &lt;p&gt;While the fetching process is progressing, the user agent must
+-    &lt;span&gt;fire a progress event&lt;/span&gt; called &lt;code
+-    title=&quot;event-progress&quot;&gt;progress&lt;/code&gt; at the element every 350ms
+-    (&amp;#xB1;200ms) or for every byte received, whichever is
++    &lt;span&gt;queue a task&lt;/span&gt; to &lt;span&gt;fire a progress event&lt;/span&gt;
++    called &lt;code title=&quot;event-progress&quot;&gt;progress&lt;/code&gt; at the element
++    every 350ms (&amp;#xB1;200ms) or for every byte received, whichever is
+     &lt;em&gt;least&lt;/em&gt; frequent.&lt;/p&gt;
+ 
+     &lt;p&gt;If at any point the user agent has received no data for more
+-    than about three seconds, the user agent must &lt;span&gt;fire a
+-    progress event&lt;/span&gt; called &lt;code
++    than about three seconds, the user agent must &lt;span&gt;queue a
++    task&lt;/span&gt; to &lt;span&gt;fire a progress event&lt;/span&gt; called &lt;code
+     title=&quot;event-stalled&quot;&gt;stalled&lt;/code&gt; at the element.&lt;/p&gt;
+ 
+     &lt;p&gt;User agents may allow users to selectively block or slow
+@@ -16737,6 +16737,11 @@
+     switching to a streaming protocol. The user agent must consider a
+     resource erroneous only if it has given up trying to fetch it.&lt;/p&gt;
+ 
++    &lt;p&gt;The &lt;span&gt;networking task source&lt;/span&gt; &lt;span
++    title=&quot;concept-task&quot;&gt;tasks&lt;/span&gt; to process the data as it is
++    being fetched must, when appropriate, include the relevant
++    substeps from the following list:&lt;/p&gt;
++
+     &lt;dl class=&quot;switch&quot;&gt;
+ 
+      &lt;dt&gt;If the &lt;span&gt;media data&lt;/span&gt; cannot be fetched at all, due
+@@ -16761,7 +16766,8 @@
+        title=&quot;dom-MediaError-MEDIA_ERR_NETWORK&quot;&gt;MEDIA_ERR_NETWORK&lt;/code&gt;.&lt;/li&gt;
+ 
+        &lt;li&gt;The &lt;span&gt;begun flag&lt;/span&gt; must be set to false and the
+-       user agent must &lt;span&gt;fire a progress event&lt;/span&gt; called &lt;code
++       user agent must &lt;span&gt;queue a task&lt;/span&gt; to &lt;span&gt;fire a
++       progress event&lt;/span&gt; called &lt;code
+        title=&quot;event-error&quot;&gt;error&lt;/code&gt; at the &lt;span&gt;media
+        element&lt;/span&gt;.&lt;/li&gt;
+ 
+@@ -16769,8 +16775,9 @@
+        title=&quot;dom-media-networkState&quot;&gt;networkState&lt;/code&gt; attribute
+        must be switched to the &lt;span
+        title=&quot;dom-media-EMPTY&quot;&gt;EMPTY&lt;/span&gt; value and the user agent
+-       must &lt;span&gt;fire a simple event&lt;/span&gt; called &lt;code
+-       title=&quot;event-emptied&quot;&gt;emptied&lt;/code&gt; at the element.&lt;/li&gt;
++       must &lt;span&gt;queue a task&lt;/span&gt; to &lt;span&gt;fire a simple
++       event&lt;/span&gt; called &lt;code title=&quot;event-emptied&quot;&gt;emptied&lt;/code&gt;
++       at the element.&lt;/li&gt;
+ 
+        &lt;li&gt;These steps must be aborted.&lt;/li&gt;
+ 
+@@ -16804,7 +16811,8 @@
+        title=&quot;dom-MediaError-MEDIA_ERR_DECODE&quot;&gt;MEDIA_ERR_DECODE&lt;/code&gt;.&lt;/li&gt;
+ 
+        &lt;li&gt;The &lt;span&gt;begun flag&lt;/span&gt; must be set to false and the
+-       user agent must &lt;span&gt;fire a progress event&lt;/span&gt; called &lt;code
++       user agent must &lt;span&gt;queue a task&lt;/span&gt; to &lt;span&gt;fire a
++       progress event&lt;/span&gt; called &lt;code
+        title=&quot;event-error&quot;&gt;error&lt;/code&gt; at the &lt;span&gt;media
+        element&lt;/span&gt;.&lt;/li&gt;
+ 
+@@ -16812,8 +16820,9 @@
+        title=&quot;dom-media-networkState&quot;&gt;networkState&lt;/code&gt; attribute
+        must be switched to the &lt;span
+        title=&quot;dom-media-EMPTY&quot;&gt;EMPTY&lt;/span&gt; value and the user agent
+-       must &lt;span&gt;fire a simple event&lt;/span&gt; called &lt;code
+-       title=&quot;event-emptied&quot;&gt;emptied&lt;/code&gt; at the element.&lt;/li&gt;
++       must &lt;span&gt;queue a task&lt;/span&gt; to &lt;span&gt;fire a simple
++       event&lt;/span&gt; called &lt;code title=&quot;event-emptied&quot;&gt;emptied&lt;/code&gt;
++       at the element.&lt;/li&gt;
+ 
+        &lt;li&gt;These steps must be aborted.&lt;/li&gt;
+ 
+@@ -16844,7 +16853,8 @@
+        title=&quot;dom-MediaError-MEDIA_ERR_ABORT&quot;&gt;MEDIA_ERR_ABORT&lt;/code&gt;.&lt;/li&gt;
+ 
+        &lt;li&gt;The &lt;span&gt;begun flag&lt;/span&gt; must be set to false and the
+-       user agent must &lt;span&gt;fire a progress event&lt;/span&gt; called &lt;code
++       user agent must &lt;span&gt;queue a task&lt;/span&gt; to &lt;span&gt;fire a
++       progress event&lt;/span&gt; called &lt;code
+        title=&quot;event-abort&quot;&gt;abort&lt;/code&gt; at the &lt;span&gt;media
+        element&lt;/span&gt;.&lt;/li&gt;
+ 
+@@ -16855,10 +16865,11 @@
+        title=&quot;dom-media-networkState&quot;&gt;networkState&lt;/code&gt; attribute
+        must be switched to the &lt;span
+        title=&quot;dom-media-EMPTY&quot;&gt;EMPTY&lt;/span&gt; value and the user agent
+-       must &lt;span&gt;fire a simple event&lt;/span&gt; called &lt;code
+-       title=&quot;event-emptied&quot;&gt;emptied&lt;/code&gt; at the element. (If the
+-       &lt;code title=&quot;dom-media-networkState&quot;&gt;networkState&lt;/code&gt;
+-       attribute has a value greater than &lt;code
++       must &lt;span&gt;queue a task&lt;/span&gt; to &lt;span&gt;fire a simple
++       event&lt;/span&gt; called &lt;code title=&quot;event-emptied&quot;&gt;emptied&lt;/code&gt;
++       at the element. (If the &lt;code
++       title=&quot;dom-media-networkState&quot;&gt;networkState&lt;/code&gt; attribute
++       has a value greater than &lt;code
+        title=&quot;dom-media-LOADING&quot;&gt;LOADING&lt;/code&gt;, then this doesn't
+        happen; the available data, if any, will be playable.)&lt;/li&gt;
+ 
+@@ -16914,14 +16925,15 @@
+        available.&lt;/p&gt;&lt;/li&gt;
+ 
+        &lt;li&gt;&lt;p class=&quot;note&quot;&gt;The user agent &lt;a
+-       href=&quot;#durationUpdate&quot;&gt;will&lt;/a&gt; &lt;span&gt;fire a simple
+-       event&lt;/span&gt; called &lt;code
++       href=&quot;#durationUpdate&quot;&gt;will&lt;/a&gt; &lt;span&gt;queue a task&lt;/span&gt; to
++       &lt;span&gt;fire a simple event&lt;/span&gt; called &lt;code
+        title=&quot;event-durationchange&quot;&gt;durationchange&lt;/code&gt; at the
+        element at this point.&lt;/li&gt;
+ 
+-       &lt;li&gt;&lt;p&gt;The user agent must &lt;span&gt;fire a simple event&lt;/span&gt;
+-       called &lt;code title=&quot;event-loadedmetadata&quot;&gt;loadedmetadata&lt;/code&gt;
+-       at the element.&lt;/li&gt;
++       &lt;li&gt;&lt;p&gt;The user agent must &lt;span&gt;queue a task&lt;/span&gt; to
++       &lt;span&gt;fire a simple event&lt;/span&gt; called &lt;code
++       title=&quot;event-loadedmetadata&quot;&gt;loadedmetadata&lt;/code&gt; at the
++       element.&lt;/li&gt;
+ 
+       &lt;/ol&gt;
+ 
+@@ -16951,13 +16963,13 @@
+        &lt;li&gt;&lt;p&gt;The &lt;span&gt;loaded-first-frame flag&lt;/span&gt; must be set to
+        true.&lt;/p&gt;&lt;/li&gt;
+ 
+-       &lt;li&gt;&lt;p&gt;The user agent must &lt;span&gt;fire a simple event&lt;/span&gt;
+-       called &lt;code
+-       title=&quot;event-loadedfirstframe&quot;&gt;loadedfirstframe&lt;/code&gt; at
+-       the element.&lt;/li&gt;
++       &lt;li&gt;&lt;p&gt;The user agent must &lt;span&gt;queue a task&lt;/span&gt; to
++       &lt;span&gt;fire a simple event&lt;/span&gt; called &lt;code
++       title=&quot;event-loadedfirstframe&quot;&gt;loadedfirstframe&lt;/code&gt; at the
++       element.&lt;/li&gt;
+ 
+-       &lt;li&gt;&lt;p&gt;The user agent must &lt;span&gt;fire a simple event&lt;/span&gt;
+-       called &lt;code
++       &lt;li&gt;&lt;p&gt;The user agent must &lt;span&gt;queue a task&lt;/span&gt; to
++       &lt;span&gt;fire a simple event&lt;/span&gt; called &lt;code
+        title=&quot;event-canshowcurrentframe&quot;&gt;canshowcurrentframe&lt;/code&gt; at
+        the element.&lt;/li&gt;
+ 
+@@ -16976,8 +16988,9 @@
+    &lt;span&gt;begun flag&lt;/span&gt; must be set to false, the &lt;code
+    title=&quot;dom-media-networkState&quot;&gt;networkState&lt;/code&gt; attribute must
+    be set to &lt;code title=&quot;dom-media-LOADED&quot;&gt;LOADED&lt;/code&gt;, and the
+-   user agent must &lt;span&gt;fire a progress event&lt;/span&gt; called &lt;code
+-   title=&quot;event-load&quot;&gt;load&lt;/code&gt; at the element.&lt;/p&gt;&lt;/li&gt;
++   user agent must &lt;span&gt;queue a task&lt;/span&gt; to &lt;span&gt;fire a progress
++   event&lt;/span&gt; called &lt;code title=&quot;event-load&quot;&gt;load&lt;/code&gt; at the
++   element.&lt;/p&gt;&lt;/li&gt;
+ 
+   &lt;/ol&gt;
+ 
+@@ -17477,9 +17490,7 @@
+   title=&quot;dom-media-playCount&quot;&gt;playCount&lt;/code&gt;-1&lt;/span&gt; and the
+   &lt;span&gt;current playback position&lt;/span&gt; reaches the &lt;var&gt;effective
+   loop end&lt;/var&gt;, then the user agent must increase &lt;code
+-  title=&quot;dom-media-currentLoop&quot;&gt;currentLoop&lt;/code&gt; by 1, &lt;span&gt;queue a
+-  task&lt;/span&gt; to &lt;span&gt;fire a simple event&lt;/span&gt; called &lt;code
+-  title=&quot;event-timeupdate&quot;&gt;timeupdate&lt;/code&gt;, and &lt;span
++  title=&quot;dom-media-currentLoop&quot;&gt;currentLoop&lt;/code&gt; by 1 and &lt;span
+   title=&quot;dom-media-seek&quot;&gt;seek&lt;/span&gt; to the &lt;var&gt;effective loop
+   start&lt;/var&gt;.&lt;/p&gt;
+ 
+@@ -17564,9 +17575,10 @@
+     start&lt;/var&gt;.&lt;/p&gt;
+ 
+     &lt;p class=&quot;note&quot;&gt;If this involved a seek, the user agent &lt;a
+-    href=&quot;#seekUpdate&quot;&gt;will&lt;/a&gt; &lt;span&gt;fire a simple event&lt;/span&gt;
+-    called &lt;code title=&quot;event-timeupdate&quot;&gt;timeupdate&lt;/code&gt; at the
+-    &lt;span&gt;media element&lt;/span&gt;.&lt;/p&gt;
++    href=&quot;#seekUpdate&quot;&gt;will&lt;/a&gt; &lt;span&gt;queue a task&lt;/span&gt; to
++    &lt;span&gt;fire a simple event&lt;/span&gt; called &lt;code
++    title=&quot;event-timeupdate&quot;&gt;timeupdate&lt;/code&gt; at the &lt;span&gt;media
++    element&lt;/span&gt;.&lt;/p&gt;
+ 
+    &lt;/li&gt;
+ 
+@@ -17580,9 +17592,9 @@
+     &lt;p class=&quot;note&quot;&gt;If this caused the &lt;code
+     title=&quot;dom-media-playbackRate&quot;&gt;playbackRate&lt;/code&gt; attribute to
+     change value, the user agent &lt;a href=&quot;#rateUpdate&quot;&gt;will&lt;/a&gt;
+-    &lt;span&gt;fire a simple event&lt;/span&gt; called &lt;code
+-    title=&quot;event-ratechange&quot;&gt;ratechange&lt;/code&gt; at the &lt;span&gt;media
+-    element&lt;/span&gt;.&lt;/p&gt;
++    &lt;span&gt;queue a task&lt;/span&gt; to &lt;span&gt;fire a simple event&lt;/span&gt;
++    called &lt;code title=&quot;event-ratechange&quot;&gt;ratechange&lt;/code&gt; at the
++    &lt;span&gt;media element&lt;/span&gt;.&lt;/p&gt;
+ 
+    &lt;/li&gt;
+ 
+@@ -17596,13 +17608,10 @@
+    &lt;li&gt;&lt;p&gt;The method must then return.&lt;/p&gt;&lt;/li&gt;
+ 
+    &lt;li&gt;&lt;p&gt;If the fourth step above changed the value of &lt;code
+-   title=&quot;dom-media-paused&quot;&gt;paused&lt;/code&gt;, the user agent must, after
+-   any running scripts have finished executing, and after any other
+-   events triggered by this algorithm (specifically &lt;code
+-   title=&quot;event-timeupdate&quot;&gt;timeupdate&lt;/code&gt; and &lt;code
+-   title=&quot;event-ratechange&quot;&gt;ratechange&lt;/code&gt;) have fired, &lt;span&gt;fire
+-   a simple event&lt;/span&gt; called &lt;code title=&quot;event-pause&quot;&gt;play&lt;/code&gt;
+-   at the element.&lt;/p&gt;&lt;/li&gt;&lt;!-- xxx queue --&gt;
++   title=&quot;dom-media-paused&quot;&gt;paused&lt;/code&gt;, the user agent must
++   &lt;span&gt;queue a task&lt;/span&gt; to &lt;span&gt;fire a simple event&lt;/span&gt;
++   called &lt;code title=&quot;event-pause&quot;&gt;play&lt;/code&gt; at the
++   element.&lt;/p&gt;&lt;/li&gt;
+ 
+   &lt;/ol&gt;
+ 
+
+
+</PRE>
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="008967.html">[html5] r2081 - [] (0) Further work on the event loop front. Also,	make 'will' link to the actua [...]
+</A></li>
+	<LI>Next message: <A HREF="008969.html">[html5] r2083 - [] (0) Further work on the event loop front. (This	should complete the bulk of t [...]
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#8968">[ date ]</a>
+              <a href="thread.html#8968">[ thread ]</a>
+              <a href="subject.html#8968">[ subject ]</a>
+              <a href="author.html#8968">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/commit-watchers-whatwg.org">More information about the Commit-Watchers
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

@@ -1,0 +1,129 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [imps] 24 June 2010 HTML 5 spec: bug when emitting tokenizer start tags
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:implementors%40lists.whatwg.org?Subject=Re%3A%20%5Bimps%5D%2024%20June%202010%20HTML%205%20spec%3A%20bug%20when%20emitting%20tokenizer%0A%20start%20tags&In-Reply-To=%3CPine.LNX.4.64.1008100002430.13322%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000969.html">
+   <LINK REL="Next"  HREF="000624.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[imps] 24 June 2010 HTML 5 spec: bug when emitting tokenizer start tags</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:implementors%40lists.whatwg.org?Subject=Re%3A%20%5Bimps%5D%2024%20June%202010%20HTML%205%20spec%3A%20bug%20when%20emitting%20tokenizer%0A%20start%20tags&In-Reply-To=%3CPine.LNX.4.64.1008100002430.13322%40ps20323.dreamhostps.com%3E"
+       TITLE="[imps] 24 June 2010 HTML 5 spec: bug when emitting tokenizer start tags">ian at hixie.ch
+       </A><BR>
+    <I>Mon Aug  9 17:03:20 PDT 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000969.html">[imps] setting up, and keeping up,	the html5 validator.nu java servlet
+</A></li>
+        <LI>Next message: <A HREF="000624.html">[imps] Altering validator.nu to do static analysis
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#619">[ date ]</a>
+              <a href="thread.html#619">[ thread ]</a>
+              <a href="subject.html#619">[ subject ]</a>
+              <a href="author.html#619">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Wed, 23 Jun 2010, Rob Jellinghaus wrote:
+&gt;<i>
+</I>&gt;<i> The 24 June 2010 working draft of the HTML5 spec has, I believe, a bug 
+</I>&gt;<i> with tokenizer state update when emitting start tags.  The bug is an 
+</I>&gt;<i> ordering problem between the tokenizer state update performed by the 
+</I>&gt;<i> tokenizer itself, and the tokenizer state update sometimes performed by 
+</I>&gt;<i> the tree construction stage.
+</I>&gt;<i> 
+</I>&gt;<i> <A HREF="http://dev.w3.org/html5/spec/Overview.html">http://dev.w3.org/html5/spec/Overview.html</A> currently links to 
+</I>&gt;<i> <A HREF="http://www.w3.org/TR/2010/WD-html5-20100624/">http://www.w3.org/TR/2010/WD-html5-20100624/</A> as the latest version, but 
+</I>&gt;<i> the latter link is broken at the moment.  Looking at the former, for 
+</I>&gt;<i> instance:
+</I>&gt;<i> 
+</I>&gt;<i> Section 8.2.4.10 (Tag name state) says
+</I>&gt;<i> 
+</I>&gt;<i> 	&#8618;U+003E GREATER-THAN SIGN (&gt;)
+</I>&gt;<i> 	Emit the current tag token. Switch to the data state.
+</I>&gt;<i> 
+</I>&gt;<i> The &quot;Emit the current tag token&quot; step is defined in section 8.2.4 as:
+</I>&gt;<i> 
+</I>&gt;<i> 	When a token is emitted, it must immediately be handled by the
+</I>&gt;<i> 	tree construction stage. The tree construction stage can affect
+</I>&gt;<i> 	the state of the tokenization stage, and can insert additional
+</I>&gt;<i> 	characters into the stream.
+</I>&gt;<i> 
+</I>&gt;<i> So let us consider the following HTML:
+</I>&gt;<i> 
+</I>&gt;<i> 	&lt;html&gt;
+</I>&gt;<i> 	&lt;head&gt;
+</I>&gt;<i> 	&lt;script&gt;&lt;!-- window.alert(); --&gt;&lt;/script&gt;
+</I>&gt;<i> 	&lt;/head&gt;
+</I>&gt;<i> 	&lt;body&gt;&lt;/body&gt;
+</I>&gt;<i> 	&lt;/html&gt;
+</I>&gt;<i> 
+</I>&gt;<i> At the closing '&gt;' of '&lt;script&gt;', the tokenizer is in tag name state.  
+</I>&gt;<i> It emits the current tag token, which is a 'script' start tag.
+</I>&gt;<i> 
+</I>&gt;<i> The tree construction stage, in section 8.2.5.7 (&quot;in head&quot; insertion 
+</I>&gt;<i> mode), specifies:
+</I>&gt;<i> 
+</I>&gt;<i> 	&#8618;A start tag whose tag name is &quot;script&quot;
+</I>&gt;<i> 	Run these steps:
+</I>&gt;<i> 	...
+</I>&gt;<i> 	5.Switch the tokenizer to the script data state.
+</I>&gt;<i> 
+</I>&gt;<i> The tree construction stage therefore resets the tokenizer state 
+</I>&gt;<i> immediately.
+</I>&gt;<i> 
+</I>&gt;<i> After completing, the tree construction stage returns to the tokenizer.  
+</I>&gt;<i> *And at that point, the tokenizer is specified to reset to the data 
+</I>&gt;<i> state!* This state update overwrites the state update from the tree 
+</I>&gt;<i> construction stage, and the script is not parsed as script.
+</I>&gt;<i> 
+</I>&gt;<i> I encountered this bug in my own implementation.  The identical bug 
+</I>&gt;<i> exists in all the other states that can emit start tags which can 
+</I>&gt;<i> contain content (8.2.4.34 through 8.2.4.37, and 8.2.4.42).
+</I>
+For the record, this was fixed a few weeks ago. Let me know if anything is 
+still broken here.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000969.html">[imps] setting up, and keeping up,	the html5 validator.nu java servlet
+</A></li>
+	<LI>Next message: <A HREF="000624.html">[imps] Altering validator.nu to do static analysis
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#619">[ date ]</a>
+              <a href="thread.html#619">[ thread ]</a>
+              <a href="subject.html#619">[ subject ]</a>
+              <a href="author.html#619">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/implementors-whatwg.org">More information about the Implementors
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

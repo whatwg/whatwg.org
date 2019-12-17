@@ -1,0 +1,363 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [html5] r2907 - [gow] (2) Fix race conditions in the &lt;video&gt; load	mechanism.
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commit-watchers%40lists.whatwg.org?Subject=Re%3A%20%5Bhtml5%5D%20r2907%20-%20%5Bgow%5D%20%282%29%20Fix%20race%20conditions%20in%20the%20%3Cvideo%3E%20load%0A%09mechanism.&In-Reply-To=%3C20090325084004.8165D1B0F9B%40hixie.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="009788.html">
+   <LINK REL="Next"  HREF="009790.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[html5] r2907 - [gow] (2) Fix race conditions in the &lt;video&gt; load	mechanism.</H1>
+<!--htdig_noindex-->
+    <B>whatwg at whatwg.org</B> 
+    <A HREF="mailto:commit-watchers%40lists.whatwg.org?Subject=Re%3A%20%5Bhtml5%5D%20r2907%20-%20%5Bgow%5D%20%282%29%20Fix%20race%20conditions%20in%20the%20%3Cvideo%3E%20load%0A%09mechanism.&In-Reply-To=%3C20090325084004.8165D1B0F9B%40hixie.dreamhostps.com%3E"
+       TITLE="[html5] r2907 - [gow] (2) Fix race conditions in the &lt;video&gt; load	mechanism.">whatwg at whatwg.org
+       </A><BR>
+    <I>Wed Mar 25 01:40:04 PDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="009788.html">[html5] r2906 - [e] (0) v2 note
+</A></li>
+        <LI>Next message: <A HREF="009790.html">[html5] r2908 - [gow] (2) Make &lt;video&gt; delay the load event until	the first frame is available.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#9789">[ date ]</a>
+              <a href="thread.html#9789">[ thread ]</a>
+              <a href="subject.html#9789">[ subject ]</a>
+              <a href="author.html#9789">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Author: ianh
+Date: 2009-03-25 01:40:03 -0700 (Wed, 25 Mar 2009)
+New Revision: 2907
+
+Modified:
+   index
+   source
+Log:
+[gow] (2) Fix race conditions in the &lt;video&gt; load mechanism.
+
+Modified: index
+===================================================================
+--- index	2009-03-25 07:11:43 UTC (rev 2906)
++++ index	2009-03-25 08:40:03 UTC (rev 2907)
+@@ -19129,9 +19129,8 @@
+   these must return a new &lt;code&gt;&lt;a href=#htmlaudioelement&gt;HTMLAudioElement&lt;/a&gt;&lt;/code&gt; object (a new
+   &lt;code&gt;&lt;a href=#audio&gt;audio&lt;/a&gt;&lt;/code&gt; element). If the &lt;var title=&quot;&quot;&gt;src&lt;/var&gt; argument
+   is present, the object created must have its &lt;code title=dom-media-src&gt;&lt;a href=#dom-media-src&gt;src&lt;/a&gt;&lt;/code&gt; content attribute set to the
+-  provided value, and the user agent must asynchronously invoke the
+-  object's &lt;a href=#concept-media-load-algorithm title=concept-media-load-algorithm&gt;resource
+-  selection algorithm&lt;/a&gt; before returning.&lt;/p&gt;
++  provided value, and the user agent must invoke the object's &lt;a href=#concept-media-load-algorithm title=concept-media-load-algorithm&gt;resource selection
++  algorithm&lt;/a&gt; before returning.&lt;/p&gt;
+ 
+   &lt;/div&gt;
+ 
+@@ -19774,7 +19773,7 @@
+ 
+     &lt;/ol&gt;&lt;/li&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;Asynchronously invoke the &lt;a href=#media-element&gt;media element&lt;/a&gt;'s &lt;a href=#concept-media-load-algorithm title=concept-media-load-algorithm&gt;resource selection
++   &lt;li&gt;&lt;p&gt;Invoke the &lt;a href=#media-element&gt;media element&lt;/a&gt;'s &lt;a href=#concept-media-load-algorithm title=concept-media-load-algorithm&gt;resource selection
+    algorithm&lt;/a&gt;.&lt;/li&gt;
+ 
+    &lt;li&gt;
+@@ -19786,8 +19785,10 @@
+ 
+   &lt;/ol&gt;&lt;p&gt;The &lt;dfn id=concept-media-load-algorithm title=concept-media-load-algorithm&gt;resource selection
+   algorithm&lt;/dfn&gt; for a &lt;a href=#media-element&gt;media element&lt;/a&gt; is as follows. This
+-  algorithm is always invoked asynchronously, meaning that it runs in
+-  the background with scripts and other &lt;a href=#concept-task title=concept-task&gt;tasks&lt;/a&gt; running in parallel.&lt;/p&gt;
++  algorithm is always invoked synchronously, but one of the first
++  steps in the algorithm is to return and continue running the
++  remaining steps asynchronously, meaning that it runs in the
++  background with scripts and other &lt;a href=#concept-task title=concept-task&gt;tasks&lt;/a&gt; running in parallel.&lt;/p&gt;
+ 
+   &lt;ol&gt;&lt;li&gt;
+ 
+@@ -19796,18 +19797,37 @@
+ 
+     &lt;ol&gt;&lt;li&gt;&lt;p&gt;Set the &lt;code title=dom-media-networkState&gt;&lt;a href=#dom-media-networkstate&gt;networkState&lt;/a&gt;&lt;/code&gt; to &lt;code title=dom-media-NETWORK_NO_SOURCE&gt;&lt;a href=#dom-media-network_no_source&gt;NETWORK_NO_SOURCE&lt;/a&gt;&lt;/code&gt;.&lt;/li&gt;
+ 
++     &lt;li&gt;&lt;p&gt;Run the remainder of the &lt;a href=#concept-media-load-algorithm title=concept-media-load-algorithm&gt;resource selection
++     algorithm&lt;/a&gt; steps asynchronously, allowing the &lt;a href=#concept-task title=concept-task&gt;task&lt;/a&gt; that invoked this algorithm to
++     continue.&lt;/li&gt;
++
+      &lt;li&gt;&lt;p&gt;While the &lt;a href=#media-element&gt;media element&lt;/a&gt; has neither a &lt;code title=attr-media-src&gt;&lt;a href=#attr-media-src&gt;src&lt;/a&gt;&lt;/code&gt; attribute nor any
+-     &lt;code&gt;&lt;a href=#the-source-element&gt;source&lt;/a&gt;&lt;/code&gt; element children, wait. (This steps might
+-     wait forever.)&lt;/li&gt;
++     &lt;code&gt;&lt;a href=#the-source-element&gt;source&lt;/a&gt;&lt;/code&gt; element children, wait. (This step might wait
++     forever.)&lt;/li&gt;
+ 
++     &lt;li&gt;&lt;p&gt;Before the &lt;a href=#concept-task title=concept-task&gt;task&lt;/a&gt; that set
++     the &lt;code title=attr-media-src&gt;&lt;a href=#attr-media-src&gt;src&lt;/a&gt;&lt;/code&gt; attribute or inserted
++     the &lt;code&gt;&lt;a href=#the-source-element&gt;source&lt;/a&gt;&lt;/code&gt; element has a chance to complete, set the
++     &lt;a href=#media-element&gt;media element&lt;/a&gt;'s &lt;a href=#delaying-the-load-event-flag&gt;delaying-the-load-event
++     flag&lt;/a&gt; to true (this &lt;a href=#delay-the-load-event title=&quot;delay the load
++     event&quot;&gt;delays the load event&lt;/a&gt;), and set its &lt;code title=dom-media-networkState&gt;&lt;a href=#dom-media-networkstate&gt;networkState&lt;/a&gt;&lt;/code&gt; to &lt;code title=dom-media-NETWORK_LOADING&gt;&lt;a href=#dom-media-network_loading&gt;NETWORK_LOADING&lt;/a&gt;&lt;/code&gt;.&lt;/li&gt;
++
++    &lt;/ol&gt;&lt;p&gt;Otherwise, run these substeps:&lt;/p&gt;
++
++    &lt;ol&gt;&lt;li&gt;&lt;p&gt;Set the &lt;a href=#media-element&gt;media element&lt;/a&gt;'s
++     &lt;a href=#delaying-the-load-event-flag&gt;delaying-the-load-event flag&lt;/a&gt; to true (this &lt;a href=#delay-the-load-event title=&quot;delay the load event&quot;&gt;delays the load event&lt;/a&gt;), and
++     set its &lt;code title=dom-media-networkState&gt;&lt;a href=#dom-media-networkstate&gt;networkState&lt;/a&gt;&lt;/code&gt;
++     to &lt;code title=dom-media-NETWORK_LOADING&gt;&lt;a href=#dom-media-network_loading&gt;NETWORK_LOADING&lt;/a&gt;&lt;/code&gt;.&lt;/li&gt;
++
++     &lt;li&gt;&lt;p&gt;Run the remainder of the &lt;a href=#concept-media-load-algorithm title=concept-media-load-algorithm&gt;resource selection
++     algorithm&lt;/a&gt; steps asynchronously, allowing the &lt;a href=#concept-task title=concept-task&gt;task&lt;/a&gt; that invoked this algorithm to
++     continue.&lt;/li&gt;
++
+     &lt;/ol&gt;&lt;/li&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;Set the element's &lt;a href=#delaying-the-load-event-flag&gt;delaying-the-load-event flag&lt;/a&gt;
+-   to true. This &lt;a href=#delay-the-load-event title=&quot;delay the load event&quot;&gt;delays the load
+-   event&lt;/a&gt;.&lt;/li&gt;
++   &lt;li&gt;&lt;p class=note&gt;By this point, the algorithm is running
++   asynchronously.&lt;/li&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;Set the &lt;code title=dom-media-networkState&gt;&lt;a href=#dom-media-networkstate&gt;networkState&lt;/a&gt;&lt;/code&gt; to &lt;code title=dom-media-NETWORK_LOADING&gt;&lt;a href=#dom-media-network_loading&gt;NETWORK_LOADING&lt;/a&gt;&lt;/code&gt;.&lt;/li&gt;
+-
+    &lt;li&gt;&lt;p&gt;&lt;a href=#queue-a-task&gt;Queue a task&lt;/a&gt; to &lt;a href=#fire-a-progress-event&gt;fire a progress
+    event&lt;/a&gt; called &lt;code title=event-loadstart&gt;&lt;a href=#event-loadstart&gt;loadstart&lt;/a&gt;&lt;/code&gt;
+    at the &lt;a href=#media-element&gt;media element&lt;/a&gt;.&lt;/li&gt;
+@@ -19976,10 +19996,12 @@
+      node other than the end of the list. (This step might wait
+      forever.)&lt;/li&gt;
+ 
+-     &lt;li&gt;&lt;p&gt;Set the element's &lt;a href=#delaying-the-load-event-flag&gt;delaying-the-load-event
++     &lt;li&gt;&lt;p&gt;Before the &lt;a href=#concept-task title=concept-task&gt;task&lt;/a&gt; that
++     inserted the &lt;code&gt;&lt;a href=#the-source-element&gt;source&lt;/a&gt;&lt;/code&gt; element has a chance to
++     complete, set the element's &lt;a href=#delaying-the-load-event-flag&gt;delaying-the-load-event
+      flag&lt;/a&gt; back to true. This &lt;a href=#delay-the-load-event title=&quot;delay the load
+-     event&quot;&gt;delays the load event&lt;/a&gt; again, in case it hasn't gone
+-     been fired yet.&lt;/li&gt;
++     event&quot;&gt;delays the load event&lt;/a&gt; again, in case it hasn't been
++     fired yet.&lt;/li&gt;
+ 
+      &lt;li&gt;&lt;p&gt;Jump back to the step labeled &lt;i&gt;search loop&lt;/i&gt;.&lt;/li&gt;
+ 
+@@ -20292,9 +20314,9 @@
+ 
+   &lt;/ol&gt;&lt;p&gt;If a &lt;a href=#media-element&gt;media element&lt;/a&gt; whose &lt;code title=dom-media-networkState&gt;&lt;a href=#dom-media-networkstate&gt;networkState&lt;/a&gt;&lt;/code&gt; has the value
+   &lt;code title=dom-media-NETWORK_EMPTY&gt;&lt;a href=#dom-media-network_empty&gt;NETWORK_EMPTY&lt;/a&gt;&lt;/code&gt; is &lt;a href=#insert-an-element-into-a-document title=&quot;insert an element into a document&quot;&gt;inserted into a
+-  document&lt;/a&gt;, the user agent must asynchronously invoke the
+-  &lt;a href=#media-element&gt;media element&lt;/a&gt;'s &lt;a href=#concept-media-load-algorithm title=concept-media-load-algorithm&gt;resource selection
+-  algorithm&lt;/a&gt;.&lt;/p&gt;
++  document&lt;/a&gt;, the user agent must invoke the &lt;a href=#media-element&gt;media
++  element&lt;/a&gt;'s &lt;a href=#concept-media-load-algorithm title=concept-media-load-algorithm&gt;resource
++  selection algorithm&lt;/a&gt;.&lt;/p&gt;
+ 
+   &lt;/div&gt;
+ 
+@@ -20942,8 +20964,7 @@
+ 
+   &lt;ol&gt;&lt;li&gt;&lt;p&gt;If the &lt;a href=#media-element&gt;media element&lt;/a&gt;'s &lt;code title=dom-media-networkState&gt;&lt;a href=#dom-media-networkstate&gt;networkState&lt;/a&gt;&lt;/code&gt; attribute has
+    the value &lt;code title=dom-media-NETWORK_EMPTY&gt;&lt;a href=#dom-media-network_empty&gt;NETWORK_EMPTY&lt;/a&gt;&lt;/code&gt;, then the user
+-   agent must asynchronously invoke the &lt;a href=#media-element&gt;media element&lt;/a&gt;'s
+-   &lt;a href=#concept-media-load-algorithm title=concept-media-load-algorithm&gt;resource selection
++   agent must invoke the &lt;a href=#media-element&gt;media element&lt;/a&gt;'s &lt;a href=#concept-media-load-algorithm title=concept-media-load-algorithm&gt;resource selection
+    algorithm&lt;/a&gt;.&lt;/li&gt;
+ 
+    &lt;li&gt;
+@@ -20999,8 +21020,7 @@
+ 
+   &lt;ol&gt;&lt;li&gt;&lt;p&gt;If the &lt;a href=#media-element&gt;media element&lt;/a&gt;'s &lt;code title=dom-media-networkState&gt;&lt;a href=#dom-media-networkstate&gt;networkState&lt;/a&gt;&lt;/code&gt; attribute has
+    the value &lt;code title=dom-media-NETWORK_EMPTY&gt;&lt;a href=#dom-media-network_empty&gt;NETWORK_EMPTY&lt;/a&gt;&lt;/code&gt;, then the user
+-   agent must asynchronously invoke the &lt;a href=#media-element&gt;media element&lt;/a&gt;'s
+-   &lt;a href=#concept-media-load-algorithm title=concept-media-load-algorithm&gt;resource selection
++   agent must invoke the &lt;a href=#media-element&gt;media element&lt;/a&gt;'s &lt;a href=#concept-media-load-algorithm title=concept-media-load-algorithm&gt;resource selection
+    algorithm&lt;/a&gt;.&lt;/li&gt;
+ 
+    &lt;li&gt;&lt;p&gt;If the &lt;a href=#media-element&gt;media element&lt;/a&gt;'s &lt;code title=dom-media-paused&gt;&lt;a href=#dom-media-paused&gt;paused&lt;/a&gt;&lt;/code&gt; attribute is false, it must
+
+Modified: source
+===================================================================
+--- source	2009-03-25 07:11:43 UTC (rev 2906)
++++ source	2009-03-25 08:40:03 UTC (rev 2907)
+@@ -20604,9 +20604,9 @@
+   &lt;code&gt;audio&lt;/code&gt; element). If the &lt;var title=&quot;&quot;&gt;src&lt;/var&gt; argument
+   is present, the object created must have its &lt;code
+   title=&quot;dom-media-src&quot;&gt;src&lt;/code&gt; content attribute set to the
+-  provided value, and the user agent must asynchronously invoke the
+-  object's &lt;span title=&quot;concept-media-load-algorithm&quot;&gt;resource
+-  selection algorithm&lt;/span&gt; before returning.&lt;/p&gt;
++  provided value, and the user agent must invoke the object's &lt;span
++  title=&quot;concept-media-load-algorithm&quot;&gt;resource selection
++  algorithm&lt;/span&gt; before returning.&lt;/p&gt;
+ 
+   &lt;/div&gt;
+ 
+@@ -21342,7 +21342,7 @@
+ 
+    &lt;/li&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;Asynchronously invoke the &lt;span&gt;media element&lt;/span&gt;'s &lt;span
++   &lt;li&gt;&lt;p&gt;Invoke the &lt;span&gt;media element&lt;/span&gt;'s &lt;span
+    title=&quot;concept-media-load-algorithm&quot;&gt;resource selection
+    algorithm&lt;/span&gt;.&lt;/li&gt;
+ 
+@@ -21357,8 +21357,10 @@
+ 
+   &lt;p&gt;The &lt;dfn title=&quot;concept-media-load-algorithm&quot;&gt;resource selection
+   algorithm&lt;/dfn&gt; for a &lt;span&gt;media element&lt;/span&gt; is as follows. This
+-  algorithm is always invoked asynchronously, meaning that it runs in
+-  the background with scripts and other &lt;span
++  algorithm is always invoked synchronously, but one of the first
++  steps in the algorithm is to return and continue running the
++  remaining steps asynchronously, meaning that it runs in the
++  background with scripts and other &lt;span
+   title=&quot;concept-task&quot;&gt;tasks&lt;/span&gt; running in parallel.&lt;/p&gt;
+ 
+   &lt;ol&gt;
+@@ -21375,23 +21377,52 @@
+      title=&quot;dom-media-networkState&quot;&gt;networkState&lt;/code&gt; to &lt;code
+      title=&quot;dom-media-NETWORK_NO_SOURCE&quot;&gt;NETWORK_NO_SOURCE&lt;/code&gt;.&lt;/p&gt;&lt;/li&gt;
+ 
++     &lt;li&gt;&lt;p&gt;Run the remainder of the &lt;span
++     title=&quot;concept-media-load-algorithm&quot;&gt;resource selection
++     algorithm&lt;/span&gt; steps asynchronously, allowing the &lt;span
++     title=&quot;concept-task&quot;&gt;task&lt;/span&gt; that invoked this algorithm to
++     continue.&lt;/p&gt;&lt;/li&gt;
++
+      &lt;li&gt;&lt;p&gt;While the &lt;span&gt;media element&lt;/span&gt; has neither a &lt;code
+      title=&quot;attr-media-src&quot;&gt;src&lt;/code&gt; attribute nor any
+-     &lt;code&gt;source&lt;/code&gt; element children, wait. (This steps might
+-     wait forever.)&lt;/p&gt;&lt;/li&gt;
++     &lt;code&gt;source&lt;/code&gt; element children, wait. (This step might wait
++     forever.)&lt;/p&gt;&lt;/li&gt;
+ 
++     &lt;li&gt;&lt;p&gt;Before the &lt;span title=&quot;concept-task&quot;&gt;task&lt;/span&gt; that set
++     the &lt;code title=&quot;attr-media-src&quot;&gt;src&lt;/code&gt; attribute or inserted
++     the &lt;code&gt;source&lt;/code&gt; element has a chance to complete, set the
++     &lt;span&gt;media element&lt;/span&gt;'s &lt;span&gt;delaying-the-load-event
++     flag&lt;/span&gt; to true (this &lt;span title=&quot;delay the load
++     event&quot;&gt;delays the load event&lt;/span&gt;), and set its &lt;code
++     title=&quot;dom-media-networkState&quot;&gt;networkState&lt;/code&gt; to &lt;code
++     title=&quot;dom-media-NETWORK_LOADING&quot;&gt;NETWORK_LOADING&lt;/code&gt;.&lt;/p&gt;&lt;/li&gt;
++
+     &lt;/ol&gt;
+ 
++    &lt;p&gt;Otherwise, run these substeps:&lt;/p&gt;
++
++    &lt;ol&gt;
++
++     &lt;li&gt;&lt;p&gt;Set the &lt;span&gt;media element&lt;/span&gt;'s
++     &lt;span&gt;delaying-the-load-event flag&lt;/span&gt; to true (this &lt;span
++     title=&quot;delay the load event&quot;&gt;delays the load event&lt;/span&gt;), and
++     set its &lt;code title=&quot;dom-media-networkState&quot;&gt;networkState&lt;/code&gt;
++     to &lt;code
++     title=&quot;dom-media-NETWORK_LOADING&quot;&gt;NETWORK_LOADING&lt;/code&gt;.&lt;/p&gt;&lt;/li&gt;
++
++     &lt;li&gt;&lt;p&gt;Run the remainder of the &lt;span
++     title=&quot;concept-media-load-algorithm&quot;&gt;resource selection
++     algorithm&lt;/span&gt; steps asynchronously, allowing the &lt;span
++     title=&quot;concept-task&quot;&gt;task&lt;/span&gt; that invoked this algorithm to
++     continue.&lt;/p&gt;&lt;/li&gt;
++
++    &lt;/ol&gt;
++
+    &lt;/li&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;Set the element's &lt;span&gt;delaying-the-load-event flag&lt;/span&gt;
+-   to true. This &lt;span title=&quot;delay the load event&quot;&gt;delays the load
+-   event&lt;/span&gt;.&lt;/p&gt;&lt;/li&gt;
++   &lt;li&gt;&lt;p class=&quot;note&quot;&gt;By this point, the algorithm is running
++   asynchronously.&lt;/p&gt;&lt;/li&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;Set the &lt;code
+-   title=&quot;dom-media-networkState&quot;&gt;networkState&lt;/code&gt; to &lt;code
+-   title=&quot;dom-media-NETWORK_LOADING&quot;&gt;NETWORK_LOADING&lt;/code&gt;.&lt;/p&gt;&lt;/li&gt;
+-
+    &lt;li&gt;&lt;p&gt;&lt;span&gt;Queue a task&lt;/span&gt; to &lt;span&gt;fire a progress
+    event&lt;/span&gt; called &lt;code title=&quot;event-loadstart&quot;&gt;loadstart&lt;/code&gt;
+    at the &lt;span&gt;media element&lt;/span&gt;.&lt;/p&gt;&lt;/li&gt;
+@@ -21601,10 +21632,12 @@
+      node other than the end of the list. (This step might wait
+      forever.)&lt;/p&gt;&lt;/li&gt;
+ 
+-     &lt;li&gt;&lt;p&gt;Set the element's &lt;span&gt;delaying-the-load-event
++     &lt;li&gt;&lt;p&gt;Before the &lt;span title=&quot;concept-task&quot;&gt;task&lt;/span&gt; that
++     inserted the &lt;code&gt;source&lt;/code&gt; element has a chance to
++     complete, set the element's &lt;span&gt;delaying-the-load-event
+      flag&lt;/span&gt; back to true. This &lt;span title=&quot;delay the load
+-     event&quot;&gt;delays the load event&lt;/span&gt; again, in case it hasn't gone
+-     been fired yet.&lt;/p&gt;&lt;/li&gt;
++     event&quot;&gt;delays the load event&lt;/span&gt; again, in case it hasn't been
++     fired yet.&lt;/p&gt;&lt;/li&gt;
+ 
+      &lt;li&gt;&lt;p&gt;Jump back to the step labeled &lt;i&gt;search loop&lt;/i&gt;.&lt;/p&gt;&lt;/li&gt;
+ 
+@@ -21997,10 +22030,9 @@
+   title=&quot;dom-media-networkState&quot;&gt;networkState&lt;/code&gt; has the value
+   &lt;code title=&quot;dom-media-NETWORK_EMPTY&quot;&gt;NETWORK_EMPTY&lt;/code&gt; is &lt;span
+   title=&quot;insert an element into a document&quot;&gt;inserted into a
+-  document&lt;/span&gt;, the user agent must asynchronously invoke the
+-  &lt;span&gt;media element&lt;/span&gt;'s &lt;span
+-  title=&quot;concept-media-load-algorithm&quot;&gt;resource selection
+-  algorithm&lt;/span&gt;.&lt;/p&gt;
++  document&lt;/span&gt;, the user agent must invoke the &lt;span&gt;media
++  element&lt;/span&gt;'s &lt;span title=&quot;concept-media-load-algorithm&quot;&gt;resource
++  selection algorithm&lt;/span&gt;.&lt;/p&gt;
+ 
+   &lt;/div&gt;
+ 
+@@ -22766,8 +22798,8 @@
+    title=&quot;dom-media-networkState&quot;&gt;networkState&lt;/code&gt; attribute has
+    the value &lt;code
+    title=&quot;dom-media-NETWORK_EMPTY&quot;&gt;NETWORK_EMPTY&lt;/code&gt;, then the user
+-   agent must asynchronously invoke the &lt;span&gt;media element&lt;/span&gt;'s
+-   &lt;span title=&quot;concept-media-load-algorithm&quot;&gt;resource selection
++   agent must invoke the &lt;span&gt;media element&lt;/span&gt;'s &lt;span
++   title=&quot;concept-media-load-algorithm&quot;&gt;resource selection
+    algorithm&lt;/span&gt;.&lt;/p&gt;&lt;/li&gt;
+ 
+    &lt;li&gt;
+@@ -22842,8 +22874,8 @@
+    title=&quot;dom-media-networkState&quot;&gt;networkState&lt;/code&gt; attribute has
+    the value &lt;code
+    title=&quot;dom-media-NETWORK_EMPTY&quot;&gt;NETWORK_EMPTY&lt;/code&gt;, then the user
+-   agent must asynchronously invoke the &lt;span&gt;media element&lt;/span&gt;'s
+-   &lt;span title=&quot;concept-media-load-algorithm&quot;&gt;resource selection
++   agent must invoke the &lt;span&gt;media element&lt;/span&gt;'s &lt;span
++   title=&quot;concept-media-load-algorithm&quot;&gt;resource selection
+    algorithm&lt;/span&gt;.&lt;/p&gt;&lt;/li&gt;
+ 
+    &lt;li&gt;&lt;p&gt;If the &lt;span&gt;media element&lt;/span&gt;'s &lt;code
+
+
+</PRE>
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="009788.html">[html5] r2906 - [e] (0) v2 note
+</A></li>
+	<LI>Next message: <A HREF="009790.html">[html5] r2908 - [gow] (2) Make &lt;video&gt; delay the load event until	the first frame is available.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#9789">[ date ]</a>
+              <a href="thread.html#9789">[ thread ]</a>
+              <a href="subject.html#9789">[ subject ]</a>
+              <a href="author.html#9789">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/commit-watchers-whatwg.org">More information about the Commit-Watchers
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>
