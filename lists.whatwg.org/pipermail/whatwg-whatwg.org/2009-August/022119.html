@@ -1,0 +1,267 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Changing postMessage() to allow sending unentangled	ports
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Changing%20postMessage%28%29%20to%20allow%20sending%20unentangled%0A%09ports&In-Reply-To=%3Cf965ae410908171802n72f9a0b3p14633497936c3ca3%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="022410.html">
+   <LINK REL="Next"  HREF="022436.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Changing postMessage() to allow sending unentangled	ports</H1>
+<!--htdig_noindex-->
+    <B>Drew Wilson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Changing%20postMessage%28%29%20to%20allow%20sending%20unentangled%0A%09ports&In-Reply-To=%3Cf965ae410908171802n72f9a0b3p14633497936c3ca3%40mail.gmail.com%3E"
+       TITLE="[whatwg] Changing postMessage() to allow sending unentangled	ports">atwilson at google.com
+       </A><BR>
+    <I>Mon Aug 17 18:02:45 PDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="022410.html">[whatwg] Proposal to drag virtual file out of browser
+</A></li>
+        <LI>Next message: <A HREF="022436.html">[whatwg] Changing postMessage() to allow sending unentangled ports
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22119">[ date ]</a>
+              <a href="thread.html#22119">[ thread ]</a>
+              <a href="subject.html#22119">[ subject ]</a>
+              <a href="author.html#22119">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Following up on this issue:
+Currently, the checks specified for MessagePort.postMessage() are different
+from the checks done in window.postMessage() (as described in section 7.2.4
+&quot;Posting messages with message ports&quot;).
+In particular, step 4 of section 7.2.4 says:
+
+If any of the entries in ports are null, *if any of the entries in
+**ports** are
+not entangled **MessagePort*&lt;#1232afb852169a6e_1232af4ce8d86de7_messageport&gt;
+* objects*, or if any
+MessagePort&lt;#1232afb852169a6e_1232af4ce8d86de7_messageport&gt; object
+is listed in ports more than once, then throw an
+INVALID_STATE_ERR&lt;<A HREF="http://infrastructure.html#invalid_state_err">http://infrastructure.html#invalid_state_err</A>&gt;
+ exception.
+
+The spec for MessagePort.postMessage() does not throw an exception if any of
+the entries in ports are not entangled (per this thread). We should probably
+update the spec for window.postMessage() to define the same behavior there
+as well.
+
+Also, as written, the spec now incorrectly lets us send a cloned port
+multiple times. So code like this would not generate an error:
+
+var channel = new MessageChannel();
+otherWindow.postMessage(&quot;message1&quot;, channel.port1);
+otherWindow.postMessage(&quot;message2&quot;, channel.port1);   // Sent the same port
+again
+
+The current WebKit behavior is to throw an INVALID_STATE_ERR in this case,
+while still allowing closed ports to be sent, which I believe is the
+intended behavior based on previous discussions. If this is correct, we
+should update the spec to prohibit resending cloned ports.
+
+-atw
+
+On Thu, Jun 4, 2009 at 10:30 AM, Drew Wilson &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">atwilson at google.com</A>&gt; wrote:
+
+&gt;<i> Hi all,
+</I>&gt;<i> I'd like to propose a change to the spec for postMessage(). Currently the
+</I>&gt;<i> spec reads:
+</I>&gt;<i>
+</I>&gt;<i> Throws an INVALID_STATE_ERR&lt;<A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/infrastructure.html#invalid_state_err">http://www.whatwg.org/specs/web-apps/current-work/multipage/infrastructure.html#invalid_state_err</A>&gt; if
+</I>&gt;<i> the ports array is not null and it contains either null entries, duplicate
+</I>&gt;<i> ports, or ports that are not entangled.
+</I>&gt;<i>
+</I>&gt;<i> I'd like to suggest that we allow sending ports that are not entangled
+</I>&gt;<i> (i.e. ports that have been closed) - the rationale is two-fold:
+</I>&gt;<i>
+</I>&gt;<i> 1) We removed MessagePort.active because it exposes details about garbage
+</I>&gt;<i> collection (i.e. an application could determine whether the other side of a
+</I>&gt;<i> MessagePort was collected or not based on testing the &quot;active&quot; attribute of
+</I>&gt;<i> a port). Throwing an exception in postMessage() is the same thing - it
+</I>&gt;<i> provides details about whether the other end of the port has been collected.
+</I>&gt;<i>
+</I>&gt;<i> 2) Imagine the following scenario: Window W has two workers, A and B.
+</I>&gt;<i> Worker A wants to send a set of messages to Worker B by queuing those
+</I>&gt;<i> messages on a MessagePort, then asking Window W to forward that port to
+</I>&gt;<i> Worker B:
+</I>&gt;<i>
+</I>&gt;<i> Window W code:
+</I>&gt;<i>
+</I>&gt;<i>   workerA.onmessage(evt) {
+</I>&gt;<i>     if (evt.data == &quot;forward&quot;) {
+</I>&gt;<i>         // Currently this would throw an exception if the passed port is
+</I>&gt;<i> closed/unentangled.
+</I>&gt;<i>         workerB.postMessage(&quot;messageFromA&quot;, evt.ports);
+</I>&gt;<i>     }
+</I>&gt;<i>   }
+</I>&gt;<i>
+</I>&gt;<i> Worker A code:
+</I>&gt;<i>
+</I>&gt;<i> function sendMessagesToB() {
+</I>&gt;<i>     var channel = new MessageChannel();
+</I>&gt;<i>     channel.port1.postMessage(&quot;message 1&quot;);
+</I>&gt;<i>     channel.port1.postMessage(&quot;message 2&quot;);
+</I>&gt;<i>     channel.port1.postMessage(&quot;message 3&quot;);
+</I>&gt;<i>     // Send port to worker B via Window W
+</I>&gt;<i>     postMessage(&quot;forward&quot;, [channel.port2]);
+</I>&gt;<i> }
+</I>&gt;<i>
+</I>&gt;<i> Now Worker A is done with its port - it wants to close the port. But it
+</I>&gt;<i> can't safely do so until it knows that Window W has forwarded the port to
+</I>&gt;<i> Worker B, so it needs to build in some kind of &quot;ack&quot; mechanism to know when
+</I>&gt;<i> it's safe to close the port. Even worse, what if Worker A wants to shut down
+</I>&gt;<i> - it can't safely shut down until it knows that its message has been
+</I>&gt;<i> delivered, because the port would get closed when the owner closes.
+</I>&gt;<i>
+</I>&gt;<i> Since the port still acts as a task source even when it is closed, there
+</I>&gt;<i> seems to be no reason not to allow passing unentangled ports around - it's a
+</I>&gt;<i> reasonable way to represent a set of messages. And if you think about it,
+</I>&gt;<i> there's no reason why this is allowed:
+</I>&gt;<i>
+</I>&gt;<i> postMessage(&quot;msg&quot;, port)
+</I>&gt;<i> port.close()
+</I>&gt;<i>
+</I>&gt;<i> while this is prohibited:
+</I>&gt;<i>
+</I>&gt;<i> port.close();
+</I>&gt;<i> postMessage(&quot;msg&quot;, port);
+</I>&gt;<i>
+</I>&gt;<i> Given that in both cases the port will almost certainly be closed before
+</I>&gt;<i> the message is delivered to the target.
+</I>&gt;<i>
+</I>&gt;<i> -atw
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: &lt;<A HREF="http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20090817/8da93a5b/attachment-0001.htm">http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20090817/8da93a5b/attachment-0001.htm</A>&gt;
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="022410.html">[whatwg] Proposal to drag virtual file out of browser
+</A></li>
+	<LI>Next message: <A HREF="022436.html">[whatwg] Changing postMessage() to allow sending unentangled ports
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22119">[ date ]</a>
+              <a href="thread.html#22119">[ thread ]</a>
+              <a href="subject.html#22119">[ subject ]</a>
+              <a href="author.html#22119">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

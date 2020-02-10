@@ -1,0 +1,105 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] &lt;video&gt; feedback
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20%3Cvideo%3E%20feedback&In-Reply-To=%3C2C6B76AE-6A4C-4413-8232-6D980F02954B%40apple.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="079765.html">
+   <LINK REL="Next"  HREF="079767.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] &lt;video&gt; feedback</H1>
+<!--htdig_noindex-->
+    <B>Jer Noble</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20%3Cvideo%3E%20feedback&In-Reply-To=%3C2C6B76AE-6A4C-4413-8232-6D980F02954B%40apple.com%3E"
+       TITLE="[whatwg] &lt;video&gt; feedback">jer.noble at apple.com
+       </A><BR>
+    <I>Tue Oct  2 13:41:20 PDT 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="079765.html">[whatwg] Proposal for Links to Unrelated Browsing Contexts
+</A></li>
+        <LI>Next message: <A HREF="079767.html">[whatwg] &lt;video&gt; feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#37493">[ date ]</a>
+              <a href="thread.html#37493">[ thread ]</a>
+              <a href="subject.html#37493">[ subject ]</a>
+              <a href="author.html#37493">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Sep 17, 2012, at 12:43 PM, Ian Hickson &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">ian at hixie.ch</A>&gt; wrote:
+
+&gt;<i> On Mon, 9 Jul 2012, adam k wrote:
+</I>&gt;&gt;<i> 
+</I>&gt;&gt;<i> i have a 25fps video, h264, with a burned in timecode.  it seems to be 
+</I>&gt;&gt;<i> off by 1 frame when i compare the burned in timecode to the calculated 
+</I>&gt;&gt;<i> timecode.  i'm using rob coenen's test app at 
+</I>&gt;&gt;<i> <A HREF="http://www.massive-interactive.nl/html5_video/smpte_test_universal.html">http://www.massive-interactive.nl/html5_video/smpte_test_universal.html</A> 
+</I>&gt;&gt;<i> to load my own video.
+</I>&gt;&gt;<i> 
+</I>&gt;&gt;<i> what's the process here to report issues?  please let me know whatever 
+</I>&gt;&gt;<i> formal or informal steps are required and i'll gladly follow them.
+</I>&gt;<i> 
+</I>&gt;<i> Depends on the browser. Which browser?
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;&gt;<i> i'm aware that crooked framerates (i.e. the notorious 29.97) were not 
+</I>&gt;&gt;<i> supported when frame accuracy was implemented.  in my tests, 29.97DF 
+</I>&gt;&gt;<i> timecodes were incorrect by 1 to 3 frames at any given point.
+</I>&gt;&gt;<i> 
+</I>&gt;&gt;<i> will there ever be support for crooked framerate accuracy?  i would be 
+</I>&gt;&gt;<i> more than happy to contribute whatever i can to help test it and make it 
+</I>&gt;&gt;<i> possible.  can someone comment on this?
+</I>&gt;<i> 
+</I>&gt;<i> This is a Quality of Implementation issue, basically. I believe there's 
+</I>&gt;<i> nothing inherently in the API that would make accuracy to such timecodes 
+</I>&gt;<i> impossible.
+</I>
+TLDR; for precise navigation, you need to use a a rational time class, rather than a float value.
+
+The nature of floating point math makes precise frame navigation difficult, if not impossible.  Rob's test is especially hairy, given that each frame has a timing bound of [startTime, endTime), and his test attempts to navigate directly to the startTime of a given frame, a value which gives approximately zero room for error.
+
+I'm most familiar with MPEG containers, but I believe the following is also true of the WebM container: times are represented by a rational number, timeValue / timeScale, where both numerator and denominator are unsigned integers.  To seek to a particular media time, we must convert a floating-point time value into this rational time format (e.g. when calculating the 4th frame's start time, from &quot;3 * 1/29.97&quot; to &quot;3 * 1001/30000&quot;).  If there is a floating-point error in the wrong direction (e.g., as above, a numerator of 3002 vs 3003), the end result will not be the frame's startTime, but one timeScale before it. 
+
+We've fixed some frame accuracy bugs in WebKit (and Chromium) by carefully rounding the incoming floating point time value, taking into account the media's time scale, and rounding to the nearest 1/timeScale value.  This fixes Rob's precision test, but at the expense of precision. (I.e. in a 30 fps movie, &quot;currentTime = 0.999999 / 30&quot; will navigate to the second frame, not the first, due to rounding, which is technically incorrect.)
+
+This is a common problem, and Apple media frameworks (for example) therefore provide rational time classes which provide enough accuracy for precise navigation (e.g. QTTime, CMTime). Using a floating point number to represent time with any precision is not generally accepted as good practice when these rational time classes are available.
+
+-Jer
+</PRE>
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="079765.html">[whatwg] Proposal for Links to Unrelated Browsing Contexts
+</A></li>
+	<LI>Next message: <A HREF="079767.html">[whatwg] &lt;video&gt; feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#37493">[ date ]</a>
+              <a href="thread.html#37493">[ thread ]</a>
+              <a href="subject.html#37493">[ subject ]</a>
+              <a href="author.html#37493">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

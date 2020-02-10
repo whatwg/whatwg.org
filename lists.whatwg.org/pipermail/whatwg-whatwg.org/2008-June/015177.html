@@ -1,0 +1,152 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] '' Re: '' &lt;canvas&gt; element &quot;selection buffer&quot;
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20%27%27%20Re%3A%20%27%27%20%3Ccanvas%3E%20element%20%22selection%20buffer%22&In-Reply-To=%3Cea09c0d10806210735y7eeaef51r94ca79a40a7098fb%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="015175.html">
+   <LINK REL="Next"  HREF="014999.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] '' Re: '' &lt;canvas&gt; element &quot;selection buffer&quot;</H1>
+<!--htdig_noindex-->
+    <B>Philip Taylor</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20%27%27%20Re%3A%20%27%27%20%3Ccanvas%3E%20element%20%22selection%20buffer%22&In-Reply-To=%3Cea09c0d10806210735y7eeaef51r94ca79a40a7098fb%40mail.gmail.com%3E"
+       TITLE="[whatwg] '' Re: '' &lt;canvas&gt; element &quot;selection buffer&quot;">excors+whatwg at gmail.com
+       </A><BR>
+    <I>Sat Jun 21 07:35:44 PDT 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="015175.html">[whatwg] '' Re:  '' &lt;canvas&gt; element &quot;selection buffer&quot;
+</A></li>
+        <LI>Next message: <A HREF="014999.html">[whatwg] access to local path in input type=&quot;file&quot;
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#15177">[ date ]</a>
+              <a href="thread.html#15177">[ thread ]</a>
+              <a href="subject.html#15177">[ subject ]</a>
+              <a href="author.html#15177">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On 21/06/2008, Ond&#345;ej &#381;i&#382;ka &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">ondra at dynawest.cz</A>&gt; wrote:
+&gt;<i> &gt; To hande sprites, you could draw each sprite onto its own canvas
+</I>&gt;<i> &gt; (during the initial loading process) and test
+</I>&gt;<i> &gt; spriteCtx.getImageData(x, y, 1, 1).data[3] &gt; 127 to see if it's
+</I>&gt;<i> &gt; sufficiently non-transparent. Quickly skip any sprites whose bounding
+</I>&gt;<i> &gt; box does not contain (x,y), then test the remaining ones from front to
+</I>&gt;<i> &gt; back to find the first that's solid under the given point, and that
+</I>&gt;<i> &gt; should give the answer.
+</I>&gt;<i> &gt;
+</I>&gt;<i>
+</I>&gt;<i>  Thanks for the idea, crossed my mind too, but I guessed this would cause
+</I>&gt;<i> very poor performance - imagine performing such search upon &quot;mousemove&quot;
+</I>&gt;<i> event.
+</I>
+I guessed otherwise :-)
+To see if I was wrong, I tried implementing this at
+<A HREF="http://philip.html5.org/demos/canvas/spritepick/example.html">http://philip.html5.org/demos/canvas/spritepick/example.html</A>
+
+That example doesn't do anything very clever - on mousemove, it loops
+through every sprite and first checks against the bounding box and
+then uses getImageData to see if the sprite is transparent at that
+point. When the display changes, it just draws every sprite, clipped
+to the area that changed.
+
+In Firefox (3.0) and WebKit (nightly) on Windows, it seems to be
+easily fast enough with a thousand sprites on the screen. As the
+number of sprites increases, performance seems to be affected almost
+entirely by the rendering, and the sprite-picking takes very little
+time. In Firefox on Linux, and in Opera (9.5) on Linux and Windows,
+the drawing speed is rubbish and it doesn't work smoothly with more
+than a hundred sprites.
+
+The drawing code could probably be made faster by redrawing as few
+sprites as possible per frame, or by not redrawing them at all (and
+using some other UI to indicate the selected object). The
+sprite-picking code could probably be made faster too, e.g. by doing
+some kind of quadtree thing to quickly get a list of all sprites that
+might overlap the given point.
+
+So, I don't think I see any evidence that this method of selecting
+sprites has unacceptable performance.
+
+&gt;<i> &gt; The main issue I can think of is performance: using getImageData()
+</I>&gt;<i> &gt; means you have to test every sprite that's possibly under the given
+</I>&gt;<i> &gt; point, which could be expensive if you have a very large number of
+</I>&gt;<i> &gt; them, whereas selectionBuffer.getIdAt() takes constant time but
+</I>&gt;<i> &gt; introduces a (probably quite large) constant overhead to all drawing
+</I>&gt;<i> &gt; operations.
+</I>&gt;<i> &gt;
+</I>&gt;<i>
+</I>&gt;<i>  Not for all operations, only those drawn when &quot;ID buffering&quot; is on. Not all
+</I>&gt;<i> objects must be &quot;clickable&quot;.
+</I>&gt;<i>  Second, these operations performed in native functions would be
+</I>&gt;<i> incomparably faster than lookups in JS.
+</I>
+But the ID-buffering operations in native functions would have to be
+performed on every pixel that is drawn (while ID-buffering is
+enabled), and there will be millions of pixels; whereas the JS lookups
+would have to be performed once per sprite-that-is-under-the-mouse for
+each frame, and there will only be a few sprites to check each time,
+so it's doing much less work than the native functions and so it can
+be much faster overall.
+
+&gt;<i>  The other issue is inconvenience. Programming pixel-based sprite look-ups
+</I>&gt;<i> using all offsets is much more tedious than simply reading a value with an
+</I>&gt;<i> one-line command.
+</I>
+Another issue is that canvas implementations are usually quite buggy
+(I found new bugs in Opera and WebKit while writing the earlier
+example...), and the selection buffer would add a lot of complexity
+and a lot of new bugs, since it would have to interact with clipping
+and composite operations and alpha and all the optimisations that
+implementations perform. Buggy implementations are very inconvenient
+for authors, so it may be more convenient to use the existing simple
+APIs instead of relying on the browsers to provide a complex new API
+:<i>-)
+</I>
+&gt;<i>  I'm quite surprised this has not been discussed - or was it? I haven't
+</I>&gt;<i> found any discussion. IMHO canvas element will support this kind of
+</I>&gt;<i> interactivity some day - it would be very natural complement of it's
+</I>&gt;<i> displaying purposes.
+</I>
+I don't remember any previous discussion about this specific topic. In
+general discussions about interactivity, the answer is usually to use
+SVG instead of canvas - SVG is designed for interactive graphical
+documents, while canvas is designed for non-interactive
+dynamically-generated images, so in many cases it's better to use SVG
+rather than to reinvent SVG's features inside canvas. (That may not
+apply to this specific case, though.)
+
+-- 
+Philip Taylor
+<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">excors at gmail.com</A>
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="015175.html">[whatwg] '' Re:  '' &lt;canvas&gt; element &quot;selection buffer&quot;
+</A></li>
+	<LI>Next message: <A HREF="014999.html">[whatwg] access to local path in input type=&quot;file&quot;
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#15177">[ date ]</a>
+              <a href="thread.html#15177">[ thread ]</a>
+              <a href="subject.html#15177">[ subject ]</a>
+              <a href="author.html#15177">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

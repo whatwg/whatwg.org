@@ -1,0 +1,277 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Canvas in Workers
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Canvas%20in%20Workers&In-Reply-To=%3CPine.LNX.4.64.1211161915290.26354%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="037962.html">
+   <LINK REL="Next"  HREF="080239.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Canvas in Workers</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Canvas%20in%20Workers&In-Reply-To=%3CPine.LNX.4.64.1211161915290.26354%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg] Canvas in Workers">ian at hixie.ch
+       </A><BR>
+    <I>Fri Nov 16 12:25:08 PST 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="037962.html">[whatwg] DOM serialization: A new level perhaps?
+</A></li>
+        <LI>Next message: <A HREF="080239.html">[whatwg] Canvas in Workers
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#37965">[ date ]</a>
+              <a href="thread.html#37965">[ thread ]</a>
+              <a href="subject.html#37965">[ subject ]</a>
+              <a href="author.html#37965">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>
+Over the years, there have been lots of requests for asynchronous image 
+manipulation APIs, and each time we discuss it we end up concluding that 
+what we should really do is just put canvas on workers.
+
+I've now specced a concrete proposal for this.
+
+Since we can't literally put &lt;canvas&gt; in a worker since workers don't have 
+DOMs, I was faced with two options:
+
+Option A: Provide an API for off-screen graphics in workers, requiring 
+that every frame you package the whole thing up, send it over to the main 
+thread, and blt it there.
+
+Option B: Provide a mechanism by which a worker can actually paint 
+directly onto a main thread &lt;canvas&gt; element.
+
+I ended up specifying something that lets you do both. You can instantiate 
+a CanvasRenderingContext2D object anywhere, including a worker; when a 
+rendering context is not bound to a specific canvas, it can be used as an 
+off-screen drawing surface. You can then bind such a rendering context to 
+a canvas; when you do this, there is a commit() method that you can use 
+which tells the user agent to push the bitmap drawn on the 
+CanvasRenderingContext2D object to the canvas bitmap / screen.
+
+A quick example of how this can work:
+
+   // main.html
+   &lt;canvas&gt;&lt;/canvas&gt;
+   &lt;script&gt;
+    var canvas = document.getElementsByTagName('canvas')[0];
+    var worker = new Worker('clock.js');
+    var proxy = canvas.transferControlToProxy());
+    worker.postMessage(proxy, [proxy]);
+   &lt;/script&gt;
+
+   // clock.js worker
+   onmessage = function (event) {
+     var context = new CanvasRenderingContext2d();
+     event.data.setContext(context);
+     setInterval(function () {
+       context.clearRect(0, 0, context.width, context.height);
+       context.fillText(0, 100, new Date());
+       context.commit();
+     }, 1000);
+   };
+
+There are several difficulties in a canvas-in-worker solution that I'd 
+like to mention here, with a brief pointer to the solutions I used:
+
+1. Workers had no way to represent images (e.g. sprites) before, which is 
+rather limiting for a bitmap canvas API. I have introduced a new object 
+called ImageBitmap that can be constructed from a Blob obtained from XHR 
+in a worker, or that can be created from &lt;img&gt;, &lt;video&gt;, and &lt;canvas&gt; 
+elements and transfered over to a worker. This can then be used to render 
+images in workers.
+
+2. The 2D rendering context API has several features that actually 
+interact with the page, e.g. scrollIntoView(). I've tried to make these 
+work too; there's a mechanism by which these actions are queued up and 
+then when you call commit() they're run as a task on the main thread.
+
+3. Since the main thread paints on its own schedule, and the worker might 
+be half-way through its drawing when the main thread wants to paint, I've 
+had to introduce an explicit commit() that tells the UA to push the data 
+from the worker to the rendering.
+
+4. Since you can read the image from the main thread (for example, using 
+the context.drawImage(canvas, ...) method, or even, now that there's the 
+ImageBitmap object, using &quot;new ImageBitmap(canvas)&quot;), as well as read the 
+image from the worker (using the same mechanisms, but using the context as 
+the source instead of the canvas -- we have to support this, because it's 
+common to do things like fade out the current scene, or shift it a bit, or 
+otherwise manipulate the image itself), and given that the rendered bitmap 
+is not the same as the currently drawing one (since we have to commit, see 
+above), I've ended up having to specify that when you're on a worker, a 
+canvas really has two bitmaps, the scratch bitmap and the output bitmap. 
+This does, if the author actually tries to read the scratch bitmap, mean 
+that there's a greater memory requirement when working on a worker, but I 
+really don't see a way around it.
+
+5. We don't yet have a way to access Web Fonts in a worker. I'm relying on 
+the CSS Fonts module's FontLoader proposal for this.
+
+At the same time, the WebGL community has been looking for a way to bind a 
+single rendering context to a several rendering contexts in sequence, 
+allowing the same scene to be painted from different angles. I also tried 
+to support this model; it will require some additions to WebGL to use the 
+hooks that have been provided. Specifically:
+
+ - define the WebGLRenderingContext constructor.
+
+ - define the &quot;binding steps&quot; and the &quot;unbinding steps&quot;.
+
+ - define a way to specify the settings for how to render to bitmaps, for 
+   example whether to anti-alias or not. If you want to have this 
+   information be on the canvas elements themselves, please let me know; 
+   you'll need to come up with a mechanism for how to do this cross-thread
+   without race conditions.
+
+ - define when pixels are pushed to &quot;the canvas's bitmap&quot;. In particular, 
+   this needs to handle how to do it when the canvas is in a different 
+   thread, such that it is well-defined what bitmap an author gets if they
+   use the HTMLCanvasElement itself in a drawImage() call. (See the 
+   definition of commit() and the &quot;commit the scratch bitmap&quot; algorithm 
+   for how the 2D case does it now.)
+
+ - manage the canvas bitmap's &quot;clean-origin&quot; flag.
+
+If WebGLRenderingContext is supposed to react to the &lt;canvas&gt; element's 
+&quot;width&quot; and &quot;height&quot; attributes being mutated, please let me know so that 
+I can update the spec accordingly.
+
+I've tried to leave the old getContext() mechanism mostly untouched, in 
+terms of normative requirements. The new model is alongside it. So for 
+example, the new model involves a scratch bitmap that you commit() to the 
+output bitmap, whereas if you use getContext() you end up with a rendering 
+context where the scratch bitmap andhhte output bitmap _are the same 
+bitmap_ so anything you do immediately gets rendered (and commit() is not 
+useful -- indeed it throws in this case).
+
+As a result of this rewrite, and the way that the canvas spec now has to 
+have much more intimate knowledge of rendering contexts, I've dropped the 
+attempt to use a registry for rendering contexts. If a new one comes up, 
+I'll just update the spec. (Proprietary extensions have a hook in the 
+spec, in case anyone wants to spec them.)
+
+Another result of this rewrite is that things like drawImage() are now 
+specced much more precisely. I've also moved the 'origin-clean' stuff into 
+the parts of the spec that actually affect it, rather than off in a 
+separate section.
+
+I haven't done anything to make requestAnimationFrame() be available on a 
+worker, but we should do that. This will require changes to the rAF() 
+spec, however.
+
+
+Obviously all of this is just a proposal; if it turns out I took a huge 
+wrong turn early on here then I'll happily throw it all out and try again!
+
+Feedback is very welcome! :-)
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="037962.html">[whatwg] DOM serialization: A new level perhaps?
+</A></li>
+	<LI>Next message: <A HREF="080239.html">[whatwg] Canvas in Workers
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#37965">[ date ]</a>
+              <a href="thread.html#37965">[ thread ]</a>
+              <a href="subject.html#37965">[ subject ]</a>
+              <a href="author.html#37965">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

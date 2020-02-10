@@ -1,0 +1,214 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] [WebWorkers] Advocation to provide the DOM API to the workers
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20%5BWebWorkers%5D%20Advocation%20to%20provide%20the%20DOM%20API%20to%20the%0A%20workers&In-Reply-To=%3C4B1D9FEB.8030808%40enseirb-matmeca.fr%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="024270.html">
+   <LINK REL="Next"  HREF="024396.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] [WebWorkers] Advocation to provide the DOM API to the workers</H1>
+<!--htdig_noindex-->
+    <B>David Bruant</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20%5BWebWorkers%5D%20Advocation%20to%20provide%20the%20DOM%20API%20to%20the%0A%20workers&In-Reply-To=%3C4B1D9FEB.8030808%40enseirb-matmeca.fr%3E"
+       TITLE="[whatwg] [WebWorkers] Advocation to provide the DOM API to the workers">bruant at enseirb-matmeca.fr
+       </A><BR>
+    <I>Mon Dec  7 16:38:03 PST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="024270.html">[whatwg] [WebWorkers] Advocation to provide the DOM API to the workers
+</A></li>
+        <LI>Next message: <A HREF="024396.html">[whatwg] Number of workers (various threads)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24365">[ date ]</a>
+              <a href="thread.html#24365">[ thread ]</a>
+              <a href="subject.html#24365">[ subject ]</a>
+              <a href="author.html#24365">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>&gt;<i> The reason WebWorkers don't have access to the DOM is concurrency. For
+</I>&gt;<i> example, to loop through a list of children I need to first read the
+</I>&gt;<i> number of childrens, then have a for loop which starts at 0 and ends
+</I>&gt;<i> at length-1. If you have two threads that can access the DOM
+</I>&gt;<i> concurrently, then one could change the number of children while the
+</I>&gt;<i> other was looping through the list, which would cause bugs in the
+</I>&gt;<i> program. The only way to fix this is to make the DOM a monitor or
+</I>&gt;<i> introduce semaphores, but then you would have to change the way the
+</I>&gt;<i> DOM is accessed in HTML5, breaking backwards compatibility, which is
+</I>&gt;<i> not a good idea.
+</I>&gt;<i>
+</I>&gt;<i> A better solution to your problem is to load fragments of the entire
+</I>&gt;<i> document using AJAX and then insert those fragments into the main
+</I>&gt;<i> document, when they are needed. You rarely need to see the entire
+</I>&gt;<i> document at once anyways.
+</I>&gt;<i>
+</I>&gt;<i> Marius Gundersen
+</I>&gt;&gt;<i> One good way I have found would be to cut the whole page into several 
+</I>&gt;&gt;<i> parts (one the server side, what is already done in the multi-page 
+</I>&gt;&gt;<i> version) and to launch several workers. Each worker gets one part of the 
+</I>&gt;&gt;<i> whole page in the background and could give it to the browsing context 
+</I>&gt;&gt;<i> which will append the right part at the right place.
+</I>&gt;&gt;<i>     
+</I>&gt;<i>
+</I>&gt;<i> As others have noted, the slowness turns out to not be parsing, but to be 
+</I>&gt;<i> a bunch of scripts that are doing various things such as adding the 
+</I>&gt;<i> sidebar annotations, setting up the &lt;dfn&gt; cross-references, and generating 
+</I>&gt;<i> the short table of contents.
+</I>&gt;<i>
+</I>&gt;<i> Plus, since browsers don't have thread-safe DOM implementations, we 
+</I>&gt;<i> actually can't expose the DOM in workers. Maybe one day. :-)
+</I>&gt;<i>   
+</I>&gt;<i> -- Ian Hickson
+</I>=&gt; I'm sorry for the misunderstanding. I shouldn't have said &quot;the DOM
+API&quot;. To be as accurate as I can be I want to provide the
+DOMImplementation interface
+(<A HREF="http://www.w3.org/TR/DOM-Level-3-Core/core.html#ID-102161490">http://www.w3.org/TR/DOM-Level-3-Core/core.html#ID-102161490</A>) to the
+workers. As I'm going to explain, the point is to be able to create a
+document and then a documentFragment.
+
+I will explain my point through another use case. (Sorry for the
+confusion with the HTML5 one-page version.)
+
+Let imagine that I want to build a single page with several non-HTML
+sources of information. They can be in different formats (RSS, datas got
+from XML-RPC requests, any other kind of XML file, JSON...). I suppose
+that each source is a different JSON file with different structures
+(different properties, different nestings). Each source needs a
+particular treatment. As I said in my first e-mail, there are 3 mains
+steps before visualizing my page fully loaded. For each source of
+content, we have to :
+(1) get the content
+(2) transform it into a DOM tree (as a documentFragment or a string that
+is the representation of a HTML fragment, for example)
+(3) append this to the main document at the right place. (which triggers
+graphical rendering)
+This last step is either an appendChild or a &quot;.innerHTML=&quot; and must be
+done in the main browsing context, there is no choice.
+
+
+Let imagine that I want that one workers per source.
+For the moment, WebWorkers can do the step (1) independently (thanks to
+XMLHttpRequest).
+
+When each workers receives its JSON string, this string must be
+transformed into an HTML DOM tree (2) (let say a &lt;table&gt; for example).
+Because none of the DOM core API is currently available to the
+WebWorkers, we have two solutions to turn the JSON string received in
+(1) into an HTML DOM tree :
+(2.1) Send the JSON string (or the resulting object, whatever) to the
+main document which will create a documentFragment, run through the JSON
+object and append the &lt;table&gt;,&lt;tbody&gt;, &lt;tr&gt;s and &lt;td&gt;s and contents to
+this fragment for all the sources.
+(2.2) Each worker create a string which looks like &quot;&lt;table
+id=blabla&gt;&lt;tbody&gt;&lt;tr class=&quot;blibli&quot;&gt;&lt;td&gt;1&lt;/td&gt;&lt;td&gt;2&lt;/td&gt;&lt;/tr&gt;&lt;tr
+class=&quot;blibli&quot;&gt;&lt;td&gt;3&lt;/td&gt;&lt;td&gt;37&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&quot; with &quot;+=&quot;
+while running through the JSON object. Then send the string through
+postMessage() and the main browsing context can do a
+&quot;rightPlace.innerHTML = e.data&quot; (where e.data is the string).
+
+(2.1) We have the document/documentFragment/Element/Node abstraction,
+but we loose all the parallelism, because the browsing context is
+handling all the sources of information (and creating a documentFragment
+and all the appendings for each source)
+
+(2.2) We have the parallelism, because each Worker handles a source.
+However, we loose the DOM abstraction. I hope that I have made the
+string ridiculously long enough to convince you that it is not a good
+solution. For complicated examples, by experience, using += and
+.innerHTML is always a source of error especially because of closing
+tags. These problems don't occur when developing with the DOM abstraction.
+
+My proposition is :
+(2.3) Assuming that we have access to the DOMImplementation interface,
+we can create an object implementing the document interface which is
+DIFFERENT from the main document object and I insist on this point. I am
+NOT proposing to provide an access to the main document (the one which
+&quot;created the workers&quot;).
+Thanks to this document, we can create a different documentFragment in
+each worker and do in a parallel way the documentFragment appendings
+described in (2.1).
+The receiving context could have the following code :
+&quot;onmessage_handler(e){
+/* Some code to identify which worker it was and where its
+documentFragment should be
+** inserted in the document.
+*/
+rightPlace = some_function(e); // An element in the main document.
+df = e.data; // this data is the documentFragment sent by the worker.
+rightPlace.appendChild(df);
+}&quot;
+
+postMessag-ing an element/document/documentFragment/Node can cause a
+problem because of references to document that they contain (because a
+worker must NOT have access to the main document and the main document
+must NOT have access to a worker document either)
+As far as I can see, there are only two potential problems to
+postMessage such objects &quot;from one document to another&quot;:
+* From Node interface : ownerDocument.
+For this, it can be decided that a when postMessage is called on a node,
+this node and all the subtree are automatically .adoptNode-ed by the
+main document (window.document) of the receiving context.
+
+* From Node interface : parentNode.
+When a node is postMessage-ed, if its parentNode is a reference to the a
+node in the worker context (a document or documentFragment), we can
+automatically do an importNode() from the main document
+(window.document) on it. By the way, document-s and documentFragment-s
+have no parent
+(<A HREF="http://www.w3.org/TR/DOM-Level-3-Core/core.html#ID-1060184317">http://www.w3.org/TR/DOM-Level-3-Core/core.html#ID-1060184317</A>), so this
+step is not even necessary for them.
+
+
+This way, between the postMessage() context and the event.data (used
+during onmessage handler) context, I have broken all the references (if
+I have forgotten some, tell me, I can propose a solution for them too)
+to a document living in a different and asynchronous running context. I
+have described a safe means to send a
+document/documentFragment/Element/Node from a worker to the main
+browsing context. The other direction shouldn't be hard to get either.
+
+
+I think that providing the DOMImplementation interface is a good way for
+implementors to provide a light-weight DOM implementation (because the
+DOM API needs for workers are not the same than for documents as we know
+them now). I may be wrong.
+
+Note :
+With a DOMImplementation available, the document response entity body of
+XMLHttpRequest has no reason to be null anymore.
+
+Thanks for your time and your feedback,
+
+David
+</PRE>
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="024270.html">[whatwg] [WebWorkers] Advocation to provide the DOM API to the workers
+</A></li>
+	<LI>Next message: <A HREF="024396.html">[whatwg] Number of workers (various threads)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24365">[ date ]</a>
+              <a href="thread.html#24365">[ thread ]</a>
+              <a href="subject.html#24365">[ subject ]</a>
+              <a href="author.html#24365">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

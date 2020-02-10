@@ -1,0 +1,175 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Drag-and-drop folders/files support with directory structure using DirectoryEntry
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Drag-and-drop%20folders/files%20support%20with%20directory%0A%20structure%20using%20DirectoryEntry&In-Reply-To=%3CCAMWgRNZJ68e%3DV5PVsqg%2BEo%2Bn1TFhKaahS6cQ%2BwK2spPCCoqLgw%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="078468.html">
+   <LINK REL="Next"  HREF="036204.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Drag-and-drop folders/files support with directory structure using DirectoryEntry</H1>
+<!--htdig_noindex-->
+    <B>Kinuko Yasuda</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Drag-and-drop%20folders/files%20support%20with%20directory%0A%20structure%20using%20DirectoryEntry&In-Reply-To=%3CCAMWgRNZJ68e%3DV5PVsqg%2BEo%2Bn1TFhKaahS6cQ%2BwK2spPCCoqLgw%40mail.gmail.com%3E"
+       TITLE="[whatwg] Drag-and-drop folders/files support with directory structure using DirectoryEntry">kinuko at chromium.org
+       </A><BR>
+    <I>Thu May 24 20:42:21 PDT 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="078468.html">[whatwg] Detecting eventListeners
+</A></li>
+        <LI>Next message: <A HREF="036204.html">[whatwg] The set of supported @type values for &lt;script&gt; is a bit odd
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#36201">[ date ]</a>
+              <a href="thread.html#36201">[ thread ]</a>
+              <a href="subject.html#36201">[ subject ]</a>
+              <a href="author.html#36201">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Apologies for my late response.
+
+  On Tue, Apr 10, 2012 at 7:33 AM, Glenn Maynard &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">glenn at zewt.org</A>&gt; wrote:
+
+&gt;<i> On Mon, Apr 9, 2012 at 3:35 AM, Kinuko Yasuda &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">kinuko at chromium.org</A>&gt; wrote:
+</I>&gt;<i>
+</I>&gt;&gt;<i> I don't think we should do this.  The change would be invasive and could
+</I>&gt;&gt;<i> delay firing a drop event indefinitely if the number of dropped files is
+</I>&gt;&gt;<i> very huge.
+</I>&gt;&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> This feels like the wrong optimization.  It's making this API more
+</I>&gt;<i> cumbersome for all users, for an unlikely case: selecting tons of
+</I>&gt;<i> individual files that can't be stat()'d quickly.  Usually, files that are
+</I>&gt;<i> being dropped have been accessed recently (by the windowing system, when
+</I>&gt;<i> the user selected the files), so they're almost always going to be in
+</I>&gt;<i> cache.  I think in practice, &quot;delay indefinitely&quot; is an exaggeration.
+</I>&gt;<i>
+</I>
+I wasn't fully convinced by the idea of making
+dataTransferItem.getAsEntry() synchronous, but per recent &quot;File with
+modification&quot; discussion on public-webapps it looks like we're likely
+shifting the timing when to grab the file metadata to the timing of File
+object creation, and it sounds like it'll match with what you're proposing
+here.
+
+That is:
+- The UA grab file metadata along with file path when a file is dragged and
+dispatches a drag event.
+- When DataTransferItem.files, getAsFile or getAsEntry are called, the UA
+instantiate a snapshot File object using the captured metadata, or
+instantiate a FileEntry or DirectoryEntry based on the type information in
+the metadata.
+
+We (Chrome) are not yet ready to grab file metadata at file drag timing but
+until then we can probably make a synchronous query just to get the
+file/directory type information when getAsEntry() is called (and therefore
+it won't affect any other APIs).
+
+ If we keep it asynchronous the Web page could have more control over which
+&gt;&gt;<i> to instantiate when, e.g. it could only show the` first few items upon drop
+</I>&gt;&gt;<i> and then keep loading more items asynchronously only when necessary.
+</I>&gt;&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> That's what DirectoryEntry is for.  Adding yet another asynchronous API
+</I>&gt;<i> layer on *top* of Entry to allow dropping lots of individual files feels
+</I>&gt;<i> like an overcomplication, especially when most of the time, even doing that
+</I>&gt;<i> with thousands of files would still be very fast.
+</I>&gt;<i>
+</I>&gt;<i> It also makes it a lot harder to push file work to workers.  This:
+</I>&gt;<i>
+</I>&gt;<i> elem.ondrop = function(e) {
+</I>&gt;<i>     worker.postMessage({entries: e.dataTransfer.entries})
+</I>&gt;<i> }
+</I>&gt;<i>
+</I>&gt;<i> becomes something like this:
+</I>&gt;<i>
+</I>&gt;<i> elem.ondrop = function(e) {
+</I>&gt;<i>     var items = e.dataTransfer.items;
+</I>&gt;<i>     var nextEntry = 0;
+</I>&gt;<i>     var entries = [];
+</I>&gt;<i>     var gotEntry = function(ent) {
+</I>&gt;<i>         if(ent != null)
+</I>&gt;<i>             entries.push(ent);
+</I>&gt;<i>         if(nextEntry == items.length) {
+</I>&gt;<i>             worker.postMessage({entries: entries});
+</I>&gt;<i>             return;
+</I>&gt;<i>         }
+</I>&gt;<i>
+</I>&gt;<i>         e.dataTransfer[nextEntry].getAsEntry(gotEntry);
+</I>&gt;<i>         ++nextEntry;
+</I>&gt;<i>     }
+</I>&gt;<i>     gotEntry(null);
+</I>&gt;<i> }
+</I>&gt;<i>
+</I>&gt;<i> The point of using workers here would be to avoid all this (with sync
+</I>&gt;<i> APIs)...
+</I>&gt;<i>
+</I>
+&gt;<i> On Mon, Apr 9, 2012 at 12:21 PM, Eric U &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">ericu at google.com</A>&gt; wrote:
+</I>&gt;<i>
+</I>&gt;&gt;<i> It might make more sense to store a URL or other locator for the file,
+</I>&gt;&gt;<i> to make it clear that you're storing a reference, not the data itself.
+</I>&gt;&gt;<i>  I suppose that storing an Entry could be like storing a capability
+</I>&gt;&gt;<i> [permission to access the file], but that's for the other discussion.
+</I>&gt;&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> That's how I've always viewed Entry (and File): its existence in your
+</I>&gt;<i> context is what gives you access to the file it represents.  URLs can't do
+</I>&gt;<i> that.
+</I>&gt;<i>
+</I>&gt;<i> --
+</I>&gt;<i> Glenn Maynard
+</I>&gt;<i>
+</I>&gt;<i>
+</I></PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="078468.html">[whatwg] Detecting eventListeners
+</A></li>
+	<LI>Next message: <A HREF="036204.html">[whatwg] The set of supported @type values for &lt;script&gt; is a bit odd
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#36201">[ date ]</a>
+              <a href="thread.html#36201">[ thread ]</a>
+              <a href="subject.html#36201">[ subject ]</a>
+              <a href="author.html#36201">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

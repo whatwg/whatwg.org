@@ -1,0 +1,123 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Request: window.postMessage should be async
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Request%3A%20window.postMessage%20should%20be%20async&In-Reply-To=%3C47F6A690.5050703%40mit.edu%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="014328.html">
+   <LINK REL="Next"  HREF="014330.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Request: window.postMessage should be async</H1>
+<!--htdig_noindex-->
+    <B>Jeff Walden</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Request%3A%20window.postMessage%20should%20be%20async&In-Reply-To=%3C47F6A690.5050703%40mit.edu%3E"
+       TITLE="[whatwg] Request: window.postMessage should be async">jwalden+whatwg at MIT.EDU
+       </A><BR>
+    <I>Fri Apr  4 15:07:12 PDT 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="014328.html">[whatwg] Request: window.postMessage should be async
+</A></li>
+        <LI>Next message: <A HREF="014330.html">[whatwg] Request: window.postMessage should be async
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#14327">[ date ]</a>
+              <a href="thread.html#14327">[ thread ]</a>
+              <a href="subject.html#14327">[ subject ]</a>
+              <a href="author.html#14327">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Eric Seidel wrote:
+&gt;<i> 1.  JS content authors will want an async API.
+</I>
+Sometimes, for the large applications; small apps won't care.  As you note, the workaround of immediately packaging up a setTimeout continuation isn't difficult.  I tend to think worrying about the N-1 case is designing a bit too much for the special cases, personally.  Special cases aren't special enough to break the rules.[0]  Further, nothing says browser implementations must or will continue to enforce hard limits on recursion.
+
+&gt;<i> function messageHandler(messageEvent) {
+</I>&gt;<i> // We assume calling into our complex functions might run out of stack 
+</I>&gt;<i> space, so we just handle this in a timeout:
+</I>&gt;<i> setTimeout(0, function() { realMessageHandler(messageEvent) } );
+</I>&gt;<i> }
+</I>&gt;<i> 
+</I>&gt;<i> function realMessageHandler(messageEvent) {
+</I>&gt;<i>  // handle the message...
+</I>&gt;<i>  // and, reply to the message
+</I>&gt;<i>  messageEvent.source.postMessage(&quot;response message&quot;);
+</I>&gt;<i> }
+</I>
+Furthermore, note that the above behavior is actually *insecure* if the handler authenticates the sender and discloses some secret in his response, because |messageEvent.source| may have been navigated to a different origin.  Making the API async basically requires the optional origin argument always be provided to postMessage, adding API complexity.  If a piece of information doesn't have to be [present] for the system to [usually] work, sooner or later it won't be [and the system won't work].[1]
+
+
+&gt;<i> I forsee JS authors implementing their own asynchronous behavior, as 
+</I>&gt;<i> shown above.
+</I>
+I do, too, in some cases; I just don't think it's worth sacrificing simplicity or security in the common case for the special, rare case.
+
+
+&gt;<i> 2.  JS engine implementors will want an async API.
+</I>
+&gt;<i> I would rather we didn't prevent FireFox or Safari
+</I>
+&quot;Firefox&quot;, the second &quot;f&quot; isn't capitalized.  :-)
+ 
+&gt;<i> (Only possible for frames which are not of the same origin.   Same-origin
+</I>&gt;<i> frames already assume they can grab at each others innards in a 
+</I>&gt;<i> synchronous manner.)  postMessage imposes a NEW requirement that all 
+</I>&gt;<i> connected frames to be run from the same thread (or somehow synchronize 
+</I>&gt;<i> the threads after the first postMessage() call is made).
+</I>
+Wrong; if a window can get a reference to another window, same-origin or not, run-to-completion already requires synchronous behavior.  If some piece of JS is in flight, every client-side change it can detect *must* be one it has caused.
+
+&gt;<i> This requirement would seem even worse for Microsoft, since IE8 looks like 
+</I>&gt;<i> it's multi-process.  A synchronous postMessage would require IE8 to keep 
+</I>&gt;<i> all frames which have references to each other in the same process.
+</I>
+postMessage imposes no new requirement for the appearance of synchrony, no matter how the implementation chooses to achieve it.
+
+
+Asynchrony was brought up in a separate thread (&quot;[whatwg] reply() extension to postMessage()&quot;) two months ago, before the source-navigation discussion made this secret-exposure danger more easily noticeable.  I made basically the same arguments then as I make now; I also noted that sync can replicate async (again ignoring the uncommon case of being right at the recursion limit), whereas the reverse is not true:
+
+&gt;<i> I think I favor sync postMessage over async because async capabilities 
+</I>&gt;<i> are a strict subset of sync capabilities.  You can always use setTimeout 
+</I>&gt;<i> with the sync model to get async behavior; if the model is async you 
+</I>&gt;<i> can't replicate sync behavior.
+</I>
+Note also that nothing prevents an implementation with a recursion limit from requiring that postMessage always guarantee enough available frames to dispatch the setTimeout continuation, although nobody I know has actually done this.
+
+
+In sum, I think worrying about recursion limits is the wrong thing to do, sync behavior is more flexible, and we shouldn't sacrifice security for the uncommon recursion-limit case.
+
+Jeff
+
+0.  Python, thy name is AWESOME.  &lt;<A HREF="http://www.python.org/dev/peps/pep-0020/">http://www.python.org/dev/peps/pep-0020/</A>&gt;
+1.  Astonishingly PEP 20 doesn't have any dicta related to security, but &lt;<A HREF="http://www.wiretip.com/?about">http://www.wiretip.com/?about</A>&gt; comes to the rescue, with a few tweaks.
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="014328.html">[whatwg] Request: window.postMessage should be async
+</A></li>
+	<LI>Next message: <A HREF="014330.html">[whatwg] Request: window.postMessage should be async
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#14327">[ date ]</a>
+              <a href="thread.html#14327">[ thread ]</a>
+              <a href="subject.html#14327">[ subject ]</a>
+              <a href="author.html#14327">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

@@ -1,0 +1,397 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Thoughts and feedback on HTML5 drag and drop API
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Thoughts%20and%20feedback%20on%20HTML5%20drag%20and%20drop%20API&In-Reply-To=%3C4C684A0A.7040703%40enseirb-matmeca.fr%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="027965.html">
+   <LINK REL="Next"  HREF="027958.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Thoughts and feedback on HTML5 drag and drop API</H1>
+<!--htdig_noindex-->
+    <B>David Bruant</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Thoughts%20and%20feedback%20on%20HTML5%20drag%20and%20drop%20API&In-Reply-To=%3C4C684A0A.7040703%40enseirb-matmeca.fr%3E"
+       TITLE="[whatwg] Thoughts and feedback on HTML5 drag and drop API">bruant at enseirb-matmeca.fr
+       </A><BR>
+    <I>Sun Aug 15 13:11:54 PDT 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="027965.html">[whatwg] Proposal: Add HTMLElement.innerText
+</A></li>
+        <LI>Next message: <A HREF="027958.html">[whatwg] Additional onxxxx event attributes for DOM Level3 Events
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#27948">[ date ]</a>
+              <a href="thread.html#27948">[ thread ]</a>
+              <a href="subject.html#27948">[ subject ]</a>
+              <a href="author.html#27948">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Hi,
+
+After having a bug while trying to implement a browser-based chess game
+using the native Drag&amp;Drop API, I have decided to investigate a bit on
+this API, examples and opinions.
+There is already a very good explanation of the current state of the API
+and how to use it here : <A HREF="http://html5doctor.com/native-drag-and-drop/">http://html5doctor.com/native-drag-and-drop/</A>
+
+And here is a quite &quot;biased&quot; opinion on the API :
+<A HREF="http://www.quirksmode.org/blog/archives/2009/09/the_html5_drag.html">http://www.quirksmode.org/blog/archives/2009/09/the_html5_drag.html</A>
+Even if I would use the same words, my reaction has roughly been the
+same (for those who wouldn't have the time to read the article, its
+author is furious about the API) while implementing an example. From my
+experience as a web author writing the chess game, I have found
+completely counter-intuitive to have to register a listener to the
+dragover event only to &quot;.preventDefault()&quot; the event.
+In my humble opinion, .preventDefault should be used really when the
+default behavior (triggered either because of the spec imposes so or
+because of the user agent implementation) goes against the web app needs.
+I think a very good example of this is Wikidot (a wiki engine) on which,
+if I remember well, you can save the page you're editing by doing
+Ctrl+S. In most web browsers, Ctrl+S opens a menu to save the HTML page.
+I have never looked at their code, but it's very likely that for Ctrl+S,
+they have decided to prevent the default behavior, which makes sense.
+
+
+To be slightly more structured, I am going to continue this e-mail
+following this outline :
+- From where to where ?
+-- Same document
+-- Document &lt;---&gt; Desktop
+-- Different documents
+- Influences of the drag&amp;drop API
+- Misc feedback
+
+
+_From where to where ?_
+In my opinion, a part of the confusion on the D&amp;D API comes from the
+fact that Drag &amp; Drop can actually have different &quot;meanings&quot; depending
+on the way the drag and drop is intended to be used. Even if clearly
+stated by the spec that &quot;this specification does not define exactly what
+a drag-and-drop operation actually is.&quot;, I think that there are a lot of
+things that should be said and distinguished. For instance, when I read
+&quot;drag-and-drop operations must have a starting point&quot;, I think it should
+be explicitely mentionned that this starting point can be either from a
+document (fully falling under the definition of this spec) or from
+outside of it (like when you want to drop files in your web browser).
+The same for the ending point. All the combinations can be listed (tell
+me if I forget one) :
+- FROM a document TO the same document
+- FROM a document TO another document (there are a lot of different cases)
+- FROM a document TO outside
+- FROM outside TO a document
+
+
+__Same document__
+The &quot;same document&quot; use case is the one I fall into with my chess game.
+I want to drag and drop pieces from one square to another and writing my
+application with the conviniency of the all the drag* / drop events (and
+not struggling with mouseup/down/move and changing the top and left
+style attributes). In this use case like in other, one main concern of
+the drag&amp;drop operation is to transfer data from one point to another.
+That is supposed to be the dataTransfer object purpose. However, for the
+&quot;same document use case&quot; the dataTransfer object is pointless since you
+can make communicate your handlers through an object. Accelerated example :
+(function(){
+    var drag = document.getElementById('drag'); // has the draggable
+attribute to true, obviously
+    var drop = document.getElementById('drop');
+    var dragInfo = {};
+
+    function dragStartHandler(e){ // This function is a closure using
+the dragInfo object
+        dragInfo.blabla = 'hello world !';
+        // dragInfo is an ECMAScript object which is less restrictive
+than the dataTransfer object
+    }
+
+    function dropHandler(e){ // This function is a closure using the
+dragInfo object
+        alert(dragInfo.blabla);
+    }
+
+    drag.addEventListener('dragstart', dragStartHandler, false);
+    drop.addEventListener('drop', dropHandler, false);
+    drop.addEventListener('dragover', function(e){e.preventDefault();},
+false);
+})();
+
+In my opinion, a lot of early examples of usage of the API (including
+but not limited to : <A HREF="http://ljouanneau.com/lab/html5/demodragdrop.html">http://ljouanneau.com/lab/html5/demodragdrop.html</A> ,
+<A HREF="http://decafbad.com/blog/2009/07/15/html5-drag-and-drop">http://decafbad.com/blog/2009/07/15/html5-drag-and-drop</A>) advertise the
+usage of dataTransfer even for the cases when this is (in my opinion)
+useless and I hope that my example is a sufficient proof.
+The provided example in the spec seems to be written in a way that make
+think that drag and drop operations occur within the same document (it's
+never written specifically). If it's the case, I think that a different
+example should be provided without dataTransfer.
+
+
+__Document &lt;---&gt; Desktop__
+This use case is actually the one that really requires the dataTransfer
+object espescially the recent &quot;files&quot; attribute. As opposed to the
+previous use case, this one may have main security issues and
+restrictions due to the terra incognita that &quot;outside of the document&quot;
+can be.
+A very good example of usage :
+<A HREF="http://hacks.mozilla.org/2009/12/file-drag-and-drop-in-firefox-3-6/">http://hacks.mozilla.org/2009/12/file-drag-and-drop-in-firefox-3-6/</A>
+
+
+__Different documents__
+There are several cases that could be considered. I am not sure I will
+think of all. Add other if you think they are relevant.
+
+___Common &quot;iframe tree&quot; ancestor___
+If two documents are &quot;discussing&quot; through a drag and drop operation and
+if they are enclosed in iframes (either one contains the other or they
+have a common ancestor), then, the dataTransfer could certainly allow
+the transfer of &quot;up to&quot; DOM Elements since we stay in the same user
+agent and there is a common document. (Web developers will have to be
+careful of Node ownerDocument, but we don't really care about that now).
+
+___Different documents within the same user agent___
+I don't have enough knowledge to discuss this point. Maybe that
+implementors will have ideas on this one. At least, user agent can have
+user-agent-specific attributes for the dataTransfer object
+
+___Different documents across different user agents___
+Once again, this goes beyond my knowledge. There is certainly no way for
+a user agent to know if the drop has been originated from another
+(HTML5-compliant :-) ) user agent. Even if it was the case, it would
+probably be a security issue since the dataTransfer could be crafted.
+
+
+Let's stay within the same user for the moment.
+___Different document, same origin___
+___Different document, different origin___
+Maybe it'd be convenient to know where a drop comes from. Restrictions
+could be applied by the user agent if the dataTransfer comes from a
+different-origin document. On the other hand, a lot could be allowed if
+the document has the same origin. At least, some attribute could be
+added for the origin as it is done with the cross-document communication.
+
+
+
+
+- Influences of the Drag and Drop API
+As far as I know, the current API is mostly influenced by the IE5+ API.
+10 years later, a lot have been done on the web regarding drag and drop.
+Most of the JavaScript libraries have a drag&amp;drop feature. This is
+actually how I have first developed a drag &amp; drop feature for a web app,
+hence my frustration when trying to use the native API for the &quot;same
+document&quot; use case.
+The librairies have different models, but a lot in common. I don't know
+them by heart and them all neither, but it would probably be interesting
+to have a look at the different features they offer and maybe review the
+native drag and drop API to consider if these librairies can implement
+their features through the native API .
+Here is the documentation from four main libraries with a D&amp;D feature :
+
+script.aculo.us :
+<A HREF="http://wiki.github.com/madrobby/scriptaculous/draggables-object">http://wiki.github.com/madrobby/scriptaculous/draggables-object</A>
+<A HREF="http://wiki.github.com/madrobby/scriptaculous/droppables">http://wiki.github.com/madrobby/scriptaculous/droppables</A>
+<A HREF="http://wiki.github.com/madrobby/scriptaculous/draggable">http://wiki.github.com/madrobby/scriptaculous/draggable</A>
+
+jQuery UI :
+<A HREF="http://jqueryui.com/demos/draggable/">http://jqueryui.com/demos/draggable/</A>
+<A HREF="http://jqueryui.com/demos/droppable/">http://jqueryui.com/demos/droppable/</A>
+
+Mootools :
+<A HREF="http://mootools.net/docs/more/Drag/Drag">http://mootools.net/docs/more/Drag/Drag</A>
+
+YUI :
+<A HREF="http://developer.yahoo.com/yui/3/api/Drag.html">http://developer.yahoo.com/yui/3/api/Drag.html</A>
+
+Among the things in common, I think that there is the fact of explicitly
+declaring which elements are drop targets. In jQueryUI, draggable
+elements are distinguished by the ui-draggable class. Symetrically,
+droppable elements have the ui-droppable class.
+I think that it would make sense that &quot;draggable&quot; and &quot;droppable&quot;
+elements have some common features. For instance, it's easy to refer to
+draggable elements in CSS since there is an attribute with the selector
+*[draggable=&quot;true&quot;] (I'm not sure of how CSS work for boolean attribute.
+Moving on...). On the other hand, to stylize specifically droppable
+elements, you'd have to be very careful on which elements handle the
+drop event (and .preventDefault() the dragover event !!) or not and
+&quot;manually&quot; update a class on the element. For that matter, a droppable
+attribute could be beneficial.
+
+
+_Misc feedback_
+* Regardless if the D&amp;D spec example is changed (or another one added
+for the &quot;same document&quot; use case without dataTransfer), please add a
+comment next to the &quot;event.preventDefault();&quot; of the dragOverHandler
+function to explain that the purpose of this is to define a drop target.
+* I am worried about the effectAllowed attribute. Needless to say that
+the number of value is exponencially proportional to the number of
+possible values for the dropEffect attribute. Wouldn't it be better to
+have a linear number of booleans ?
+* About all the drag feedback generation, I am doubting that the current
+API allows the rich effects that the JS librairies provide.
+Do anyone have enough experience with these to tell if they see use
+cases covered by the librairies that the native API wouldn't allow to
+cover ?
+
+
+I have seen in whatwg.org/issues that drag and drop is
+&quot;delayed-awaiting-more-implementation-experience&quot;. I haven't seen a wiki
+page on <A HREF="http://wiki.whatwg.org/wiki/">http://wiki.whatwg.org/wiki/</A> though. Is there one ? Should one
+be created to gather all the feedback and relevant resources regarding D&amp;D?
+
+Thanks for reading this quite long e-mail!
+Comments, questions and input on places where I have lacking
+skill/knowledge/experience are the most welcome !
+
+David
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: &lt;<A HREF="http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20100815/70682132/attachment.htm">http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20100815/70682132/attachment.htm</A>&gt;
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="027965.html">[whatwg] Proposal: Add HTMLElement.innerText
+</A></li>
+	<LI>Next message: <A HREF="027958.html">[whatwg] Additional onxxxx event attributes for DOM Level3 Events
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#27948">[ date ]</a>
+              <a href="thread.html#27948">[ thread ]</a>
+              <a href="subject.html#27948">[ subject ]</a>
+              <a href="author.html#27948">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

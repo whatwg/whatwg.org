@@ -1,0 +1,180 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] sandboxing scripts
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20sandboxing%20scripts&In-Reply-To=%3Cop.s1u3ramg1h6og4%40localhost%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="005294.html">
+   <LINK REL="Next"  HREF="005335.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] sandboxing scripts</H1>
+<!--htdig_noindex-->
+    <B>Alexey Feldgendler</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20sandboxing%20scripts&In-Reply-To=%3Cop.s1u3ramg1h6og4%40localhost%3E"
+       TITLE="[whatwg] sandboxing scripts">alexey at feldgendler.ru
+       </A><BR>
+    <I>Thu Dec 15 21:48:36 PST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="005294.html">[whatwg] sandboxing scripts
+</A></li>
+        <LI>Next message: <A HREF="005335.html">[whatwg] sandboxing scripts
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5301">[ date ]</a>
+              <a href="thread.html#5301">[ thread ]</a>
+              <a href="subject.html#5301">[ subject ]</a>
+              <a href="author.html#5301">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Thu, 15 Dec 2005 19:11:13 +0600, Hallvord R M Steen  
+&lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">hallvors at gmail.com</A>&gt; wrote:
+
+&gt;<i> Just playing around with ideas for other security models for SCRIPT.
+</I>
+Your ideas seem reasonable. JS security is something that has been long  
+awaiting to be addressed.
+
+&gt;<i> Here's what I thought: a new attribute &quot;sandbox&quot; (or &quot;securitypolicy&quot;,
+</I>&gt;<i> name doesn't matter much) might tell the UA something about what the
+</I>&gt;<i> script can do:
+</I>&gt;<i> &lt;script src=&quot;...&quot; sandbox=&quot;writeonly&quot;&gt;
+</I>&gt;<i> &lt;script src=&quot;...&quot; sandbox=&quot;none&quot;&gt;
+</I>
+1. The entire thing has to degrade SAFELY in existing browsers. With your  
+approach, any existing browser will just ignore the unknown &quot;sandbox&quot;  
+attribute, effectively allowing the script to do anything. This is not  
+acceptable.
+
+2. The site author has to take care that the &quot;sandbox&quot; attribute is  
+included in every &lt;script&gt; element, even in user-supplied code.
+
+3. There are still HTML attributes like &quot;onclick&quot;, and javascript: URIs  
+that are not addressed.
+
+&gt;<i> In all cases the limitation would apply only to the thread created by
+</I>&gt;<i> that SCRIPT tag. Functions defined in those scripts might be called
+</I>&gt;<i> later and would run with normal privileges.
+</I>
+This is dangerous, too, because a malicious script can try to redefine  
+common JS functions like window.alert() to do something bad.
+
+Here is my idea, then.
+
+The primary danger of JS is that when different kinds of a single HTML  
+page come from different sources (are authored by different persons). As a  
+real life example, I'll take LiveJournal.com, where it's currently  
+completely forbidden to include any scripts in journal entries or  
+comments. They would like to allow some scripting, only if they could  
+somehow separate harmless scripts from potentially dangerous ones.
+
+The idea is to add a new element, &lt;sandbox&gt; (the actual name doesn't  
+matter much). This element can appear anywhere (in both &lt;head&gt; and &lt;body&gt;)  
+and can include any elements that it's direct parent can include. It has  
+no other effect on its contents than altering the contained scripts'  
+security. Everything enclosed in &lt;sandbox&gt;...&lt;/sandbox&gt; is somewhat  
+limited in what scripts can do.
+
+1. All scripts inside &lt;sandbox&gt; are affected. This includes &lt;script&gt;,  
+javascript: URIs, &quot;onclick&quot; etc. Other active objects like &lt;object&gt; that  
+can access DOM are affected too (for example, Flash is restricted by  
+&lt;sandbox&gt;, too).
+
+2. The script in a &lt;sandbox&gt; thinks that it's god. It can do everything,  
+but only inside that sandbox.
+
+2.1. The window.document actually represents the part of document inside  
+&lt;sandbox&gt;. Yes, it's not a valid HTML document -- with fake body element  
+(window.document.body being the document fragment inside &lt;sandbox&gt;), and  
+otherwise looking strange, but it's usable by most scripts. Other DOM  
+facilities also pretend that there's nothing outside the sandbox.
+
+2.2. If the &lt;sandbox&gt; has a domain=&quot;...&quot; attribute, then the scripts  
+inside the sandbox have access to cookies from the specified domain, can  
+interact with other sandboxes and frames from that domain, and are  
+otherwise restricted in a similar way as a regular content from that  
+domain (but not breaking out of 2.1 restriction). The &quot;domain&quot; attribute  
+can only specify the domain of the containing document or a subdomain  
+thereof. (For example, LiveJournal can specify synthetized subdomains like  
+&lt;user&gt;.livejournal.com for entries by each user.) If there is no &quot;domain&quot;  
+attribute, then the inner JS doesn't have access to any cookies.
+
+2.3. The JS namespace in a sandbox is isolated. JS inside the sandbox  
+cannot see the variables and functions declared outside, and vice versa.  
+JS outside the sandbox can accesss JS variables and functions from inside  
+the sandbox in an explicit way (like sandboxElement.sandbox['variable']).  
+If the outer JS needs to make several things (DOM nodes, JS variables)  
+ from the outside accessible to the inner JS, it can do so by putting  
+references to these into sandboxElement.sandbox array.
+
+2.4. Multiple sandboxes on one page sharing the same &quot;domain&quot; attribute  
+value share the same JS namespace (sandboxElement1.sandbox ==  
+sandboxElement2.sandbox). Sandboxes without a &quot;domain&quot; attribute are  
+always isolated.
+
+3. Sandboxes can be nested, with each inner one being additionally  
+restricted by the outer.
+
+4. The script can find out that it's running in a sandbox. There's nothing  
+bad about it.
+
+5. There should be a discussion about what a sandboxed script can do. Can  
+it set window.location? Can it do window.open()? Maybe these permissions  
+should be governed by additional attributes to &lt;sandbox&gt;.
+
+6. A sandbox can specify a single JS error handler for all enclosed  
+scripts (to address known cases of scripts which are not ready for the  
+unusual environment they are in).
+
+7. Backward compatibility. The current browsers will ignore the unknown  
+&lt;sandbox&gt; element and give the enclosed scripts full access to everything.  
+This is not acceptable. As there is no way to disable scripting inside a  
+certain element in HTML 4, the HTML cleaners usually found on sites live  
+LiveJournal.com are still required. Here's what they should do.
+
+7.1. There are new elements: &lt;safe-script&gt;, &lt;safe-object&gt;, &lt;safe-iframe&gt;  
+(did I forget something?). They are equivalent to their &quot;unsafe&quot;  
+counterparts, except that the existing browsers simply ignore them. HTML  
+cleaners should replace &lt;script&gt; with &lt;safe-script&gt; and likewise.
+
+7.2. HTML event handler attributes are mangled likewise: safe-onclick, for  
+example. Note that this doesn't affect the names of DOM properties like  
+element.onclick.
+
+7.3. A new URI scheme is introduced: &quot;safe-javascript:&quot;. Likewise.
+
+
+-- Opera M2 9.0 TP1 on Debian Linux 2.6.12-1-k7
+* Origin: X-Man's Station at SW-Soft, Inc. [ICQ: 115226275]  
+&lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">alexey at feldgendler.ru</A>&gt;
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="005294.html">[whatwg] sandboxing scripts
+</A></li>
+	<LI>Next message: <A HREF="005335.html">[whatwg] sandboxing scripts
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5301">[ date ]</a>
+              <a href="thread.html#5301">[ thread ]</a>
+              <a href="subject.html#5301">[ subject ]</a>
+              <a href="author.html#5301">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

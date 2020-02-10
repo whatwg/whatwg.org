@@ -1,0 +1,141 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] WebWorkers and images
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20WebWorkers%20and%20images&In-Reply-To=%3C4D2F6B5D.3010502%40mit.edu%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="029845.html">
+   <LINK REL="Next"  HREF="029857.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] WebWorkers and images</H1>
+<!--htdig_noindex-->
+    <B>Boris Zbarsky</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20WebWorkers%20and%20images&In-Reply-To=%3C4D2F6B5D.3010502%40mit.edu%3E"
+       TITLE="[whatwg] WebWorkers and images">bzbarsky at MIT.EDU
+       </A><BR>
+    <I>Thu Jan 13 13:15:09 PST 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="029845.html">[whatwg] WebWorkers and images
+</A></li>
+        <LI>Next message: <A HREF="029857.html">[whatwg] WebWorkers and images
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#29847">[ date ]</a>
+              <a href="thread.html#29847">[ thread ]</a>
+              <a href="subject.html#29847">[ subject ]</a>
+              <a href="author.html#29847">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On 1/13/11 3:19 PM, Jorge wrote:
+&gt;<i> On 13/01/2011, at 15:41, Boris Zbarsky wrote:
+</I>&gt;&gt;<i> On 1/13/11 7:24 AM, Jorge wrote:
+</I>&gt;&gt;&gt;<i> Not too long ago, the browsers did allow timeouts of less than 10ms.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Uh, no.  Not too long ago browsers did not allow timeouts of less than 10ms, ever.
+</I>&gt;<i>
+</I>&gt;<i> Last time I checked that in 2008, most Mac browsers had a +new Date() and a SetTimeout resolution of ~1ms down to ~ 0 ms
+</I>
+1)  2008 is not long ago.  ;)
+
+2)  Don't mix up new Date and setTimeout.
+
+3)  For setTimeout in particular, if the timeout is nested, browsers
+     clamp it from below and always have.  For non-nesting timeouts
+     I'm not sure when Safari stopped clamping, if it ever did; Gecko
+     always did until mid-2009.
+
+4)  All of the above applies to browsers that had enough market share
+     that web compat was an issue.  I haven't done testing of the
+     behavior in iCab, or links, or w3m or Amaya, because it's not
+     really relevant at this point.
+
+&gt;<i> Current Mac browsers behave ~ as you say, except Opera, that converts 0ms timeouts to 10ms, but for anything&gt;= 1ms honors the ms parameter.
+</I>
+Ah, indeed.  I believe that Opera does this cross-platform.  Thank you 
+for the correction.
+
+&gt;&gt;<i> It looks like other browsers will be following suit on the 4ms thing eventually for two reasons: the HTML5 spec specs it and there are lots of bogus performance &quot;benchmarks&quot; that measure JavaScript execution speed across timeouts.  Now I suspect browsers won't actually _deliver_ decent 4ms timers on Windows unless they jump through the hoops that Chrome does with a polling thread; Windows just doesn't give you a sane way to deal with times less than a tick (10ms on single-processor systems, 15ms on multiprocessor ones).  But they might be able to deliver something that fires every 4ms on average (firing immediately sometimes and after 10-15ms other times).
+</I>&gt;<i>
+</I>&gt;<i> If the goal is to protect the users from (badly written) programs that may drain the mobile's or laptop's battery, it's a bit sad to have to go down this route.
+</I>
+Well, the problem is there are multiple somwhat-conflicting goals here:
+
+1)  Provide web pages with high-quality and high-resolution timers that 
+they can use to do various useful things.
+
+2)  Provide some protection against miscoded pages, especially 
+accidentally miscoded ones that are accidentally relying on the old 
+timeout clamps.
+
+3)  Don't break web compat too much.
+
+(and maybe some others).  Chrome started with a 1ms clamp for reason #1, 
+then moved to 4ms due to reasons 2 and 3....
+
+&gt;&gt;<i> It should have, even with the copying that probably happens now.  Worth retesting.
+</I>&gt;<i>
+</I>&gt;<i> Do current browsers implement the structured clones already ?
+</I>
+Firefox 4 does, for postMessage to workers (but not yet to other 
+windows; known bug).  I'm not sure about others.
+
+&gt;&gt;<i> This is actually not all that bad for imagedata: just deallocate its storage on the caller and make any access to the buffer throw.  The key is that you don't care that you have to copy things like the width/height; you just don't want to copy the giant byte array.  So you move the byte array, and deny all access to its elements after that. Since the elements are never pointed to by reference from JS, this works.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> For arbitrary objects this is harder, but could be done, actually. Gecko already does something similar for Window objects when their origin changes: you might still have a reference to the original object, but you can no longer actually touch any of it.  Under the hood, this is implemented in a way that could be used for sending objects to a worker too, I think.
+</I>&gt;<i>
+</I>&gt;<i> Good. So you think it might be feasible ?
+</I>
+Yes.
+
+&gt;<i> I think so too for objects composed only of data properties, but what about methods ? getters ? setters ? and prototypes ?
+</I>
+&quot;Maybe&quot;.  It'd certainly take more work, and might start depending on 
+exactly how your VM is structured.  Restricting to objects with null 
+prototype and no non-data properties has the slight problem that 
+imagedata doesn't have a null prototype.
+
+-Boris
+</PRE>
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="029845.html">[whatwg] WebWorkers and images
+</A></li>
+	<LI>Next message: <A HREF="029857.html">[whatwg] WebWorkers and images
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#29847">[ date ]</a>
+              <a href="thread.html#29847">[ thread ]</a>
+              <a href="subject.html#29847">[ subject ]</a>
+              <a href="author.html#29847">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

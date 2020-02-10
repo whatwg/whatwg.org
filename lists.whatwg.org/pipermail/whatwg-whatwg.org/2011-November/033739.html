@@ -1,0 +1,129 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] MediaController feedback
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20MediaController%20feedback&In-Reply-To=%3C91A79553-E5C2-4C92-9303-B325A4BFCD0C%40apple.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="076016.html">
+   <LINK REL="Next"  HREF="076013.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] MediaController feedback</H1>
+<!--htdig_noindex-->
+    <B>Jer Noble</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20MediaController%20feedback&In-Reply-To=%3C91A79553-E5C2-4C92-9303-B325A4BFCD0C%40apple.com%3E"
+       TITLE="[whatwg] MediaController feedback">jer.noble at apple.com
+       </A><BR>
+    <I>Wed Nov  2 14:50:03 PDT 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="076016.html">[whatwg] instantiating display:none plugins
+</A></li>
+        <LI>Next message: <A HREF="076013.html">[whatwg] MediaController feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#33739">[ date ]</a>
+              <a href="thread.html#33739">[ thread ]</a>
+              <a href="subject.html#33739">[ subject ]</a>
+              <a href="author.html#33739">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Hi,
+
+I'm currently working on implementing MediaController in WebKit &lt;<A HREF="https://bugs.webkit.org/show_bug.cgi?id=71341">https://bugs.webkit.org/show_bug.cgi?id=71341</A>&gt;, and have a couple pieces of feedback from an implementor's POV:
+
+* MediaController Playback State and Ready State
+
+The spec defines both a &quot;most recently reported readiness state&quot;[1] and a &quot;most recently reported playback state&quot;[2] which, when changed, trigger a variety of event.  Because these previous values of these states must be compared each time they are recomputed[3], we must store these values in our MediaController implementation, which is no huge burdon.
+
+However, when I was writing testcases for my implementation, I noticed that there was no way to query the current value of either the playback state or the ready state, as neither was present in the IDL for MediaController.  This makes writing test cases much more difficult, as they now much rely on waiting for edge-triggered events.
+
+In addition, there is a use case for having playbackState and readyState in the MediaController IDL.
+
+When adding a MediaController to an HTMLMediaElement, the spec does not require the media controller to &quot;report the controller state&quot;.  (It does require that the MediaController &quot;bring the media element up to speed&quot; with the new controller.)  In this case, the media controller should also be requried to &quot;report the controller state&quot;, as adding a blocking media element to a controller should probably cause the playbackState to revert to WAITING.  But if the current playbackState is already WAITING, no &quot;waiting&quot; event will be emitted, and the client waiting on such an event will wait forever.
+
+So I would like to propose two changes to the spec:
+
++ MediaController should expose the following attributes in IDL:
+
+  readonly attribute unsigned short readyState;
+  readonly attribute unsigned short playbackState;
+
+Exposing these attributes would have approximately zero implementation cost (at least in my implementation) as these values are stored and easily queryable anyway.
+
++ Modify the media.controller()[4] section to require that the setting the controller &quot;report the controller state&quot;.
+
+* MediaController.play()
+
+The MediaController play() function does not actually cause its slaved media elements to play.  If all the slaved media elements are paused, the MediaController is a blocked media controller, and none will play until at least one element has play() called on it directly.  And even in that case, only the playing elements will begin playing.
+
+In addition, the &quot;user interface&quot; section of the spec says the following:
+
+&gt;<i> When a media element has a current media controller, and all the slaved media elements of that MediaController are paused, the user agent should unpause all the slaved media elements when the user invokes a user agent interface control for beginning playback.
+</I>
+So now, an individual media control must be able to access all other HTMLMediaElements associated with a given MediaController, because there is no facility in MediaController to actually unpause all the slaved media elements.  In a previous paragraph in that same section:
+
+&gt;<i> When a media element has a current media controller, the user agent's user interface for pausing and unpausing playback, for seeking, for changing the rate of playback, for fast-forwarding or rewinding, and for muting or changing the volume of audio of the entire group must be implemented in terms of the MediaController API exposed on that current media controller.
+</I>
+Except, in the case of unpausing, this extra requirement of unpausing the slaved media elements is somewhat in conflict with this paragraph.
+
+I would like to propose three changes to the spec:
+
++ Modify the section &quot;bring the media element up to speed with the new controller&quot;[5] to require that a media element added to a playing media controller must begin playing, and one added to a paused media controller must pause.
+
++ Modiy the section &quot;controller . play()&quot;[6] to require that the user agent unpause all the slaved media elements.
+
++ Modify the section &quot;controller . pause()&quot;[7] to require that the user egent pause all the slaved media elements.
+
++ Remove the section from &quot;user interface&quot;[8] which requires the user agent unpause all the slaved media elements, quoted above.
+
+Thanks,
+
+-Jer
+
+[1] <A HREF="http://www.w3.org/TR/html5/video.html#most-recently-reported-playback-state">http://www.w3.org/TR/html5/video.html#most-recently-reported-playback-state</A>
+[2] <A HREF="http://www.w3.org/TR/html5/video.html#most-recently-reported-playback-state">http://www.w3.org/TR/html5/video.html#most-recently-reported-playback-state</A>
+[3] <A HREF="http://www.w3.org/TR/html5/video.html#report-the-controller-state">http://www.w3.org/TR/html5/video.html#report-the-controller-state</A>
+[4] <A HREF="http://www.w3.org/TR/html5/video.html#dom-media-controller">http://www.w3.org/TR/html5/video.html#dom-media-controller</A>
+[5] <A HREF="http://www.w3.org/TR/html5/video.html#bring-the-media-element-up-to-speed-with-its-new-media-controller">http://www.w3.org/TR/html5/video.html#bring-the-media-element-up-to-speed-with-its-new-media-controller</A>
+[6] <A HREF="http://www.w3.org/TR/html5/video.html#dom-mediacontroller-play">http://www.w3.org/TR/html5/video.html#dom-mediacontroller-play</A>
+[7] <A HREF="http://www.w3.org/TR/html5/video.html#dom-mediacontroller-pause">http://www.w3.org/TR/html5/video.html#dom-mediacontroller-pause</A>
+[8] <A HREF="http://www.w3.org/TR/html5/video.html#user-interface">http://www.w3.org/TR/html5/video.html#user-interface</A>
+</PRE>
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="076016.html">[whatwg] instantiating display:none plugins
+</A></li>
+	<LI>Next message: <A HREF="076013.html">[whatwg] MediaController feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#33739">[ date ]</a>
+              <a href="thread.html#33739">[ thread ]</a>
+              <a href="subject.html#33739">[ subject ]</a>
+              <a href="author.html#33739">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

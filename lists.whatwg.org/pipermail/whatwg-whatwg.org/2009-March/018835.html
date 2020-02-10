@@ -1,0 +1,215 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Link.onload
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Link.onload&In-Reply-To=%3C29ae901a0903141724m7bf599aek16f2a196a9cd1ea8%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="018833.html">
+   <LINK REL="Next"  HREF="018836.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Link.onload</H1>
+<!--htdig_noindex-->
+    <B>Greg Houston</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Link.onload&In-Reply-To=%3C29ae901a0903141724m7bf599aek16f2a196a9cd1ea8%40mail.gmail.com%3E"
+       TITLE="[whatwg] Link.onload">gregory.houston at gmail.com
+       </A><BR>
+    <I>Sat Mar 14 17:24:54 PDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="018833.html">[whatwg] Link.onload
+</A></li>
+        <LI>Next message: <A HREF="018836.html">[whatwg] Link.onload
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18835">[ date ]</a>
+              <a href="thread.html#18835">[ thread ]</a>
+              <a href="subject.html#18835">[ subject ]</a>
+              <a href="author.html#18835">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Sat, Mar 14, 2009 at 4:46 PM, Garrett Smith &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">dhtmlkitchen at gmail.com</A>&gt; wrote:
+&gt;<i> I proposed a solution to a similar problem not too long ago.
+</I>&gt;<i>
+</I>&gt;<i> &lt;script depends=&quot;[idref]&quot; ...&gt;&lt;/script&gt;
+</I>
+For me to implement my own &quot;depends&quot; lazy loader without any hacks the
+only thing missing is that link onload callback.
+
+Given the following example, with depends, if a, b, or c are links,
+how would you set their &quot;title&quot;, &quot;rel&quot;, &quot;href&quot;, &quot;media&quot; and other
+attributes? If a, b, or c is a script, how would you set the &quot;id&quot; or
+&quot;type&quot; of that script?
+
+&lt;script depends=&quot;a b c&quot;&gt;&lt;/script&gt;
+
+&gt;<i>Example:-
+</I>&gt;<i>&lt;link onload=&quot;loadPlayer()&quot; ...&gt;
+</I>
+This is sort of what I am doing, but missing a couple steps:
+
+This is basic usage:
+
+[The following examples are using Mootools syntax]
+
+MyApp.extend({
+
+	Calendar: function(args){  // This entire function is replaced when
+calendear.js is loaded.
+		$require({
+			dir: MyApp.pluginDirectory + 'Calendar/',
+			cssFirst: true,
+			css: [{url: 'css/calandar.css', media: 'all'}, {url:
+'css/calandarPrint.css', media: 'print'}],
+			images: ['images/bg.jpg', 'images/dayHover.png'],
+			javascript: [{url: 'js/calandar.js', id: 'calendarScript'}],
+			onProgress: function(counter, index, assetsToLoad){
+				console.log(counter + ' of ' + assetsToLoad + '  required files loaded.');
+			},
+			onload: function(){
+				console.log('All required files loaded.');
+				new MyApp.Calendar(args);
+			}.bind(this)
+		});
+	},
+	
+	Chat: function(){  // This entire function is replaced when chat.js is loaded.
+		$require({
+			// ...
+			onload: function(){
+				new MyApp.Chat();
+			}
+		});		
+	}
+		
+});
+
+There is a Core.js file that sets up the MyApp namespace. There are
+plugins called MyApp.Calendar, MyApp.Chat, and so forth. If the user
+does something that fires new MyApp.Calendar(args), all of the
+Calendar assets are loaded, CSS first. The JavaScript in Calendar.js
+overwrites the MyApp.Calendar lazy loading function with the &quot;Class&quot;
+method for the Calendar. When the $require onload is fired it then
+runs new MyApp.Calendar(args) again, this time creating a new Calendar
+instance.
+
+calendar.js:
+
+MyApp.Calendar  = new Class({
+
+	Implements: [Events, Options],
+
+	options: {
+		//
+	},
+	
+	initialize: function(options){
+		//
+	}
+	
+)};
+
+The MyApp.Calendar lazy loader is now completely gone and any future
+calls to new MyApp.Calendar() immediately creates a new Calendar
+instance.
+
+So instead of  &lt;link onload=&quot;loadPlayer()&quot; ...&gt;
+
+it would be more like:
+
+&lt;link onload=&quot;checkLoadProgress()&quot; ...&gt;
+
+loadPlayer() would not happen until all the required files are loaded.
+checkLoadProgress() keeps a tally of the progress.
+
+The CSS is created something like this:
+
+css: function(directory, source, properties){
+		
+	properties = $merge({
+		rel: 'stylesheet',
+		media: 'screen',
+		type: 'text/css'
+	}, properties);
+		
+	return new Element('link', {
+		rel: properties.rel,
+		media: properties.media,
+		type: properties.type,
+		href: directory + source,
+		onload: function(){ checkLoadProgress(); }
+	}).inject(document.head);
+		
+}
+
+I think a native lazy loader such as something along the lines of your
+depends is a great idea. It would obviously have to be much simpler
+than what I am doing, sort of in the same vein that you can use the
+HTML 5 meter or create your own and have more control. I think your
+idea would probably need more fleshing out though and would require a
+great deal more from the user agents than what I am requesting, which
+again is just an onload callback from the link element.
+
+On a side note, I can actually attach a functioning onload event to a
+link element in Internet Explorer. Firefox, Safari, and Chrome ignore
+my attempt, and Opera will fire the onload event but not update the
+style of the page. Opera gives the most curious result. I didn't
+actually check the DOM to see if Opera appended the stylesheet or not.
+It may be that it just short circuits and fires the onload event.
+
+	return new Element('link', {
+		rel: properties.rel,
+		media: properties.media,
+		type: properties.type,
+		href: directory + source
+	}).addEvent('load', function(){
+		alert('Hello World');
+	}).inject(document.head);
+
+Cheers,
+
+G.
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="018833.html">[whatwg] Link.onload
+</A></li>
+	<LI>Next message: <A HREF="018836.html">[whatwg] Link.onload
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18835">[ date ]</a>
+              <a href="thread.html#18835">[ thread ]</a>
+              <a href="subject.html#18835">[ subject ]</a>
+              <a href="author.html#18835">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

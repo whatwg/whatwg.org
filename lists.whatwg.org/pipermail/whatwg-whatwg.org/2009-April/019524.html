@@ -1,0 +1,314 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] &lt;video&gt;/&lt;audio&gt; feedback
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20%3Cvideo%3E/%3Caudio%3E%20feedback&In-Reply-To=%3CPine.LNX.4.62.0904300621100.10370%40hixie.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="019518.html">
+   <LINK REL="Next"  HREF="019528.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] &lt;video&gt;/&lt;audio&gt; feedback</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20%3Cvideo%3E/%3Caudio%3E%20feedback&In-Reply-To=%3CPine.LNX.4.62.0904300621100.10370%40hixie.dreamhostps.com%3E"
+       TITLE="[whatwg] &lt;video&gt;/&lt;audio&gt; feedback">ian at hixie.ch
+       </A><BR>
+    <I>Thu Apr 30 00:14:06 PDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="019518.html">[whatwg] Start position of media resources
+</A></li>
+        <LI>Next message: <A HREF="019528.html">[whatwg] &lt;video&gt;/&lt;audio&gt; feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19524">[ date ]</a>
+              <a href="thread.html#19524">[ thread ]</a>
+              <a href="subject.html#19524">[ subject ]</a>
+              <a href="author.html#19524">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Fri, 10 Apr 2009, Robert O'Callahan wrote:
+&gt;<i>
+</I>&gt;<i> Media element state changes, such as readyState changes, trigger 
+</I>&gt;<i> asynchronous events. When the event handler actually runs, the element 
+</I>&gt;<i> state might have already changed again. For example, it's quite possible 
+</I>&gt;<i> for readyState to change to HAVE_ENOUGH_DATA, a canplaythrough event is 
+</I>&gt;<i> scheduled, then the readyState changes to HAVE_CURRENT_DATA, then the 
+</I>&gt;<i> canplaythrough event handler runs and may be surprised to find that the 
+</I>&gt;<i> state is not HAVE_ENOUGH_DATA.
+</I>
+Yeah. Not sure what to do about this.
+
+
+&gt;<i> A related surprise is that although a media element delays the document 
+</I>&gt;<i> load event until the readyState reaches HAVE_CURRENT_DATA, it is 
+</I>&gt;<i> possible for a loadeddata event handler to actually run after the 
+</I>&gt;<i> document load event handler.
+</I>
+That's true, because the media element's events are all fired on the 
+element's own task source, and are therefore not guaranteed to be ordered 
+with respect to the DOM manipulation task source (which is used for the 
+document-wide 'load' event).
+
+The reason for this is that we don't want to have to guarentee the order 
+of events between two &lt;video&gt; elements, so they can't use the same task 
+source, but we _do_ want to make sure that events from a particular media 
+element are ordered with respect to each other.
+
+Again, I'm not sure what to do about this.
+
+
+&gt;<i> An obvious approach to avoid these surprises is to arrange for the state 
+</I>&gt;<i> changes to not be reflected in the element until the associated event 
+</I>&gt;<i> actually fires. That's a problem if you apply it generally, though. If 
+</I>&gt;<i> you delay changes to the 'currentTime' attribute until the associated 
+</I>&gt;<i> timeupdate event runs, either 'currentTime' does not reflect what is 
+</I>&gt;<i> actually being displayed or your video playback depends on timely JS 
+</I>&gt;<i> event execution --- both of those options are unacceptable. And allowing 
+</I>&gt;<i> 'currentTime' to advance while the readyState is still at 
+</I>&gt;<i> HAVE_CURRENT_DATA seems like it could be confusing too.
+</I>
+Indeed.
+
+
+On Thu, 9 Apr 2009, Boris Zbarsky wrote:
+&gt;<i> 
+</I>&gt;<i> For what it's worth, there are similar situations elsewhere.  For 
+</I>&gt;<i> example, the currently proposed spec for stylesheet load events says 
+</I>&gt;<i> those fire asynchronously, so it looks to me like they could fire after 
+</I>&gt;<i> onload.
+</I>
+Actually the way this is defined they will always fire before the main 
+load event (the events are both fired on the same task source, so their 
+ordering is defined).
+
+
+On Sat, 18 Apr 2009, Biju wrote:
+&gt;<i>
+</I>&gt;<i> from <A HREF="https://bugzilla.mozilla.org/show_bug.cgi?id=480376">https://bugzilla.mozilla.org/show_bug.cgi?id=480376</A>
+</I>&gt;<i> 
+</I>&gt;<i> &gt; It's not too uncommon for videos to have no audio track. It would be 
+</I>&gt;<i> &gt; really nice if the video controls could indicate this, so that users 
+</I>&gt;<i> &gt; know why there's no sound (&quot;is something broken? is my volume too low? 
+</I>&gt;<i> &gt; wtf?&quot;).
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Unfortunately this info isn't available through the media element API, 
+</I>&gt;<i> &gt; so this would need to be added to the HTML5 spec. The simplest way to 
+</I>&gt;<i> &gt; expose this would be as |readonly boolean hasAudio|. Is the media 
+</I>&gt;<i> &gt; backend capable of determining this this?
+</I>&gt;<i> 
+</I>&gt;<i> we need a hasAudio JS only property for video element
+</I>
+The notes in the spec for the next version of the API mention:
+
+    * hasAudio, hasVideo, hasCaptions, etc
+
+
+On Sat, 18 Apr 2009, Biju wrote:
+&gt;<i>
+</I>&gt;<i> if a video element is already playing/loaded video from URL
+</I>&gt;<i> <A HREF="http://mysite.com/aaaaa.ogg">http://mysite.com/aaaaa.ogg</A>
+</I>&gt;<i> and if we want play another file <A HREF="http://mysite.com/bbbbb.ogg">http://mysite.com/bbbbb.ogg</A>
+</I>&gt;<i> we should do following JS code
+</I>&gt;<i> 
+</I>&gt;<i>      v = $('v1');
+</I>&gt;<i>      v.src = &quot;<A HREF="http://mysite.com/bbbbb.ogg&quot;;">http://mysite.com/bbbbb.ogg&quot;;</A>
+</I>&gt;<i>      v.load();
+</I>&gt;<i>      v.play();
+</I>&gt;<i> 
+</I>&gt;<i> Why cant it be as simple as
+</I>&gt;<i> 
+</I>&gt;<i>    v = $('v1');
+</I>&gt;<i>    v.play(&quot;<A HREF="http://mysite.com/bbbbb.ogg&quot;">http://mysite.com/bbbbb.ogg&quot;</A>);
+</I>&gt;<i> 
+</I>&gt;<i> Similarly for load
+</I>&gt;<i>
+</I>&gt;<i>    v = $('v1');
+</I>&gt;<i>    v.load(&quot;<A HREF="http://mysite.com/bbbbb.ogg&quot;">http://mysite.com/bbbbb.ogg&quot;</A>);
+</I>
+Is saving two lines really that big of a deal?
+
+
+On Mon, 20 Apr 2009, Philip J&#228;genstedt wrote:
+&gt;<i> 
+</I>&gt;<i> Since static markup uses the src attribute it needs to be supported via 
+</I>&gt;<i> the DOM, so adding a parameter to load/play would only mean that there 
+</I>&gt;<i> are several ways to do the same thing. I'm not sure replacing an already 
+</I>&gt;<i> playing media resource is an important enough use case to make such a 
+</I>&gt;<i> change to an already complex spec.
+</I>
+Indeed.
+
+
+On Mon, 20 Apr 2009, Biju wrote:
+&gt;<i> 
+</I>&gt;<i> I did not mean to remove option for assigning to .src property.
+</I>
+That's the problem. It would increase the size of the API.
+
+
+&gt;<i> This will make web developers work easier. ie, the js code will become 
+</I>&gt;<i> 1/3 most time for the same operation.
+</I>
+If saving two lines in this case is that much of a big deal, I recommend 
+writing a wrapper function that takes an ID and a URL and finds the 
+relevant video element, updates the src=&quot;&quot;, and reloads it. Then it's just 
+one line of code. Problem solved. :-)
+
+
+On Mon, 20 Apr 2009, Biju wrote:
+&gt;<i> 
+</I>&gt;<i> I am sorry if I am missing something, how do adding it make spec 
+</I>&gt;<i> complex.
+</I>
+Anything we add makes the spec more complex. Two API members is more than 
+one API member.
+
+
+&gt;<i> So remaining logic is only
+</I>&gt;<i> 
+</I>&gt;<i> HTMLVideoElement.prototype.newPlay =
+</I>&gt;<i> function newPlay(url){
+</I>&gt;<i>   if(arguments.length) this.src = url;
+</I>&gt;<i>   this.load();
+</I>&gt;<i>   this.play();
+</I>&gt;<i> }
+</I>
+See, no need for the browsers to do it. :-)
+
+
+On Sun, 19 Apr 2009, Biju wrote:
+&gt;<i>
+</I>&gt;<i> For video tags we need events &quot;oncontrolson&quot; and &quot;&quot;oncontrolsoff&quot; This 
+</I>&gt;<i> will be useful if web page author want to hide his interface when native 
+</I>&gt;<i> controls becomes active.
+</I>&gt;<i> 
+</I>&gt;<i> Example where it is useful
+</I>&gt;<i> 1. Get firefox trunk build
+</I>&gt;<i> 2. go to <A HREF="http://people.opera.com/howcome/2007/video/opacity.html">http://people.opera.com/howcome/2007/video/opacity.html</A>
+</I>&gt;<i> 3. right on video, to get the context menu
+</I>&gt;<i> 4. select &quot;Show Controls&quot;
+</I>&gt;<i> 
+</I>&gt;<i> Result
+</I>&gt;<i> The JS controls provided by web page overlaps native contols.
+</I>
+I've noted this as a feature request for a future version. It may be that 
+browsers change their controls so that this is unnecessary (e.g. by 
+always going on top of everything).
+
+
+On Thu, 30 Apr 2009, Silvia Pfeiffer wrote:
+&gt;<i> &gt; On Wed, 8 Apr 2009, Silvia Pfeiffer wrote:
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; Note that in the Media Fragment working group even the specification 
+</I>&gt;<i> &gt;&gt; of <A HREF="http://www.example.com/t.mov#time=&quot;10s-20s&quot;">http://www.example.com/t.mov#time=&quot;10s-20s&quot;</A> may mean that only the 
+</I>&gt;<i> &gt;&gt; requested 10s clip is delivered, especially if all the involved 
+</I>&gt;<i> &gt;&gt; instances in the exchange understand media fragment URIs.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; That doesn't seem possible since fragments aren't sent to the server.
+</I>&gt;<i> 
+</I>&gt;<i> The current WD of the Media Fragments WG
+</I>&gt;<i> <A HREF="http://www.w3.org/2008/WebVideo/Fragments/WD-media-fragments-reqs/">http://www.w3.org/2008/WebVideo/Fragments/WD-media-fragments-reqs/</A>
+</I>&gt;<i> specifies that a URL that looks like this
+</I>&gt;<i> <A HREF="http://www.w3.org/2008/WebVideo/Fragments/media/fragf2f.mp4#t=12,21">http://www.w3.org/2008/WebVideo/Fragments/media/fragf2f.mp4#t=12,21</A>
+</I>&gt;<i> is to be resolved on the server through the following basic process:
+</I>&gt;<i> 
+</I>&gt;<i> 1. UA chops off the fragment and turns it into a HTTP GET request with
+</I>&gt;<i> a newly introduced time range header
+</I>&gt;<i> e.g.
+</I>&gt;<i> GET /2008/WebVideo/Fragments/media/fragf2f.mp4 HTTP/1.1
+</I>&gt;<i> Host: www.w3.org
+</I>&gt;<i> Accept: video/*
+</I>&gt;<i> Range: seconds=12-21
+</I>&gt;<i> 
+</I>&gt;<i> 2. The server slices the multimedia resource by mapping the seconds to
+</I>&gt;<i> bytes and extracting a playable resource (potentially fixing container
+</I>&gt;<i> headers). The server will then reply with the closest inclusive range
+</I>&gt;<i> in a 206 HTTP response:
+</I>&gt;<i> e.g.
+</I>&gt;<i> HTTP/1.1 206 Partial Content
+</I>&gt;<i> Accept-Ranges: bytes, seconds
+</I>&gt;<i> Content-Length: 3571437
+</I>&gt;<i> Content-Type: video/mp4
+</I>&gt;<i> Content-Range: seconds 11.85-21.16
+</I>
+That seems quite reasonable, assuming the UA is allowed to seek to other 
+parts of the video also.
+
+
+&gt;<i> &gt; On Thu, 9 Apr 2009, Jonas Sicking wrote:
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; If we look at how fragment identifiers work in web pages today, a 
+</I>&gt;<i> &gt;&gt; link such as
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; <A HREF="http://example.com/page.html#target">http://example.com/page.html#target</A>
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; this displays the 'target' part of the page, but lets the user scroll 
+</I>&gt;<i> &gt;&gt; to anywhere in the resource. This feels to me like it maps fairly 
+</I>&gt;<i> &gt;&gt; well to
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; <A HREF="http://example.com/video.ogg#t=5s">http://example.com/video.ogg#t=5s</A>
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; displaying the selected frame, but displaying a timeline for the full 
+</I>&gt;<i> &gt;&gt; video and allowing the user to directly go to any position.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Agreed. This is how the spec works now.
+</I>&gt;<i> 
+</I>&gt;<i> This is also how we did it with Ogg and temporal URIs, but this is not 
+</I>&gt;<i> the way in which the standard for media fragment URIs will work.
+</I>
+It sounds like it is. I don't understand the difference.
+
+
+&gt;<i> &gt;&gt; But I also agree that there is a use case for directing the user to a
+</I>&gt;<i> &gt;&gt; specific range of the video, such as your 30 second clip out of 5 hour
+</I>&gt;<i> &gt;&gt; video example. Maybe this could be done with syntax like
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; <A HREF="http://example.com/video.ogg#r=3600s-3630s">http://example.com/video.ogg#r=3600s-3630s</A>
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Currently the spec has no way to indicate a stop time from the fragment
+</I>&gt;<i> &gt; identifier or other out-of-band information, but I agree that we might
+</I>&gt;<i> &gt; need to add something like that (e.g. implying a default cue range with
+</I>&gt;<i> &gt; autopause-on-exit enabled) at some point.
+</I>&gt;<i> 
+</I>&gt;<i> The WD of the Media Fragment WG has a stop time in it. We might want
+</I>&gt;<i> to add a stopTime DOM attribute.
+</I>
+I haven't added this yet, but I agree that we might want to look into 
+this at some future point.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="019518.html">[whatwg] Start position of media resources
+</A></li>
+	<LI>Next message: <A HREF="019528.html">[whatwg] &lt;video&gt;/&lt;audio&gt; feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19524">[ date ]</a>
+              <a href="thread.html#19524">[ thread ]</a>
+              <a href="subject.html#19524">[ subject ]</a>
+              <a href="author.html#19524">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

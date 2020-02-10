@@ -1,0 +1,253 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Proposing &lt;canvas&gt;.toBlob(contentType)
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Proposing%20%3Ccanvas%3E.toBlob%28contentType%29&In-Reply-To=%3CPine.LNX.4.64.1105121909030.19153%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="074132.html">
+   <LINK REL="Next"  HREF="031580.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Proposing &lt;canvas&gt;.toBlob(contentType)</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Proposing%20%3Ccanvas%3E.toBlob%28contentType%29&In-Reply-To=%3CPine.LNX.4.64.1105121909030.19153%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg] Proposing &lt;canvas&gt;.toBlob(contentType)">ian at hixie.ch
+       </A><BR>
+    <I>Thu May 12 13:49:43 PDT 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="074132.html">[whatwg] Pressing Enter in contenteditable: &lt;p&gt; or &lt;br&gt; or	&lt;div&gt;?
+</A></li>
+        <LI>Next message: <A HREF="031580.html">[whatwg] Canvas rendering should be done in linear color space (gamma 1) and the result displayed in sRGB color space (approximately gamma 2.2)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#31578">[ date ]</a>
+              <a href="thread.html#31578">[ thread ]</a>
+              <a href="subject.html#31578">[ subject ]</a>
+              <a href="author.html#31578">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Wed, 13 Apr 2011, Kyle Huey wrote:
+&gt;<i> 
+</I>&gt;<i> Gecko 2.0 ships with a non-standard method on &lt;canvas&gt; named 
+</I>&gt;<i> mozGetAsFile(contentType, fileName).  We added this for internal use in 
+</I>&gt;<i> our UI.  It retrieves the contents of the canvas as a File object (at 
+</I>&gt;<i> the time Gecko did not supports Blobs) encoded in the contentType 
+</I>&gt;<i> according to the same rules toDataURL uses.
+</I>&gt;<i> 
+</I>&gt;<i> I propose adding a toBlob(contentType) method to the canvas element in 
+</I>&gt;<i> the style of toDataURL.  This would greatly increase the options 
+</I>&gt;<i> available to developers for extracting data from a canvas element (a 
+</I>&gt;<i> Blob can be saved to disk, XHRed, etc.)
+</I>
+I've added toBlob(). However, I made it asynchronous, so that it doesn't 
+block while generating the Blob.
+
+
+On Wed, 13 Apr 2011, Glenn Maynard wrote:
+&gt;<i> 
+</I>&gt;<i> r = canvas.getReader();
+</I>&gt;<i> r.onload = function(blob) { blob = r.result; }
+</I>&gt;<i> r.readBlob();
+</I>&gt;<i> 
+</I>&gt;<i> following the pattern of FileReader
+</I>
+That seems a bit more verbose than necessary. I've gone with:
+
+   canvas.toBlob(function(result) { blob = result; });
+
+
+&gt;<i> This allows browsers to optionally thread compression or (more likely) 
+</I>&gt;<i> run it in slices, and this API would allow Progress Events (onprogress) 
+</I>&gt;<i> to be supported later on, useful when compressing large images (which 
+</I>&gt;<i> may take several seconds).
+</I>
+It's true that on the long term if we want to expose progress events the 
+more verbose API would be more useful, but if we ever decide that's an 
+important use case to consider, we can always make the method return an 
+object on which progress events get fired.
+
+
+On Wed, 13 Apr 2011, Kyle Huey wrote:
+&gt;<i> 
+</I>&gt;<i> The problem here is that Blob.size is broken.  The point of the File API 
+</I>&gt;<i> is to do reads asynchronously without blocking the main thread on 
+</I>&gt;<i> something slow.  This is why the only way to get at a Blob's contents is 
+</I>&gt;<i> through something like FileReader which is asynchronous and event 
+</I>&gt;<i> driven.  Blob.size goes totally against all of this.  I wonder if it's 
+</I>&gt;<i> possible to remove size entirely?  Jonas?  It's been shipped in Firefox 
+</I>&gt;<i> since 3.5 though, and Chrome since some version from quite a while ago, 
+</I>&gt;<i> so I fear it's here to stay.
+</I>&gt;<i> 
+</I>&gt;<i> Assuming that Blob.size is here to stay, web developers are just going 
+</I>&gt;<i> to have to cope with the fact that it's broken and causes synchronous 
+</I>&gt;<i> slow things to happen.  I believe (though I haven't verified) that in 
+</I>&gt;<i> Gecko we avoid statting a file on the disk that backs a Blob until 
+</I>&gt;<i> Blob.size is called (or somebody passes it to a FileReader and we can 
+</I>&gt;<i> touch the disk asynchronously, etc).  In this case the UA could 
+</I>&gt;<i> optimize, for example, by encoding on a background thread and simply 
+</I>&gt;<i> blocking inside a size call when the encoding has not completed.
+</I>&gt;<i> 
+</I>&gt;<i> The main drawback of making it asynchronous is that (AIUI, please 
+</I>&gt;<i> correct me if I'm wrong) everything else about the canvas element and 
+</I>&gt;<i> the 2d rendering context is synchronous.  This adds cognitive overhead 
+</I>&gt;<i> both for developers and actual code complexity for implementations.  
+</I>&gt;<i> I'll assert, however, that the &quot;behind the scenes&quot; complexities of 
+</I>&gt;<i> presenting an asynchronous API for getting a blob and presenting a 
+</I>&gt;<i> synchronous API that performs the optimization above are the same.  In 
+</I>&gt;<i> particular, in both cases the UA must handle:modifications to the canvas 
+</I>&gt;<i> after the Blob Getting API is called. Given this, and that providing an 
+</I>&gt;<i> asynchronous API to get an object that is supposed to be inherently 
+</I>&gt;<i> asynchronous seems silly, I would prefer the synchronous version here.
+</I>
+On Wed, 27 Apr 2011, Jonas Sicking wrote:
+&gt;<i>
+</I>&gt;<i> Yeah, I think the current Blob and File interfaces are here to stay. Not 
+</I>&gt;<i> just because they have shipped, but because in all other situations 
+</I>&gt;<i> access to the File/Blob object is asynchronous, and so providing 
+</I>&gt;<i> synchronous access to metadata makes a lot of sense.
+</I>&gt;<i> 
+</I>&gt;<i> However, we could possibly come up with something like a UnsizedBlob 
+</I>&gt;<i> interface. We could possibly even make that a base-class of the normal 
+</I>&gt;<i> Blob interface. However it would mean introducing a lot of complexity. 
+</I>&gt;<i> All functions that currently take Blob should be changed to take 
+</I>&gt;<i> UnsizedBlob. And how would something like BlobBuilder work? Would it 
+</I>&gt;<i> return an UnsizedBlob or a Blob?
+</I>&gt;<i> 
+</I>&gt;<i> Unless we can come up with other APIs where a UnsizedBlob would make 
+</I>&gt;<i> sense, I'm tempted to say that we should use an asynchronous callback 
+</I>&gt;<i> here.
+</I>
+That's what I've gone with.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="074132.html">[whatwg] Pressing Enter in contenteditable: &lt;p&gt; or &lt;br&gt; or	&lt;div&gt;?
+</A></li>
+	<LI>Next message: <A HREF="031580.html">[whatwg] Canvas rendering should be done in linear color space (gamma 1) and the result displayed in sRGB color space (approximately gamma 2.2)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#31578">[ date ]</a>
+              <a href="thread.html#31578">[ thread ]</a>
+              <a href="subject.html#31578">[ subject ]</a>
+              <a href="author.html#31578">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

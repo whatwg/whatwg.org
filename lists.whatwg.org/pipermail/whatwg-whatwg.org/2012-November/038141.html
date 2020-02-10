@@ -1,0 +1,181 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] &lt;ruby&gt; markup problems
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20%3Cruby%3E%20markup%20problems&In-Reply-To=%3CCAAWBYDDgsMnpy4AVanu528gDNXCFyEeQQK2VDLrJ5aB3G2aapw%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="080467.html">
+   <LINK REL="Next"  HREF="080416.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] &lt;ruby&gt; markup problems</H1>
+<!--htdig_noindex-->
+    <B>Tab Atkins Jr.</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20%3Cruby%3E%20markup%20problems&In-Reply-To=%3CCAAWBYDDgsMnpy4AVanu528gDNXCFyEeQQK2VDLrJ5aB3G2aapw%40mail.gmail.com%3E"
+       TITLE="[whatwg] &lt;ruby&gt; markup problems">jackalmage at gmail.com
+       </A><BR>
+    <I>Tue Nov 27 18:42:16 PST 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="080467.html">[whatwg] Menus and Toolbars
+</A></li>
+        <LI>Next message: <A HREF="080416.html">[whatwg] &lt;ruby&gt; markup problems
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#38141">[ date ]</a>
+              <a href="thread.html#38141">[ thread ]</a>
+              <a href="subject.html#38141">[ subject ]</a>
+              <a href="author.html#38141">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>The current HTML &lt;ruby&gt; markup has a few issues where it does not
+properly solve the relevant use-cases.  In this email I'll outline
+these problems, and suggest some simple fixes that maintain the
+overall simplicity of the ruby model.
+
+1. Inlining ruby
+=============
+
+The current ruby model explicitly uses a &quot;column-based&quot; model of ruby,
+where runs of base text and ruby text must alternate in the markup, so
+that ruby text is associated with the immediately preceding ruby base.
+
+This does *not* work well for common ruby inlining cases.  For
+example, the word Tokyo is written as &#26481;&#20140; in kanji and &#12392;&#12358;&#12365;&#12423;&#12358; in kana.
+The base-text pairs are &#26481;-&#12392;&#12358; &#20140;-&#12365;&#12423;&#12358;, and the ruby markup must create
+those associations accordingly. However, when rendered inline, the
+correct rendering is &#26481;&#20140;(&#12392;&#12358;&#12365;&#12423;&#12358;) with the word kept together as one
+unit, not &#26481;(&#12392;&#12358;)&#20140;(&#12365;&#12423;&#12358;).  The current ruby model in HTML, though,
+requires that you either mark up the ruby correctly and get the latter
+display, or incorrectly group the entire thing as one ruby text over
+one ruby base to get the former display.
+
+This is important, because inlining is not just a fallback measure for
+down-level clients.  Inlining is often done as a legitimate stylistic
+choice, such as when there's only a small amount of ruby in the text
+(to avoid the increased line-height on the few lines that contain
+ruby) or when the base text is already small (to avoid making the ruby
+text unreadably small).
+
+This can be solved easily by also allowing a &quot;row-based&quot; model, where
+runs of &lt;rb&gt; elements can be followed by runs of &lt;rt&gt; elements, and
+they're matched up index-wise.  If you can then switch back to &lt;rb&gt;,
+you still retain the convenience of &quot;column-based&quot; when that's
+sufficient.
+
+2. Double-sided ruby
+=================
+
+When you want to create double-sided ruby, with the ruby text on both
+sides of base text, the current HTML model posits two separate and
+fairly different markup models.
+
+In the first, when the group boundaries for both ruby text runs are
+the same, it allows you to have two &lt;rt&gt;s following an &lt;rb&gt;, with the
+obvious meaning.
+
+In the second, when the group boundaries do *not* line up (in
+particular, for the common case where one line of ruby is
+per-character and the other is for the whole group, such as with a
+pinyin and English translation), it requires you to nest two &lt;ruby&gt;
+elements, with the inner one supplying the per-character annotations
+and the outer supplying the whole-group ones.
+
+Having to learn and use two different markup patterns for two nearly
+identical use-cases is sub-optimal for authors.  It would be best if
+they could just learn one model that works for both.
+
+On the implementation side, this also requires two different layout
+models for essentially the exact same thing.  This is unnecessarily
+complicated; again, one simple way to get both would be preferred.
+
+This is easy to address.  Add an &lt;rtc&gt; element (name taken from the
+XHTML Ruby module), which is used for the second line of text.  You
+can fill an &lt;rtc&gt; with &lt;rt&gt; elements, in which case they match up
+index-wise with the preceding run of &lt;rb&gt; elements.  The last &lt;rt&gt;
+(or, if no &lt;rt&gt;s were given at all, the naked text that was implicitly
+wrapped in an &lt;rt&gt;) automatically spans the remaining bases in the
+preceding run.
+
+This makes both cases trivial.  If both runs of ruby are
+per-character, you can just write:
+
+&lt;ruby&gt;&lt;rb&gt;FOO&lt;rb&gt;BAR&lt;rt&gt;baz1&lt;rt&gt;baz2&lt;rtc&gt;&lt;rt&gt;qux1&lt;rt&gt;qux2&lt;/ruby&gt;
+
+Or, in the pure column-based model:
+
+&lt;ruby&gt;FOO&lt;rt&gt;baz1&lt;rtc&gt;qux1&lt;rb&gt;BAR&lt;rt&gt;baz2&lt;rtc&gt;qux2&lt;/ruby&gt;
+
+Alternately, if the second line of ruby text spans the entire group,
+that's also trivial, and very simlar:
+
+&lt;ruby&gt;&lt;rb&gt;FOO&lt;rb&gt;BAR&lt;rt&gt;baz1&lt;rt&gt;baz2&lt;rtc&gt;qux1 qux2&lt;/ruby&gt;
+
+As you can see, the only difference is that the &lt;rtc&gt; contains a
+single (implicit) &lt;rt&gt;, rather than two &lt;rt&gt;s.  It seems plainly
+obviously that this is simpler for authors; it's also simpler for
+implementors, because we don't have to infer that we should be
+formatting something as double-ruby from the presence of nested &lt;ruby&gt;
+elements.
+
+
+
+Based on fantasai's research at
+&lt;<A HREF="http://fantasai.inkedblade.net/weblog/2011/ruby/#double">http://fantasai.inkedblade.net/weblog/2011/ruby/#double</A>&gt; and her
+subsequent conversations with i18n folks and CJK publishing experts,
+these are the only two real failures of the current markup model.
+These two simple changes would make the HTML side of ruby work great;
+anything left (like jukugo ruby) can be handled fine by the CSS side
+(when we rewrite the Ruby spec to not be sucky).
+
+~TJ
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="080467.html">[whatwg] Menus and Toolbars
+</A></li>
+	<LI>Next message: <A HREF="080416.html">[whatwg] &lt;ruby&gt; markup problems
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#38141">[ date ]</a>
+              <a href="thread.html#38141">[ thread ]</a>
+              <a href="subject.html#38141">[ subject ]</a>
+              <a href="author.html#38141">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

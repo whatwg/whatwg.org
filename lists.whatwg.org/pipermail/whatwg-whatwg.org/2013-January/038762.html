@@ -1,0 +1,242 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] HTML5 web messaging - postMessage
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20HTML5%20web%20messaging%20-%20postMessage&In-Reply-To=%3CCAKRyGxvogWmMXxmChcZJ9Hi57k6bG%2BSituDs7pNRfTzdLao3DQ%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="081043.html">
+   <LINK REL="Next"  HREF="081036.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] HTML5 web messaging - postMessage</H1>
+<!--htdig_noindex-->
+    <B>Jack (Zhan, Hua Ping)</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20HTML5%20web%20messaging%20-%20postMessage&In-Reply-To=%3CCAKRyGxvogWmMXxmChcZJ9Hi57k6bG%2BSituDs7pNRfTzdLao3DQ%40mail.gmail.com%3E"
+       TITLE="[whatwg] HTML5 web messaging - postMessage">jackiszhp at gmail.com
+       </A><BR>
+    <I>Sun Jan 27 19:03:34 PST 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="081043.html">[whatwg] use of article to markup comments
+</A></li>
+        <LI>Next message: <A HREF="081036.html">[whatwg] HTML5 web messaging - postMessage
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#38762">[ date ]</a>
+              <a href="thread.html#38762">[ thread ]</a>
+              <a href="subject.html#38762">[ subject ]</a>
+              <a href="author.html#38762">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE><A HREF="http://jackiszhp.info/postMessage.html">http://jackiszhp.info/postMessage.html</A>
+
+
+The postMessage design outlined in the W3C document edited by Ian
+Hickson is not good!
+The design of the cross document messaging by Ian Hickson (Google,
+Inc.) is very bad.
+Even the last version is not good either. The design can be sketched
+here as follows.
+
+The sender:
+var o = document.getElementsByTagName('iframe')[0];
+o.contentWindow.postMessage('Hello world', '<A HREF="http://b.example.org/">http://b.example.org/</A>');
+
+
+The receiver:
+window.addEventListener('message', receiver, false);
+function receiver(e) {
+  if (e.origin == '<A HREF="http://example.com">http://example.com</A>') {
+    if (e.data == 'Hello world') {
+      e.source.postMessage('Hello', e.origin);
+    } else {
+      alert(e.data);
+    }
+  }
+}
+
+
+This design was messed up by pulling &quot;origin&quot; (a word that some people
+put too much attention more than should).
+Even worse, it requires &quot;o.contentWindow&quot;, this is really no
+professional sense. Because of this design, if I open two tabs with
+the same url <A HREF="http://www.google.com/">http://www.google.com/</A> they are not able to communicate.
+
+My proposal is discard the &quot;o.contentWindow&quot; part requirement.
+
+
+My better proposal
+
+the sender:
+window.postMessage(messageObject,targetDomain optional,windowIDs optional);
+
+Either targetDomain or windowIDs should present.
+I propose to use ID rather than name (though window can have a name),
+since window.name is not required to be unique within the browser.
+
+
+then the user agent(i.e. the browser, such as firefox) will do the following
+
+var e={source: {href: get the sender's window.location.href,
+                windowID: unique windowID within this browser
+               },
+       target: {domain: targetDomain as the sender requested,
+                windows: the array of windowID
+               },
+       data: JSON.parse(JSON.stringtify(messageObject)),
+       ts: the timestamp when the post is requested
+      };
+if(windowIDs presents){
+  postEvent to those windows.
+} else {
+  traverse the list of all windows
+  for (each window){
+    if(the domain of the window matches the target domain of the message) {
+    postEvent(e);
+  }
+}
+
+
+the receiver
+/*
+return true to indicate to continue to receive message from this sender
+return false to indicate to deny messages from this sender forever
+  (as long as the browser can remember this)
+*/
+function receiver(e) {
+  if (e.source is accepted) {
+    take the e.data to do whatever as desired.
+    return true;
+  }
+  return false;
+}
+
+window.addEventListener('message', receiver, false);
+
+
+
+if the receiver wants to respond to the sender
+window.postMessage(messageObject,targetDomain optional,windowIDs optional);
+        targetDomain can be found from e.source.href
+        windowID can be found from e.source.windowID
+        messageObject is the message object intended to be sent.
+
+
+
+
+
+About domain match
+the specification of the target domain can be
+
+
+www.google.com
+or google.com  this should match *.google.com
+or com      this should match *.com
+or &quot;&quot;  as for all
+or <A HREF="https://www.google.com">https://www.google.com</A>
+or <A HREF="http://www.google.com:9876/abc/">http://www.google.com:9876/abc/</A>
+
+For the last case, if a
+window.location.href==&quot;<A HREF="http://www.google.com:9876/def/">http://www.google.com:9876/def/</A>&quot;, then they do
+not match.
+
+About Security
+As long as the receiver check who is the sender which is identified by
+the user agent, there is no security issue at all.
+About context sharing within the browser
+Whether session data should be shared among the different processes of
+the same browser. such as cookies. It seems that firefox does not
+allow 2 different processes unless use different profile.
+
+Here, one more setting, whether the windowIDs should be unique across
+different process. Within the same process among different tabs, they
+must be unique. If no more than one process is allowed, then such
+setting is not relevant.
+
+
+
+
+
+Challenge
+A bad design waste people's energy &amp; time, to promote the better
+solution. I am offering a reward for the 1st one who implement my
+proposal. If you can do this before march 1st, 2013, I will give you
+$10.
+
+
+
+
+<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">jackiszhp at gmail.com</A>
+
+
+
+
+
+
+pdf version
+Last update: 2013.01.27 21:30
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="081043.html">[whatwg] use of article to markup comments
+</A></li>
+	<LI>Next message: <A HREF="081036.html">[whatwg] HTML5 web messaging - postMessage
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#38762">[ date ]</a>
+              <a href="thread.html#38762">[ thread ]</a>
+              <a href="subject.html#38762">[ subject ]</a>
+              <a href="author.html#38762">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

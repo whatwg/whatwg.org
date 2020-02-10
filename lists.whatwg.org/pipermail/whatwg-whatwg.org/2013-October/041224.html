@@ -1,0 +1,218 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Synchronizing Canvas updates in a worker to DOM changes in	the UI thread
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Synchronizing%20Canvas%20updates%20in%20a%20worker%20to%20DOM%20changes%20in%0A%09the%20UI%20thread&In-Reply-To=%3CCABirCh_V-fpddajqV5s_7-yLVo%2BLVqAoxCWs86DaDJbPbucG8Q%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="041209.html">
+   <LINK REL="Next"  HREF="083500.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Synchronizing Canvas updates in a worker to DOM changes in	the UI thread</H1>
+<!--htdig_noindex-->
+    <B>Glenn Maynard</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Synchronizing%20Canvas%20updates%20in%20a%20worker%20to%20DOM%20changes%20in%0A%09the%20UI%20thread&In-Reply-To=%3CCABirCh_V-fpddajqV5s_7-yLVo%2BLVqAoxCWs86DaDJbPbucG8Q%40mail.gmail.com%3E"
+       TITLE="[whatwg] Synchronizing Canvas updates in a worker to DOM changes in	the UI thread">glenn at bluegoji.com
+       </A><BR>
+    <I>Sun Oct 20 08:33:13 PDT 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="041209.html">[whatwg] @generator-unable-to-provide-required-alt, figure with figcaption
+</A></li>
+        <LI>Next message: <A HREF="083500.html">[whatwg] Synchronizing Canvas updates in a worker to DOM changes in the UI thread
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#41224">[ date ]</a>
+              <a href="thread.html#41224">[ thread ]</a>
+              <a href="subject.html#41224">[ subject ]</a>
+              <a href="author.html#41224">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>(This is a spin-off thread from &quot;Canvas in workers&quot;.  Some of this is
+written in terms of the WorkerCanvas proposal, but it works fine with the
+current CanvasProxy API.  I'm skipping some steps here and going straight
+to a proposal, since my main goal at the moment is to detangle this from
+the other thread...)
+
+Here's a way to synchronize updates to DOM changes, so scenes rendered in a
+worker only appear when the UI thread is ready for them to be.
+
+- Add a flag to the Canvas to enable this.  For now, let's call this
+explicitpresent, eg. &lt;canvas explicitpresent&gt;.
+- When a script finishes rendering (eg. calls commit()), the buffer is not
+automatically displayed.  Instead, it's simply made available to be
+displayed.
+- Add a method, Canvas.present(), to present the most recently-available
+frame.
+
+To describe this in terms of triple-buffering, you have three buffers: a
+rendering buffer (aka the backbuffer), a display buffer (aka the
+front-buffer), and a ready buffer.  You render (possibly in a worker) to
+the rendering buffer.  When you're finished, you call commit(), and the
+rendering buffer and the ready buffer are swapped.  Now that a new frame is
+ready, you can call canvas.present() to swap the ready buffer and the
+display buffer.  Essentially, that's it.
+
+You don't actually need to allocate a third buffer, as long as the user
+doesn't start rendering a new frame before present()ing the previous one.
+This could be a behind-the-scenes optimization to avoid the extra memory
+cost--only allocate a third buffer if actually needed.
+
+It must not be possible for the UI thread to detect whether present() did
+anything--if there's no frame in the ready buffer, nothing changes and the
+UI thread can't detect this.  Similarly, it must not be possible for the
+rendering thread to detect if the ready frame has been presented.  These
+rules are to prevent exposing asynchronous behavior.
+
+Example:
+
+&lt;canvas id=canvas explicitpresent&gt;
+&lt;script&gt;
+var canvas = document.querySelector(&quot;#canvas&quot;);
+var worker = createWorker();
+worker.postMessage({
+    cmd: &quot;init&quot;,
+    canvas: canvas.getWorkerCanvas(),
+});
+
+worker.onmessage = function(e)
+{
+    // The worker told us that a frame has been committed.  Present it for
+display.
+    canvas.present();
+
+    // Tell the worker that it should start rendering the next frame.
+    worker.postMessage({cmd: &quot;update&quot;});
+
+    // Do any DOM changes here, to synchronize them with displaying the new
+canvas.
+    updateUI();
+}
+&lt;/script&gt;
+
+Worker:
+
+onmessage = function(e)
+{
+    // On initialization only:
+    if(e.data.cmd == &quot;init&quot;)
+        canvas = e.data.canvas;
+
+    // Render our scene.
+    renderFrame(canvas);
+
+    // Commit the scene.
+    canvas.commit();
+
+    // Tell the main thread that the frame is ready.
+    postMessage(&quot;present&quot;);
+}
+function renderFrame(workerCanvas) { }
+
+-- 
+Glenn Maynard
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="041209.html">[whatwg] @generator-unable-to-provide-required-alt, figure with figcaption
+</A></li>
+	<LI>Next message: <A HREF="083500.html">[whatwg] Synchronizing Canvas updates in a worker to DOM changes in the UI thread
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#41224">[ date ]</a>
+              <a href="thread.html#41224">[ thread ]</a>
+              <a href="subject.html#41224">[ subject ]</a>
+              <a href="author.html#41224">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

@@ -1,0 +1,302 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg]  pagehide vs pagevis
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20%20pagehide%20vs%20pagevis&In-Reply-To=%3Calpine.DEB.2.00.1308292318340.27209%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="082926.html">
+   <LINK REL="Next"  HREF="040658.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg]  pagehide vs pagevis</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20%20pagehide%20vs%20pagevis&In-Reply-To=%3Calpine.DEB.2.00.1308292318340.27209%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg]  pagehide vs pagevis">ian at hixie.ch
+       </A><BR>
+    <I>Thu Aug 29 17:53:40 PDT 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="082926.html">[whatwg] Handling of invalid UTF-8
+</A></li>
+        <LI>Next message: <A HREF="040658.html">[whatwg] Notifications: associating state
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#40657">[ date ]</a>
+              <a href="thread.html#40657">[ thread ]</a>
+              <a href="subject.html#40657">[ subject ]</a>
+              <a href="author.html#40657">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Tue, 28 May 2013, Brady Eidson wrote:
+&gt;<i> 
+</I>&gt;<i> The &#8220;unload a document&#8221; steps apparently don&#8217;t allow for the pagehide 
+</I>&gt;<i> event to have &#8220;persisted&#8221; set to false.
+</I>
+Hm, yeah, it should only be set to true if /salvageable/ is true. Fixed.
+
+
+&gt;<i> In the original design of these events and in WebKit&#8217;s implementation, 
+</I>&gt;<i> pagehide with persisted &#8220;true&#8221; means the page is being suspended into 
+</I>&gt;<i> the page cache, and it might be restored later.  In these cases, the 
+</I>&gt;<i> page does not receive a traditional unload event, as it&#8217;s being 
+</I>&gt;<i> suspended, not unloaded.
+</I>
+I don't understand how you can know if you are going to fire the 'unload' 
+event. I think the way the spec describes it makes more sense, which is 
+that you always fire pagehide and you always fire unload, but if any 
+unload handlers were triggered, then you don't suspend.
+
+
+&gt;<i> pagehide with persisted &#8220;false&#8221; means the page is is being traditionally 
+</I>&gt;<i> torn down.
+</I>
+Right (salvageable is false).
+
+
+&gt;<i> The spec&#8217;s description of PageTransitionEvent.persisted says &quot;Returns 
+</I>&gt;<i> false if the page is newly being loaded (and the load event will fire). 
+</I>&gt;<i> Otherwise, returns true.&#8221;
+</I>&gt;<i> 
+</I>&gt;<i> That text is geared towards pageshow and completely neglects pagehide.
+</I>
+Yeah, that description was kinda lame. Fixed.
+
+
+By the way, when the spec doesn't match implementations, it's usually a 
+far better bet that it's just unintentionally wrong, than that there is a 
+nefarious plot to ruin everything. :-)
+
+
+On Tue, 28 May 2013, Brady Eidson wrote:
+&gt;<i> 
+</I>&gt;<i> I'm sorry, who's page cache are you talking about?  Page caches are 
+</I>&gt;<i> (AFAIK) not really fleshed out in any spec
+</I>
+Actually the HTML spec defines the page cache as thoroughly (I think) as 
+any spec can. (Really everything but the eviction mechanism, but that is 
+intentionally a UA-specific thing.)
+
+
+&gt;<i> and the WebKit page cache *intends* to represent a 100% inert page.  
+</I>&gt;<i> This includes the inability to receive events.  Any exceptions in 
+</I>&gt;<i> practice are a bug for us that we would strive to patch.
+</I>
+A DOM node can always receive an event.
+
+The event handlers of DOM nodes in inactive documents might not be able to 
+run, though. I don't think the HTML spec is very clear about this right 
+now. (It blocks tasks, but I don't think it blocks event handlers.) I 
+guess this would have to be in DOM, really.
+
+I filed this so we make sure to track this:
+   <A HREF="https://www.w3.org/Bugs/Public/show_bug.cgi?id=23095">https://www.w3.org/Bugs/Public/show_bug.cgi?id=23095</A>
+
+
+On Wed, 29 May 2013, Brady Eidson wrote:
+&gt;<i> 
+</I>&gt;<i> Got it.  Then it sounds like Gecko&#8217;s page cache and WebKit&#8217;s page cache 
+</I>&gt;<i> are divergent in this regard.  Which is perfectly fine, as such a 
+</I>&gt;<i> browser feature isn&#8217;t spec&#8217;d anyways.
+</I>
+It is. :-)
+
+
+&gt;<i> I&#8217;ve provided our rationale for changing this, and I&#8217;m formally asking 
+</I>&gt;<i> the WHATWG community if there&#8217;s any rationale for *not* changing this
+</I>
+I don't think you can formally ask anything here. You can ask, but there 
+cannot be anything more or less formal about it. :-)
+
+
+On Wed, 29 May 2013, Brady Eidson wrote:
+&gt;<i> 
+</I>&gt;<i> I see in the HTML spec that the step *before* firing pagehide is &#8220;set 
+</I>&gt;<i> the Document&#8217;s page showing flag to false,&#8221; but I can&#8217;t find language 
+</I>&gt;<i> that says pagehide fires *before* the page is actually hidden, and 
+</I>&gt;<i> unload fires *after* the page is actually hidden.
+</I>
+Since they fire synchronously, and rendering happens between tasks, they 
+both fire when the page is in the same on-screen rendered state. I don't 
+think there's a black-box way of telling whether there remains pixels of 
+the page on the screen or not when either fires.
+
+
+&gt;<i> pageshow is a history traversal event, and not a visibility event.  I 
+</I>&gt;<i> don&#8217;t see a guarantee in any spec that &#8220;pageshow&#8221; comes after the 
+</I>&gt;<i> document is actually visible.
+</I>
+Indeed. In fact in some UAs, e.g. those that use audio instead of video to 
+display the page, the page will never be &quot;visible&quot;.
+
+I don't really see why it matters whether the Page Visibility spec fires 
+its event before or after pagehide, though.
+
+
+&gt;<i> First, since pagehide currently always has persisted set to true (in the 
+</I>&gt;<i> spec and in Gecko), it doesn&#8217;t actually describe whether or not the page 
+</I>&gt;<i> is going in to the page cache.
+</I>
+It can be false (now, in the spec) when you are definitely not going into 
+the cache, but it can also be true when you're not (e.g. if WebSockets get 
+killed after pagehide and unload), and it can also be true when you go 
+into the cache and are immediately evicted without notice, which is much 
+the same as not going into the cache.
+
+So &quot;true&quot; is no guarantee of anything.
+
+
+&gt;<i> Second, imagining a world where pagehide allows persisted to differ 
+</I>&gt;<i> between true or false, to know that a &#8220;hidden&#8221; corresponds with a &#8220;page 
+</I>&gt;<i> going in to the page cache&#8221;, you still have to listen to both events to 
+</I>&gt;<i> know the whole situation. Third, is the difference between 4 states and 
+</I>&gt;<i> 5 states really appreciable?
+</I>
+I don't really understand these questions.
+
+
+On Thu, 30 May 2013, Brady Eidson wrote:
+&gt;<i> 
+</I>&gt;<i> Bucket 1 - &#8220;Pages not going in to the page cache&#8221;
+</I>&gt;<i> 
+</I>&gt;<i> Let me ask you this - Are there any (reasonable) pages in the wild that 
+</I>&gt;<i> (reasonably) expect to do anything *after* the unload event is fired?  
+</I>&gt;<i> I would say no, probably not.
+</I>
+Sure, they expect (for instance) to have their child iframe's unload 
+handlers fire and to do work there.
+
+Assuming they don't have any child iframes, then they can't do anything 
+after this point.
+
+
+&gt;<i> If a page listens to pagehide instead of unload, then they are not 
+</I>&gt;<i> reasonably expecting to do anything after &quot;pagehide with persisted set 
+</I>&gt;<i> to false&#8221; is fired.
+</I>
+Well, they're expecting to maybe see a pageshow, no?
+
+
+&gt;<i> Would it have made sense for page-vis to put the visibilitychanged event 
+</I>&gt;<i> *after* unload?  I don&#8217;t think so.  No author would expect that or find 
+</I>&gt;<i> it very useful.
+</I>
+Why would they find it less useful than before pagehide?
+
+
+&gt;<i> So I still cannot see how having it after &quot;pagehide with persisted set 
+</I>&gt;<i> to false&#8221; is the right call.  Maybe authors writing to the spec might 
+</I>&gt;<i> expect it, but they wouldn&#8217;t find it very useful.
+</I>
+Well, I'm happy to change it, but I think it's probably too late now. 
+You'd have to bring it up with the Page Visibility group.
+
+
+&gt;<i> Bucket 2 - &#8220;Pages going in to the page cache&#8221;
+</I>&gt;<i> 
+</I>&gt;<i> The long standing design goals and implementation of our page cache 
+</I>&gt;<i> prevents us from delivering these events to a page that was just sent 
+</I>&gt;<i> &#8220;pagehide with persisted set to true&#8221;.
+</I>
+Why not just change the implementation to have the prevention happen after 
+the pagevis event?
+
+Anyway, what if the pagehide event sets an unload handler? You'll be able 
+to fire that, no?
+
+
+&gt;<i> So it&#8217;s undesirable for two reasons:
+</I>&gt;<i>
+</I>&gt;<i> 1 - We can&#8217;t meet the spec.
+</I>
+I don't see why not.
+
+
+&gt;<i> 2 - Authors can&#8217;t get the possible benefit that were available to them 
+</I>&gt;<i> if the spec was reasonable in sending visibilitychanged before pagehide 
+</I>&gt;<i> instead of after.
+</I>
+What benefit?
+
+
+On Thu, 30 May 2013, Brady Eidson wrote:
+&gt;<i> 
+</I>&gt;<i> If persisted is set to true, then the page is going into the page cache.
+</I>
+That's not really a useful statement. It could be immediately evicted.
+
+
+&gt;<i> If the pagehide handler does anything that prevents the page from going 
+</I>&gt;<i> into the page cache, then that activity would also inherently prevent 
+</I>&gt;<i> visibilitychanged from being observed.  (This is true in WebKit, I 
+</I>&gt;<i> should clarify).
+</I>
+I don't understand that.
+
+
+&gt;<i> In WebKit, if you have an unload handler, you don&#8217;t go into the page 
+</I>&gt;<i> cache.
+</I>&gt;<i> 
+</I>&gt;<i> Therefore if you have an unload handler, you never get &quot;pagehide with 
+</I>&gt;<i> persisted set to true&#8221;
+</I>
+How can you know if you have an unload handler until after you've set 
+pagehide?
+
+
+On Thu, 30 May 2013, Brady Eidson wrote:
+&gt;<i> 
+</I>&gt;<i> The design of our page cache is that once &#8220;pagehide with persisted set 
+</I>&gt;<i> to true&#8221; returns the page is inert/suspended/paused/persisted/whatever 
+</I>&gt;<i> you want to call it.  It cannot receive events anymore.  It is as if it 
+</I>&gt;<i> had been unloaded.
+</I>
+Just move the code that freezes the page to after this page visibility 
+event, instead of after the pagehide event.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="082926.html">[whatwg] Handling of invalid UTF-8
+</A></li>
+	<LI>Next message: <A HREF="040658.html">[whatwg] Notifications: associating state
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#40657">[ date ]</a>
+              <a href="thread.html#40657">[ thread ]</a>
+              <a href="subject.html#40657">[ subject ]</a>
+              <a href="author.html#40657">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

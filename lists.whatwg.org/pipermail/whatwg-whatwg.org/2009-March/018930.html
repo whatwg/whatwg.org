@@ -1,0 +1,145 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] localStorage + worker processes
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20localStorage%20%2B%20worker%20processes&In-Reply-To=%3C63df84f0903211351y3a43ea35t569fda5a2db4732b%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="018925.html">
+   <LINK REL="Next"  HREF="018934.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] localStorage + worker processes</H1>
+<!--htdig_noindex-->
+    <B>Jonas Sicking</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20localStorage%20%2B%20worker%20processes&In-Reply-To=%3C63df84f0903211351y3a43ea35t569fda5a2db4732b%40mail.gmail.com%3E"
+       TITLE="[whatwg] localStorage + worker processes">jonas at sicking.cc
+       </A><BR>
+    <I>Sat Mar 21 13:51:44 PDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="018925.html">[whatwg] localStorage + worker processes
+</A></li>
+        <LI>Next message: <A HREF="018934.html">[whatwg] localStorage + worker processes
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18930">[ date ]</a>
+              <a href="thread.html#18930">[ thread ]</a>
+              <a href="subject.html#18930">[ subject ]</a>
+              <a href="author.html#18930">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Sat, Mar 21, 2009 at 9:38 AM, Aaron Boodman &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">aa at google.com</A>&gt; wrote:
+&gt;<i> On Sat, Mar 21, 2009 at 12:48 AM, Jonas Sicking &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">jonas at sicking.cc</A>&gt; wrote:
+</I>&gt;&gt;<i> What we could do, is to have an API like
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> getLocalStorage(callback);
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> This function returns immediately, but will then call the callback
+</I>&gt;&gt;<i> function as soon as the localStorage becomes available and the lock
+</I>&gt;&gt;<i> been acquired. This would always happen asynchronously off the event
+</I>&gt;&gt;<i> loop, which means that once the callback returns the lock is released
+</I>&gt;&gt;<i> again.
+</I>&gt;<i>
+</I>&gt;<i> Funny, a few of us from Chromium were discussing a similar solution privately.
+</I>&gt;<i>
+</I>&gt;<i> Actually, I don't believe that it is required that the callback run
+</I>&gt;<i> asynchronously. All the callback is used for is establishing the lock
+</I>&gt;<i> lifetime explicitly, and we assume that this will usually make the
+</I>&gt;<i> lock lifetime short. So we can block while we wait for it to become
+</I>&gt;<i> available. This is just like the behavior today without workers.
+</I>
+The problem with synchronously grabbing the lock is that we can only
+ever have one feature that uses synchronous locks, otherwise we'll
+risk dead-locks.
+
+Say that we make document.cookie behave the same way (to prevent
+multi-process browsers like IE8 and chrome from having race
+conditions). So that if you call document.getCookiesWithLock(callback)
+we'll synchronously grab a lock and call the callback function. This
+would cause two pages like the ones below to potentially deadlock:
+
+Page 1:
+getLocalStorage(function(storage) {
+  document.getCookiesWithLock(function(cookieContainer) {
+    storage.foo = cookieContainer.getCookie('cookieName');
+  });
+]);
+
+Page 2:
+document.getCookiesWithLock(function(cookieContainer) {
+  getLocalStorage(function(storage) {
+    cookieContainer.setCookie('cookieName', storage.bar);
+  });
+});
+
+The point here isn't to propose a new cookie API, but rather that as
+soon as we introduce more than one lock that can be synchronously
+acquired, we run the risk of deadlocks if people don't grab them in
+the right order.
+
+While we could make the implementation detect this and case the second
+page to throw when a deadlock is detected, that just turns the
+deadlock into a race condition since pages are unlikely to handle this
+exception correctly given that it generally doesn't happen.
+
+
+By making all lock acquiring async, we ensure that script can only
+ever grab one lock at a time, thus preventing people from grabbing
+multiple locks in different order and causing deadlocks.
+
+
+There is actually another alternative. We could specify an order that
+locks have to be acquired if you grab more than one. So for example we
+could say that the order is
+
+localStore &gt; cookie &gt; otherRandomFeature
+
+In other words, if you want both the localStore and cookie features,
+you have to grab first localStore and then cookie. Attempting to grab
+localStore once you have acquired the cookie lock *always* results in
+an exception being thrown, even if there currently is no deadlock.
+Anyone specifying a new feature that uses locking would have to define
+where in the locking order this lock is placed. However this API
+design does not seem very web developer friendly.
+
+/ Jonas
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="018925.html">[whatwg] localStorage + worker processes
+</A></li>
+	<LI>Next message: <A HREF="018934.html">[whatwg] localStorage + worker processes
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18930">[ date ]</a>
+              <a href="thread.html#18930">[ thread ]</a>
+              <a href="subject.html#18930">[ subject ]</a>
+              <a href="author.html#18930">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

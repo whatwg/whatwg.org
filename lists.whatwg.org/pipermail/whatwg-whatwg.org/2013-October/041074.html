@@ -1,0 +1,211 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Canvas in workers
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Canvas%20in%20workers&In-Reply-To=%3CCAP045AowvAJyR9cVa9NLppg5fbP4SGAFrv%3DOnh0FfnWTVTgB6A%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="083340.html">
+   <LINK REL="Next"  HREF="083348.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Canvas in workers</H1>
+<!--htdig_noindex-->
+    <B>Kyle Huey</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Canvas%20in%20workers&In-Reply-To=%3CCAP045AowvAJyR9cVa9NLppg5fbP4SGAFrv%3DOnh0FfnWTVTgB6A%40mail.gmail.com%3E"
+       TITLE="[whatwg] Canvas in workers">me at kylehuey.com
+       </A><BR>
+    <I>Sat Oct 12 21:12:46 PDT 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="083340.html">[whatwg] Not covered by traditional media
+</A></li>
+        <LI>Next message: <A HREF="083348.html">[whatwg] Canvas in workers
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#41074">[ date ]</a>
+              <a href="thread.html#41074">[ thread ]</a>
+              <a href="subject.html#41074">[ subject ]</a>
+              <a href="author.html#41074">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>I talked at length with Robert O'Callahan about what the DOM API for
+supporting &lt;canvas&gt; in web workers should look like and we came up with the
+following modifications to the spec.
+
+   1. Rename CanvasProxy to WorkerCanvas and only allow it to be
+   transferred to workers.  I don't think we're interested in supporting
+   cross-origin &lt;canvas&gt; via CanvasProxy (I would be curious to hear more
+   about what the use cases are).
+   2. Add a worker-only WorkerCanvas constructor that takes the desired
+   width/height of the drawing surface.
+   3. Remove the rendering context constructors and the setContext method
+   on WorkerCanvas (n&#233;e CanvasProxy).
+   4. Copy all of the sensible non-node related things from
+   HTMLCanvasElement to WorkerCanvas.  This would include
+   - width and height as readonly attributes
+      - getContext (to replace what we removed in step 3).  roc prefers to
+      have getContext2D and getContextWebGL, and dispense with the string
+      argument version entirely, but I don't have strong feelings.
+      - toBlob.  We do not intend to implement toDataURL here.
+   5. Add a &quot;commit&quot; method to WorkerCanvas.  For a WorkerCanvas obtained
+   from a main thread &lt;canvas&gt; element, this would cause the buffer displayed
+   on screen to swap.  For a WorkerCanvas created *de novo* on a worker
+   thread, it would do nothing.  This commit method would also commit a minor
+   violation of run-to-completion semantics, described below.
+   6. We would rely on extracting ImageBitmaps from the WorkerCanvas and
+   shipping them to the main thread via postMessage to allow synchronizing
+   canvas updates with DOM updates.  We explored a couple other options but we
+   didn't come up with anything else that allows synchronizing updates to
+   multiple canvases from a worker.  This isn't really sketched out here.
+
+So the IDL would look something like:
+
+&gt;<i> [Constructor(unsigned long width, unsigned long height)]
+</I>&gt;<i>
+</I>&gt;<i> interface WorkerCanvas {
+</I>&gt;<i>
+</I>&gt;<i>   readonly attribute unsigned long width;
+</I>&gt;<i>
+</I>&gt;<i>   readonly attribute unsigned long height;
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>   CanvasRenderingContext2D? getContext2D(any... args);
+</I>&gt;<i>
+</I>&gt;<i>   WebGLRenderingContext? getContextWebGL(any... args);
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>   void toBlob(FileCallback? _callback, optional DOMString type, any...
+</I>&gt;<i> arguments);
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>   bool commit();
+</I>&gt;<i>
+</I>&gt;<i> };
+</I>&gt;<i>
+</I>&gt;<i> WorkerCanvas implements Transferable;
+</I>&gt;<i>
+</I>Everything would be behave pretty much as one would expect, except perhaps
+for the commit method.  The width and height of the canvas can be modified
+on the main thread while the worker is drawing.  This would fire an event
+off to the worker to update the WorkerCanvas's dimensions that would be
+scheduled as if the main thread had postMessage()d something to the
+worker.  But it's possible that the worker would attempt to draw to the
+&lt;canvas&gt; before that update runs.  It's also possible that the worker would
+simply draw in a loop without yielding.  To solve this, if commit is called
+and the current dimensions on the main thread don't match the dimensions of
+the WorkerCanvas it would fail (return false) and update the dimensions of
+the WorkerCanvas before returning.  This is technically a violation of
+run-to-completion semantics, but is needed to support workers that do not
+yield.
+
+Thoughts?
+
+- Kyle
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="083340.html">[whatwg] Not covered by traditional media
+</A></li>
+	<LI>Next message: <A HREF="083348.html">[whatwg] Canvas in workers
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#41074">[ date ]</a>
+              <a href="thread.html#41074">[ thread ]</a>
+              <a href="subject.html#41074">[ subject ]</a>
+              <a href="author.html#41074">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

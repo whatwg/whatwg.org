@@ -1,0 +1,406 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Combining the DedicatedWorker and	SharedWorker	interfaces
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Combining%20the%20DedicatedWorker%20and%0A%09SharedWorker%09interfaces&In-Reply-To=%3CPine.LNX.4.62.0811140025530.1237%40hixie.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017150.html">
+   <LINK REL="Next"  HREF="017180.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Combining the DedicatedWorker and	SharedWorker	interfaces</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Combining%20the%20DedicatedWorker%20and%0A%09SharedWorker%09interfaces&In-Reply-To=%3CPine.LNX.4.62.0811140025530.1237%40hixie.dreamhostps.com%3E"
+       TITLE="[whatwg] Combining the DedicatedWorker and	SharedWorker	interfaces">ian at hixie.ch
+       </A><BR>
+    <I>Thu Nov 13 16:59:49 PST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017150.html">[whatwg] Combining the DedicatedWorker and SharedWorker	interfaces
+</A></li>
+        <LI>Next message: <A HREF="017180.html">[whatwg] Combining the DedicatedWorker and	SharedWorker	interfaces
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17153">[ date ]</a>
+              <a href="thread.html#17153">[ thread ]</a>
+              <a href="subject.html#17153">[ subject ]</a>
+              <a href="author.html#17153">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>
+On Thu, 13 Nov 2008, Alexey Proskuryakov wrote:
+&gt;<i> 
+</I>&gt;<i> I like that it doesn't tie Worker and MessagePort lifetimes too closely, 
+</I>&gt;<i> which means that it has a higher chance of being paradox-free.
+</I>
+Could you elaborate on this? I'm not sure I understand. What paradoxes 
+might exist?
+
+
+On Thu, 13 Nov 2008, Jonas Sicking wrote:
+&gt;<i>
+</I>&gt;<i> The main two things that people seem to dislike in the current are
+</I>&gt;<i> 1. The many communication mechanisms.
+</I>&gt;<i> 2. Different APIs for shared and dedicated workers.
+</I>&gt;<i> 
+</I>&gt;<i> I've said before that I don't really think 1 is true. There is currently 
+</I>&gt;<i> one communication mechanism (postMessage/onmessage) and one connection 
+</I>&gt;<i> mechanism (onconnect). The communication mechanism (postMessage/ 
+</I>&gt;<i> onmessage) does come in two flavors though as you for shared workers and 
+</I>&gt;<i> dedicated workers call the functions on different objects.
+</I>
+I agree that there is only one real communication mechanism, and I don't 
+understand the problem with that.
+
+The onconnect mechanism is unfortunate, but I don't see any other good way 
+to get the ports into the shared worker case. Certainly we don't want to 
+force the dedicated worker users to have to use it, IMHO.
+
+
+&gt;<i> 2 I think is as much of a feature as a bug. Dedicated workers are by 
+</I>&gt;<i> nature simpler since there is a one-to-one relationship between browsing 
+</I>&gt;<i> context and worker rather than a many-to-one. So by having different 
+</I>&gt;<i> APIs we can allow the dedicated worker API to be simpler. That said, I 
+</I>&gt;<i> do agree that it is unfortunate that the mechanisms are different.
+</I>
+Agreed, somewhat.
+
+
+&gt;<i> So, here are some concrete proposals for a few changes we can make, and 
+</I>&gt;<i> comments i've heard/made about them. The changes refer to the *current 
+</I>&gt;<i> draft*, so please check the behavior defined there.
+</I>&gt;<i> 
+</I>&gt;<i> * Remove startConversation
+</I>&gt;<i> Details:
+</I>&gt;<i> Simply remove the startConversaion function on all interfaces where it
+</I>&gt;<i> is defined. Since it doesn't define any new events no other changes
+</I>&gt;<i> are needed.
+</I>
+Done, for now. We might bring it back later, but it seemed simpler to 
+remove it since it was causing confusion.
+
+
+&gt;<i> * Make the external API for shared workers that of the current dedicated worker
+</I>&gt;<i> Details:
+</I>&gt;<i> Move the postMessage/onmessage functions from the SharedWorker.port
+</I>&gt;<i> object to the SharedWorker object. The SharedWorker would act as a
+</I>&gt;<i> MessagePort that is entangled with the port that is provided to the
+</I>&gt;<i> SharedWorkerGlobalScope through already specified 'connect' event that
+</I>&gt;<i> is fired when a SharedWorker is created.
+</I>&gt;<i> 
+</I>&gt;<i> Comments:
+</I>&gt;<i> The result of this would be that on the outside shared workers and
+</I>&gt;<i> dedicated workers have exactly the same API to the outside world,
+</I>&gt;<i> except that dedicated workers have a terminate() function (formerly
+</I>&gt;<i> known as close(), changed in the latest version of the spec).
+</I>
+Right.
+
+
+&gt;<i> [...] Hixie expressed some dislike about the fact that we'd end up with 
+</I>&gt;<i> MessagePort entangled with something that isn't a MessagePort. This can 
+</I>&gt;<i> result in uglyness if the MessagePort is passed out outside the 
+</I>&gt;<i> SharedWorker, and then passed on anywhere. A page could create a setup 
+</I>&gt;<i> where calling postMessage on a SharedWorker object actually resulted in 
+</I>&gt;<i> onmessage being called inside another window rather than inside a worker 
+</I>&gt;<i> global scope.
+</I>
+Right. There's also the problem with whether to expose .close(), start(), 
+etc, on the SharedWorker object -- i.e. whether to flatten the whole 
+MessagePort API in, or whether to only expose some parts -- in the latter 
+case, we'd have a weird asymetry where e.g. the worker could call 
+.close(), but the SharedWorker wouldn't get the close event, etc.
+
+I really don't like this.
+
+
+&gt;<i> I don't really think this is a big deal though, you have a very
+</I>&gt;<i> similar situation today where calling postMessage on a
+</I>&gt;<i> SharedWorker.port object can do exactly the same thing.
+</I>
+We could change .port to .getPort(), or .connect(), and have it return a 
+new port. That would remove the artificial link between the SharedWorker 
+object and the MessagePort. Would that work for people?
+
+
+&gt;<i> * Make dedicated workers receive a 'connect' event when they are created
+</I>&gt;<i> Details:
+</I>&gt;<i> Make the internal communication API for a dedicated worker exactly
+</I>&gt;<i> that of what a shared worker is currently specced as. This means
+</I>&gt;<i>  - Once a dedicated worker is instantiated automatically fire a
+</I>&gt;<i>    'connect' event which contains a MessagePort object (accessible
+</I>&gt;<i>    through event.port).
+</I>&gt;<i>  - Make the Worker object entangled with this MessagePort.
+</I>&gt;<i>  - Remove the postMessage/onmessage functions from DedicatedWorkerGlobalScope
+</I>&gt;<i> 
+</I>&gt;<i> Comments:
+</I>&gt;<i> I don't feel super strongly about this. From a purely dedicated worker 
+</I>&gt;<i> perspective this doesn't really add any value but rather just 
+</I>&gt;<i> complexity. Everyone using dedicated workers will have to set up a dummy 
+</I>&gt;<i> function that just listens for a 'connect' event and sets a global port 
+</I>&gt;<i> variable. The upside is that combined with the above change it makes the 
+</I>&gt;<i> API for dedicated and shared workers exactly the same.
+</I>
+This is what we used to have. People didn't like it, so much so that we 
+ended up calling a small meeting with the people who'd spoken up on it, 
+and the spec changed away from this model.
+
+The current model makes dedicated workers much simpler to author with. 
+With the connect case, you end up with multiple nested lambdas, which is 
+really ugly.
+
+I thus really don't want to go back there.
+
+
+&gt;<i> * Add a connect() method to Worker and/or SharedWorker
+</I>&gt;<i> There has been lots of talk about this, but I'm still confused as to
+</I>&gt;<i> what the exact proposals are due to lack of details. But here is my
+</I>&gt;<i> interpretation
+</I>&gt;<i> Details:
+</I>&gt;<i>  - Make instantiating a SharedWorker *not* fire a 'connect' event 
+</I>&gt;<i>    automatically.
+</I>&gt;<i>  - Remove the .port property from SharedWorker
+</I>&gt;<i>  - Remove the postMessage/onmessage functions from Worker and
+</I>&gt;<i>    DedicatedWorkerGlobalScope
+</I>&gt;<i>  - Add a onconnect property on WorkerGlobalScope
+</I>&gt;<i>  - Add a connect() method on AbstractWorker. The function fires a
+</I>&gt;<i>    'connect' even on the WorkerGlobalScope, the event has a .port
+</I>&gt;<i>    property which is a MessagePort. This MessagePort is entangled with
+</I>&gt;<i>    another MessagePort which is the value from the connect() function.
+</I>&gt;<i> 
+</I>&gt;<i> Comments:
+</I>&gt;<i> Compared to just doing the other above proposals I think this adds 
+</I>&gt;<i> needless complexion for value that I don't quite see. If you want to 
+</I>&gt;<i> have several 'conversations', I.e. several separate MessagePorts, with a 
+</I>&gt;<i> dedicated worker you can use postMessage and |new MessageChannel| (or 
+</I>&gt;<i> the startConversation shorthand) to accomplish that. If you want several 
+</I>&gt;<i> conversations with a dedicated worker you can do the same thing, or even 
+</I>&gt;<i> call |new SharedWorker| multiple times.
+</I>
+I wouldn't mind doing this just for the shared case, to further separate 
+the port from the SharedWorker object, but I don't see any good reason to 
+do this for the dedicated worker case.
+
+
+
+On Thu, 13 Nov 2008, Aaron Boodman wrote:
+&gt;<i> 
+</I>&gt;<i> This is true, the worst I can think of happening as a result of the API 
+</I>&gt;<i> Mozilla is planning no shipping would be &quot;frustrating for developers&quot; or 
+</I>&gt;<i> &quot;frustrating for implementors&quot; as more feature are added that don't fit 
+</I>&gt;<i> well.
+</I>
+I'm not convinced that the current API will result in that problem, and I 
+think that the proposed APIs are no better, frankly.
+
+
+&gt;<i> Here are my preference on changes, in descending order:
+</I>&gt;<i> 
+</I>&gt;<i> &gt; * Add a connect() method to Worker and/or SharedWorker
+</I>&gt;<i> &gt; There has been lots of talk about this, but I'm still confused as to
+</I>&gt;<i> &gt; what the exact proposals are due to lack of details. But here is my
+</I>&gt;<i> &gt; interpretation
+</I>&gt;<i> &gt; Details:
+</I>&gt;<i> &gt;  - Make instantiating a SharedWorker *not* fire a 'connect' event automatically.
+</I>&gt;<i> &gt;  - Remove the .port property from SharedWorker
+</I>&gt;<i> &gt;  - Remove the postMessage/onmessage functions from Worker and
+</I>&gt;<i> &gt; DedicatedWorkerGlobalScope
+</I>&gt;<i> &gt;  - Add a onconnect property on WorkerGlobalScope
+</I>&gt;<i> &gt;  - Add a connect() method on AbstractWorker. The function fires a
+</I>&gt;<i> &gt; 'connect' even on the WorkerGlobalScope, the event has a .port
+</I>&gt;<i> &gt; property which is a MessagePort. This MessagePort is entangled with
+</I>&gt;<i> &gt; another MessagePort which is the value from the connect() function.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Comments:
+</I>&gt;<i> &gt; Compared to just doing the other above proposals I think this adds
+</I>&gt;<i> &gt; needless complexion for value that I don't quite see. If you want to
+</I>&gt;<i> &gt; have several 'conversations', I.e. several separate MessagePorts, with
+</I>&gt;<i> &gt; a dedicated worker you can use postMessage and |new MessageChannel|
+</I>&gt;<i> &gt; (or the startConversation shorthand) to accomplish that. If you want
+</I>&gt;<i> &gt; several conversations with a dedicated worker you can do the same
+</I>&gt;<i> &gt; thing, or even call |new SharedWorker| multiple times.
+</I>&gt;<i> 
+</I>&gt;<i> I think this is the best API because it offers the most functionality 
+</I>&gt;<i> with the smallest area.
+</I>
+I don't mind doing this for SharedWorkers if people want, but I don't see 
+a reason to do this for dedicated workers.
+
+Would that work? Or is having them be the same the goal for you?
+
+
+&gt;<i> I also like that the API for dedicated and shared workers is identical 
+</I>&gt;<i> because it means that one you learn to use dedicated workers, you 
+</I>&gt;<i> already know how to use shared workers.
+</I>
+I think the fact that it makes you think that is an argument _against_ 
+doing this. There is a huge difference between what you'd need to do for a 
+dedicated worker (one onconnect event, in this model) and what you'd need 
+to do for shared workers (many connections). Misleading people into 
+thinking you can take a dedicated worker and have it just work in the 
+shared case is IMHO bad language design.
+
+
+&gt;<i> If we don't make the above change, I think that we should remove
+</I>&gt;<i> startConversation().
+</I>
+Gone.
+
+
+On Thu, 13 Nov 2008, Jonas Sicking wrote:
+&gt;<i> 
+</I>&gt;<i> Comparing to doing the other set of changes the differences in API are 
+</I>&gt;<i> as follows:
+</I>&gt;<i> 
+</I>&gt;<i>  - Add a 'connect()' method on AbstractWorker which must be called every
+</I>&gt;<i>    time after instantiating a worker.
+</I>&gt;<i>  - The postMessage/onmessage functions are moved from the worker object
+</I>&gt;<i>    to the port object.
+</I>&gt;<i> 
+</I>&gt;<i> To me this seems like strictly a bigger API. As far as functionality goes the
+</I>&gt;<i> differences are as follows:
+</I>&gt;<i> 
+</I>&gt;<i>  - You have to deal with two separate objects, the port and the worker.
+</I>&gt;<i>  - You can create multiple communication channels with a worker by
+</I>&gt;<i>    calling connect() multiple times.
+</I>&gt;<i> 
+</I>&gt;<i> Only the second thing here seems like a win.
+</I>
+I'm not convinced it's that much of a win, either.
+
+
+&gt;<i> And only for dedicated workers since for shared workers you can simply 
+</I>&gt;<i> call |new SharedWorker| multiple times if you want multiple 
+</I>&gt;<i> communication channels.
+</I>&gt;<i> 
+</I>&gt;<i> So it seems to me like the pros and cons fall out as:
+</I>&gt;<i>  Pros:
+</I>&gt;<i>    - Easier to create multiple connection channels to dedicated workers
+</I>&gt;<i>  Cons:
+</I>&gt;<i>    - Bigger API (an extra connect() function)
+</I>&gt;<i>    - More code required (an extra call to connect() required)
+</I>&gt;<i>    - More objects (port and worker)
+</I>&gt;<i> 
+</I>&gt;<i> To me the cons outweigh the pros here. Is there a goal with connect() 
+</I>&gt;<i> that I'm missing?
+</I>
+I agree.
+
+
+&gt;<i> At this point I have to ask what the problem you are trying to solve is? 
+</I>&gt;<i> What is wrong with the current spec as is? I.e. rather than talking 
+</I>&gt;<i> about various proposals, maybe we need to align the goals first as we 
+</I>&gt;<i> might be talking past each other.
+</I>
+I agree that this would be useful (and necessary) to understand.
+
+
+On Fri, 14 Nov 2008, Alexey Proskuryakov wrote:
+&gt;<i> 
+</I>&gt;<i> For the sake of completeness, a connect/startConversation method on a 
+</I>&gt;<i> worker really should automatically open the receiving port - this is 
+</I>&gt;<i> what examples posted so far implied, and it would cause a lot of 
+</I>&gt;<i> aggravation if it didn't. I know I'm often forgetting to open the port 
+</I>&gt;<i> when writing my tests, and it's not a very easy mistake to spot.
+</I>
+What do you mean by &quot;open the port&quot;? Do you mean calling start()? If so, 
+that should happen automatically when you set onmessage the first time, 
+per spec.
+
+
+&gt;<i> Besides API usability that we've already discussed back and forth 
+</I>&gt;<i> without reaching an agreement, I'm very much concerned about the current 
+</I>&gt;<i> spec being implementable in its current form. It has a lot of notions 
+</I>&gt;<i> and algorithms that are not correctly defined. For a randomly picked 
+</I>&gt;<i> example:
+</I>&gt;<i> 
+</I>&gt;<i> -----------------------------
+</I>&gt;<i> Each WorkerGlobalScope worker global scope has a list of the worker's 
+</I>&gt;<i> ports, which consists of all the MessagePort objects that are entangled 
+</I>&gt;<i> with another port and that have one (but only one) port owned by worker 
+</I>&gt;<i> global scope. This list includes all the MessagePort objects that are in 
+</I>&gt;<i> events pending in the queue of events, as well as the implicit 
+</I>&gt;<i> MessagePort in the case of dedicated workers. 
+</I>&gt;<i> -----------------------------
+</I>&gt;<i> 
+</I>&gt;<i> In an async processing model, there is simply no way for the receiver to 
+</I>&gt;<i> have a list of all objects that were posted to it - it's exactly the 
+</I>&gt;<i> reason for the existence of the queue that events are delivered 
+</I>&gt;<i> asynchronously and cannot be peeked before being delivered. For example, 
+</I>&gt;<i> in a multi-process implementation, these events may still be across 
+</I>&gt;<i> process boundary.
+</I>
+It actually doesn't really matter if there is something that has been 
+posted but not yet received, because that is indistinguishable (as far as 
+I can tell) from the case of the worker having shut down a split second 
+before that object was posted.
+
+
+&gt;<i> Also (from HTML5):
+</I>&gt;<i> -----------------------------
+</I>&gt;<i> Each MessagePort object can be entangled with another (a symmetric
+</I>&gt;<i> relationship).
+</I>&gt;<i> -----------------------------
+</I>&gt;<i> 
+</I>&gt;<i> It is not possible to have a symmetric relationship in an asynchronous 
+</I>&gt;<i> messaging model - we need a multi-step entagling/unentangling protocol, 
+</I>&gt;<i> so the relationship is necessarily asymmetric. One can't freeze another 
+</I>&gt;<i> process (or really, even another thread) to change something in it 
+</I>&gt;<i> synchronously.
+</I>
+The above is not a requirement, it's just a description of the concept. I 
+don't think anything actually depends on it being symmetric; all the parts 
+that actually entangle ports have (or, are intended to have, maybe I 
+missed some) pretty well-defined synchronisation points. For example, any 
+method that entangles two ports blocks until both threads are synchronised 
+and entangled.
+
+(The spec is somewhat implicit about this, but the intent is that workers 
+really be implemented either as two system threads, one doing 
+communication and one running the JS, or by one system thread that runs 
+the JS in an interruptible fashion. In particular, doing something that 
+synchronises with a worker isn't expected to have to wait for that worker 
+to finish running its current JS.)
+
+
+&gt;<i> Some instances of implied synchronous thinking can be corrected rather 
+</I>&gt;<i> easily, but not all of them. So, I do not really see how anyone can 
+</I>&gt;<i> claim implementing the spec, or even a subset of it at this point.
+</I>
+Do you have any specific examples of what can't be implemented?
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017150.html">[whatwg] Combining the DedicatedWorker and SharedWorker	interfaces
+</A></li>
+	<LI>Next message: <A HREF="017180.html">[whatwg] Combining the DedicatedWorker and	SharedWorker	interfaces
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17153">[ date ]</a>
+              <a href="thread.html#17153">[ thread ]</a>
+              <a href="subject.html#17153">[ subject ]</a>
+              <a href="author.html#17153">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

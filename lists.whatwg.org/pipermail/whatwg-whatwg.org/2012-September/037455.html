@@ -1,0 +1,157 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Proposal: HTMLCanvasElement.printCallback API
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Proposal%3A%20HTMLCanvasElement.printCallback%20API&In-Reply-To=%3C4A8E340C-1A9F-4F73-AF7C-09EC873BACFE%40gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="037453.html">
+   <LINK REL="Next"  HREF="037456.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Proposal: HTMLCanvasElement.printCallback API</H1>
+<!--htdig_noindex-->
+    <B>Julian Viereck</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Proposal%3A%20HTMLCanvasElement.printCallback%20API&In-Reply-To=%3C4A8E340C-1A9F-4F73-AF7C-09EC873BACFE%40gmail.com%3E"
+       TITLE="[whatwg] Proposal: HTMLCanvasElement.printCallback API">julian.viereck at googlemail.com
+       </A><BR>
+    <I>Wed Sep 26 10:22:11 PDT 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="037453.html">[whatwg] Font Resize Event
+</A></li>
+        <LI>Next message: <A HREF="037456.html">[whatwg] TextTrack and addCue
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#37455">[ date ]</a>
+              <a href="thread.html#37455">[ thread ]</a>
+              <a href="subject.html#37455">[ subject ]</a>
+              <a href="author.html#37455">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Hello WHATWG members,
+
+This email is about proposing a new attribute &quot;printCallback&quot; on the HTMLCanvasElement (in the following called &quot;Canvas&quot;). This new API allows to:
+
+* define the content of a canvas element during the printing progress
+* send the canvas' content without rasterization to the printer
+
+The basic API was implemented in [1] and is available in Firefox Nightly 18.
+
+# Motivation And Use-Case
+
+The motivation for designing and implementing the API was to add proper printing support for the PDF.JS project. The PDF.JS project is an implementation of a PDF viewer using only web technologies. Without this API it is not possible to:
+
+* render only the pages needed for printing. A webpage is printed with the content visible at the moment the print action is started. For PDF.JS this means that all pages are required to be rendered before printing. Rendering all the pages takes quite some time for complex and huge documents (&gt; 100 pages). But the user might only want to print the first page. That means, the user waits for unnecessary computation to finish.
+* print the content of a canvas element without rasterization artifacts on the printout. One could increase the size of the canvas such that the rasterization doesn't becomes visible, but this is not possible due to the large usage of memory going with this. Using a different way to render the pages than using canvas (e.g. SVG) is not possible, due to memory and performance issues. 
+
+Although not directly relevant to PDF.JS - it's also not possible to
+
+* define the content of a printed page that looks exactly the same cross all user agents. There are small variations, that cause breaks and styles to look slightly different between user agents. Using CSS it's possible to make one canvas element take up one physical page and then precisely layout content on the canvas.
+
+(I will later describe briefly how the API was used to solve these issues.)
+
+# Actual API
+
+The actual API looks like this:
+
+The &quot;printCallback&quot; attribute on a Canvas takes a callback. This callback is invoked when the canvas with a printCallback is printed. A &quot;printState&quot; object is passed as argument to the callback. The printState object has a &quot;context&quot; property, which points to a CanvasRenderingContext2D object. Against this context all known operations of the CanvasRenderingContext2D are executable. However, the CanvasRenderingContext2D doesn't rasterize the operations but instead forward them directly to the printer - instead of drawing to a pixel surface it's more like drawing to a vector surface. The result of the operations show up on the canvas when printed, but are not visible on the screen. The &quot;printState.done()&quot; function  must be called once all drawing operations for the canvas are done and the printing should progress. This was added to allow the printCallback to perform asynchronous tasks.
+
+A simple example of the API looks like this:
+
+```
+var canvas = document.getElementById('canvas');
+var ctx = canvas.getContext('2d');
+ctx.fillText('Hi there.', 50, 50);
+
+canvas.printCallback = function(printState) {
+  var printCtx = printState.context;
+  printCtx.fillText('I\'m only visible when printed.', 50, 50);
+  printState.done();
+};
+```
+
+You can try this example out in [2] using Firefox Nighlty and see the results as a PDF in [3]. Notice that you can select the text in the PDF linked in [3]. (Note: in the linked example [2], the callback is called &quot;mozPrintCallback&quot; as the API is currently prefixed in Gecko. The canvas output is rasterized on Windows and Linux due to a bug in Gecko at the moment.)
+
+Some more details on the behavior of the API:
+
+* the printCallback function is only invoked on the canvases that will be visible in the print output.
+* there is only one printCallback called at the time. After the &quot;printState.done()&quot; function is called, the next printCallback function  gets invoked assuming there is another canvas that gets printed and has a printCallback specified.
+* the order the printCallbacks of the canvases are called follows the output order of the canvases in the printout.
+* the resolution on the printContext is the same as when drawing to the canvas on the page. E.g. if a canvas has the attribute &quot;width&quot; set to &quot;100&quot; and by using CSS the canvas takes 10 cm in width on the printout, then 1 unit on the context corresponds to 0.1 cm.
+* the putImageData and getImageData functions on the CanvasRenderingContext2D use the same pixel resolution (width/height) as the canvas on the page (this results in the data of the getImageData function to be rasterized).
+* the &quot;canvas&quot; property on the printContext points to the canvas on the page and not the canvas element that is printed. Otherwise it's possible to change the layout of the printing while printing. As the canvas on the page might not be available anymore (e.g. the canvas was removed and garbage collected from the document before the printCallback gets invoked), the &quot;canvas&quot; property might be &quot;undefined&quot; or &quot;null&quot;.
+* the window.onafterprint event is called either
+  1. after all printCallbacks are done and the page is ready for printing
+  2. the printing got aborted using the print dialog.
+* the printContext holds no content when passed to the callback and takes the default values (for transformation matrix, styles etc.) of a CanvasRenderingContext2D
+* the printContext is a CanvasRenderingContext2D but instead of using a pixel map to store the drawing operations result, the operations are forwarded to the printer without rasterization.
+* the API does not change the layout of the canvas element on the page.
+
+# Open Discussion:
+
+* There is no way to abort in case something goes wrong. E.g. printing to the canvas might require a successful network request, but the request failed. 
+* The printState.done() function gets eventually never called and therefore printing the document might never finish.
+
+# How The PrintCallback-API Solved The Problems For PDF.JS
+
+* using CSS all content except a single div is hidden during printing
+* when the beforePrint event is fired it is checked if the webpage is setup for printing or not. If it is not, the webpage is setup and the print action is canceled. Otherwise, the printing is not prevented and happens as regular
+* the &quot;setup webpage for printing&quot; consists of the following steps
+1. for each page of the PDF document, a canvas element is created and insert to the div that is visible during printing
+2. using CSS, the canvas inside the print-visible div take up an entire page in the later printout
+3. for each canvas the `mozPrintCallback` is set. If the callback function is called, the pdf page corresponding to the canvas is loaded and drawn on the canvas. Once finished, the `printState.done()` function is called
+* after the user set the print settings in the print dialog, the webpage is printed
+* for the pages that are required for the printout, the mozPrintCallback is called on the canvas for these pages
+* after the printing finished (detected by listening to the afterPrint event), the created canvases are removed again to save memory. 
+
+Best regards and looking for feedback on this,
+
+Julian
+
+---
+
+[1]: Mozilla Bug 745025 - Implement CanvasElement.mozPrintCallback: <A HREF="https://bugzilla.mozilla.org/show_bug.cgi?id=745025">https://bugzilla.mozilla.org/show_bug.cgi?id=745025</A>
+[2]: <A HREF="http://jsfiddle.net/FPNMM/2/embedded/js%2Cresult/">http://jsfiddle.net/FPNMM/2/embedded/js%2Cresult/</A>
+[3]: <A HREF="http://n.ethz.ch/~jviereck/drop/mozPrintCallback_output.pdf">http://n.ethz.ch/~jviereck/drop/mozPrintCallback_output.pdf</A>
+
+</PRE>
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="037453.html">[whatwg] Font Resize Event
+</A></li>
+	<LI>Next message: <A HREF="037456.html">[whatwg] TextTrack and addCue
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#37455">[ date ]</a>
+              <a href="thread.html#37455">[ thread ]</a>
+              <a href="subject.html#37455">[ subject ]</a>
+              <a href="author.html#37455">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

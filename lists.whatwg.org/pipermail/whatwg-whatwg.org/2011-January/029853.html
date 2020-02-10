@@ -1,0 +1,161 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] WebWorkers and images
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20WebWorkers%20and%20images&In-Reply-To=%3CAANLkTin%2BVLJ-tDC%2BBJV_%2BUQAPX8ECdAkM46z7qnnNE1v%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="029849.html">
+   <LINK REL="Next"  HREF="029855.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] WebWorkers and images</H1>
+<!--htdig_noindex-->
+    <B>Glenn Maynard</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20WebWorkers%20and%20images&In-Reply-To=%3CAANLkTin%2BVLJ-tDC%2BBJV_%2BUQAPX8ECdAkM46z7qnnNE1v%40mail.gmail.com%3E"
+       TITLE="[whatwg] WebWorkers and images">glenn at zewt.org
+       </A><BR>
+    <I>Thu Jan 13 15:38:58 PST 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="029849.html">[whatwg] WebWorkers and images
+</A></li>
+        <LI>Next message: <A HREF="029855.html">[whatwg] WebWorkers and images
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#29853">[ date ]</a>
+              <a href="thread.html#29853">[ thread ]</a>
+              <a href="subject.html#29853">[ subject ]</a>
+              <a href="author.html#29853">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Thu, Jan 13, 2011 at 5:21 PM, Boris Zbarsky &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">bzbarsky at mit.edu</A>&gt; wrote:
+&gt;<i> The second one is actually really really hard to do with setTimeout.
+</I>&gt;<i> Especially if you have UI events that need more than one trip through the
+</I>&gt;<i> event loop to do their thing.
+</I>
+In simple event systems that's mostly a matter of running the event
+loop until nothing more happens, but I'm sure it's very complicated
+with a production browser.
+
+Ultimately, the right solution is to do all work like this in workers
+anyway--but it'll be a long time, if ever, before we can fully do so
+(eg. real canvas and WebGL access).
+
+&gt;&gt;<i> You don't need any trickery to get the latter
+</I>&gt;<i>
+</I>&gt;<i> I'm not sure what you mean by &quot;trickery&quot; here.
+</I>
+Timing threads to achieve smaller timers than 10ms on Windows, as you
+mentioned Chrome does.
+
+&gt;<i> I oversimplified the spec a bit, for simplicity, because the main issue is
+</I>&gt;<i> in fact the clamped timers and what to clamp to and how to do it. The spec
+</I>&gt;<i> specifies a heuristic to use in just such a way, in fact. &#160;I suggest you
+</I>&gt;<i> just read it if you're interested in the details....
+</I>
+I have; it allows UAs to clamp longer, but doesn't permit browsers to
+allow nested timeouts of less than 4ms, even if they design a
+heuristic that allows doing so safely.
+
+&gt;<i> timeouts in workers are... weird as currently specced. &#160;Not only do they
+</I>&gt;<i> have the 4ms floor for nested timeouts, but they're not specced in terms of
+</I>&gt;<i> wall-clock time but rather in terms of time during which the worker is not
+</I>&gt;<i> suspended.
+</I>
+That's odd, indeed.  This seems likely to force people who want
+30-second timers into setting 1-second timers and checking the time
+manually.  That's (mildly) wasteful, and easy to get wrong if the
+system clock changes (though I guess browsers don't actually handle
+that well, either).
+
+&gt;&gt;<i> For code that renders an entire scene at a time and displays it (most
+</I>&gt;&gt;<i> typical double-buffered OpenGL-like rendering), this might be useful,
+</I>&gt;&gt;<i> but I'm not sure it helps here. &#160;He's incrementally rendering the
+</I>&gt;&gt;<i> result, so he needs to keep a copy of it to continue rendering the
+</I>&gt;&gt;<i> scene.
+</I>&gt;<i>
+</I>&gt;<i> Who's incrementally rendering what?
+</I>
+<A HREF="http://skypher.com/SkyLined/demo/FractalZoomer/Mandel.html,">http://skypher.com/SkyLined/demo/FractalZoomer/Mandel.html,</A> linked earlier.
+
+&gt;<i> The idea with the forgets approach would be that you have an imagedata
+</I>&gt;<i> object. &#160;You pass it to the worker, the worker modifies it and passes it
+</I>&gt;<i> back. &#160;The only constraint is that you can't touch the object while the
+</I>&gt;<i> worker is modifying it. &#160;That seems like a pretty common use case. &#160;Are we
+</I>&gt;<i> talking about some other use case here?
+</I>
+I agree that's probably useful, and frame-by-frame rendering is much
+more common than incremental rendering.
+
+&gt;&gt;<i> I suspect there's something simpler going on here, though--as you
+</I>&gt;&gt;<i> said, copying a 10 MB buffer really should be very quick.
+</I>&gt;<i>
+</I>&gt;<i> It's really not that quick, actually. &#160;First, you have to allocate a new
+</I>&gt;<i> 10MB buffer. &#160;Then you have to memcpy into it. &#160;Then you have to free it at
+</I>&gt;<i> some point. &#160;I just wrote a simple test C program that has a single 10MB
+</I>&gt;<i> array initialized and then in a loop allocates a 10MB array, memcpys into
+</I>&gt;<i> it, and then frees the 10MB allocation it just made. &#160;It takes about 5ms per
+</I>&gt;<i> loop iteration to run on my system (fairly high-end laptop that was new in
+</I>&gt;<i> July 2010). &#160;The time is split about 50-50 between the allocation and the
+</I>&gt;<i> memcpy.
+</I>
+It might be possible to optimize the allocation further, but even
+2.5ms is worth optimizing out.  If you're trying to maintain 60 FPS
+(16.6ms per frame), that's 15% of your total available time (ignoring
+concurrency).
+
+-- 
+Glenn Maynard
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="029849.html">[whatwg] WebWorkers and images
+</A></li>
+	<LI>Next message: <A HREF="029855.html">[whatwg] WebWorkers and images
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#29853">[ date ]</a>
+              <a href="thread.html#29853">[ thread ]</a>
+              <a href="subject.html#29853">[ subject ]</a>
+              <a href="author.html#29853">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

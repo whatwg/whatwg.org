@@ -1,0 +1,225 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Basic defense at the client against common XSS attack types
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Basic%20defense%20at%20the%20client%20against%20common%20XSS%20attack%20types&In-Reply-To=%3CCOL102-DS1781BF7DC4C5AAD2DD3CCB9E6E0%40phx.gbl%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="074458.html">
+   <LINK REL="Next"  HREF="074454.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Basic defense at the client against common XSS attack types</H1>
+<!--htdig_noindex-->
+    <B>Jacques Jongerden</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Basic%20defense%20at%20the%20client%20against%20common%20XSS%20attack%20types&In-Reply-To=%3CCOL102-DS1781BF7DC4C5AAD2DD3CCB9E6E0%40phx.gbl%3E"
+       TITLE="[whatwg] Basic defense at the client against common XSS attack types">jacques_jongerden at hotmail.com
+       </A><BR>
+    <I>Mon Jun 20 10:47:59 PDT 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="074458.html">[whatwg] CORS requests for image and video elements
+</A></li>
+        <LI>Next message: <A HREF="074454.html">[whatwg] Basic defense at the client against common XSS attack	types
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#32180">[ date ]</a>
+              <a href="thread.html#32180">[ thread ]</a>
+              <a href="subject.html#32180">[ subject ]</a>
+              <a href="author.html#32180">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>I'd like your thoughts on an idea concerning a basic defense mechanism on
+the client against several types of common XSS attacks, complementing the
+existing array of (mainly server-side) security measures. Now I'll be the
+first to admit that this is hardly my area of expertise, so I could really
+use some feedback on the feasibility of this proposal and perhaps it might
+serve as a source of inspiration to others that are more versed in the
+subject matter.
+
+The concept itself is simple: enable web developers to delimit parts of an
+HTML document that ought not declare scripting elements. The browser would
+then not execute any scripting content that originates within the delimited
+area. The execution is somewhat tricky though. A custom attribute (or
+element for that matter) would not cut it; an attacker could simply inject a
+closing tag for the decorated element together with the rest of the
+malicious payload.
+
+One way to tackle the issue is to use an element with a randomly generated
+(at the server) token value that is repeated in the closing tag. Because the
+attacker cannot predict the value of the token at the time of injection, the
+block restricting the use of script content cannot be escaped. Unfortunately
+it might require a new type of construct, for example similar to the way
+conditional comments are defined within Internet Explorer. Consider the
+following example:
+
+&lt;!doctype html&gt;
+&lt;html lang=&quot;en&quot;&gt;
+&lt;head&gt;
+   &lt;meta charset=&quot;UTF-8&quot;&gt;
+   &lt;title&gt;Some page that includes user input&lt;/title&gt;
+   &lt;link rel=&quot;stylesheet&quot; href=&quot;css/style.css&quot;&gt;
+   &lt;script src=&quot;js/script.js&quot;&gt;&lt;/script&gt;
+&lt;/head&gt;
+&lt;body&gt;
+   &lt;div id=&quot;container&quot;&gt;
+
+      &lt;div id=&quot;main&quot; role=&quot;main&quot;&gt;
+         &lt;article&gt;&lt;!--[start-ignore-script:MyToken]--&gt;
+
+            &lt;!-- content here includes user input; the browser should ignore
+                 any scripted content originating in this area, including
+                 script blocks, event handlers, css expressions, etc. --&gt;
+
+         &lt;!--[end-ignore-script:MyToken]--&gt;&lt;/article&gt;
+      &lt;/div&gt;
+
+      &lt;script type=&quot;text/javascript&quot;&gt;
+
+         /* This script is executed though, because the element is not
+            inside of a restricted execution area. */
+
+      &lt;/script&gt;
+
+   &lt;/div&gt;
+&lt;/body&gt;
+&lt;/html&gt;
+
+Because the scripting restriction instructions are formatted as HTML
+comments older browsers will simply ignore them. The 'MyToken' part within
+both instructions would be substituted by a token that is dynamically
+generated at the server. The same token would be used in the
+'start-ignore-script' as well as the 'end-ignore-script' instruction
+comments (or whatever other name that might better communicate the intent).
+These two comments would be parsed by the browser and all scripting blocks,
+event handlers, CSS expressions and any other script content declared within
+them would consequently be ignored (that is, not executed).
+
+Because the application developer knows where user input might be displayed,
+he or she is well informed to make the decision if and where to apply such
+content restrictions in the markup. Using the security mechanism does
+however imply that the developer also won't be able to directly use
+JavaScript within the delimited area, because the browser cannot be expected
+to reliably distinguish between normal and malicious scripting. This
+shouldn't pose too much of a problem though.
+
+Although the proposed mechanism prevents execution of scripting content that
+is declared within the delimited block, it shouldn't prevent other scripts
+on the page from traversing the enclosed elements and manipulating them,
+quite possibly adding event handlers in the process. This way the functional
+impact of the proposed mechanism is minimized. Such a solution does beg the
+need for some concept of script ownership, i.e. the browser must have some
+way of distinguishing between script content that originates in the
+restricted markup and things like event handlers that have been added by
+scripts that reside *outside* the restricted markup. An event handler that
+has been added by a script outside of the delimited area should be executed
+when the event fires, even though it is registered on an element that cannot
+declare any 'executable' content itself.
+
+Note that this is in line with common scripting best practices that
+prescribe not directly adding event handlers to HTML markup, but adding them
+to the DOM programmatically instead, progressively enhancing the content at
+the client, given the browser's capabilities. If a web developer is already
+applying JavaScript in such fashion, adding the proposed attribute to
+sections of an HTML document would hardly cause any inconvenience.
+
+This 'opt-in' security measure seems relatively easy to understand and apply
+for web developers and allows for fine-grained control over script execution
+in generated documents. It doesn't absolve developers from carefully
+handling user input, but it should help to reduce the impact of newly
+discovered vectors for several types of XSS attacks.
+
+And now for some questions:
+
+* Could this actually work or is there some simple workaround that I'm
+overlooking?
+* How hard would this be to implement within common browsers?
+* Could the syntax perhaps be simplified?
+
+So please do chime in on the topic and share your opinions and ideas!
+
+Cheers,
+
+Jacques
+
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="074458.html">[whatwg] CORS requests for image and video elements
+</A></li>
+	<LI>Next message: <A HREF="074454.html">[whatwg] Basic defense at the client against common XSS attack	types
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#32180">[ date ]</a>
+              <a href="thread.html#32180">[ thread ]</a>
+              <a href="subject.html#32180">[ subject ]</a>
+              <a href="author.html#32180">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

@@ -1,0 +1,258 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] WebSockets API feedback
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20WebSockets%20API%20feedback&In-Reply-To=%3CPine.LNX.4.64.1105241917320.19153%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="074098.html">
+   <LINK REL="Next"  HREF="031822.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] WebSockets API feedback</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20WebSockets%20API%20feedback&In-Reply-To=%3CPine.LNX.4.64.1105241917320.19153%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg] WebSockets API feedback">ian at hixie.ch
+       </A><BR>
+    <I>Tue May 24 16:21:30 PDT 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="074098.html">[whatwg] [html5] Question on the structured cloning algorithm
+</A></li>
+        <LI>Next message: <A HREF="031822.html">[whatwg] Proposed simplification to Microdata
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#31792">[ date ]</a>
+              <a href="thread.html#31792">[ thread ]</a>
+              <a href="subject.html#31792">[ subject ]</a>
+              <a href="author.html#31792">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>
+(Note that the WebSockets protocol is being developed by Ian Fette in the 
+context of the HyBi working group at the IETF, and not by the WHATWG. The 
+discussion here is limited just to API issues.)
+
+On Sun, 20 Feb 2011, Bruce Atherton wrote:
+&gt;<i>
+</I>&gt;<i> According to the spec, establishing a connection is done through the 
+</I>&gt;<i> Websocket object constructor on a background thread. This results in the 
+</I>&gt;<i> possibility that a connection could fire its open, error, and/or close 
+</I>&gt;<i> events before the user can set a handler for these events.
+</I>
+While it's true that tasks for those events might get queued before the 
+listeners are attached, it doesn't actually matter, because so long as the 
+script attackes the listeners before the event loop next spins, the events 
+will not be dispatched before the listeners are attached.
+
+In other words, so long as you hook the events in the same script as you 
+create the object, you're fine.
+
+
+&gt;<i> Is there a reason not to have a separate open() call?
+</I>
+There's always a reason not to have separate calls: the less API surface, 
+the simpler the API, the simpler the implementations, the simpler the 
+testing, the smaller the attack surface, the fewer the potential number of 
+bugs, and so forth.
+
+
+On Mon, 21 Feb 2011, Toni Ruottu wrote:
+&gt;<i>
+</I>&gt;<i> I believed that the browser is expected to somehow magically delay the 
+</I>&gt;<i> events until a callback has been registered. At least that is how it 
+</I>&gt;<i> seems to work at the moment. The specification could be clearer about 
+</I>&gt;<i> this.
+</I>
+It's not magic, it's the event loop. The spec is entirely thorough about 
+it already. Follow the links for &quot;queue a task&quot; and related terms.
+
+
+On Mon, 21 Feb 2011, Robert O'Callahan wrote:
+&gt;<i> On Mon, Feb 21, 2011 at 2:34 PM, Bruce Atherton &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">bruce at callenish.com</A>&gt; 
+</I>&gt;<i> wrote:
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; Perhaps you are reading a different spec than I am. The only language 
+</I>&gt;<i> &gt; I see about queuing tasks involves changing the ready state on the 
+</I>&gt;<i> &gt; Websocket object. There is nothing in there about waiting until a 
+</I>&gt;<i> &gt; block of other Javascript code has run before making any other event 
+</I>&gt;<i> &gt; callbacks.
+</I>&gt;<i> 
+</I>&gt;<i> <A HREF="http://dev.w3.org/html5/websockets/#feedback-from-the-protocol">http://dev.w3.org/html5/websockets/#feedback-from-the-protocol</A> For every 
+</I>&gt;<i> event in that section, the user-agent must queue a task to fire the 
+</I>&gt;<i> event. None of the other sections describe any events.
+</I>&gt;<i> 
+</I>&gt;<i> &gt; Let me see if I follow the &quot;perfectly clear&quot; line of reasoning you are 
+</I>&gt;<i> &gt; using. Your assumption is that a Websocket connection will only be 
+</I>&gt;<i> &gt; loaded in an event handler like window.onload.
+</I>&gt;<i> 
+</I>&gt;<i> In HTML5-compliant user-agents, all Javascript runs in some task of the 
+</I>&gt;<i> HTML5 event loop. That task must run to completion before other tasks 
+</I>&gt;<i> queued by the user-agent will run.
+</I>&gt;<i> 
+</I>&gt;<i> &gt; No other events will be delivered until the current event handler 
+</I>&gt;<i> &gt; finishes. And the event handler that creates the Websocket object will 
+</I>&gt;<i> &gt; necessarily also be where the event handlers are set on the Websocket 
+</I>&gt;<i> &gt; object. By making all of these assumptions, it becomes obvious that 
+</I>&gt;<i> &gt; within a browser this API is safe for callbacks. Do I have that right?
+</I>&gt;<i> 
+</I>&gt;<i> Yes. You observe correctly that the Web author has to be careful to 
+</I>&gt;<i> ensure that the event handlers are set on the Websocket object during 
+</I>&gt;<i> the same task that created it. However, this is a fairly natural 
+</I>&gt;<i> requirement that is common in the Web platform.
+</I>&gt;<i> 
+</I>&gt;<i> &gt; I am reminded of a joke about mathematicians. One argues that it is 
+</I>&gt;<i> &gt; obvious that claim A follows from B. The other disagrees. After 
+</I>&gt;<i> &gt; arguing for an hour, the latter finally agrees that A obviously 
+</I>&gt;<i> &gt; follows from B.
+</I>&gt;<i> 
+</I>&gt;<i> Yeah :-). By &quot;perfectly clear&quot; I meant that the spec was &quot;unambiguous&quot;, 
+</I>&gt;<i> rather than &quot;obvious to the casual reader&quot; :-).
+</I>
+It may be helpful to read the full WHATWG spec rather than the smaller W3C 
+one, as the cross-references are easier to follow in the WHATWG spec:
+
+   <A HREF="http://www.whatwg.org/specs/web-apps/current-work/complete/network.html#network">http://www.whatwg.org/specs/web-apps/current-work/complete/network.html#network</A>
+
+
+On Tue, 29 Mar 2011, Adam Barth wrote:
+&gt;<i>
+</I>&gt;<i> In this HyBi thread:
+</I>&gt;<i> 
+</I>&gt;<i> <A HREF="http://www.ietf.org/mail-archive/web/hybi/current/msg06951.html">http://www.ietf.org/mail-archive/web/hybi/current/msg06951.html</A>
+</I>&gt;<i> 
+</I>&gt;<i> Folks are arguing that the WebSocket protocol should support HTTP 
+</I>&gt;<i> redirects during the handshake and that dealing with the security 
+</I>&gt;<i> consequences of redirects should be dealt with at the API layer. If/when 
+</I>&gt;<i> that occurs, we should update the API layer to deal with the security 
+</I>&gt;<i> consequences of the WebSocket protocol following HTTP redirects, 
+</I>&gt;<i> preferably by aborting any WebSocket connections that the server 
+</I>&gt;<i> attempts to redirect.
+</I>
+Done.
+
+
+On Thu, 31 Mar 2011, Jonathan Chetwynd wrote:
+&gt;<i>
+</I>&gt;<i> Websockets: dropped packets?
+</I>&gt;<i> 
+</I>&gt;<i> is there a 'guarantee' that packets will arrive?
+</I>
+Yes, WebSockets is based on TCP.
+
+
+On Thu, 31 Mar 2011, Bob Gezelter wrote:
+&gt;<i> 
+</I>&gt;<i> I do not believe that the TCP dependency is truly necessary or 
+</I>&gt;<i> beneficial. WADR, it would be far more appropriate to specify the needed 
+</I>&gt;<i> characteristics of the underlying transport. As an example, the earliest 
+</I>&gt;<i> versions of MTP (RFC 772) -- the predecessor of SMTP have successfully 
+</I>&gt;<i> taken this approach to specification.
+</I>
+I recommend bringing this up with the hybi group.
+
+
+&gt;<i> In a recent posting to my blog, Ruminations, I suggested that the 
+</I>&gt;<i> WebSocket protocol specification be segregated into multiple RFCs, to 
+</I>&gt;<i> separate the TCP-related implementation issues from the underlying 
+</I>&gt;<i> protocol.
+</I>
+That's rather the opposite direction than I would recommend (I'd merge the 
+protocol and API back into one spec, personally, and merge that with the 
+rest of HTML while we're at it...), but it's up to the hybi group at this 
+point.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="074098.html">[whatwg] [html5] Question on the structured cloning algorithm
+</A></li>
+	<LI>Next message: <A HREF="031822.html">[whatwg] Proposed simplification to Microdata
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#31792">[ date ]</a>
+              <a href="thread.html#31792">[ thread ]</a>
+              <a href="subject.html#31792">[ subject ]</a>
+              <a href="author.html#31792">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

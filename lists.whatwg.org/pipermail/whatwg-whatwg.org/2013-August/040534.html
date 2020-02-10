@@ -1,0 +1,230 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Styling &lt;details&gt;
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Styling%20%3Cdetails%3E&In-Reply-To=%3Calpine.DEB.2.00.1308202337160.27209%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="082806.html">
+   <LINK REL="Next"  HREF="040539.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Styling &lt;details&gt;</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Styling%20%3Cdetails%3E&In-Reply-To=%3Calpine.DEB.2.00.1308202337160.27209%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg] Styling &lt;details&gt;">ian at hixie.ch
+       </A><BR>
+    <I>Tue Aug 20 16:51:42 PDT 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="082806.html">[whatwg] canvas 2d's ellipse
+</A></li>
+        <LI>Next message: <A HREF="040539.html">[whatwg] Forms-related feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#40534">[ date ]</a>
+              <a href="thread.html#40534">[ thread ]</a>
+              <a href="subject.html#40534">[ subject ]</a>
+              <a href="author.html#40534">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Thu, 3 Jan 2013, Brett Zamir wrote:
+&gt;<i> 
+</I>&gt;<i> In my ideal world, with HTML deprived of XML or XML-like extensibility 
+</I>&gt;<i> (no entities or namespaces), and even with what Web Components or the 
+</I>&gt;<i> like could do, and with JavaScript already being able to encompass this 
+</I>&gt;<i> functionality, there appears to me to be a far greater need for making a 
+</I>&gt;<i> standard and familiar/friendly JSON/JavaScript way to represent HTML 
+</I>&gt;<i> than an HTML way to represent JavaScript.
+</I>
+There've been proposals to do this at the language level, e.g.:
+
+   <A HREF="http://www.hixie.ch/specs/e4h/strawman">http://www.hixie.ch/specs/e4h/strawman</A>
+
+However, in practice I've found that you can pretty easily define two 
+functions in JS that make this work more or less sufficiently well.
+
+The first function is E(), which returns an element. It's signature:
+
+   E(name, [attrs,] [children...])
+
+...where attrs is an optional dictionary where:
+
+ - entries whose value is a string are added as content attributes with 
+   the given value
+ - entries whose value is a number are added as content attributes with
+   the given value as a string
+ - entries whose value is &quot;true&quot; are added as content attributes with
+   the empty vlaue
+ - entries whose value is &quot;false&quot; are ignored
+ - entries whose value is a function are assumed to be IDL attributes that 
+   are to be set to that function
+ - other entries throw an exception
+
+...and where children is zero or more arguments where:
+
+ - values that are Element, Comment, and Text nodes are appended to the 
+   element as children
+ - values that are DocumentFragments have their children appended to the
+   element in the same way
+ - values that are strings are appended as text nodes with the given value
+ - values that are numbers are appended as text nodes with the given value 
+   converted to a string
+ - values that are arrays are recursively processed in the same way
+ - other values throw an exception
+
+The second function is F(children...) which takes just the varargs like 
+the previous function, but returns a DocumentFragment instead.
+
+So e.g.:
+
+   document.body.appendChild(F(
+     E('p', E('input', { type: 'button', 
+                         value: 'Demo',
+                         onclick: function (event) { alert('Hello!') }, 
+                       }),
+            ' Press the button, ', name, '! ', // name is a string var
+            E('em', { class: 'beg' }, 'Please!'))));
+
+It's not as pretty as E4H, but it's functional and way better than 
+constructing it using raw DOM calls.
+
+For the record, the E4H equivalent would be:
+
+   document.body.appendChild(&lt;&gt;&lt;p&gt;&lt;input type=&quot;button&quot;
+                                         value=&quot;Demo&quot; 
+                                         onclick=&quot;alert('Hello!')&quot;/&gt;\
+                                  Press the button, {name}!\
+                                  &lt;em class=&quot;beg&quot;&gt;Please!&lt;/em&gt;&lt;/p&gt;&lt;/&gt;);
+
+(If we did go down the E4H route, we'd have to find a better solution for 
+event handlers, though.)
+
+
+&gt;<i> [ // Optional document meta-attributes could come here
+</I>&gt;<i> ['html', [
+</I>&gt;<i>     ['head', [
+</I>&gt;<i>         ['script', [
+</I>&gt;<i>             // A JSON format sans functions could be possible, but allowable
+</I>&gt;<i> for convenience in templating
+</I>&gt;<i>             {$script: function (onReady) {
+</I>&gt;<i>                 require(['depend1'], function (depend1) {
+</I>&gt;<i>                     onReady(function () {
+</I>&gt;<i>                         document.body.appendChild(['p', ['World']]);
+</I>&gt;<i>                         depend1('no additional script tags needed for
+</I>&gt;<i> modularity');
+</I>&gt;<i> 
+</I>&gt;<i>                         // Ready and easy conversion
+</I>&gt;<i>                         var jml = ['b', ['Hello']], html = '&lt;b&gt;Hello&lt;/b&gt;', dom
+</I>&gt;<i> = document.createElement(jml);
+</I>&gt;<i>                         jml === html.toJML() &amp;&amp;
+</I>&gt;<i>                             jml === dom.toJML() &amp;&amp;
+</I>&gt;<i>                                 html === jml.toHTML() &amp;&amp;
+</I>&gt;<i>                                     html === dom.toHTML() &amp;&amp;
+</I>&gt;<i>                                         dom === html.toDOM() &amp;&amp;
+</I>&gt;<i>                                             dom === jml.toDOM(); // true
+</I>&gt;<i>                     });
+</I>&gt;<i>                 });
+</I>&gt;<i>             }}
+</I>&gt;<i>         ]],
+</I>&gt;<i>         ['style', [
+</I>&gt;<i>             // Non-array objects would normally represent attributes, but when
+</I>&gt;<i> prefixed with the
+</I>&gt;<i>             //   reserved '$', other features become possible for HTML (or
+</I>&gt;<i> XML)
+</I>&gt;<i>             {$css: [
+</I>&gt;<i>                 ['p[greeting]', ['color', 'blue']]
+</I>&gt;<i>             ]
+</I>&gt;<i>         ]]
+</I>&gt;<i>     ]],
+</I>&gt;<i>     ['body', [
+</I>&gt;<i>         'text',
+</I>&gt;<i>         ['p', {'class':'greeting'}, ['Hello!']],
+</I>&gt;<i>         {'$#x': '263A'},
+</I>&gt;<i>         {$comment: 'Finished file!'}
+</I>&gt;<i>     ]]
+</I>&gt;<i> ]]
+</I>&gt;<i> ]
+</I>
+I don't really see the advantage of such a format. What problem are you 
+solving here?
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="082806.html">[whatwg] canvas 2d's ellipse
+</A></li>
+	<LI>Next message: <A HREF="040539.html">[whatwg] Forms-related feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#40534">[ date ]</a>
+              <a href="thread.html#40534">[ thread ]</a>
+              <a href="subject.html#40534">[ subject ]</a>
+              <a href="author.html#40534">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

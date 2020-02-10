@@ -1,0 +1,229 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] &lt;a onlyreplace&gt;
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20%3Ca%20onlyreplace%3E&In-Reply-To=%3Cdd0fbad0910161343s277083c7v4eee5197c15bdfa4%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023661.html">
+   <LINK REL="Next"  HREF="023686.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] &lt;a onlyreplace&gt;</H1>
+<!--htdig_noindex-->
+    <B>Tab Atkins Jr.</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20%3Ca%20onlyreplace%3E&In-Reply-To=%3Cdd0fbad0910161343s277083c7v4eee5197c15bdfa4%40mail.gmail.com%3E"
+       TITLE="[whatwg] &lt;a onlyreplace&gt;">jackalmage at gmail.com
+       </A><BR>
+    <I>Fri Oct 16 13:43:25 PDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023661.html">[whatwg]  &lt;a onlyreplace&gt;
+</A></li>
+        <LI>Next message: <A HREF="023686.html">[whatwg] &lt;a onlyreplace&gt;
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23666">[ date ]</a>
+              <a href="thread.html#23666">[ thread ]</a>
+              <a href="subject.html#23666">[ subject ]</a>
+              <a href="author.html#23666">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>A few public responses to issues/questions brought up in IRC: (thanks,
+Aryeh and Philip!)
+
+How is this better than &lt;iframe seamless&gt; and &lt;a target&gt;?
+=========================================================
+It's significantly better in multiple ways, actually.
+
+1. &lt;iframe&gt;s, like frames before them, break bookmarking.  If a user
+bookmarks the page and returns to it later, or gets deeplinked via a
+search engine or a link from a friend, the &lt;iframe&gt; won't show the
+correct content.  The only way around this is some fairly non-trivial
+url-hacking with javascript, altering the displayed url as the user
+navigates the iframe, and parsing a deeplink url into an appropriate
+url for the iframe on initial pageload.  @onlyreplace, on the other
+hand, automatically works perfectly with bookmarking.  The UA still
+changes urls and inserts history appropriately as you navigate, and on
+a fresh pageload it just requests the ordinary static page showing the
+appropriate content.
+
+2. &lt;a target&gt; can only navigate one iframe at a time.  Many/most
+sites, though, have multiple dynamic sections scattered throughout the
+page.  The main site for my company, frex, has 3 (content,
+breadcrumbs, and section nav) which *cannot* be combined to display as
+a single &lt;iframe&gt;, at least not without including a whole bunch of
+static content as well.  You'd have use javascript to hook the links
+and manually navigate the additional iframes.  @onlyreplace, on the
+other hand, handles this seamlessly - just include multiple ids in the
+attribute value.
+
+3. &lt;iframe&gt;s require you to architect your site around them.  Rather
+than a series of independent pages, you must create a single master
+page and then a number of content-chunk mini-pages.  This breaks
+normal authoring practices (though in some ways it's easier), and
+requires you to work hard to maintain accessibility and such in the
+face of these atrophied mini-pages.  @onlyreplace works on full,
+ordinary pages.  It's *possible* to link to a content-chunk mini-page
+instead, but this will spectacularly break if you ever deeplink
+straight to one of the pages, so it should become automatic for
+authors to do this correctly.
+
+4. &lt;iframe&gt;s have dubious accessibility and search effects.  I don't
+know if bots can navigate &lt;a target&gt; links appropriately.  I also
+believe that this causes problems with screen-readers.  While either
+of these sets of UAs can be rewritten to handle &lt;iframe&gt;s better (and
+handle @onlyreplace replacement as well), with @onlyreplace they
+*also* have the option of just completely ignoring the attribute and
+navigating the site as an ordinary multi-page app.  Legacy UAs will
+automatically do so, providing perfect backwards compatibility.
+
+
+Isn't if inefficient to request the whole page and then throw most of
+it out?  With proper AJAX you can just request the bits you want.
+======================================================
+This is a valid complaint, but one which I don't think is much of a
+problem for several reasons.
+
+1. One of the big beneficiaries of @onlyreplace will be fairly
+ordinary sites that are currently using an ordinary multi-page
+architecture.  All they have to do is add a single tag to the &lt;head&gt;
+of their pages, and they automatically get the no-flicker refresh of a
+single-page app.  These sites are *already* grabbing the whole page on
+each request, so @onlyreplace won't make them take any *additional*
+bandwidth.  It will merely make the user experience smoother by
+reducing flicker and keeping js-heavy elements of the page template
+alive.
+
+2. Even though site templates are usually weighter than the dynamic
+portions of a site, it's still not a very significant wasteage.  For
+comparison, my company's main site is roughly 16kb of template, and
+somewhere around 2-3k of dynamic page content.  (Aryeh - I gave you
+slightly different numbers in chat because I was counting wrong.)  So
+that's a good 85% of each request being thrown away as irrelevant.
+However, it's also *only 16kb*, and that's UNCOMPRESSED - after
+standard gzip compression the template is worth maybe 5kb.  So I waste
+5kb of bandwidth per request.  Big deal.  (According to Philip`, my
+company's site's weight is just on the low side of average.)
+
+3. Because this is a declarative mechanism (specifying WHAT you want,
+not HOW to get it), it has great potential for transparent
+optimizations behind the scenes.  For example, the browser could tell
+the server which bits it's interested in replacing, and the server
+could automatically strip full pages down to only those chunks.  This
+would eliminate virtually all bandwidth waste, while still being
+completely transparent to the author - they just create ordinary full
+static pages.  Heck, you could even handle this yourself with JS and a
+bit of server-side coding, intercepting clicks and rewriting the urls
+to pass the @onlyreplace data in a query parameter, and have a
+server-side script determine what to return based on that.  Less
+automatic, but fairly simple, and still easier than using JS to do
+this in the normal AJAX manner.  (And UAs that don't run javascript
+but do support @onlyreplace will still work properly, just with a bit
+more bandwidth waste.)
+
+
+What about scripts in the page?
+===============================
+Semantically the replace operation should be identical to grabbing the
+appropriate chunk of text from the new page and setting is as the
+outerHTML of the appropriate element.  Any &lt;script&gt;s that are located
+within this chunk would run in the exact same manner.  Scripts
+elsewhere in the new page would not be run.
+
+
+What about document.write()?  What if the important fragment of the
+page is produced by document.write()?
+====================================================
+Then you're screwed.  document.write()s contained in &lt;script&gt; blocks
+inside the target fragment will run when they get inserted into the
+page, but document.write()s outside of that won't.  Producing the
+target fragment with document.write() is a no-go from the start.
+Don't do that anyway; it's a bad idea.
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023661.html">[whatwg]  &lt;a onlyreplace&gt;
+</A></li>
+	<LI>Next message: <A HREF="023686.html">[whatwg] &lt;a onlyreplace&gt;
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23666">[ date ]</a>
+              <a href="thread.html#23666">[ thread ]</a>
+              <a href="subject.html#23666">[ subject ]</a>
+              <a href="author.html#23666">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

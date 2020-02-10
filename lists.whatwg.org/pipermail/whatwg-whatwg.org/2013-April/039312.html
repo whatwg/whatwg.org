@@ -1,0 +1,180 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] HTML parsing, the stack of open elements,	and foreign content
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20HTML%20parsing%2C%20the%20stack%20of%20open%20elements%2C%0A%09and%20foreign%20content&In-Reply-To=%3CCAEvLGcJsXE5e4aFpWt73ks80ORqFAzjg%2ByrjRkOPGhvYbgLKHg%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   
+   <LINK REL="Next"  HREF="039313.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] HTML parsing, the stack of open elements,	and foreign content</H1>
+<!--htdig_noindex-->
+    <B>Adam Klein</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20HTML%20parsing%2C%20the%20stack%20of%20open%20elements%2C%0A%09and%20foreign%20content&In-Reply-To=%3CCAEvLGcJsXE5e4aFpWt73ks80ORqFAzjg%2ByrjRkOPGhvYbgLKHg%40mail.gmail.com%3E"
+       TITLE="[whatwg] HTML parsing, the stack of open elements,	and foreign content">adamk at chromium.org
+       </A><BR>
+    <I>Tue Apr  2 12:19:08 PDT 2013</I>
+    <P><UL>
+        
+        <LI>Next message: <A HREF="039313.html">[whatwg] Notifications: in workers
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#39312">[ date ]</a>
+              <a href="thread.html#39312">[ thread ]</a>
+              <a href="subject.html#39312">[ subject ]</a>
+              <a href="author.html#39312">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Since I haven't heard any talk on this thread (or on the w3.org bug),
+I've landed a patch in WebKit to treat tokens being processed in HTML
+as if they had an HTML namespace (<A HREF="http://trac.webkit.org/r147441">http://trac.webkit.org/r147441</A>). My
+reason for landing was that we've already seen two crash bugs due to
+the WebKit parser getting into a bad state WRT the stack of open
+elements, and I'd rather not leave us open to more of the same.
+
+Note that this change passes all existing html5lib tests. I added one
+test case, which came (slightly modified) from Rafael's bug:
+
+&lt;body&gt;&lt;table&gt;&lt;tr&gt;&lt;td&gt;&lt;svg&gt;&lt;td&gt;&lt;foreignObject&gt;&lt;span&gt;&lt;/td&gt;Foo
+
+which is now parsed as:
+
+|<i> &lt;html&gt;
+</I>|<i>   &lt;head&gt;
+</I>|<i>   &lt;body&gt;
+</I>|<i>     &quot;Foo&quot;
+</I>|<i>     &lt;table&gt;
+</I>|<i>       &lt;tbody&gt;
+</I>|<i>         &lt;tr&gt;
+</I>|<i>           &lt;td&gt;
+</I>|<i>             &lt;svg svg&gt;
+</I>|<i>               &lt;svg td&gt;
+</I>|<i>                 &lt;svg foreignObject&gt;
+</I>|<i>                   &lt;span&gt;
+</I>
+where previously (and in current Firefox) it's parsed as:
+
+|<i> &lt;html&gt;
+</I>|<i>   &lt;head&gt;
+</I>|<i>   &lt;body&gt;
+</I>|<i>     &lt;table&gt;
+</I>|<i>       &lt;tbody&gt;
+</I>|<i>         &lt;tr&gt;
+</I>|<i>           &lt;td&gt;
+</I>|<i>             &lt;svg svg&gt;
+</I>|<i>               &lt;svg td&gt;
+</I>|<i>                 &lt;svg foreignObject&gt;
+</I>|<i>                   &lt;span&gt;
+</I>|<i>               &quot;Foo&quot;
+</I>
+That is, the &lt;/td&gt; is being parsed as HTML (thanks to
+&lt;foreignObject&gt;&lt;span&gt;), so it searches on the stack for an HTML td to
+close. There are probably a whole set of similar test cases, but they
+can be tricky to construct thanks, in part, to the various &quot;escape
+hatches&quot; from an HTML integration point (including &lt;p&gt;, &lt;table&gt;, and
+many more).
+
+I think the equivalent spec change would be to spell out in detail
+what it means for a token or element to match something on the stack
+of open elements. The new WebKit behavior seems more proper to me (and
+seemed reasonable to those I could raise on #whatwg a few days ago); I
+also think it's unlikely to affect much real content, so changing it
+to make the parser's internal state more sane is worthwhile.
+
+- Adam
+
+On Fri, Mar 15, 2013 at 10:31 AM, Rafael Weinstein &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">rafaelw at google.com</A>&gt; wrote:
+&gt;<i> I just opened another similar bug:
+</I>&gt;<i> <A HREF="https://www.w3.org/Bugs/Public/show_bug.cgi?id=21292">https://www.w3.org/Bugs/Public/show_bug.cgi?id=21292</A> which has a
+</I>&gt;<i> similar root cause.
+</I>&gt;<i>
+</I>&gt;<i> I agree with Adam that it seems wrong that the stack of open elements
+</I>&gt;<i> can contain elements in disparate namespaces, but its operation (at
+</I>&gt;<i> times) only examines the local name (e.g. checking if an element is in
+</I>&gt;<i> a specific scope, popping elements from the stack of open elements
+</I>&gt;<i> until an element with the same tag name...)
+</I>&gt;<i>
+</I>&gt;<i> On Wed, Feb 27, 2013 at 12:39 PM, Adam Klein &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">adamk at chromium.org</A>&gt; wrote:
+</I>&gt;&gt;<i> Consider the following script:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> tr = document.createElement('tr')
+</I>&gt;&gt;<i> tr.innerHTML = '&lt;math&gt;&lt;tr&gt;&lt;mo&gt;&lt;td&gt;';
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> That is, the fragment is parsed with tr as the context element. What
+</I>&gt;&gt;<i> should the generated DOM be? Note that &lt;mo&gt; is a &quot;MathML text
+</I>&gt;&gt;<i> integration point&quot;, which causes the &lt;td&gt; to be processed not as
+</I>&gt;&gt;<i> foreign content but as a normal HTML token. This leads to the
+</I>&gt;&gt;<i> following DOM in WebKit:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> &lt;tr&gt;
+</I>&gt;&gt;<i>     &lt;math math&gt;
+</I>&gt;&gt;<i>         &lt;math tr&gt;
+</I>&gt;&gt;<i>             &lt;math mo&gt;
+</I>&gt;&gt;<i>     &lt;td&gt;
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> (the &quot;math&quot; prefixes denote that these are elements with the MathML
+</I>&gt;&gt;<i> namespace.) In Gecko, I instead get:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> &lt;tr&gt;
+</I>&gt;&gt;<i>     &lt;math math&gt;
+</I>&gt;&gt;<i>         &lt;math tr&gt;
+</I>&gt;&gt;<i>             &lt;math mo&gt;
+</I>&gt;&gt;<i>             &lt;td&gt;
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Note that the &lt;td&gt; in both cases is an HTML element, even though in
+</I>&gt;&gt;<i> Gecko it's in a MathML tree.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> The spec for what should happen to that &lt;td&gt; is the first step of
+</I>&gt;&gt;<i> <A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/tree-construction.html#parsing-main-intr">http://www.whatwg.org/specs/web-apps/current-work/multipage/tree-construction.html#parsing-main-intr</A>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> This case clearly seems like a bug in Gecko: it's treating the &lt;math
+</I>&gt;&gt;<i> tr&gt; as if it's an HTML &lt;tr&gt;. That is, it's comparing only the local
+</I>&gt;&gt;<i> name (or &quot;tag name&quot; as the spec usually refers to it).
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> But this same ambiguity exists elsewhere in the spec. For example, the
+</I>&gt;&gt;<i> very next item under &quot;in row&quot; says &quot;If the stack of open elements does
+</I>&gt;&gt;<i> not have an element in table scope with the same tag name as the
+</I>&gt;&gt;<i> token&quot; (in this case, it's looking for a &lt;tr&gt;).
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> I think the HTML parser ought to specify more precisely how to deal
+</I>&gt;&gt;<i> with namespaces in the stack of open elements, given that that stack
+</I>&gt;&gt;<i> can contain elements of varying namespaces.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> - Adam
+</I></PRE>
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	
+	<LI>Next message: <A HREF="039313.html">[whatwg] Notifications: in workers
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#39312">[ date ]</a>
+              <a href="thread.html#39312">[ thread ]</a>
+              <a href="subject.html#39312">[ subject ]</a>
+              <a href="author.html#39312">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

@@ -1,0 +1,63 @@
+<tt>
+&lt;div&nbsp;class=&quot;gmail_quote&quot;&gt;On&nbsp;Wed,&nbsp;Sep&nbsp;16,&nbsp;2009&nbsp;at&nbsp;2:27&nbsp;PM,&nbsp;Jonas&nbsp;Sicking&nbsp;&lt;span&nbsp;dir=&quot;ltr&quot;&gt;&lt;jonas@sicking.cc&gt;&lt;/span&gt;&nbsp;wrote:&lt;br&gt;&lt;blockquote&nbsp;class=&quot;gmail_quote&quot;&nbsp;style=&quot;margin:0&nbsp;0&nbsp;0&nbsp;.8ex;border-left:1px&nbsp;#ccc&nbsp;solid;padding-left:1ex;&quot;&gt;<br>
+<br>
+&lt;div&nbsp;class=&quot;im&quot;&gt;On&nbsp;Wed,&nbsp;Sep&nbsp;16,&nbsp;2009&nbsp;at&nbsp;12:58&nbsp;PM,&nbsp;Drew&nbsp;Wilson&nbsp;&lt;&lt;a&nbsp;href=&quot;mailto:atwilson@google.com&quot;&gt;atwilson@google.com&lt;/a&gt;&gt;&nbsp;wrote:&lt;br&gt;<br>
+&gt;&nbsp;I&#39;m&nbsp;saying&nbsp;that&nbsp;an&nbsp;async&nbsp;API&nbsp;is&nbsp;overkill&nbsp;and&nbsp;unwieldy&nbsp;if&nbsp;all&nbsp;you&nbsp;need&nbsp;is&lt;br&gt;<br>
+&gt;&nbsp;WorkerLocalStorage.&lt;br&gt;<br>
+&gt;&nbsp;If&nbsp;you&#39;re&nbsp;going&nbsp;to&nbsp;route&nbsp;your&nbsp;localstorage&nbsp;access&nbsp;through&nbsp;an&nbsp;async&nbsp;API&lt;br&gt;<br>
+&gt;&nbsp;anyway,&nbsp;then&nbsp;you&nbsp;might&nbsp;as&nbsp;well&nbsp;proxy&nbsp;it&nbsp;to&nbsp;the&nbsp;parent&nbsp;page&nbsp;-&nbsp;there&#39;s&nbsp;very&lt;br&gt;<br>
+&gt;&nbsp;little&nbsp;advantage&nbsp;to&nbsp;doing&nbsp;it&nbsp;otherwise,&nbsp;other&nbsp;than&nbsp;access&nbsp;to&nbsp;lexically&lt;br&gt;<br>
+&gt;&nbsp;scoped&nbsp;resources&nbsp;from&nbsp;within&nbsp;your&nbsp;callback.&lt;br&gt;<br>
+&lt;br&gt;<br>
+&lt;/div&gt;Actually,&nbsp;there&#39;s&nbsp;a&nbsp;pretty&nbsp;big&nbsp;difference.&nbsp;With&nbsp;the&nbsp;current&nbsp;state&nbsp;of&lt;br&gt;<br>
+affairs,&nbsp;if&nbsp;a&nbsp;worker&nbsp;wants&nbsp;to&nbsp;make&nbsp;a&nbsp;computation&nbsp;based&nbsp;on&nbsp;values&nbsp;in&lt;br&gt;<br>
+the&nbsp;localStorage,&nbsp;and&nbsp;store&nbsp;the&nbsp;result&nbsp;in&nbsp;localStorage,&nbsp;this&nbsp;is&lt;br&gt;<br>
+extremely&nbsp;hard.&lt;br&gt;<br>
+&lt;br&gt;<br>
+For&nbsp;example,&nbsp;say&nbsp;that&nbsp;a&nbsp;worker&nbsp;want&nbsp;to&nbsp;perform&nbsp;the&nbsp;following&nbsp;operation:&lt;br&gt;<br>
+&lt;br&gt;<br>
+localStorage.result&nbsp;=&nbsp;F(localStorage.n);&lt;br&gt;<br>
+&lt;br&gt;<br>
+where&nbsp;F(n)&nbsp;is&nbsp;the&nbsp;n:th&nbsp;value&nbsp;in&nbsp;the&nbsp;Fibonacci&nbsp;sequence.&lt;br&gt;<br>
+&lt;br&gt;<br>
+To&nbsp;do&nbsp;this&nbsp;today&nbsp;the&nbsp;worker&nbsp;would&nbsp;first&nbsp;have&nbsp;to&nbsp;call&nbsp;the&nbsp;main&nbsp;window&lt;br&gt;<br>
+to&nbsp;get&nbsp;the&nbsp;localStoreage.n&nbsp;value.&nbsp;It&nbsp;could&nbsp;then&nbsp;calculate&nbsp;the&nbsp;result&lt;br&gt;<br>
+of&nbsp;F(localStorage.n).&nbsp;It&nbsp;would&nbsp;then&nbsp;send&nbsp;a&nbsp;message&nbsp;to&nbsp;the&nbsp;main&nbsp;window&lt;br&gt;<br>
+to&nbsp;store&nbsp;the&nbsp;result&nbsp;in&nbsp;localStorage.result.&nbsp;However&nbsp;in&nbsp;the&nbsp;meantime&lt;br&gt;<br>
+localStorage.n&nbsp;might&nbsp;have&nbsp;changed,&nbsp;which&nbsp;causes&nbsp;an&nbsp;inconsistent&nbsp;state.&lt;br&gt;<br>
+&lt;br&gt;<br>
+So&nbsp;instead&nbsp;the&nbsp;worker&nbsp;has&nbsp;to&nbsp;send&nbsp;both&nbsp;the&nbsp;value&nbsp;of&nbsp;localStorage.n&nbsp;as&lt;br&gt;<br>
+well&nbsp;as&nbsp;the&nbsp;result&nbsp;to&nbsp;the&nbsp;window.&nbsp;The&nbsp;window&nbsp;can&nbsp;then&nbsp;check&nbsp;if&lt;br&gt;<br>
+localStorage.n&nbsp;has&nbsp;changed.&nbsp;If&nbsp;it&nbsp;has&nbsp;changed,&nbsp;the&nbsp;window&nbsp;has&nbsp;to&nbsp;send&lt;br&gt;<br>
+the&nbsp;new&nbsp;value&nbsp;back&nbsp;to&nbsp;the&nbsp;worker,&nbsp;and&nbsp;then&nbsp;the&nbsp;worker&nbsp;has&nbsp;to&nbsp;redo&nbsp;its&lt;br&gt;<br>
+calculation.&lt;br&gt;<br>
+&lt;br&gt;<br>
+This&nbsp;has&nbsp;several&nbsp;problems.&nbsp;It&#39;s&nbsp;bug&nbsp;prone&nbsp;since&nbsp;the&nbsp;developer&nbsp;might&lt;br&gt;<br>
+not&nbsp;realize&nbsp;the&nbsp;race&nbsp;condition.&nbsp;It&#39;s&nbsp;very&nbsp;hard&nbsp;to&nbsp;do&nbsp;correctly.&nbsp;And&lt;br&gt;<br>
+even&nbsp;when&nbsp;done&nbsp;correctly&nbsp;risks&nbsp;wasting&nbsp;a&nbsp;lot&nbsp;of&nbsp;cycles.&lt;br&gt;<br>
+&lt;br&gt;<br>
+An&nbsp;alternative&nbsp;solution&nbsp;is&nbsp;to&nbsp;do&nbsp;all&nbsp;calculations&nbsp;in&nbsp;the&nbsp;main&nbsp;window,&lt;br&gt;<br>
+which&nbsp;has&nbsp;synchronous&nbsp;access&nbsp;to&nbsp;localStorage.&nbsp;But&nbsp;the&nbsp;whole&nbsp;point&nbsp;of&nbsp;a&lt;br&gt;<br>
+worker&nbsp;is&nbsp;to&nbsp;avoid&nbsp;having&nbsp;to&nbsp;do&nbsp;heavy&nbsp;work&nbsp;in&nbsp;the&nbsp;window.&lt;br&gt;<br>
+&lt;br&gt;<br>
+However,&nbsp;with&nbsp;the&nbsp;solution&nbsp;Jeremy&nbsp;proposed,&nbsp;calculating&nbsp;the&nbsp;above&lt;br&gt;<br>
+algorithm&nbsp;can&nbsp;be&nbsp;done&nbsp;in&nbsp;the&nbsp;worker&nbsp;after&nbsp;the&nbsp;worker&nbsp;while&nbsp;the&nbsp;worker&lt;br&gt;<br>
+is&nbsp;inside&nbsp;the&nbsp;callback&nbsp;and&nbsp;thus&nbsp;have&nbsp;synchronous&nbsp;access&nbsp;to&lt;br&gt;<br>
+localStorage.&lt;br&gt;<br>
+&lt;br&gt;<br>
+Say&nbsp;that&nbsp;instead&nbsp;of&nbsp;calculating&nbsp;Fibonacci&nbsp;numbers,&nbsp;we&nbsp;were&nbsp;storing&nbsp;a&lt;br&gt;<br>
+database&nbsp;of&nbsp;emails&nbsp;in&nbsp;localStorage,&nbsp;and&nbsp;using&nbsp;a&nbsp;worker&nbsp;to&nbsp;synchronize&lt;br&gt;<br>
+that&nbsp;database&nbsp;to&nbsp;a&nbsp;server.&nbsp;In&nbsp;this&nbsp;case&nbsp;it&nbsp;seems&nbsp;extermely&nbsp;complex&nbsp;to&lt;br&gt;<br>
+have&nbsp;to&nbsp;communicate&nbsp;asynchronously&nbsp;through&nbsp;the&nbsp;window&nbsp;and&nbsp;deal&nbsp;with&lt;br&gt;<br>
+race&nbsp;conditions&nbsp;where&nbsp;the&nbsp;user&nbsp;is&nbsp;modifying&nbsp;the&nbsp;email&nbsp;database&nbsp;at&nbsp;the&lt;br&gt;<br>
+same&nbsp;time.&lt;br&gt;&lt;/blockquote&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;True.&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;The&nbsp;problem&nbsp;is&nbsp;that&nbsp;some&nbsp;page&nbsp;from&nbsp;the&nbsp;same&nbsp;origin&nbsp;might&nbsp;also&nbsp;try&nbsp;to&nbsp;access&nbsp;LocalStorage.&nbsp; If&nbsp;it&nbsp;does,&nbsp;it&#39;ll&nbsp;block&nbsp;the&nbsp;entire&nbsp;event&nbsp;loop&nbsp;until&nbsp;the&nbsp;worker&nbsp;is&nbsp;finished.&nbsp; I&nbsp;can&#39;t&nbsp;think&nbsp;of&nbsp;how&nbsp;to&nbsp;&quot;fix&quot;&nbsp;this&nbsp;in&nbsp;a&nbsp;way&nbsp;that&#39;s&nbsp;not&nbsp;racy.&nbsp; My&nbsp;originally&nbsp;proposal&nbsp;was&nbsp;written&nbsp;in&nbsp;the&nbsp;hope&nbsp;that&nbsp;developers&nbsp;would&nbsp;be&nbsp;more&nbsp;cautious&nbsp;since&nbsp;they&#39;re&nbsp;doing&nbsp;things&nbsp;inside&nbsp;an&nbsp;async&nbsp;callback,&nbsp;but&nbsp;the&nbsp;more&nbsp;I&nbsp;think&nbsp;about&nbsp;it,&nbsp;the&nbsp;more&nbsp;I&nbsp;think&nbsp;this&nbsp;isn&#39;t&nbsp;realistic.&lt;/div&gt;<br>
+<br>
+&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;I&nbsp;think&nbsp;we&nbsp;have&nbsp;3&nbsp;options:&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;1)&nbsp;Create&nbsp;a&nbsp;LocalStorage&nbsp;like&nbsp;API&nbsp;that&nbsp;can&nbsp;only&nbsp;be&nbsp;accessed&nbsp;in&nbsp;an&nbsp;async&nbsp;way&nbsp;via&nbsp;pages&nbsp;(kind&nbsp;of&nbsp;like&nbsp;WebDatabase).&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;2)&nbsp;Remove&nbsp;any&nbsp;atomicity/consistency guarantees from synchronous LocalStorage&nbsp;access&nbsp;within&nbsp;pages&nbsp;(like&nbsp;IE8&nbsp;currently&nbsp;does)&nbsp;and&nbsp;add&nbsp;an&nbsp;async&nbsp;interface&nbsp;for&nbsp;when&nbsp;pages&nbsp;do&nbsp;need&nbsp;atomicity/consistency.&lt;/div&gt;<br>
+<br>
+&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;3)&nbsp;Come&nbsp;up&nbsp;with&nbsp;a&nbsp;completely&nbsp;different&nbsp;storage&nbsp;API&nbsp;that&nbsp;all&nbsp;the&nbsp;browser&nbsp;vendors&nbsp;are&nbsp;willing&nbsp;to&nbsp;implement&nbsp;that&nbsp;only&nbsp;allows&nbsp;Async&nbsp;access&nbsp;from&nbsp;within&nbsp;pages.&nbsp; WebSimpleDatabase&nbsp;might&nbsp;be&nbsp;a&nbsp;good&nbsp;starting&nbsp;point&nbsp;for&nbsp;this.&lt;/div&gt;<br>
+<br>
+&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;1&nbsp;is&nbsp;probably&nbsp;the&nbsp;simplest&nbsp;to&nbsp;implement,&nbsp;but&nbsp;it&nbsp;seems&nbsp;pretty&nbsp;hacky&nbsp;and&nbsp;it&#39;s&nbsp;likely&nbsp;not&nbsp;powerful&nbsp;enough&nbsp;for&nbsp;many&nbsp;advanced&nbsp;web&nbsp;apps&nbsp;(offline&nbsp;web&nbsp;mail&nbsp;would&nbsp;be&nbsp;an&nbsp;example).&nbsp; If&nbsp;we&nbsp;do&nbsp;2,&nbsp;many&nbsp;(most?)&nbsp;web&nbsp;developers&nbsp;will&nbsp;just&nbsp;use&nbsp;the&nbsp;sync&nbsp;interface&nbsp;and&nbsp;write&nbsp;racy&nbsp;apps.&nbsp; 3&nbsp;will&nbsp;take&nbsp;the&nbsp;longest&nbsp;time&nbsp;to&nbsp;do,&nbsp;but&nbsp;is&nbsp;definitely&nbsp;the&nbsp;best&nbsp;long&nbsp;term&nbsp;solution.&lt;/div&gt;<br>
+<br>
+&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;Do&nbsp;others&nbsp;agree&nbsp;with&nbsp;my&nbsp;list?&nbsp; What&#39;s&nbsp;the&nbsp;best&nbsp;option&nbsp;out&nbsp;of&nbsp;these?&nbsp; Honestly,&nbsp;I&#39;m&nbsp;kind&nbsp;of&nbsp;leaning&nbsp;towards&nbsp;3&nbsp;at&nbsp;this&nbsp;point.&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;J&lt;/div&gt;&lt;/div&gt;<br>
+
+</tt>

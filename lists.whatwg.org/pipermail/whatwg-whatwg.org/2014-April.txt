@@ -1,0 +1,206 @@
+From ian at hixie.ch  Tue Apr  1 11:55:24 2014
+From: ian at hixie.ch (Ian Hickson)
+Date: Tue, 1 Apr 2014 18:55:24 +0000 (UTC)
+Subject: [whatwg] Document.title for SVG documents
+In-Reply-To: <20140205183607.GA56968@sideshowbarker>
+References: <52EDD11A.5030606@mcc.id.au>
+	<alpine.DEB.2.00.1402031943100.30855@ps20323.dreamhostps.com>
+	<52F03365.5050004@mcc.id.au>
+	<CADnb78gWL-Le2SUcOSixnovYPGKueigUzA2bV4tUOwjnoaK_ZQ@mail.gmail.com>
+	<alpine.DEB.2.00.1402041713470.30855@ps20323.dreamhostps.com>
+	<op.xas8u0znidj3kv@simon-pieterss-macbook.local>
+	<52F24694.5020903@nag.co.uk>
+	<op.xatdhcm3idj3kv@simon-pieterss-macbook.local>
+	<20140205183607.GA56968@sideshowbarker>
+Message-ID: <alpine.DEB.2.00.1404011847110.11249@ps20323.dreamhostps.com>
+
+On Tue, 4 Feb 2014, Cameron McCormack wrote:
+> Ian Hickson wrote:
+> > I'm all for handling it in one place. What precisely do you want the
+> > behaviour to be? (Consider HTML-in-SVG and SVG-in-HTML also -- "the first
+> > <svg:title>  element" may come after "the first<html:title>  element", and
+> > vice versa. Also consider when one or the other is "primary" but the
+> > relevant element is absent.)
+> 
+> OK, how about: if the document element is an <html:html>, we choose the 
+> first <html:title> in document order; if the document element is an 
+> <svg:svg>, we choose the first child <svg:title> of the document 
+> element; otherwise, null.
+> 
+> This still is going to produce "incorrect" results for things like:
+> 
+>   <!DOCTYPE html>
+>   <svg>
+>     <foreignObject>
+>       <title>blah</title>
+>     </foreignObject>
+>   </svg>
+> 
+> but arguably you shouldn't be using <title> in there anyway.
+
+It doesn't seem useful to hit that element. It's not the (SVG) document 
+title, after all.
+
+I ended up going with:
+
+ - if it's an SVG document, use the first <title> child of the root 
+   element
+
+ - if it's an HTML document, use the first <title> element in tree order
+   (that's what it used to be)
+
+For setting it uses the same element, unless there isn't one, in which 
+case:
+
+ - if it's an SVG document, append an SVG <title> to the root element
+
+ - if it's an HTML document, append a <title> to the <head>
+
+Hopefully that's compatible enough. Let me know if you need something 
+different.
+
+
+On Mon, 3 Feb 2014, Jonas Sicking wrote:
+> 
+> An even simpler solution would be to say "we choose the first 
+> <html:title> or <svg:title> in document order". That has the nice 
+> property that we align SVG and HTML more.
+
+This seems to not quite match the SVG semantics, unfortunately.
+
+
+On Wed, 5 Feb 2014, Simon Pieters wrote:
+> 
+> Is there a situation in which it is conforming to use html:title outside 
+> the <head> in a document where the root is html:html? In 
+> math:annotation-xml?
+
+You can certainly imagine a compound document format containing entire 
+HTML subdocuments, <html>, <head>, <title>, and all. I'm not sure that's 
+possible with just SVG and HTML currently though. (Maybe MathML, indeed.)
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+http://ln.hixie.ch/       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+
+From ian at hixie.ch  Tue Apr  1 12:01:46 2014
+From: ian at hixie.ch (Ian Hickson)
+Date: Tue, 1 Apr 2014 19:01:46 +0000 (UTC)
+Subject: [whatwg] microdata questions
+In-Reply-To: <CAGYLO0JGVLpYLA+g4EtvN70Rg7_SvGON2adFBfuSpiLtJH-RFg@mail.gmail.com>
+References: <CAGYLO0+N_3BTmKM6+2XLcghm2d0GSy36xubRJKTR5KWEnGhvNg@mail.gmail.com>
+	<CAGYLO0JGVLpYLA+g4EtvN70Rg7_SvGON2adFBfuSpiLtJH-RFg@mail.gmail.com>
+Message-ID: <alpine.DEB.2.00.1404011857230.11249@ps20323.dreamhostps.com>
+
+On Mon, 10 Feb 2014, Eric Devine wrote:
+> 
+> 1. Section 5.5.1 of the Microdata spec prescribes how microdata should 
+> be respresented as JSON, but it does provide a MIME type. I'm writing a 
+> REST API that I would like to be able to return JSON in microdata 
+> format, but I need the client to explicitly request this via the HTTP 
+> Accept header. The main concern is to know when to return plain 
+> properties as an array with one element.
+
+As a general rule I would recommend against using Accept headers to do 
+anything. You're better off making the JSON data its own resource, IMHO.
+
+Having said that, as you noted in a later e-mail, the MIME type suggested 
+by the HTML spec is "application/microdata+json".
+
+   http://whatwg.org/html#application/microdata+json
+
+
+> 2. Section 5.2.4 does not provide a way to apply a property value to the 
+> value attribute of an <option> element. Is this an oversight, or is 
+> there simply not a convincing enough use case for the need?
+
+There's not any way currently to make for controls map to microdata. It's 
+not clear exactly what it would mean.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+http://ln.hixie.ch/       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+
+From jonas at sicking.cc  Tue Apr  1 12:58:12 2014
+From: jonas at sicking.cc (Jonas Sicking)
+Date: Tue, 1 Apr 2014 12:58:12 -0700
+Subject: [whatwg] Document.title for SVG documents
+In-Reply-To: <alpine.DEB.2.00.1404011847110.11249@ps20323.dreamhostps.com>
+References: <52EDD11A.5030606@mcc.id.au>
+	<alpine.DEB.2.00.1402031943100.30855@ps20323.dreamhostps.com>
+	<52F03365.5050004@mcc.id.au>
+	<CADnb78gWL-Le2SUcOSixnovYPGKueigUzA2bV4tUOwjnoaK_ZQ@mail.gmail.com>
+	<alpine.DEB.2.00.1402041713470.30855@ps20323.dreamhostps.com>
+	<op.xas8u0znidj3kv@simon-pieterss-macbook.local>
+	<52F24694.5020903@nag.co.uk>
+	<op.xatdhcm3idj3kv@simon-pieterss-macbook.local>
+	<20140205183607.GA56968@sideshowbarker>
+	<alpine.DEB.2.00.1404011847110.11249@ps20323.dreamhostps.com>
+Message-ID: <CA+c2ei_yqpa4gVTw5DFi_qSEEAU1KdvwyHotfYqgwbpApupZXg@mail.gmail.com>
+
+On Tue, Apr 1, 2014 at 11:55 AM, Ian Hickson <ian at hixie.ch> wrote:
+> On Mon, 3 Feb 2014, Jonas Sicking wrote:
+>>
+>> An even simpler solution would be to say "we choose the first
+>> <html:title> or <svg:title> in document order". That has the nice
+>> property that we align SVG and HTML more.
+>
+> This seems to not quite match the SVG semantics, unfortunately.
+
+Does it break existing content? If not, why not ask the SVG spec to be
+changed? The thread was started by one of the SVG spec editors after
+all.
+
+/ Jonas
+
+From ian at hixie.ch  Tue Apr  1 13:29:59 2014
+From: ian at hixie.ch (Ian Hickson)
+Date: Tue, 1 Apr 2014 20:29:59 +0000 (UTC)
+Subject: [whatwg] Document.title for SVG documents
+In-Reply-To: <CA+c2ei_yqpa4gVTw5DFi_qSEEAU1KdvwyHotfYqgwbpApupZXg@mail.gmail.com>
+References: <52EDD11A.5030606@mcc.id.au>
+	<alpine.DEB.2.00.1402031943100.30855@ps20323.dreamhostps.com>
+	<52F03365.5050004@mcc.id.au>
+	<CADnb78gWL-Le2SUcOSixnovYPGKueigUzA2bV4tUOwjnoaK_ZQ@mail.gmail.com>
+	<alpine.DEB.2.00.1402041713470.30855@ps20323.dreamhostps.com>
+	<op.xas8u0znidj3kv@simon-pieterss-macbook.local>
+	<52F24694.5020903@nag.co.uk>
+	<op.xatdhcm3idj3kv@simon-pieterss-macbook.local>
+	<20140205183607.GA56968@sideshowbarker>
+	<alpine.DEB.2.00.1404011847110.11249@ps20323.dreamhostps.com>
+	<CA+c2ei_yqpa4gVTw5DFi_qSEEAU1KdvwyHotfYqgwbpApupZXg@mail.gmail.com>
+Message-ID: <alpine.DEB.2.00.1404012027040.21310@ps20323.dreamhostps.com>
+
+On Tue, 1 Apr 2014, Jonas Sicking wrote:
+> On Tue, Apr 1, 2014 at 11:55 AM, Ian Hickson <ian at hixie.ch> wrote:
+> > On Mon, 3 Feb 2014, Jonas Sicking wrote:
+> >>
+> >> An even simpler solution would be to say "we choose the first 
+> >> <html:title> or <svg:title> in document order". That has the nice 
+> >> property that we align SVG and HTML more.
+> >
+> > This seems to not quite match the SVG semantics, unfortunately.
+> 
+> Does it break existing content? If not, why not ask the SVG spec to be 
+> changed? The thread was started by one of the SVG spec editors after 
+> all.
+
+Dirk and heycam's replies to your original e-mail here suggest that this 
+is not really viable. I mean, it'd be like changing document.title in 
+HTML to point to the first title="" attribute in the document if it came 
+before the first <title>.
+
+Anyway, what the spec ended up saying is in some ways even simpler, since 
+it only looks one level deep for SVG rather than doing a deep tree search.
+
+(Is this the kind of change that you would have liked pre-flighted? I can 
+revert the change and put out an announcement if you like. I'm not yet 
+sure I exactly understand what kinds of changes fall into this category.)
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+http://ln.hixie.ch/       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+

@@ -1,0 +1,220 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Onpopstate is Flawed
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Onpopstate%20is%20Flawed&In-Reply-To=%3CAANLkTi%3DvMZzj%3DJUdY58MaLFhrOQ5F2FuGCC_DFXE15c8%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="071759.html">
+   <LINK REL="Next"  HREF="071766.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Onpopstate is Flawed</H1>
+<!--htdig_noindex-->
+    <B>Henry Chan</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Onpopstate%20is%20Flawed&In-Reply-To=%3CAANLkTi%3DvMZzj%3DJUdY58MaLFhrOQ5F2FuGCC_DFXE15c8%40mail.gmail.com%3E"
+       TITLE="[whatwg] Onpopstate is Flawed">henry.fai.hang.chan at gmail.com
+       </A><BR>
+    <I>Tue Dec 14 23:23:44 PST 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="071759.html">[whatwg] TimedTracks and MPEG transport streams - tracks can change dynamically
+</A></li>
+        <LI>Next message: <A HREF="071766.html">[whatwg] Onpopstate is Flawed
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#29476">[ date ]</a>
+              <a href="thread.html#29476">[ thread ]</a>
+              <a href="subject.html#29476">[ subject ]</a>
+              <a href="author.html#29476">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>As mentioned in:
+<A HREF="https://bugzilla.mozilla.org/show_bug.cgi?id=618644">https://bugzilla.mozilla.org/show_bug.cgi?id=618644</A>
+<A HREF="http://www.w3.org/Bugs/Public/show_bug.cgi?id=11468">http://www.w3.org/Bugs/Public/show_bug.cgi?id=11468</A>
+
+I think the current behavior of onpopstate is very hard to understand. (And
+I'm having trouble explaining it as well)
+
+First off I'm going to use the term &quot;media heavy site&quot; as a synonym to
+&quot;pages with images on servers that take ages to respond&quot; as it causes the
+same effect but is much shorter.
+
+Consider a new web application that loads pages.  All links are transformed
+into ajax and storing the history data with pushState if the useragent
+supports them.  The inital page load serves the full page so that useragents
+that don't support pushState will get the old page navigation.
+
+The user clicks on page1.html.  Then he clicks on page2.html.  For every
+clicking, we pushState an object into the history containing the new url.
+The user clicks back.  A popstate event with state {url: 'page1.html'} is
+fired.  The ajax application loads page1.html.  The user clicks back again.
+A popstate event with state [null] is fired.  The ajax application doesn't
+do anything.  The user refreshes the page and thinks &quot;what the heck?&quot;
+
+So I change the application a bit.  When the event state is null, I repull
+the original page.  What happens is, the application fetches the page again
+after onload because onpopstate is called after onload.  This makes the
+application refetch the same page after onload.  If the site is media heavy
+then that eats both bandwidth and makes the user wait.  (I originally
+proposed to remove the onpopstate after onload but realized that for some
+applications, the event state might not be reflected in the url, and when
+reloading the page, the page would need the event state to load the correct
+page.)
+
+I need to distinguish the inital popstate and other popstates.  Assuming
+that popstate always fired after onload, I just had a variable that removed
+the first popstate.  Turns out if the user presses the stop button before
+onload fires, onpopstate doesn't fire.
+
+So I fire a history.replaceState({url:'index.html'}) on domready of
+index.html.  The first onpopstate fires with event state [null].  Refreshing
+the page or navigating forward then backward gives a event state of {url:
+'index.html'}. Yay!
+
+Until recently the spec changed.  And Firefox 4 got updated to match the
+spec.  The inital popstate now fires with the 'pending state object'.  Now I
+can't distinguish the inital popstate anymore.
+
+And the problem just doesn't stop there.
+
+Suppose this: the user clicks on page1.html.  When the initial onpopstate
+fires, there is an event state of {url:'index.html'}.  Index.html is
+refetched.  The user is probably very bemused.  And the location bar claims
+to be still on page1.html (Fx implementation bug?)
+
+Another problem, clicking back and forward before page loads doesn't trigger
+onpopstate.  Which means on a media heavy site, when the user clicks on
+page1.html then page2.html and clicks back, he won't get page1.html.  He'd
+be stuck on page2.html (as per spec) while the url in the location bar is
+page1.html.  (Fx Implementation bug?).  If the user has clicked back and
+forward before the page load, the initial onpopstate after onload doesn't
+even fire. (Fx implementation bug?)
+
+So to round up, the problems I have are
+1. unable to distinguish inital onpopstate
+2. onpopstate doesn't work till onload
+3. the inital onpopstate will overwrite any user actions the user has done
+before it.
+
+Hixie suggested me to use an extra variable to record the current page.
+That removes the need of replaceState before onload but doesn't fix problem
+2 and 3.
+
+The solution I've come up is:
+A1. onpopstate event should have an event state at the very start of the
+navigation.  Remove the whole pending state object thing.  i.e. replaceState
+before onload doesn't affect the event state at the inital onpopstate.
+Fixes 1.
+A2. fire inital onpopsate earlier, at domready, since most would attach ajax
+on domready than onload.  Fixes 2 and 3 and removes the need for a pending
+state object as onpopstate is now synchronous with user actions.
+- or -
+B1. onpopstate event should have an event state at the very start of the
+navigation.  Remove the whole pending state object thing.  i.e. replaceState
+before onload doesn't affect the event state at the inital onpopstate.
+Fixes 1.  Allow the script to choose whether to let the inital onpopstate to
+overwrite any user actions the user has done before it since initial is now
+detectable.  Problem 3 is fixed but more code.
+B2. just make onpopstate work before onload.  Fixes 2.
+
+I'd prefer solution A.
+
+Check out my testcase at www.wyavtv.org/test-popstate.html.
+Try clicking on the links before onload.
+Reload the test and try clicking on the links and navigating back and
+forward before onload.
+Reload the test and try just waiting for it to load.
+
+The test page is initially called test-popstate.html.  Onload it now changes
+to index.html.  I made it this way so that we can tell if the useragent
+loads the same &quot;identical&quot; page twice, i.e. if replaceState affects the
+inital onpopstate.  Currently chrome doesn't have a pending state object and
+it stays on test-popstate.html, but chrome has problem 2 and 3 as well.
+
+Index.html, page1.html and page2.html and page3.html are non-existent
+pages.  Please press the reload test button in my testcase to reload the
+page, don't press F5; it won't load, and you'll poison my server logs.
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: &lt;<A HREF="http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20101215/9a9ffa21/attachment.htm">http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20101215/9a9ffa21/attachment.htm</A>&gt;
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="071759.html">[whatwg] TimedTracks and MPEG transport streams - tracks can change dynamically
+</A></li>
+	<LI>Next message: <A HREF="071766.html">[whatwg] Onpopstate is Flawed
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#29476">[ date ]</a>
+              <a href="thread.html#29476">[ thread ]</a>
+              <a href="subject.html#29476">[ subject ]</a>
+              <a href="author.html#29476">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

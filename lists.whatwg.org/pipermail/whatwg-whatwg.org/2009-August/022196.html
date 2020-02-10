@@ -1,0 +1,192 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Global Script proposal
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Global%20Script%20proposal&In-Reply-To=%3Cfa2eab050908211247i7367e686vc216d86bb7ce99%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="022194.html">
+   <LINK REL="Next"  HREF="022197.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Global Script proposal</H1>
+<!--htdig_noindex-->
+    <B>Michael Nordman</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Global%20Script%20proposal&In-Reply-To=%3Cfa2eab050908211247i7367e686vc216d86bb7ce99%40mail.gmail.com%3E"
+       TITLE="[whatwg] Global Script proposal">michaeln at google.com
+       </A><BR>
+    <I>Fri Aug 21 12:47:27 PDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="022194.html">[whatwg] Global Script proposal
+</A></li>
+        <LI>Next message: <A HREF="022197.html">[whatwg] Global Script proposal
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22196">[ date ]</a>
+              <a href="thread.html#22196">[ thread ]</a>
+              <a href="subject.html#22196">[ subject ]</a>
+              <a href="author.html#22196">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>I'm confused about the manual loading of the script into the context? The
+original proposal called for providing a script url when creating/connecting
+to an instance of a global-script... in which case each client page
+expresses something more like...
+globalScript = new GlobalScript(scriptUrl);
+globalScript.onload = myFunctionThatGetsCalledWhenTheScriptIsLoaded;
+// some time later onload fires, if the script was already loaded, its
+called on the next time thru the message loop
+
+
+... the system (not the client pages) keep track of how many client pages
+are concurrently accessing the same GlobalScript.
+
+On Fri, Aug 21, 2009 at 6:37 AM, Patrick Mueller &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">pmuellr at muellerware.org</A>&gt;wrote:
+
+&gt;<i> Patrick Mueller wrote:
+</I>&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Time to work on some examples.  This would relatively easy to prototype in
+</I>&gt;&gt;<i> something like Rhino (or my nitro_pie python wrapper for JavaScriptCore), at
+</I>&gt;&gt;<i> least API wise, so we could see what the user-land code would look like, and
+</I>&gt;&gt;<i> see it run.
+</I>&gt;&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> I developed a simulator for this yesterday.  My big take away is that the
+</I>&gt;<i> current shape leaves users in a batteries-not-included state.
+</I>&gt;<i>
+</I>&gt;<i> Here's the kind of code I had to write to arrange to create a new scope and
+</I>&gt;<i> load a single script in it from multiple windows.  Each window would run
+</I>&gt;<i> this code in it's own context.
+</I>&gt;<i>
+</I>&gt;<i> function loadLibrary(scopeName, script, callback) {
+</I>&gt;<i>    var scope = getSharedScope(scopeName);
+</I>&gt;<i>
+</I>&gt;<i>    // script already loaded in the scope
+</I>&gt;<i>    if (scope.__loaded) {
+</I>&gt;<i>        callback(scope, scope.__callback_data);
+</I>&gt;<i>    }
+</I>&gt;<i>
+</I>&gt;<i>    // script not yet done loading
+</I>&gt;<i>    else if (scope.__loading) {
+</I>&gt;<i>        scope.__onLoadedListeners.push(callback);
+</I>&gt;<i>    }
+</I>&gt;<i>
+</I>&gt;<i>    // first one in!  much work to do ...
+</I>&gt;<i>    else {
+</I>&gt;<i>        scope.__loading = true;
+</I>&gt;<i>        scope.__onLoadedListeners = [];
+</I>&gt;<i>
+</I>&gt;<i>        function handler(callback_data) {
+</I>&gt;<i>
+</I>&gt;<i>            scope.__loaded        = true;
+</I>&gt;<i>            scope.__loading       = false;
+</I>&gt;<i>            scope.__callback_data = callback_data;
+</I>&gt;<i>
+</I>&gt;<i>            callback(scope, callback_data);
+</I>&gt;<i>            for (var i=0; i&lt;scope.__onLoadedListeners.length; i++) {
+</I>&gt;<i>                scope.__onLoadedListeners[i](scope, callback_data);
+</I>&gt;<i>            }
+</I>&gt;<i>        }
+</I>&gt;<i>
+</I>&gt;<i>        scope.runScript(script, {handler: handler});
+</I>&gt;<i>    }
+</I>&gt;<i>
+</I>&gt;<i>    return scope;
+</I>&gt;<i> }
+</I>&gt;<i>
+</I>&gt;<i> I changed the GlobalScript() constructor to a getSharedScope() function (at
+</I>&gt;<i> the top), and the load() function to a runScript() function which takes
+</I>&gt;<i> parameters including a callback function.
+</I>&gt;<i>
+</I>&gt;<i> I'm of two minds here.
+</I>&gt;<i>
+</I>&gt;<i> One is that the SharedScope proposal is really only appropriate for pages
+</I>&gt;<i> with lots of JavaScript that could be shared, or special use cases where you
+</I>&gt;<i> want (eventually) easy sharing between windows.  As such, s smallish amount
+</I>&gt;<i> of JS framework-y-ness like this isn't a show stopper. In fact, as spec'd,
+</I>&gt;<i> separating out the scope and script loading, will let folks build
+</I>&gt;<i> mini-frameworks for themselves fairly easily, customized to their own needs.
+</I>&gt;<i>
+</I>&gt;<i> On the other hand, I wonder about the potential benefits of letting more
+</I>&gt;<i> people play in the space easier.  The securable module work in the serverjs
+</I>&gt;<i> projects it a bit easier to use out of the box.  I'm not sure they have an
+</I>&gt;<i> async story though, and async loading of scripts is where this stuff quickly
+</I>&gt;<i> gets complicated.
+</I>&gt;<i>
+</I>&gt;<i> --
+</I>&gt;<i> Patrick Mueller - <A HREF="http://muellerware.org">http://muellerware.org</A>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: &lt;<A HREF="http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20090821/44193317/attachment-0001.htm">http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20090821/44193317/attachment-0001.htm</A>&gt;
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="022194.html">[whatwg] Global Script proposal
+</A></li>
+	<LI>Next message: <A HREF="022197.html">[whatwg] Global Script proposal
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22196">[ date ]</a>
+              <a href="thread.html#22196">[ thread ]</a>
+              <a href="subject.html#22196">[ subject ]</a>
+              <a href="author.html#22196">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

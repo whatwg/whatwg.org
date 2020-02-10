@@ -1,0 +1,113 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] executeSql API is synchronous
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20executeSql%20API%20is%20synchronous&In-Reply-To=%3C278fd46c0709251023w241c88famd5edc1d5435eaf37%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="012570.html">
+   <LINK REL="Next"  HREF="012581.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] executeSql API is synchronous</H1>
+<!--htdig_noindex-->
+    <B>Aaron Boodman</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20executeSql%20API%20is%20synchronous&In-Reply-To=%3C278fd46c0709251023w241c88famd5edc1d5435eaf37%40mail.gmail.com%3E"
+       TITLE="[whatwg] executeSql API is synchronous">aa at google.com
+       </A><BR>
+    <I>Tue Sep 25 10:23:54 PDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="012570.html">[whatwg] executeSql API is synchronous
+</A></li>
+        <LI>Next message: <A HREF="012581.html">[whatwg] executeSql API is synchronous
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#12580">[ date ]</a>
+              <a href="thread.html#12580">[ thread ]</a>
+              <a href="subject.html#12580">[ subject ]</a>
+              <a href="author.html#12580">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Sep 24, 2007 9:22 PM, Ian Hickson &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">ian at hixie.ch</A>&gt; wrote:
+&gt;<i> On Sun, 23 Sep 2007, Aaron Boodman wrote:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; db.executeSQL(&quot;select * from person where id = ?&quot;, [42], function(result) {
+</I>&gt;<i> &gt;   // result is an array of objects
+</I>&gt;<i> &gt; });
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Another issue that this design addresses is that it avoid blocking the
+</I>&gt;<i> &gt; UI for IO while iterating the results (all the results can be iterated
+</I>&gt;<i> &gt; on a different thread).
+</I>&gt;<i>
+</I>&gt;<i> This is basically what the spec does now. There is some debate about
+</I>&gt;<i> whether the results should actually be an Array or not though, to allow
+</I>&gt;<i> for a lazy caching implementation if desired.
+</I>
+I like the current specification of ResultSet:
+<A HREF="http://www.whatwg.org/specs/web-apps/current-work/#sqlresultset">http://www.whatwg.org/specs/web-apps/current-work/#sqlresultset</A>
+
+If you are not planning on changing it, you can stop reading now :)
+Otherwise, read on.
+
+When you read from SQLite (and probably other databases) you acquire a
+read lock (&quot;shared&quot;). This lock needs to be released explicitly
+because no writes can occur while it is open.
+
+There are basically three options for determining the lifetime of this lock:
+
+* Push: The implementation reads all the results immediately, releases
+the lock, and closes. This is what I'm advocating.
+* Pull: caller requests rows as needed and explicitly closes the lock
+when it is done. This is what Gears does today.
+* A race! The implementation returns immediately and starts populating
+results in the background. When it's done, it releases the lock. If
+the caller requests a row that isn't available yet, the request blocks
+until it is.
+
+I think that pure pull is a bad idea because callers always forget to
+close the resultset. You cannot rely on GC because it is
+non-deterministic.
+
+The race doesn't seem that great either because if the caller does this:
+
+alert(resultset.rows[resultset.rows.length])
+
+We block the UI and lose all the benefit of having the API be
+asynchronous in the first place.
+
+Therefore push seems simplest and best IMO. It's true that it is
+inefficient in certain special cases, but we could add a different
+push API (with a callback on each row) to work around that problem if
+it really is a problem.
+
+- a
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="012570.html">[whatwg] executeSql API is synchronous
+</A></li>
+	<LI>Next message: <A HREF="012581.html">[whatwg] executeSql API is synchronous
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#12580">[ date ]</a>
+              <a href="thread.html#12580">[ thread ]</a>
+              <a href="subject.html#12580">[ subject ]</a>
+              <a href="author.html#12580">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

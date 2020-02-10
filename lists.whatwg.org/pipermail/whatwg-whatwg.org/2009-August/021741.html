@@ -1,0 +1,278 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] HTML5 History Management
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20HTML5%20History%20Management&In-Reply-To=%3CPine.LNX.4.62.0908050110410.6420%40hixie.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="021740.html">
+   <LINK REL="Next"  HREF="021749.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] HTML5 History Management</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20HTML5%20History%20Management&In-Reply-To=%3CPine.LNX.4.62.0908050110410.6420%40hixie.dreamhostps.com%3E"
+       TITLE="[whatwg] HTML5 History Management">ian at hixie.ch
+       </A><BR>
+    <I>Tue Aug  4 18:29:04 PDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="021740.html">[whatwg] Stripping newlines from URI attributes
+</A></li>
+        <LI>Next message: <A HREF="021749.html">[whatwg] HTML5 History Management
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21741">[ date ]</a>
+              <a href="thread.html#21741">[ thread ]</a>
+              <a href="subject.html#21741">[ subject ]</a>
+              <a href="author.html#21741">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Wed, 29 Jul 2009, Nathan Hammond wrote:
+&gt;<i> 
+</I>&gt;<i> Clarifications
+</I>&gt;<i> 1. window.history.pushState({}, &quot;Title&quot;, &quot;/path/to/new/file.html?
+</I>&gt;<i> s=newvalue#newhash&quot;) replaces the current document object with the one
+</I>&gt;<i> specified by the new URL. It then causes the event popstate to fire
+</I>&gt;<i> immediately after the load event, correct?
+</I>
+Actually that doesn't replace the Document object, only the current 
+address. It doesn't cause any events to fire.
+
+
+&gt;<i> 2. window.history.pushState({}, &quot;Title&quot;, &quot;#newhash&quot;) creates a new history
+</I>&gt;<i> state object with the specified data object, the specified title, the same
+</I>&gt;<i> document object, and a location object that replaces the existing hash with
+</I>&gt;<i> &quot;#newhash&quot;, correct?
+</I>
+More or less, yes. It's the same as the previous call, just with less of 
+the URL being changed.
+
+
+&gt;<i> Possible Action Items
+</I>&gt;<i> 1. Specify the order in which history related events are triggered.
+</I>&gt;<i> 
+</I>&gt;<i> In what order would one expect the events triggered by
+</I>&gt;<i> window.history.pushState({}, &quot;Title&quot;, &quot;#newhash&quot;)?
+</I>
+No events are triggered by doing that.
+
+Some events are triggered when moving back and forth in the history, which 
+I will assume is to what you are referring here:
+
+&gt;<i> There are two events of interest: popstate, and hashchange.
+</I>
+The order of those events is defined in this algorithm:
+
+   <A HREF="http://www.whatwg.org/specs/web-apps/current-work/#traverse-the-history">http://www.whatwg.org/specs/web-apps/current-work/#traverse-the-history</A>
+
+Step 5 (as the algorithm stands today) calls this subalgorithm:
+
+   <A HREF="http://www.whatwg.org/specs/web-apps/current-work/#activating-state-object-entries">http://www.whatwg.org/specs/web-apps/current-work/#activating-state-object-entries</A>
+
+...which fires 'popstate' (if appropriate), and then step 6 fires 
+'hashchange' (if appropriate).
+
+
+&gt;<i> 2. Specify a method to allow access to the history stack. (At least 
+</I>&gt;<i> readable within the context of same-origin, possibly mutable.)
+</I>&gt;<i> 
+</I>&gt;<i> This would allow for understanding on the client side of a user's path 
+</I>&gt;<i> through the site, even after navigating away from the page. If this is 
+</I>&gt;<i> not implemented the absolute first thing I will be implementing is a 
+</I>&gt;<i> method to track this information, a rather large duplication of effort 
+</I>&gt;<i> for something that could easily be made available. This would involve a 
+</I>&gt;<i> something like currentstate = { _previous: currentstate, title: 
+</I>&gt;<i> window.title, newval: true }; plus a form-based storage mechanism to 
+</I>&gt;<i> repopulate state in case the user exits on a page which they manually 
+</I>&gt;<i> changed the hash to get to (which would not have access to the data 
+</I>&gt;<i> object upon revisiting later since there wouldn't be one stored with 
+</I>&gt;<i> that history state).
+</I>&gt;<i> 
+</I>&gt;<i> I'm aware of the privacy ramifications, but at the same time, I'm going 
+</I>&gt;<i> to be exposing those exact same concerns with the above method.
+</I>
+It turns out to be quite complex to expose this in the API currently, 
+because the History object exposes a mix of all the various frames at 
+once, and you can get to the History object of cross-origin frames, and 
+there's some other legacy baggage here also (e.g. history.length).
+
+Since it's not entirely clear what the use case is, and since you can do 
+it to some extent already using onload, onhashchange, and onpopstate, I'd 
+rather just let authors reimplement this themselves at this point, and 
+maybe revisit this in a future version.
+
+
+&gt;<i> 3. Specify a method to modify the current history state without adding a 
+</I>&gt;<i> new history point.
+</I>
+Assuming you don't mind causing the page to reload, you can use 
+history.replace(). I'm not sure what it would mean to replace the history 
+state without changing the Document or anything, though.
+
+
+&gt;<i> This would alleviate the need for the (incredibly brittle) form-based 
+</I>&gt;<i> storage mechanism I describe above.
+</I>
+Can you use sessionStorage for this?
+
+
+&gt;<i> 4. Specify additional properties on the hashchange event.
+</I>&gt;<i> 
+</I>&gt;<i> Lots of possible useful information with the number one most important 
+</I>&gt;<i> being the new hash that triggered the event to prevent race conditions 
+</I>&gt;<i> reading window.location.hash. Other fun things that are a bit more pie 
+</I>&gt;<i> in the sky: the previous hash and knowledge of how it was triggered 
+</I>&gt;<i> (manually? pushState? window.location.hash = ? window.location.href = 
+</I>&gt;<i> ?).
+</I>
+What are the use cases?
+
+
+On Thu, 30 Jul 2009, Nathan Hammond wrote:
+&gt;<i>
+</I>&gt;<i> Thanks for the reply, forgive my disbelief on Clarification 1. :) If I'm 
+</I>&gt;<i> completely with you, that is entirely unexpected on my part (and I've 
+</I>&gt;<i> read this part of the spec a few times). Is this to imply that, no 
+</I>&gt;<i> matter what the arguments to pushState(), if the path is relative to the 
+</I>&gt;<i> current URL there will be no request for a new document and no 
+</I>&gt;<i> user-agent initiated network activity?
+</I>
+Right.
+
+
+&gt;<i> Also, that would imply that the popstate only fires when you're 
+</I>&gt;<i> navigating through history. Is that correct?
+</I>
+Yes.
+
+
+On Thu, 30 Jul 2009, Sebastian Markb&#229;ge wrote:
+&gt;<i> 
+</I>&gt;<i> That is my interpretation too. But I think it's a little unclear whether 
+</I>&gt;<i> that means that the UA should update any Location fields in the UI. I 
+</I>&gt;<i> understand that this may be optional or outside the scope, but I think 
+</I>&gt;<i> that it should still be mentioned.
+</I>
+The spec defines two URIs for each Document, the &quot;document's address&quot; and 
+the &quot;document's current address&quot;. I've added a note saying that most UAs 
+expose the latter in the UI.
+
+
+On Thu, 30 Jul 2009, Nathan Hammond wrote:
+&gt;<i> 
+</I>&gt;<i> Possible Action Items
+</I>&gt;<i> 1. Clarify how the user agent uses the calculated location value from the
+</I>&gt;<i> pushState description step 2 in section 6.10.2 in terms of being reflected in
+</I>&gt;<i> the Location object.
+</I>&gt;<i> 
+</I>&gt;<i> It is my opinion that this URL should be reflected in the Location 
+</I>&gt;<i> value. This would imply that it would be reflected in the location bar 
+</I>&gt;<i> of user agents that have this as part of their UI. It seems that the 
+</I>&gt;<i> place to include this clarification would be the pushState description 
+</I>&gt;<i> step 5 in section 6.10.2
+</I>
+This is defined by virtue of the Location object being defined in terms of 
+&quot;their document's current address&quot;, and pushState()'s step 5 saying &quot;If 
+the third argument is present, set the document's current address to the 
+absolute URL that was found earlier in this algorithm&quot;.
+
+
+&gt;<i> 2. Clarify that pushState() does not cause navigation.
+</I>&gt;<i> 
+</I>&gt;<i> I read the spec quite a few times and still got this wrong, apparently. 
+</I>&gt;<i> Making this completely clear would not hurt.
+</I>
+Could you elaborate on what led you to this conclusion?
+
+Cheers,
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="021740.html">[whatwg] Stripping newlines from URI attributes
+</A></li>
+	<LI>Next message: <A HREF="021749.html">[whatwg] HTML5 History Management
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21741">[ date ]</a>
+              <a href="thread.html#21741">[ thread ]</a>
+              <a href="subject.html#21741">[ subject ]</a>
+              <a href="author.html#21741">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

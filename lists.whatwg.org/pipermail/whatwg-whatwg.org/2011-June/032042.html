@@ -1,0 +1,195 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] behavior when typing in contentEditable elements
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20behavior%20when%20typing%20in%20contentEditable%20elements&In-Reply-To=%3CBANLkTimXD1VeTRht4tWuAMF6_yLixCay8Q%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="032037.html">
+   <LINK REL="Next"  HREF="032043.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] behavior when typing in contentEditable elements</H1>
+<!--htdig_noindex-->
+    <B>Aryeh Gregor</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20behavior%20when%20typing%20in%20contentEditable%20elements&In-Reply-To=%3CBANLkTimXD1VeTRht4tWuAMF6_yLixCay8Q%40mail.gmail.com%3E"
+       TITLE="[whatwg] behavior when typing in contentEditable elements">Simetrical+w3c at gmail.com
+       </A><BR>
+    <I>Tue Jun 14 12:54:02 PDT 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="032037.html">[whatwg] window.cipher HTML crypto API draft spec
+</A></li>
+        <LI>Next message: <A HREF="032043.html">[whatwg] input element's value should not be sanitized during parsing
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#32042">[ date ]</a>
+              <a href="thread.html#32042">[ thread ]</a>
+              <a href="subject.html#32042">[ subject ]</a>
+              <a href="author.html#32042">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Mon, Dec 21, 2009 at 1:21 PM, Ojan Vafai &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">ojan at chromium.org</A>&gt; wrote:
+&gt;<i>
+</I>&gt;<i> Dealing with inconsistencies in browser behavior during typing is one of the hardest parts of writing a sane web-based rich-text editor.&#160;We have researched what a variety of text editors (Word, Powerpoint, Wordpad, TextEdit) and browsers using contentEditable/DesignMode currently do when you press different keys on the keyboard, in a number of rich text situations, with a variety of text selections. From this data, we attempt to identify recommendations that are OS-agnostic for editing behaviors inside a contentEditable element.
+</I>&gt;<i> Since we've used a bunch of tables and formatting, we've attached the doc as an HTML file in addition to inline.
+</I>
+I've recently been working on specs for some of this stuff,
+specifically Enter and Backspace.  I'm not yet done, but here's what I
+have so far:
+
+<A HREF="http://aryeh.name/spec/editcommands/editcommands.html#additional-requirements">http://aryeh.name/spec/editcommands/editcommands.html#additional-requirements</A>
+
+I've defined the delete command to be the same as Backspace.  For
+Enter, you recommend making some commands splitBlock, splitOutOfBlock,
+and insertBreak, but none of these seem to be supported by any
+browser.  I used the insertParagraph command to have the meaning of
+hitting Enter, because WebKit and Opera already behave that way, and
+IE's and Gecko's behavior for insertParagraph is not useful.  (WebKit
+does seem to support an insertLineBreak command that I assume behaves
+like Shift-Enter.)
+
+You can see an experimental implementation of the spec's
+delete/insertParagraph commands (along with others) here:
+
+<A HREF="http://aryeh.name/spec/editcommands/autoimplementation.html">http://aryeh.name/spec/editcommands/autoimplementation.html</A>
+
+&quot;Run tests&quot; for a command will tell you what the spec implementation
+and the current browser do when the command is run on a variety of
+inputs.  You can also add your own inputs, with [] marking selections
+in text nodes and {} in elements.  Ignore any notes asking you whether
+to store new test results.  There are also manual tests that let you
+compare the specified behavior for the command to the behavior of
+browsers when you actually hit the relevant key:
+
+<A HREF="http://aryeh.name/spec/editcommands/linebreaktest.html">http://aryeh.name/spec/editcommands/linebreaktest.html</A>
+<A HREF="http://aryeh.name/spec/editcommands/backspacetest.html">http://aryeh.name/spec/editcommands/backspacetest.html</A>
+
+I largely agreed with and followed the recommendations in the paper,
+and some were quite helpful.  Some points of difference:
+
+* It's not clear what behavior you recommend for delete if the cursor
+is collapsed at the beginning of the first item of a list.  I wound up
+outdenting the first item in that case, which doesn't really match
+anyone's behavior but seems like the most sensible option given how
+lists work in HTML.
+* You didn't mention what to do for delete if the cursor is collapsed
+at the beginning of an indented block (blockquote).  I outdent the
+block, matching word processors but not browsers (which merge with the
+previous block).
+* If the cursor is collapsed immediately after a list whose last item
+is empty, you suggest removing the last item on delete.  Word 2007
+seems to merge into the last item instead, as do browsers.  That makes
+more sense to me, and it's simpler, so it's what I specced.
+* When hitting Enter in a &lt;blockquote&gt;, you suggest splitting the
+&lt;blockquote&gt;.  I disagree: &lt;blockquote&gt; is meant to contain block
+content, and the intent in such a case is likely to have multiple
+paragraphs within the same blockquote.  I've specified that the
+contents should be split, not the blockquote itself.
+* I haven't yet specified that id's should not be duplicated, but I plan to.
+
+You suggest that the tab key in browsers should act like indent, as in
+dedicated text editors.  This isn't tenable -- it means that if you're
+using Tab to cycle through focusable elements on the page, as soon as
+it hits a contenteditable area it will get stuck and start doing
+something different.  No current browser does this, for good reason.
+
+I plan to specify forwardDelete (= Delete key) next, followed by
+insertText (= typing characters) and maybe insertLineBreak (=
+Shift-Enter).  Then I'll move on to copy/cut/paste and undo/redo.
+Then I'll most likely do queryCommand*().  At some point I'll probably
+also do more work on Selection, such as specifying Selection.modify()
+and requiring that user actions behave like it.  At that point I'll
+have specified pretty much all the major behavior of editable areas
+and execCommand(), as far as I'm aware, and I'll move on to doing
+cleanup and refinement.
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="032037.html">[whatwg] window.cipher HTML crypto API draft spec
+</A></li>
+	<LI>Next message: <A HREF="032043.html">[whatwg] input element's value should not be sanitized during parsing
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#32042">[ date ]</a>
+              <a href="thread.html#32042">[ thread ]</a>
+              <a href="subject.html#32042">[ subject ]</a>
+              <a href="author.html#32042">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

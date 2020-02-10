@@ -1,0 +1,245 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] DOM Range Deletions
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20DOM%20Range%20Deletions&In-Reply-To=%3CCAKA%2BAxmEFbW8USpnvkyD%2Bi5ZdJexskHVheg7w4976vpW7PG8Hg%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="074932.html">
+   <LINK REL="Next"  HREF="032653.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] DOM Range Deletions</H1>
+<!--htdig_noindex-->
+    <B>Aryeh Gregor</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20DOM%20Range%20Deletions&In-Reply-To=%3CCAKA%2BAxmEFbW8USpnvkyD%2Bi5ZdJexskHVheg7w4976vpW7PG8Hg%40mail.gmail.com%3E"
+       TITLE="[whatwg] DOM Range Deletions">Simetrical+w3c at gmail.com
+       </A><BR>
+    <I>Wed Jul 27 13:47:43 PDT 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="074932.html">[whatwg] [editing] Proposal: Undeletable elements within	contentEditable
+</A></li>
+        <LI>Next message: <A HREF="032653.html">[whatwg] &lt;INCLUDE&gt; and links with @rel=embed
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#32651">[ date ]</a>
+              <a href="thread.html#32651">[ thread ]</a>
+              <a href="subject.html#32651">[ subject ]</a>
+              <a href="author.html#32651">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>(answering some old feedback on DOM Range that Hixie pointed me to)
+
+On Tue, Jun 15, 2010 at 6:52 AM, Andrew Oakley &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">andrew at ado.is-a-geek.net</A>&gt; wrote:
+&gt;<i> I've been trying to implement DOM Range but can't work out how ranges
+</I>&gt;<i> are supposed to work under mutation.
+</I>
+This should now be more or less fully defined in the DOM Range spec,
+with a pretty decent test suite:
+
+<A HREF="http://html5.org/specs/dom-range.html#range-behavior-under-document-mutation">http://html5.org/specs/dom-range.html#range-behavior-under-document-mutation</A>
+
+I wrote up the new definitions a couple of months ago.  They aim to be
+both precise and compatible with browser behavior, which means they
+mostly match DOM 2 Range but differ in some respects.
+
+&gt;<i> In the following examples I use *this* to indicate a range being deleted
+</I>&gt;<i> and slashes to indicate another range.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> Section 2.6 - Deleting Content with a Range gives the example of
+</I>&gt;<i>
+</I>&gt;<i> &lt;FOO&gt;X*Y&lt;BAR&gt;Z*W&lt;/BAR&gt;Q&lt;/FOO&gt; -&gt; &lt;FOO&gt;X^&lt;BAR&gt;W&lt;/BAR&gt;Q&lt;/FOO&gt;
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> Section 2.12.2 - Deletions says:
+</I>&gt;<i>
+</I>&gt;<i> &quot;If a boundary-point of the original Range is within the content being
+</I>&gt;<i> deleted, then after the deletion it will be at the same position as the
+</I>&gt;<i> resulting boundary-point of the (now collapsed) Range used to delete the
+</I>&gt;<i> contents.&quot;
+</I>
+This is not what browsers do, and not what the new DOM Range spec
+requires.  DOM 2 Range treats deletions as deletions of ranges, but
+browsers and DOM Range both treat deletions as node-by-node.
+deleteContents() specially modifies the range you call it on so that
+it's always collapsed, as is defined in detail:
+
+<A HREF="http://html5.org/specs/dom-range.html#dom-range-deletecontents">http://html5.org/specs/dom-range.html#dom-range-deletecontents</A>
+
+Note how the last step is &quot;Set the context object's start and end to
+(new node, new offset)&quot;, so the range you call the method on is
+changed differently from other ranges.
+
+If you have a range &lt;FOO&gt;X[Y&lt;BAR&gt;Z]W&lt;/BAR&gt;Q&lt;/FOO&gt; (using [] to denote
+the endpoints), then the algorithm works as follows:
+
+* &quot;If original start node is an ancestor container of original end
+node, set new node to original start node and new offset to original
+start offset.&quot;  Original start node here is the Text node &quot;XY&quot;, and
+original end node is the Text node &quot;ZW&quot;.  The former is neither equal
+to nor an ancestor of the latter, so this doesn't apply, and we go to
+the other branch.
+
+* &quot;Let reference node equal original start node.&quot;  So reference node
+is now the Text node &quot;XY&quot;.
+
+* &quot;While reference node's parent is not null and is not an ancestor
+container of original end node, set reference node to its parent.&quot;
+Reference node's parent is &lt;FOO&gt;, which is not null, but is an
+ancestor container of original end node.  Thus we do nothing in this
+step.
+
+* &quot;Set new node to the parent of reference node, and new offset to one
+plus the index of reference node.&quot;  Thus new node is &lt;FOO&gt;, and new
+offset is 1.
+
+So the Range you delete will eventually collapse to
+&lt;FOO&gt;X{}&lt;BAR&gt;W&lt;/BAR&gt;Q&lt;/FOO&gt;.  Note that here I use curly braces
+instead of brackets, to indicate that the endpoint of the Range is in
+an Element node, not a Text node.  The old DOM 2 Range standard is
+unclear on that point, but my spec matches what browsers do.
+
+&gt;<i> We then have the example of:
+</I>&gt;<i>
+</I>&gt;<i> &lt;P&gt;ABCD *efgh The &lt;EM&gt;R*ange&lt;/EM&gt; ijkl&lt;/P&gt;
+</I>&gt;<i> &#160; &#160; &#160; &#160; &#160; &#160; &#160;/ &#160; &#160; &#160; &#160; &#160; &#160;\
+</I>&gt;<i>
+</I>&gt;<i> Goes to
+</I>&gt;<i>
+</I>&gt;<i> &lt;P&gt;ABCD &lt;EM&gt;ange&lt;/EM&gt; ijkl&lt;/P&gt;
+</I>&gt;<i> &#160; &#160; &#160; &#160; &#160; / &#160; &#160;\
+</I>
+In the syntax I'm using, that's: &lt;P&gt;ABCD [efgh T[[he &lt;EM&gt;R]ange]]&lt;/EM&gt;
+ijkl&lt;/P&gt;, where I use single brackets for the range being deleted and
+double brackets for the other, for lack of better syntax.
+
+The new specification uses entirely different rules when the Range
+being deleted is different from the one being modified, as I noted.
+The deletion is treated as a sequence of separate mutations of
+individual nodes.  In this case, deleteContents() will do the
+following:
+
+1) Call deleteData() on the Text node &quot;ABCD efgh The &quot;, with offset 5
+and count 9.  This deletes &quot;efgh The &quot; and leaves only &quot;ABCD &quot;.
+Current DOM Core defines this as replacing data with offset 5, count
+9, and data &quot;&quot;, so we look at the &quot;When something replaces data of a
+CharacterData node&quot; case at
+&lt;<A HREF="http://html5.org/specs/dom-range.html#range-behavior-under-document-mutation">http://html5.org/specs/dom-range.html#range-behavior-under-document-mutation</A>&gt;.
+
+The first boundary point of the [[ range has offset 11, and 5 &lt; 11 &lt;=
+5 + 9, so we hit the case &quot;For every boundary point whose node is
+node, and whose offset is greater than offset but less than or equal
+to offset plus count, set its offset to offset.&quot;  Thus the offset is
+set to offset, i.e., 5.  This gives us:
+
+&lt;P&gt;ABCD [[&lt;EM&gt;Range]]&lt;/EM&gt; ijkl&lt;/P&gt;
+
+2) Call deleteData() on the Text node &quot;Range&quot;, with offset 0 and count
+1.  This deletes &quot;R&quot; and leaves &quot;ange&quot;.  We're replacing data with
+offset 0, count 1, and data &quot;&quot;, and the second boundary point of the
+]] range has offset 5, and 5 &gt; 0 + 1, so we hit the case &quot;For every
+boundary point whose node is node, and whose offset is greater than
+offset plus count, add the length of data to its offset, then subtract
+count from it.&quot;  The length of data is 0 and count is 1, so we set the
+new offset to 5 + 0 - 1 = 4.  This gives us:
+
+&lt;P&gt;ABCD [[&lt;EM&gt;ange]]&lt;/EM&gt; ijkl&lt;/P&gt;
+
+The example in DOM 2 Range implies something more like &lt;P&gt;ABCD
+&lt;EM&gt;[[ange]]&lt;/EM&gt; ijkl&lt;/P&gt;.  I agree this is wrong according to DOM 2
+Range itself.  DOM 2 Range is a decent spec for its time, but we've
+moved to much greater levels of precision these days.  One thing it
+often does is not clearly distinguishing boundary points that &quot;look&quot;
+the same, in that no nodes or characters lie between them.
+
+&gt;<i> I assume that the range indicated by the underline in the spec and like
+</I>&gt;<i> *this* here collapses to just before the &lt;EM&gt; tag as this document has
+</I>&gt;<i> the same structure as the other example I pulled out of the spec. &#160;This
+</I>&gt;<i> would mean that the start point of the other range should also be just
+</I>&gt;<i> before the &lt;EM&gt;, but that isn't what has happened in this example.
+</I>
+The example is buggy, yes.  The starting &lt;EM&gt; tag should be
+highlighted according to both specs and according to browser behavior.
+
+&gt;<i> Any idea what I've got wrong? &#160;Some browsers (e.g. Safari) seem to
+</I>&gt;<i> behave as in the example, others (e.g. Firefox) put the end point before
+</I>&gt;<i> the &lt;EM&gt; (as I would have expected).
+</I>
+Here's a test case:
+
+<A HREF="http://software.hixie.ch/utilities/js/live-dom-viewer/saved/1086">http://software.hixie.ch/utilities/js/live-dom-viewer/saved/1086</A>
+
+Firefox 7.0a2, Chrome 14 dev, and Opera 11.50 all log &quot;ABCD&quot;, &quot;5&quot;,
+&quot;ange&quot;, &quot;4&quot;, which matches my spec.  IE10PP2 logs &quot;ABCD&quot;, &quot;5&quot;,
+&quot;undefined&quot;, &quot;1&quot;.  The &quot;undefined&quot; winds up being because it puts the
+new endpoint in the &lt;em&gt; with offset 1, instead of in the Text node
+&quot;ange&quot; with offset 4.  IE might or might not be able to argue that
+it's correct per DOM 2 Range, but it's not correct according to the
+new spec.
+
+I have a reasonably comprehensive test suite for range mutation
+behavior, by the way:
+
+<A HREF="http://aryeh.name/spec/dom-range/test/Range-mutations.html">http://aryeh.name/spec/dom-range/test/Range-mutations.html</A>
+
+It only tests what happens with basic DOM operations like replaceData,
+though, it doesn't check if things like Range.deleteContents do any
+additional magic.
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="074932.html">[whatwg] [editing] Proposal: Undeletable elements within	contentEditable
+</A></li>
+	<LI>Next message: <A HREF="032653.html">[whatwg] &lt;INCLUDE&gt; and links with @rel=embed
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#32651">[ date ]</a>
+              <a href="thread.html#32651">[ thread ]</a>
+              <a href="subject.html#32651">[ subject ]</a>
+              <a href="author.html#32651">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

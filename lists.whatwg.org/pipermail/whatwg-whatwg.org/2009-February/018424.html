@@ -1,0 +1,171 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] defer on style, depends
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20defer%20on%20style%2C%20depends&In-Reply-To=%3Cc9e12660902090025v19b3aacct88882cf0bd183527%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="018432.html">
+   <LINK REL="Next"  HREF="018425.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] defer on style, depends</H1>
+<!--htdig_noindex-->
+    <B>Garrett Smith</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20defer%20on%20style%2C%20depends&In-Reply-To=%3Cc9e12660902090025v19b3aacct88882cf0bd183527%40mail.gmail.com%3E"
+       TITLE="[whatwg] defer on style, depends">dhtmlkitchen at gmail.com
+       </A><BR>
+    <I>Mon Feb  9 00:25:09 PST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="018432.html">[whatwg] defer on style, depends
+</A></li>
+        <LI>Next message: <A HREF="018425.html">[whatwg] defer on style, depends
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18424">[ date ]</a>
+              <a href="thread.html#18424">[ thread ]</a>
+              <a href="subject.html#18424">[ subject ]</a>
+              <a href="author.html#18424">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Sun, Feb 8, 2009 at 9:20 PM, Ian Hickson &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">ian at hixie.ch</A>&gt; wrote:
+&gt;<i> On Sun, 8 Feb 2009, Garrett Smith wrote:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Sometimes a document's resources are not needed all at first. For
+</I>&gt;&gt;<i> example, a script that is not needed until after the document is parsed
+</I>&gt;&gt;<i> can be given the defer attribute (for browsers that support defer).
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> External css can also be a blocking download. Scripts have defer
+</I>&gt;&gt;<i> attribute, but style and link do not.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> The proposal is to add to defer to style, and link.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> This will allow browsers to not block on those elements.
+</I>&gt;<i>
+</I>&gt;<i> Browsers are already allowed to not block on those elements.
+</I>&gt;<i>
+</I>
+But they do.
+
+If a script occurs after a link, the script expects updated style
+information. That is why browsers do block on scripts.
+
+<A HREF="http://dhtmlkitchen.com/jstest/block/link.html">http://dhtmlkitchen.com/jstest/block/link.html</A>
+
+Includes a linked stylesheet that is delayed by 5 seconds.
+
+Results:
+contentLoaded: ~5101
+onloadFired: ~5101
+
+That result shows that I am correct on this matter.
+
+&gt;<i>
+</I>&gt;&gt;<i> It would be more complete to have a depends attribute on script and style.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> &lt;script depends=&quot;a b c&quot;&gt;&lt;/script&gt;
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Where the depends is id-list [CS], space separated values of element IDs.
+</I>&gt;<i>
+</I>&gt;<i> Why can't you just put the &lt;script&gt; element below the elements whose IDs
+</I>&gt;<i> you would have listed?
+</I>&gt;<i>
+</I>
+An associated script might need that stylesheet to be loaded before it
+runs. The depends attribute would guarantee that the stylesheet had
+loaded. The order should not change because the script is an inline
+scripts vs an external resource.
+
+A deferred stylesheet could be used to load a stylesheet after content
+was parsed. The developer would use defer when FOUC would be known not
+to occur as a result. For example, defer would be useful for an
+infoPanel widget that did not get shown until a certain event. The
+widget's HTML exists in the source code, towards the bottom, the
+script appears below that, just before the closing &lt;/body&gt; tag.
+
+There is a second problem: The problem of scripts being blocked by a stylesheet.
+
+The &quot;depends=&quot; attribute allows the script to declare that it needs
+style information first. This would be a much better design, and could
+probably be implemented by the browser with some nice event-driven
+code. Unfortunately, implementations that encounter &lt;link defer
+type=&quot;text/css&quot;...&gt;, followed by a script with no &quot;depends&quot; would
+still have to block on that stylesheet because that is what they do
+today.
+
+The script could declare itself as &quot;independent&quot;.
+
+That would result in links not blocking.
+
+To allow the stylesheet to load after all content loads, the
+stylesheet could declare defer:
+
+&lt;link defer src=&quot;deferred-all-min.css&quot; type=&quot;text/css&quot;
+rel=&quot;stylesheet&quot; id=&quot;lateBoundCSS&quot;&gt;
+
+To fulfill a requirement of having loaded of the stylesheet before the
+script runs, that script could declare depends to declare that it
+needs style information before loading.
+
+&lt;script defer depends=&quot;lateBoundCSS&quot; src=&quot;app-all-min.js&quot;&gt;&lt;/script&gt;
+
+&gt;<i>
+</I>&gt;&gt;<i> It would also be useful to have a way to dynamically load scripts, other
+</I>&gt;&gt;<i> than createElement(&quot;script&quot;).
+</I>&gt;<i>
+</I>&gt;<i> This seems like a request for the ECMAScript group.
+</I>&gt;<i>
+</I>
+Maybe. I would probably not be able to use it before I retire.
+
+It could also be a DOM document method.
+
+var script = document.createScript(src);
+script.load();
+script.run();
+script.unload();
+
+A script belongs to a document. ECMAScript has no notion of document.
+Scripts loaded through this mechanism would ignore document.write.
+
+Applications could see a performance boost if developers could
+leverage such features.
+
+Garrett
+
+&gt;<i> Cheers,
+</I>&gt;<i> --
+</I>&gt;<i> Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+</I>&gt;<i> <A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+</I>&gt;<i> Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</I>&gt;<i>
+</I>
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="018432.html">[whatwg] defer on style, depends
+</A></li>
+	<LI>Next message: <A HREF="018425.html">[whatwg] defer on style, depends
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18424">[ date ]</a>
+              <a href="thread.html#18424">[ thread ]</a>
+              <a href="subject.html#18424">[ subject ]</a>
+              <a href="author.html#18424">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

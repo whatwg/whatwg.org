@@ -1,0 +1,147 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] WebSocket and proxies
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20WebSocket%20and%20proxies&In-Reply-To=%3C48F3D819.2000607%40arc.net.au%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="016682.html">
+   <LINK REL="Next"  HREF="016909.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] WebSocket and proxies</H1>
+<!--htdig_noindex-->
+    <B>Shannon</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20WebSocket%20and%20proxies&In-Reply-To=%3C48F3D819.2000607%40arc.net.au%3E"
+       TITLE="[whatwg] WebSocket and proxies">shannon at arc.net.au
+       </A><BR>
+    <I>Mon Oct 13 16:22:01 PDT 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="016682.html">[whatwg] Scripted querying of &lt;video&gt; capabilities
+</A></li>
+        <LI>Next message: <A HREF="016909.html">[whatwg] WebSocket and proxies
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16577">[ date ]</a>
+              <a href="thread.html#16577">[ thread ]</a>
+              <a href="subject.html#16577">[ subject ]</a>
+              <a href="author.html#16577">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>In the process of testing my WebSocket proposal I discovered the CONNECT 
+method has a major restriction. Most proxies disable CONNECT to anything 
+but port 443.
+
+The following is from &quot;Squid and the Blowfish&quot;:
+------------------
+It is very important that you stop CONNECT type requests to non-SSL 
+ports. The CONNECT method allows data transfer in any direction at any 
+time, regardless of the transport protocol used. As a consequence, a 
+malicious user could telnet(1) to a (very) badly configured proxy, enter 
+something like:
+... snip example ...
+and end up connected to the remote server, as if the connection was 
+originated by the proxy.
+-------------------
+
+I verified that Squid and all public proxies I tried disable CONNECT by 
+default to non-SSL ports. It's unlikely many internet hosts will have 
+443 available for WebSockets if they also run a webserver. It could be 
+done with virtual IPs or dedicated hosts but this imposes complex 
+requirements and costs over alternatives like CGI.
+
+The availability and capabilities of the OPTIONS and GET protocols also 
+varied from proxy to proxy. The IETF draft related to TLS 
+(<A HREF="http://tools.ietf.org/html/draft-ietf-tls-http-upgrade-05">http://tools.ietf.org/html/draft-ietf-tls-http-upgrade-05</A>) has this to say:
+
+-------------------
+3.2 Mandatory Upgrade
+
+   If an unsecured response would be unacceptable, a client MUST send
+   an OPTIONS request first to complete the switch to TLS/1.0 (if
+   possible).
+
+          OPTIONS * HTTP/1.1
+          Host: example.bank.com
+          Upgrade: TLS/1.0
+          Connection: Upgrade
+-------------------
+
+So according to this draft spec OPTIONS is the only way to do a 
+*mandatory* upgrade of our connection. Once again this failed in testing
+
+-------------------
+=&gt; OPTIONS * HTTP/1.1
+=&gt; Proxy-Connection: keep-alive
+=&gt; Connection: Upgrade
+=&gt; Upgrade: WebSocket/1.0
+=&gt; Host: warriorhut.org:8000
+=&gt;
+&lt;= HTTP/1.0 400 Bad Request
+&lt;= Server: squid/3.0.STABLE8
+--------------------
+
+Other proxies gave different errors or simply returned nothing. The 
+problem may be related to the Upgrade and Connection headers rather than 
+OPTIONS, since I had similar issues using Connection: Upgrade with GET.
+
+I had the most success using GET without a Connection: Upgrade header. 
+It seems that the proxy thinks the header is directed at it so it does 
+not pass it on to the remote host. In many cases it will abort the 
+connection. Using the Upgrade: header without Connection allows the 
+Upgrade header through to the actual websocket service.
+
+It seems to me that whatever we try in many cases the connection will be 
+silently dropped by the proxy and the reasons will be unclear due to the 
+lack of error handling. There seems to be a wide variation in proxy 
+behaviour for uncommon operations. I suppose proxy developers could fix 
+these issues but whether a significant rollout could be achieved before 
+HTML5 is released is questionable.
+
+Given that an asynchronous connection cannot be cached the only reasons 
+remaining for going through a proxy are anonymity and firewall 
+traversal. Automatically bypassing the users proxy configuration to 
+solve the issues above has the potential to break both of these. It 
+would be a significant breach of trust for a UA to bypass the users 
+proxy and some networks only allow connections via a proxy (for security 
+and monitoring).
+
+It seems that we're stuck between a rock and hard place here. In light 
+of this I reiterate my earlier suggestion that the time could be better 
+spent providing guidelines for communication via an asynchronous CGI 
+interface. This would allow reuse of existing port 80 and 443 web 
+services which would resolve the cross-domain issues (the CGI can relay 
+the actual service via a backend connection) and most of the proxy 
+issues above (since proxy GET and CONNECT are more reliable on these ports).
+
+Shannon
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="016682.html">[whatwg] Scripted querying of &lt;video&gt; capabilities
+</A></li>
+	<LI>Next message: <A HREF="016909.html">[whatwg] WebSocket and proxies
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16577">[ date ]</a>
+              <a href="thread.html#16577">[ thread ]</a>
+              <a href="subject.html#16577">[ subject ]</a>
+              <a href="author.html#16577">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

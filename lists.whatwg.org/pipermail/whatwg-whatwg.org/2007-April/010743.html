@@ -1,0 +1,204 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Canvas spec issues
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Canvas%20spec%20issues&In-Reply-To=%3Cea09c0d10704041010r57387537i4ea5e21e8427d675%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="010750.html">
+   <LINK REL="Next"  HREF="010751.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Canvas spec issues</H1>
+<!--htdig_noindex-->
+    <B>Philip Taylor</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Canvas%20spec%20issues&In-Reply-To=%3Cea09c0d10704041010r57387537i4ea5e21e8427d675%40mail.gmail.com%3E"
+       TITLE="[whatwg] Canvas spec issues">excors+whatwg at gmail.com
+       </A><BR>
+    <I>Wed Apr  4 10:10:34 PDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="010750.html">[whatwg] Tendious use cases for &lt;dialog&gt;
+</A></li>
+        <LI>Next message: <A HREF="010751.html">[whatwg] Apple Proposal for Timed Media Elements
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#10743">[ date ]</a>
+              <a href="thread.html#10743">[ thread ]</a>
+              <a href="subject.html#10743">[ subject ]</a>
+              <a href="author.html#10743">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Some more comments/suggestions/etc on the spec, from having tried to
+test the stuff up to linear gradients [1].
+
+All my comments on implementations are about Firefox trunk, Opera 9.10
+(no different to 9.20), and Safari 2.0.4 (because that's the only one
+for which I can find a free online screenshot generator...)
+
+~~~~
+
+Relating to data: URLs:
+
+&quot;To prevent information leakage, the toDataURL() and getImageData()
+methods should raise a security exception if the canvas ever had
+images painted on it that originate from a domain other than the
+domain of the script that painted the images onto the canvas.&quot; - is it
+true/obvious that an image from a data: URL doesn't originate from any
+domain at all and so it should be allowed?
+
+Firefox and Opera [I haven't tested Safari] throw security exceptions
+in that case, which is annoying - I believe it's not a security risk
+since the only way you can draw a data: image is by having access to
+the Image object and thus its src attribute, so you already have
+access to the image data.
+
+
+Relating to gradients:
+
+
+&quot;Otherwise, if it is ... a CanvasGradient or CanvasPattern, then an
+object supporting those interfaces must be returned. Such objects are
+opaque and therefore only useful for assigning to other attributes or
+for comparison to other gradients or patterns.&quot; - what does &quot;opaque&quot;
+mean? It doesn't seem to be defined here.
+
+Should it be the case that &quot;ctx.fillStyle === ctx.fillStyle&quot; and
+&quot;ctx.fillStyle = grad; ctx.fillStyle === grad&quot;? That seems necessary
+if useful comparison is to be possible, but it doesn't seem to be what
+the &quot;must&quot; statement says. And should it be that
+&quot;ctx.createLinearGradient(...) !== ctx.createLinearGradient(...)&quot;?
+
+Should it be that &quot;ctx.fillStyle = grad; grad.addColorStop(...)&quot; will
+alter the currently-selected fill style, i.e. fillStyle has to store a
+reference to the gradient instead of a copy? (If so, then
+&quot;ctx.fillStyle = grad; ctx.fillStyle.addColorStop(...)&quot; should work
+too, which is nice.)
+
+(For those questions, the three tested implementations do seem to do
+that [after accounting for Safari 2.0.4's lack of gradients in
+fillRect] - see [2].)
+
+
+&quot;Immediately before the 0 offset and immediately after the 1 offset,
+transparent black stops are be assumed.&quot; and &quot;any points beyond the
+start or end points are a transparent black.&quot;
+
+That is not implemented interoperably [3], and it has been suggested
+[4] that Firefox's behaviour might be better. FF extends the outermost
+colour stops outwards forever - that is the most powerful approach,
+since you can manually add transparent-black or black stops to
+reproduce the behaviours of Opera (equivalent to the current spec) and
+Safari.
+
+One issue with FF's behaviour is what to do when a linear gradient has
+zero length (i.e. x0,y0 == x1,y1) - it could just be defined to be
+equivalent to the first colour stop, which seems to be what FF does.
+
+
+&quot;The addColorStop(offset, color) method on the CanvasGradient
+interface adds a new stop to a gradient. If the offset is less than 0
+or greater than 1 then an INDEX_SIZE_ERR exception must be raised.&quot;
+
+What if offset is NaN? That is neither less than 0 nor greater than 1.
+
+What if multiple stops are added at the same offset? I would say
+something along the lines of: &quot;If there is already a stop at the same
+/offset/, the new color stop must be treated as if its /offset/ is
+greater than that of the earlier stop.&quot; i.e. the first stop added will
+be closest to offset 0, and the last will be (infinitesimally) closest
+to offset 1. Firefox and Opera appear to implement it that way; Safari
+doesn't seem to have a consistent order at all. See [5].
+
+~~~~
+
+Some points on pedantic standardese (given that [6] indicates it's
+desirable to be precise about normative statements) (though I'm
+uncertain on the correctness of some of these points, so please
+disagree if I'm wrong):
+
+&quot;The width attribute defaults to 300, and the height attribute
+defaults to 150.&quot; - should have &quot;must&quot;s.
+
+&quot;String comparisons should be literal and case-sensitive.&quot; - s/should/must/
+
+&quot;The save() method pushes ... The restore() method pops ... If there
+is no saved state, the method does nothing.&quot; - should have &quot;must&quot;s.
+
+globalCompositeOperation: &quot;It must be set to a value from the
+following list ... User agents must only recognise values that exactly
+match the values given above.&quot; - but that conflicts with the
+vendorName-operationName extensions, because authors and UAs have to
+use values not in that list if they're going to use that extension
+opportunity; and the vendorName-operationName syntax is only a
+&quot;should&quot;, so a conforming vendor could define their own operator
+called e.g. &quot;moz-saturate&quot; (or called &quot;over&quot; if they had a good
+reason) (according to that &quot;should&quot;) but nobody would be able to ever
+use it (according to the &quot;must&quot;s).
+
+&quot;strings should be parsed as CSS &lt;color&gt; values&quot; - s/should/must/
+
+The colour parsing refers to [CSS3COLOR]. No profile is described, so
+presumably all of CSS3 Color should be supported. In that case: what
+should &quot;currentColor&quot; do, since its CSS definition makes no sense
+here? (By the way, after reading CSS3 Color, I can appreciate WA1's
+writing style and the way that it doesn't have obvious errors and
+omissions and ABC...)
+
+&quot;Immediately before the 0 offset and immediately after the 1 offset,
+transparent black stops are be assumed.&quot; - syntax error, and should
+have &quot;must&quot;.
+
+&quot;Once a gradient has been created (see below), stops must be placed
+along it to define how the colors are distributed along the gradient.&quot;
+- is that meant to be &quot;must&quot;? (i.e. authors are non-conforming if they
+don't specify any stops and use the all-transparent-black behaviour.)
+
+&quot;attribute DOMString shadowColor; // (default black)&quot; - later it says
+&quot;transparent black&quot;.
+
+&quot;attribute DOMString globalCompositeOperation; // (default over)&quot; -
+later it says &quot;source-over&quot;.
+
+~~~~
+
+[1] <A HREF="http://canvex.lazyilluminati.com/tests/tests/">http://canvex.lazyilluminati.com/tests/tests/</A>
+[2] <A HREF="http://canvex.lazyilluminati.com/tests/tests/index.2d.gradient.object.html">http://canvex.lazyilluminati.com/tests/tests/index.2d.gradient.object.html</A>
+[3] <A HREF="http://canvex.lazyilluminati.com/tests/tests/2d.gradient.interpolate.outside.html">http://canvex.lazyilluminati.com/tests/tests/2d.gradient.interpolate.outside.html</A>
+and <A HREF="http://canvex.lazyilluminati.com/misc/gradient/gradient2.html">http://canvex.lazyilluminati.com/misc/gradient/gradient2.html</A>
+[4] <A HREF="https://bugzilla.mozilla.org/show_bug.cgi?id=346017">https://bugzilla.mozilla.org/show_bug.cgi?id=346017</A>
+[5] <A HREF="http://canvex.lazyilluminati.com/tests/tests/2d.gradient.interpolate.overlap.html">http://canvex.lazyilluminati.com/tests/tests/2d.gradient.interpolate.overlap.html</A>
+[6] <A HREF="http://ln.hixie.ch/?start=1140242962&amp;count=1">http://ln.hixie.ch/?start=1140242962&amp;count=1</A>
+
+-- 
+Philip Taylor
+<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">excors at gmail.com</A>
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="010750.html">[whatwg] Tendious use cases for &lt;dialog&gt;
+</A></li>
+	<LI>Next message: <A HREF="010751.html">[whatwg] Apple Proposal for Timed Media Elements
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#10743">[ date ]</a>
+              <a href="thread.html#10743">[ thread ]</a>
+              <a href="subject.html#10743">[ subject ]</a>
+              <a href="author.html#10743">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

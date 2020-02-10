@@ -1,0 +1,570 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Web Workers feedback
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Web%20Workers%20feedback&In-Reply-To=%3CPine.LNX.4.64.1003240905450.29348%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="025546.html">
+   <LINK REL="Next"  HREF="025619.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Web Workers feedback</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Web%20Workers%20feedback&In-Reply-To=%3CPine.LNX.4.64.1003240905450.29348%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg] Web Workers feedback">ian at hixie.ch
+       </A><BR>
+    <I>Wed Mar 24 17:51:42 PDT 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="025546.html">[whatwg] Define MessagePort.isConnected or	MessagePort.ondisconnect
+</A></li>
+        <LI>Next message: <A HREF="025619.html">[whatwg] Web Workers feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#25618">[ date ]</a>
+              <a href="thread.html#25618">[ thread ]</a>
+              <a href="subject.html#25618">[ subject ]</a>
+              <a href="author.html#25618">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Thu, 10 Dec 2009, Simon Pieters wrote:
+&gt;<i>
+</I>&gt;<i> Web Workers says in the SharedWorker constructor algorithm:
+</I>&gt;<i> 
+</I>&gt;<i> &quot;Otherwise, if name is the empty string and there exists a 
+</I>&gt;<i> SharedWorkerGlobalScope object whose closing flag is false, and whose 
+</I>&gt;<i> location attribute is exactly equal to scriptURL, then let worker global 
+</I>&gt;<i> scope be that SharedWorkerGlobalScope object.&quot;
+</I>&gt;<i> 
+</I>&gt;<i> The location attribute is an object implementing WorkerLocation, which 
+</I>&gt;<i> is not a URL, so with a literal interpretation it will never be equal to 
+</I>&gt;<i> scriptURL. I guess it should say something like &quot;whose location 
+</I>&gt;<i> attribute represents an absolute URL that is exactly equal to scriptURL&quot; 
+</I>&gt;<i> instead.
+</I>
+Fixed. Thanks.
+
+
+On Wed, 16 Dec 2009, Jan Fabry wrote:
+&gt;<i> 
+</I>&gt;<i> Has it been considered to pass more than JSON data to workers? I could 
+</I>&gt;<i> not find a rationale behind this in the FAQ, or in other places I 
+</I>&gt;<i> looked. I understand the need for separation because of concurrency 
+</I>&gt;<i> issues, but aren't there other ways to accomplish this?
+</I>&gt;<i> 
+</I>&gt;<i> Would it be possible to do a deep copy of the function (object) you pass 
+</I>&gt;<i> to the the constructor? So copy everything (or mark it for 
+</I>&gt;<i> copy-on-write), but remove references to DOM elements if they exist. 
+</I>&gt;<i> This way, I think you can create a parallel data structure, so the 
+</I>&gt;<i> original one remains untouched (avoiding concurrency issues).
+</I>&gt;<i> 
+</I>&gt;<i> The important difference between this and the usual JSON-serializing of 
+</I>&gt;<i> objects that the examples talk about, is that functions can be passed 
+</I>&gt;<i> through too in an easy manner. If you have to simulate this using only 
+</I>&gt;<i> Javascript, you have to somehow bind the free variables, which requires 
+</I>&gt;<i> some introspection, and thus is not easy (if even possible?) to simulate 
+</I>&gt;<i> in &quot;user space&quot;.
+</I>
+Passing functions doesn't really work, because as you say, you have to 
+figure out how to rebind variables, the global scope, etc.
+
+
+On Wed, 16 Dec 2009, Drew Wilson wrote:
+&gt;<i>
+</I>&gt;<i> I'm not certain what a &quot;deep copy&quot; of the function means - would you 
+</I>&gt;<i> need to copy the entire lexical scope of the function? For example, 
+</I>&gt;<i> let's say you do this:
+</I>&gt;<i> 
+</I>&gt;<i> var foo = 1;
+</I>&gt;<i> 
+</I>&gt;<i> function setFoo(val) { foo = val; }
+</I>&gt;<i> function getFoo() { return foo; }
+</I>&gt;<i> 
+</I>&gt;<i> worker.postMessage(setFoo);
+</I>&gt;<i> worker.postMessage(getFoo);
+</I>&gt;<i> 
+</I>&gt;<i> foo = 2;
+</I>&gt;<i> 
+</I>&gt;<i> Then, from worker code, I call the copy of getFoo() - what should it 
+</I>&gt;<i> return (undefined? Does it pull over a copy of foo from the original 
+</I>&gt;<i> lexical scope, in which case it's 1)? What if foo is defined in a 
+</I>&gt;<i> lexical closure that is shared by both setFoo() and getFoo() - it seems 
+</I>&gt;<i> like the separate copies of setFoo() and getFoo() passed to the worker 
+</I>&gt;<i> would need to reconstruct a shared closure on the worker side, which 
+</I>&gt;<i> seems difficult if not impossible.
+</I>&gt;<i> 
+</I>&gt;<i> I think that some variant of data URLs and/or eval() gets you most of 
+</I>&gt;<i> what you really need here without requiring extensive JS VM gymnastics.
+</I>
+On Wed, 16 Dec 2009, Jan Fabry wrote:
+&gt;<i> 
+</I>&gt;<i> In my idea, the free variables get bound at the moment you call 
+</I>&gt;<i> postMessage. The worker receives two different objects, they have 
+</I>&gt;<i> nothing in common.
+</I>&gt;<i> 
+</I>&gt;<i> After the first postMessage, the worker receives an object, that happens 
+</I>&gt;<i> to be a function, bound to some invisible variable (similar to the 
+</I>&gt;<i> &quot;trick&quot; to creates private variables in JS). When it is called, nothing 
+</I>&gt;<i> visible happens, because the foo variable is not visible on the outside.
+</I>&gt;<i> 
+</I>&gt;<i> After the second postMessage, the worker receives a new object, also a 
+</I>&gt;<i> function, bound to a variable with the value 1. If you call it, it 
+</I>&gt;<i> returns 1. If I call the function that the first postMessage delivered, 
+</I>&gt;<i> this does not affect the function that the second passed, since they are 
+</I>&gt;<i> bound to different copies of the same origin variables, and thus in 
+</I>&gt;<i> effect bound to different variables.
+</I>&gt;<i> 
+</I>&gt;<i> Image if we would create a JSONOnSteriods function. If you pass it 
+</I>&gt;<i> anything that a regular JSON serializer can handle, it gives the same 
+</I>&gt;<i> output (the regular serializer is recursive, so if you reverse the 
+</I>&gt;<i> process, you have in effect created a deep copy). My JSONOnSteriods 
+</I>&gt;<i> function would also be able to serialize functions (like you can do 
+</I>&gt;<i> using setFoo.toString()), but also notice the free variables and bind 
+</I>&gt;<i> them. If there is a client-side (userland?) function that would accept a 
+</I>&gt;<i> function and return the names of the free variables, I think you could 
+</I>&gt;<i> even simulate this in regular Javascript, but a solution in the VM would 
+</I>&gt;<i> be less kludgy and probably much faster.
+</I>
+This sounds very complicated and bug-prone!
+
+
+On Wed, 16 Dec 2009, Boris Zbarsky wrote:
+&gt;<i> On 12/16/09 1:27 PM, Jan Fabry wrote:
+</I>&gt;<i> &gt; &gt; function setFoo(val) { foo = val; }
+</I>&gt;<i> &gt; &gt; function getFoo() { return foo; }
+</I>&gt;<i> ...
+</I>&gt;<i> &gt; After the second postMessage, the worker receives a new object, also a
+</I>&gt;<i> &gt; function, bound to a variable with the value 1.
+</I>&gt;<i> 
+</I>&gt;<i> What if getFoo were:
+</I>&gt;<i> 
+</I>&gt;<i>   function getFoo() { return this[&quot;foo&quot;]; }
+</I>&gt;<i> 
+</I>&gt;<i> What if it were:
+</I>&gt;<i> 
+</I>&gt;<i>   function getFoo() { return this[&quot;fo&quot; + &quot;o&quot;]; }
+</I>&gt;<i> 
+</I>&gt;<i> What about:
+</I>&gt;<i> 
+</I>&gt;<i>   var o = &quot;o&quot;;
+</I>&gt;<i>   function getFoo() { return this[&quot;fo&quot; + o]; }
+</I>&gt;<i> 
+</I>&gt;<i> ?
+</I>
+On Thu, 17 Dec 2009, Jan Fabry wrote:
+&gt;<i> On 16 Dec 2009, at 13:47, Boris Zbarsky wrote:
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt;   function getFoo() { return this[&quot;foo&quot;]; }
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt;   function getFoo() { return this[&quot;fo&quot; + &quot;o&quot;]; }
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt;   var o = &quot;o&quot;;
+</I>&gt;<i> &gt;   function getFoo() { return this[&quot;fo&quot; + o]; }
+</I>&gt;<i> 
+</I>&gt;<i> These three functions are equivalent to me. They will return this.foo, 
+</I>&gt;<i> but 'this' is a keyword that refers to the scope the function is called 
+</I>&gt;<i> in, it is not a regular variable.
+</I>&gt;<i> 
+</I>&gt;<i> Ignoring web workers, say we execute the following in a current 
+</I>&gt;<i> Javascript environment:
+</I>&gt;<i> 
+</I>&gt;<i> getFoo.call({'foo': 'otherFoo'})
+</I>&gt;<i> 
+</I>&gt;<i> will return 'otherFoo'. 
+</I>&gt;<i> 
+</I>&gt;<i> getFoo.call({})
+</I>&gt;<i> 
+</I>&gt;<i> will return undefined.
+</I>&gt;<i> 
+</I>&gt;<i> If no scope is given, the global scope is used, and then it depends on 
+</I>&gt;<i> the state of the variables on the worker side. If no 'foo' variable has 
+</I>&gt;<i> been defined, it will return undefined.
+</I>&gt;<i> 
+</I>&gt;<i> &gt; Maybe a better question is: What problem are you trying to solve?
+</I>&gt;<i> 
+</I>&gt;<i> I do not have a concrete problem now, but I am imaging libraries that 
+</I>&gt;<i> currently use the nice features of Javascript, like functions being 
+</I>&gt;<i> passed around as parameters, to delegate certain behavior to code 
+</I>&gt;<i> written by users of their libraries. It took a while before the good 
+</I>&gt;<i> parts of Javascript were discovered, and we are happy that they exist, 
+</I>&gt;<i> so I think we should try to make web workers as good as possible too.
+</I>&gt;<i> 
+</I>&gt;<i> Much of this can probably be emulated, but, as Simon said in a related 
+</I>&gt;<i> discussion, regarding data: urls: [ 
+</I>&gt;<i> <A HREF="http://lists.whatwg.org/htdig.cgi/whatwg-whatwg.org/2009-September/023195.html">http://lists.whatwg.org/htdig.cgi/whatwg-whatwg.org/2009-September/023195.html</A> 
+</I>&gt;<i> ]
+</I>&gt;<i> 
+</I>&gt;<i> &quot;In particular, though, I suspect that people will work around this 
+</I>&gt;<i> limitation by one of the means we've come up with so far, or maybe 
+</I>&gt;<i> people with come up with even uglier workarounds. If we remove the 
+</I>&gt;<i> limitation, people will have no reason to come up with ugly hacks but 
+</I>&gt;<i> instead use the obvious supported way to do it, and it will be easier to 
+</I>&gt;<i> debug and follow code.&quot;
+</I>&gt;<i> 
+</I>&gt;<i> (btw Jonathan, I think the last reply in that discussion was from Ian: [ 
+</I>&gt;<i> <A HREF="http://lists.whatwg.org/pipermail/whatwg-whatwg.org/2009-October/023588.html">http://lists.whatwg.org/pipermail/whatwg-whatwg.org/2009-October/023588.html</A> 
+</I>&gt;<i> ])
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> When this discussion is over, I want to know why it is not implemented: 
+</I>&gt;<i> because it leads to some undefinable situations, because it would be too 
+</I>&gt;<i> complicated to teach to developers what does and what doesn't work, or 
+</I>&gt;<i> because it is too difficult for implementors to do it right. But when I 
+</I>&gt;<i> look at what browsers can do these days, I have not yet seen a limit to 
+</I>&gt;<i> the intelligence of their developers :-)
+</I>
+It seems to me to be a very complicated and bug-prone idea for something 
+that doesn't have concrete use cases. It might make sense to support it 
+later if a clear need appears (which we determine by looking at the hacks 
+that people use to work around the lack of support), but in the absence of 
+such a need, I don't see much benefit to adding this.
+
+
+On Wed, 16 Dec 2009, Jan Fabry wrote:
+&gt;<i> 
+</I>&gt;<i> The Google Gears API seems to provide both createWorker(scriptText) and 
+</I>&gt;<i> createWorkerFromUrl(scriptUrl). Why was only the URL variant retained in 
+</I>&gt;<i> the Web Workers spec? With the script variant, there would have been at 
+</I>&gt;<i> least a little basis for more dynamic programming.
+</I>
+Based on feedback from the Gears team, the string form was dropped based 
+on few people needing it.
+
+
+On Wed, 16 Dec 2009, Jonathan 'J5' Cook wrote:
+&gt;<i> 
+</I>&gt;<i> Did anything ever come out of the earlier request-less web worker 
+</I>&gt;<i> discussion?
+</I>
+Not yet, but we're mostly waiting for authoring experience before adding 
+more features. It depends what people really need, but it's hard to 
+determine that without a crowd of authors trying to use what we have.
+
+
+On Fri, 18 Dec 2009, JOSE MANUEL CANTERA FONSECA wrote:
+&gt;<i> 
+</I>&gt;<i> I was wondering if with HTML5 Workers is possible to have the same 
+</I>&gt;<i> functionality on Cross Origin Workers as in Google Gears [1].
+</I>&gt;<i> 
+</I>&gt;<i> Any help would be appreciated
+</I>&gt;<i> 
+</I>&gt;<i> [1] <A HREF="http://code.google.com/intl/es-ES/apis/gears/gears_faq.html#crossOriginWorker">http://code.google.com/intl/es-ES/apis/gears/gears_faq.html#crossOriginWorker</A>
+</I>
+On Fri, 18 Dec 2009, Anne van Kesteren wrote:
+&gt;<i> 
+</I>&gt;<i> FYI: They're not HTML5 Workers, just Web Workers. And no, they do not 
+</I>&gt;<i> have cross-origin functionality currently.
+</I>
+On Fri, 18 Dec 2009, JOSE MANUEL CANTERA FONSECA wrote:
+&gt;<i> 
+</I>&gt;<i> Any plans for adding such a functionality or alternatively are there 
+</I>&gt;<i> other mechanisms proposed or foreseen?
+</I>
+On Fri, 18 Dec 2009, Anne van Kesteren wrote:
+&gt;<i> 
+</I>&gt;<i> Pretty sure we'll add it in due course. You can use postMessage() and 
+</I>&gt;<i> &lt;iframe&gt; or XMLHttpRequest (not everywhere yet) for cross-origin 
+</I>&gt;<i> communication if that is your main use case.
+</I>
+Indeed, this is something we'll probably add relatively soon. I'm mostly 
+just waiting for implementations to be more widely available and used.
+
+
+On Sun, 20 Dec 2009, ATSUSHI TAKAYAMA wrote:
+&gt;<i> 
+</I>&gt;<i> I'm wondering if calling (postMessage-ing to) Web Workers from a worker 
+</I>&gt;<i> thread is possible.
+</I>&gt;<i> 
+</I>&gt;<i> The use case I have in mind is to do a recursive calculation. So we're 
+</I>&gt;<i> not only able to do this;
+</I>&gt;<i> 
+</I>&gt;<i> - Main Thread (waits for results from workers)
+</I>&gt;<i> -- Worker 1
+</I>&gt;<i> -- Worker 2
+</I>&gt;<i> -- Worker 3
+</I>&gt;<i> 
+</I>&gt;<i> but also able to do this kind of thing;
+</I>&gt;<i> 
+</I>&gt;<i> - Main Thread (waits for results from it's own workers)
+</I>&gt;<i> -- Worker 1 (waits for results from it's own workers)
+</I>&gt;<i> --- Worker 1-1
+</I>&gt;<i> --- Worker 1-2
+</I>&gt;<i> --- Worker 1-3 (waits for results from it's own workers)
+</I>&gt;<i> ---- Worker 1-3-1
+</I>&gt;<i> ---- Worker 1-3-2
+</I>&gt;<i> ---- Worker 1-3-3
+</I>&gt;<i> -- Worker 2 (waits for results from it's own workers)
+</I>&gt;<i> --- Worker 2-1
+</I>&gt;<i> --- Worker 2-2
+</I>&gt;<i> --- Worker 2-3
+</I>&gt;<i> -- Worker 3 (no more recursion)
+</I>
+On Mon, 21 Dec 2009, Simon Pieters wrote:
+&gt;<i> 
+</I>&gt;<i> Sure. The spec has an example of this (1.2.5 Delegation).
+</I>
+Indeed.
+
+
+On Tue, 23 Feb 2010, Simon Pieters wrote:
+&gt;<i>
+</I>&gt;<i> The Web Worker's first example of shared workers is quite involved and 
+</I>&gt;<i> not so easy to follow if you haven't dealt with shared workers before. 
+</I>&gt;<i> For someone wanting to experiment with shared workers, it's easier to 
+</I>&gt;<i> grasp how things work by doing something very basic first. It would be 
+</I>&gt;<i> useful if the spec had an example for this.
+</I>
+I've added the examples you suggested. Thanks.
+
+
+On Thu, 25 Feb 2010, Simon Pieters wrote:
+&gt;<i> 
+</I>&gt;<i> The worker script could be modified in step 3 as follows to make it clear that
+</I>&gt;<i> the script is in fact shared:
+</I>&gt;<i> 
+</I>&gt;<i> test.js
+</I>&gt;<i> var i = 0;
+</I>&gt;<i> onconnect = function(e) {
+</I>&gt;<i>  i++;
+</I>&gt;<i>  var port = e.ports[0];
+</I>&gt;<i>  port.postMessage('hello, ' + i);
+</I>&gt;<i>  port.onmessage = function(e) {
+</I>&gt;<i>    port.postMessage('pong');
+</I>&gt;<i>  }
+</I>&gt;<i> }
+</I>
+I applied this idea to the demo.
+
+
+On Thu, 25 Feb 2010, Drew Wilson wrote:
+&gt;<i>
+</I>&gt;<i> BTW, I think it's valuable to point out in the example that 
+</I>&gt;<i> MessageEvent.target == the port that received the message (so we don't 
+</I>&gt;<i> need to use a closure as in the example below - just use 
+</I>&gt;<i> event.target.postMessage()).
+</I>
+I have mentioned this in the second &quot;step&quot; of this example.
+
+
+&gt;<i> This is slightly outside the scope of this discussion, but I've heard 
+</I>&gt;<i> rumblings about the (w3c?) community collectively developing some sort 
+</I>&gt;<i> of unified test suite for HTML5 APIs like SharedWorkers. Is someone 
+</I>&gt;<i> driving that effort forward? I say this because I've tried to put 
+</I>&gt;<i> together an ad hoc test suite for the WebKit implementation, but I'm 
+</I>&gt;<i> sure it's missing a number of obscure cases, so having a canonical suite 
+</I>&gt;<i> would be really valuable to ensure compatibility.
+</I>
+I am not aware of any common test suite work on this, but I certainly 
+encourage people interested in this to work on one! If hosting space on 
+the whatwg.org site would be useful I can easily set that up.
+
+
+On Thu, 25 Feb 2010, ATSUSHI TAKAYAMA wrote:
+&gt;<i> 
+</I>&gt;<i> Right now, in the spec &quot;2.7.5 Safe passing of structured data&quot;, it says
+</I>&gt;<i> 
+</I>&gt;<i> If input is another native object type (e.g. Error) Return the null 
+</I>&gt;<i> value.
+</I>&gt;<i> 
+</I>&gt;<i> but if we want to debug workers, it's more convenient to be able to pass 
+</I>&gt;<i> the error directly rather than
+</I>&gt;<i> 
+</I>&gt;<i> postMessage({name: err.name, message: err.message})
+</I>&gt;<i> 
+</I>&gt;<i> which loses all information like line number, etc. or we will just start 
+</I>&gt;<i> cloning every property of the Error (stack, lineNumber, stacktrace, etc 
+</I>&gt;<i> depending on the browser).
+</I>&gt;<i> 
+</I>&gt;<i> I think that's an unnecessary chore for all developers. We should just 
+</I>&gt;<i> be able to postMessage an error.
+</I>&gt;<i> 
+</I>&gt;<i> (of course, the best solution would be to be able to console.debug from 
+</I>&gt;<i> a worker thread, but it's not a standard way yet)
+</I>
+On Fri, 26 Feb 2010, Drew Wilson wrote:
+&gt;<i>
+</I>&gt;<i> BTW, the spec says that unhandled exceptions are either propagated to 
+</I>&gt;<i> the parent Worker object (in the case of dedicated workers) or reported 
+</I>&gt;<i> to the user via the console (for shared workers).
+</I>&gt;<i> 
+</I>&gt;<i> So I'm not certain why passing Error objects via postMessage() would be 
+</I>&gt;<i> necessary for a spec-compliant UA (note that some UAs have bugs in their 
+</I>&gt;<i> implementation such that not all exceptions in Workers are logged to the 
+</I>&gt;<i> console, but that shouldn't motivate a change in the spec).
+</I>
+On Mon, 1 Mar 2010, Simon Pieters wrote:
+&gt;<i> On Sun, 28 Feb 2010 23:03:31 +0100, ATSUSHI TAKAYAMA 
+</I>&gt;<i> &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">taka.atsushi at googlemail.com</A>&gt; wrote:
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; This is good to know. As far as I tested, Firefox and Safari actually 
+</I>&gt;<i> &gt; supports worker.onerror.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; It also turns out that Firefox and Chromium actually sends a clone of 
+</I>&gt;<i> &gt; an Error object. Safari turns it into a string. Are they going to 
+</I>&gt;<i> &gt; convert change the behavior in the future?
+</I>&gt;<i> 
+</I>&gt;<i> Internal builds of Opera converts Error to null as the spec says, but 
+</I>&gt;<i> we'd be happy to see the spec changed to say that Error, DOMException, 
+</I>&gt;<i> and similar things get cloned.
+</I>&gt;<i> 
+</I>&gt;<i> If you want to make sure your current code will continue to work, you 
+</I>&gt;<i> should probably toString() explicitly before postMessage()ing.
+</I>
+I haven't changed this. Exception objects are somewhat magical in some 
+languages and it seems unwise for the spec to try to clone that magic 
+across thread or process boundaries. We could, however, define some 
+simpler cloning mechanism that, for Error and DOMException objects, clones 
+only specific fields, returning a simple Object with specific properties 
+(in particular, 'message'). However, it's not clear to me what the use 
+case is here. As others have noted, for debugging, the error information 
+is already expected to be transmitted across without any help from the 
+author -- and debugging tools are likely to be much more useful here than 
+being able to send Errors easily.
+
+
+On Mon, 1 Mar 2010, ben turner wrote:
+&gt;<i> 
+</I>&gt;<i> I'm implementing the structured clone algorithm and this part bothers me 
+</I>&gt;<i> a little bit:
+</I>&gt;<i> 
+</I>&gt;<i>   - If input is a host object (e.g. a DOM node)
+</I>&gt;<i>       Return the null value.
+</I>&gt;<i> 
+</I>&gt;<i> Seems like this has the potential to confuse web programmers somewhat. 
+</I>&gt;<i> If I were to write code like this:
+</I>&gt;<i> 
+</I>&gt;<i>   worker.postMessage(window);
+</I>&gt;<i> 
+</I>&gt;<i> I would expect something meaningful to happen as long as no exception 
+</I>&gt;<i> was generated. According to the spec, though, we would send null to the 
+</I>&gt;<i> worker and not generate any exception. Is that really desirable?
+</I>&gt;<i> 
+</I>&gt;<i> I like the idea of making the structured clone as friendly as possible 
+</I>&gt;<i> but maybe we should add some teeth to this case just like we do for 
+</I>&gt;<i> recursive objects?
+</I>
+We can't send &quot;true&quot; DOM objects across the divide, since implementations 
+don't support DOMs in their worker implementations. I'm not really sure 
+what else we should do. If we do something other than send null today, 
+it's going to make it very difficult to later start cloning real DOM 
+objects if we ever support that.
+
+
+On Thu, 11 Mar 2010, Mikko Rantalainen wrote:
+&gt;<i> timeless wrote:
+</I>&gt;<i> &gt; On Tue, Mar 2, 2010 at 12:50 AM, ben turner &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">bent at mozilla.com</A>&gt; wrote:
+</I>&gt;<i> &gt;&gt;  - If input is a host object (e.g. a DOM node)
+</I>&gt;<i> &gt;&gt;      Return the null value.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; The general reason, I believe for this behavior is if you have:
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; a=[x,y,z,q,r,s]; worker.postMessage(a) and r turns out to be window, 
+</I>&gt;<i> &gt; you don't want to trigger an exception just because one value in a 
+</I>&gt;<i> &gt; list is a native object.
+</I>&gt;<i> 
+</I>&gt;<i> Why do you think so? I'd expect an exception instead of potential data 
+</I>&gt;<i> loss (due to not being to able to post the actual data to the worker). 
+</I>&gt;<i> I'd be happy to filter the &quot;r&quot; out of the list if I need to, but I'd 
+</I>&gt;<i> hate to try to figure why *some* of the data I was posting does not show 
+</I>&gt;<i> up at the worker. Obviously, if I know that I cannot post &quot;r&quot; and I 
+</I>&gt;<i> don't want to do the filtering myself, it would be nice to have an extra 
+</I>&gt;<i> parameter for postMessage() telling that it's okay to drop some data if 
+</I>&gt;<i> it cannot be transferred but that should not be the default. However, I 
+</I>&gt;<i> would consider that a special case and API could do just fine without 
+</I>&gt;<i> such feature.
+</I>
+We could throw an exception, but that would make migrating from this not 
+being supported to this being supported later a lot harder (you'd have to 
+catch exceptions and then remove the nodes, rather than just doing null 
+checks in the worker). I don't know that that's worth it.
+
+
+On Mon, 15 Mar 2010, ATSUSHI TAKAYAMA wrote:
+&gt;<i> &gt; 
+</I>&gt;<i> &gt; The only option that comes to mind that doesn't expose compatibility 
+</I>&gt;<i> &gt; issues would be to only issue onclose events if close() is explicitly 
+</I>&gt;<i> &gt; called on the entangled port, but if you're doing that you might as 
+</I>&gt;<i> &gt; well just have the code calling close() post a &quot;I'm closing&quot; message 
+</I>&gt;<i> &gt; first. -atw
+</I>&gt;<i> 
+</I>&gt;<i> This would mean that all web pages using a SharedWorker (and keep 
+</I>&gt;<i> reference to MessagePort inside the SharedWorker) have to set &quot;unload&quot; 
+</I>&gt;<i> event handlers to call port.close() so that references to the ports in 
+</I>&gt;<i> the SharedWorker don't get accumulated. That is not desirable. 
+</I>&gt;<i> &quot;pagehide&quot; handler may not be sufficient for this purpose.
+</I>&gt;<i> 
+</I>&gt;<i> I think, as Hixie suggested, an array like object to track references of 
+</I>&gt;<i> all connected ports would be nice *for SharedWorkers*. For ports created 
+</I>&gt;<i> dynamically by new MessageChannel, it doesn't seem to work well.
+</I>
+Well an array mechanism could just be a generic &quot;port array&quot; that you can 
+add and remove ports from dynamically, it need not be just for received 
+ports. I haven't added this yet, but would appreciate more feedback from 
+vendors on whether they think it's worth adding this now or waiting.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="025546.html">[whatwg] Define MessagePort.isConnected or	MessagePort.ondisconnect
+</A></li>
+	<LI>Next message: <A HREF="025619.html">[whatwg] Web Workers feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#25618">[ date ]</a>
+              <a href="thread.html#25618">[ thread ]</a>
+              <a href="subject.html#25618">[ subject ]</a>
+              <a href="author.html#25618">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

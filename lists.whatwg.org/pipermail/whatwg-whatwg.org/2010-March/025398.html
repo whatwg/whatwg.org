@@ -1,0 +1,163 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] [html5] Attaching option elements to select elements in	different documents
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20%5Bhtml5%5D%20Attaching%20option%20elements%20to%20select%20elements%20in%0A%09different%20documents&In-Reply-To=%3C676b4b3edb061471bce0eddfdafe2ceeaa38e569%40localhost%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="025516.html">
+   <LINK REL="Next"  HREF="025399.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] [html5] Attaching option elements to select elements in	different documents</H1>
+<!--htdig_noindex-->
+    <B>Stewart Brodie</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20%5Bhtml5%5D%20Attaching%20option%20elements%20to%20select%20elements%20in%0A%09different%20documents&In-Reply-To=%3C676b4b3edb061471bce0eddfdafe2ceeaa38e569%40localhost%3E"
+       TITLE="[whatwg] [html5] Attaching option elements to select elements in	different documents">stewart.brodie at antplc.com
+       </A><BR>
+    <I>Wed Mar  3 09:11:01 PST 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="025516.html">[whatwg] &lt;canvas&gt; feedback
+</A></li>
+        <LI>Next message: <A HREF="025399.html">[whatwg] [html5] Attaching option elements to select elements in different documents
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#25398">[ date ]</a>
+              <a href="thread.html#25398">[ thread ]</a>
+              <a href="subject.html#25398">[ subject ]</a>
+              <a href="author.html#25398">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>
+The algorithm in the HTML5 specification for attaching an option element to
+a select element is incomplete, because it doesn't describe how to handle
+the case where the option element does not belong to the same document as
+the select element.
+
+It seems that HTMLOptionElement objects are immune to WRONG_DOCUMENT_ERR
+exceptions on any tree modifications.  Thus the HTML5 specification also
+needs to note that it is overriding the rules from DOM Core about what may
+be attached to what.  I've written some proposed changes further below.
+
+As far as I can tell, this affects: HTMLSelectElement.add(),
+HTMLOptionsCollection.add(), Node.appendChild(), Node.replaceChild(),
+Node.insertBefore().
+
+My tests show that this isn't even confined to the cases where the new
+parent node is an HTML select element - any cross-document attachment of
+option elements operates as though the same-document check has been
+bypassed.  In fact, the behaviour I'm seeing looks very much like an
+implicit adoptNode() call has occurred.  I'm basing that suspicion on a
+comparison of the (equally inconsistent) behaviour of adoptNode() in
+different browsers[*]
+
+I'm testing this from ECMAScript in my test page which is at:
+<A HREF="http://www.metahusky.net/~stewart/css/html-options/">http://www.metahusky.net/~stewart/css/html-options/</A>
+
+In all browsers, if the insertion of the option succeeds, then the inserted
+option element compares strictly equal to the option in the receiving select
+element.  i.e. the option tree has not been cloned.
+
+In some browsers, the [[Prototype]] of the HTMLOptionElement is reset to be
+HTMLOptionElement.prototype of the receiving document's script context; in
+others, it does not get changed.  However, in all browsers, all the nodes in
+the option's subtree are affected similarly (i.e. if the option's
+[[Prototype]] changes, so does the text node's)
+
+In some browsers, you can only insert the option element if the option
+element is not currently attached to anything else.
+
+In some browsers, the option isn't inserted at the right index into the
+receiving select, but I think that must just be a different bug.
+
+
+I propose the following changes to the specification:
+
+
+Change 1: Renumber existing step 7 to step 8 and insert a new step 7 in
+<A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/urls.html#htmloptionscollection">http://www.whatwg.org/specs/web-apps/current-work/multipage/urls.html#htmloptionscollection</A>
+
+&quot;7.  If _element_ does not belong to the same document as _parent_, then act
+as if the DOM Core adoptNode() method was invoked on the _parent_ node's
+ownerDocument with _element_ as the parameter.&quot;
+
+[Aside: whilst in the vicinity, shouldn't step 3 be using node rather than
+element i.e. &quot;If _before_ is a *node*, but that *node* ...&quot;?   Otherwise, I
+could legitimately insert it before any text node anywhere in the document.
+Should it require that _before_ has to be an option or optgroup?]
+
+
+
+Change 2: Append some text to section 2.2.1 (Conformance Requirements -&gt;
+Dependencies) to indicate the change to DOM Core, and include a link to the
+text added by change 3:
+
+&quot;Some requirements in this specification are a wilful violation of
+constraints imposed by the DOM Core specification [DOMCORE]:
+
+* attaching _option_ elements to different documents is permitted&quot;
+
+
+
+Change 3: append explanatory text, linked from change 2's text to:
+<A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/the-button-element.html#the-option-element">http://www.whatwg.org/specs/web-apps/current-work/multipage/the-button-element.html#the-option-element</A>
+
+&quot;If any attempt is made to attach an _option_ element to a node in a
+Document other than the Document of the _option_ element, then the user
+agent must not throw a _WRONG_DOCUMENT_ERR_ exception.  If the tree change
+would otherwise succeed, then the user agent must behave as if a call to the
+DOM Core adoptNode() method has been made so that the Document of the
+_option_ element is updated.  This affects the DOM Core appendChild(),
+insertBefore() and replaceChild() methods.&quot;
+
+
+Actually, all of these changes might have to say &quot;_option_ or _optgroup_&quot;.
+
+
+[*] Opera 10.10, Chrome 5.0.307.11 beta, Firefox 3.5.8, and our own ANT
+Galio 3.1.0
+
+-- 
+Stewart Brodie
+Team Leader - ANT Galio Browser
+ANT Software Limited
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="025516.html">[whatwg] &lt;canvas&gt; feedback
+</A></li>
+	<LI>Next message: <A HREF="025399.html">[whatwg] [html5] Attaching option elements to select elements in different documents
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#25398">[ date ]</a>
+              <a href="thread.html#25398">[ thread ]</a>
+              <a href="subject.html#25398">[ subject ]</a>
+              <a href="author.html#25398">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

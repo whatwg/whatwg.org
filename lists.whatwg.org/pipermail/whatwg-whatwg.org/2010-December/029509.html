@@ -1,0 +1,153 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Canvas: clarification of compositing operations needed
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Canvas%3A%20clarification%20of%20compositing%20operations%20needed&In-Reply-To=%3C20574DF2E36B54499B8B95A29D75DBAF0189EF88%40008-AM1MPN1-026.mgdnok.nokia.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="029508.html">
+   <LINK REL="Next"  HREF="029513.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Canvas: clarification of compositing operations needed</H1>
+<!--htdig_noindex-->
+    <B>carol.szabo at nokia.com</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Canvas%3A%20clarification%20of%20compositing%20operations%20needed&In-Reply-To=%3C20574DF2E36B54499B8B95A29D75DBAF0189EF88%40008-AM1MPN1-026.mgdnok.nokia.com%3E"
+       TITLE="[whatwg] Canvas: clarification of compositing operations needed">carol.szabo at nokia.com
+       </A><BR>
+    <I>Wed Dec 22 10:39:53 PST 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="029508.html">[whatwg] abbr inside of option
+</A></li>
+        <LI>Next message: <A HREF="029513.html">[whatwg] navigation shouldn't abort if canceled
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#29509">[ date ]</a>
+              <a href="thread.html#29509">[ thread ]</a>
+              <a href="subject.html#29509">[ subject ]</a>
+              <a href="author.html#29509">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>HTML5 - Canvas.
+
+I have read this thread (from and of July 2010) and I happen to agree that the Safari/Chromium implementation is more intuitive, and likely less expensive to implement, therefore I offer these 2 proposals for changing the spec's Drawing model section to match what I perceive to be the preference of most people in that discussion.
+
+Of note: According to the current Drawing model, an opaque shape's shadow would be erased as part of step 6 when drawn with source-in composite Mode if globalAlpha is 1, which is probably not the intended behavior.
+
+Version 1:
+
+4.8.11.1.13 Drawing model
+
+
+When a shape or image is painted, user agents must follow these steps, in the order given (or act as if they do):
+
+   1. Render the shape or image onto an infinite transparent black bitmap, creating image M1, as described in the previous sections except that for the purpose of this step every pixel of the image will be considered to be fully opaque white and the current fillStyle will be considered to be solid fully opaque white and the strokeStyle will be considered fullyOpaque white as well.
+
+   2. When shadows are drawn, render the shadow from image M1, using a fully opaque white shadow color as described in the shadows section, creating image M2.
+
+   3. Let C1 be a region obtained by intersecting the canvas's cliping region with the set of pixels in the canvas that correspond to pixels in M1 (by having the same coordinates) that are not fully transparent.
+
+   4. Let C2 be a region obtained by intersecting the canvas's cliping region with the set of pixels in the canvas that correspond to pixels in M2 (by having the same coordinates) that are not fully transparent.
+
+   5. Render the shape or image onto an infinite transparent black bitmap, creating image A, as described in the previous sections. For shapes, the current fill, stroke, and line styles must be honored, and the stroke must itself also be subjected to the current transformation matrix.
+
+   6. When shadows are drawn, render the shadow from image A, using the current shadow styles, creating image B.
+
+   7. When shadows are drawn, multiply the alpha component of every pixel in B by globalAlpha.
+
+   8. When shadows are drawn, composite B with the current canvas bitmap, cliping results to region C2 defined above, using the current composition operator.
+
+   9. Multiply the alpha component of every pixel in A by globalAlpha.
+
+  10. Composite A with the current canvas bitmap, cliping results to region C1 defined above, using the current composition operator. 
+
+
+Version 2:
+
+4.8.11.1.13 Drawing model
+
+
+When a shape or image is painted, user agents must follow these steps, in the order given (or act as if they do):
+
+   1. Render the shape or image onto an infinite transparent black bitmap, creating image A, as described in the previous sections. For shapes, the current fill, stroke, and line styles must be honored, and the stroke must itself also be subjected to the current transformation matrix.
+
+   2. When shadows are drawn, render the shadow from image A, using the current shadow styles, creating image B.
+
+   3. When shadows are drawn, multiply the alpha component of every pixel in B by globalAlpha.
+
+   4. When shadows are drawn, composite, using the current composition operator, B with the current canvas bitmap, cliping results to the cliping region of the canvas and to the pixels that would have taken the shadow's color if the composition operator would have been source-over and the shadow would have been fully opaque and the globalAlpha would have been 1.
+   5. Multiply the alpha component of every pixel in A by globalAlpha.
+   6. Composite, using the current composition operator, A with the current canvas bitmap, cliping results to the cliping region of the canvas and to the pixels that would have taken the shape's or image's pixel color if the composition operator would have been source-over and the image would have been fully opaque, the fillStyle and strokeStyle would have been a solid fully opaque color, and the globalAlpha would have been 1. 
+
+
+I also suggest, this change to section 4.8.11.1.3 Compositing:
+
+Instead of:
+
+The operators in the above list must be treated as described by the Porter-Duff operator given at the start of their description (e.g. A over B). They are to be applied as part of the drawing model, at which point the clipping region is also applied. (Without a clipping region, these operators act on the whole bitmap with every operation.) [PORTERDUFF]
+
+Say:
+The operators in the above list must be treated as described by the Porter-Duff operator [PORTERDUFF] given at the start of their description (e.g. A over B). They are to be applied as part of the drawing model, which also defines the pixels in the canvas that are to be composited.
+
+
+
+
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="029508.html">[whatwg] abbr inside of option
+</A></li>
+	<LI>Next message: <A HREF="029513.html">[whatwg] navigation shouldn't abort if canceled
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#29509">[ date ]</a>
+              <a href="thread.html#29509">[ thread ]</a>
+              <a href="subject.html#29509">[ subject ]</a>
+              <a href="author.html#29509">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

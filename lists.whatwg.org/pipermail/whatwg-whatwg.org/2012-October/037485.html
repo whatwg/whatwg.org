@@ -1,0 +1,347 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Proposal for Links to Unrelated Browsing Contexts
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Proposal%20for%20Links%20to%20Unrelated%20Browsing%20Contexts&In-Reply-To=%3CPine.LNX.4.64.1210012028440.27765%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="079757.html">
+   <LINK REL="Next"  HREF="079759.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Proposal for Links to Unrelated Browsing Contexts</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Proposal%20for%20Links%20to%20Unrelated%20Browsing%20Contexts&In-Reply-To=%3CPine.LNX.4.64.1210012028440.27765%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg] Proposal for Links to Unrelated Browsing Contexts">ian at hixie.ch
+       </A><BR>
+    <I>Mon Oct  1 15:10:39 PDT 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="079757.html">[whatwg] Default scope for table headers
+</A></li>
+        <LI>Next message: <A HREF="079759.html">[whatwg] Proposal for Links to Unrelated Browsing Contexts
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#37485">[ date ]</a>
+              <a href="thread.html#37485">[ thread ]</a>
+              <a href="subject.html#37485">[ subject ]</a>
+              <a href="author.html#37485">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>
+Summary: I've changed rel=noreferrer so that when it creates a new 
+top-level browsing context, it doesn't clone sessionStorage. Turns out 
+that as specced, it already did everything else that was needed.
+
+On Wed, 6 Jun 2012, Charlie Reis wrote:
+&gt;<i>
+</I>&gt;<i> I've posted a new proposal to the WhatWG wiki to give web sites a way to 
+</I>&gt;<i> open a link in an unrelated browsing context.  These links would open in 
+</I>&gt;<i> a new window with no script connections back to the original site, which 
+</I>&gt;<i> is useful for web apps like Gmail that open user-contributed links.  
+</I>&gt;<i> Also, this could allow multi-process browsers like Google Chrome to open 
+</I>&gt;<i> the new page in a separate process.
+</I>&gt;<i> 
+</I>&gt;<i> Any feedback on the proposal is appreciated! 
+</I>&gt;<i> <A HREF="http://wiki.whatwg.org/wiki/Links_to_Unrelated_Browsing_Contexts">http://wiki.whatwg.org/wiki/Links_to_Unrelated_Browsing_Contexts</A>
+</I>
+The key part of this is:
+
+|<i> Many web apps open untrusted links in new windows, such as mail clients 
+</I>|<i> that allow users to click on links in email messages. These apps often 
+</I>|<i> want to avoid any detrimental effects from opening the untrusted page, 
+</I>|<i> such as script calls that try to manipulate or infer things about their 
+</I>|<i> window.opener, or slowdowns from being rendered in the same process of a 
+</I>|<i> multi-process browser.
+</I>
+This is already possible with rel=noreferrer.
+
+
+On Mon, 27 Aug 2012, Charlie Reis wrote:
+&gt;<i> 
+</I>&gt;<i> Primary goals:
+</I>&gt;<i>  + have the new page use a different event loop if possible (new process)
+</I>&gt;<i>  + have the window of the new page not be able to reach the opener via
+</I>&gt;<i>    a named window.open() or target=&quot;&quot;
+</I>
+This is already possible using rel=noreferrer to create a new browsing 
+context without a name.
+
+
+&gt;<i> As a result, I think these are also necessary features:
+</I>&gt;<i>  + have the new page be in a different unit of related browsing contexts
+</I>
+This is already the case for rel=noreferrer, as far as I can tell, 
+assuming that...
+
+&gt;<i>  + have the new page be in a new browsing context
+</I>
+...it's a new browsing context (e.g. target=&quot;_blank&quot;).
+
+
+&gt;<i>  + have &quot;window.opener&quot; not be set
+</I>
+This is already the case for rel=noreferrer.
+
+
+&gt;<i>  + have the window.name of the new page be set to &quot;&quot;
+</I>
+This is already the case unless you explicitly set one. But actually, even 
+if you do, nothing forces the user agent to make it accessible, since the 
+spec says that they're only accessible if &quot;the user agent determines that 
+the two browsing contexts are related enough that it is ok if they reach 
+each other&quot;, and the UA can easily decide not to allow it if the tabs 
+aren't &quot;directly reachable browsing contexts&quot; in the spec's terms.
+
+
+&gt;<i> Secondary goals:
+</I>&gt;<i>  + have the sessionStorage not be cloned for the new page's browsing
+</I>&gt;<i>    context
+</I>
+Interesting. Done.
+
+
+&gt;<i> Anti-goals:
+</I>&gt;<i>  + have the referer header be cleared on the load of the new page
+</I>
+(Discussed below.)
+
+
+&gt;<i> &gt; Does this need to be done from window.open()?
+</I>&gt;<i> 
+</I>&gt;<i> Yes.  For example, Gmail uses window.open() for the links in emails, but 
+</I>&gt;<i> would like the links to open in an unrelated context.
+</I>
+(Discussed below.)
+
+
+&gt;<i> &gt; From &lt;a href&gt;?
+</I>&gt;<i> 
+</I>&gt;<i> Yes.  For example, links to switch between apps within a domain would be 
+</I>&gt;<i> useful to have open in an unrelated context (e.g., the black bar at the 
+</I>&gt;<i> top of Google pages).
+</I>
+rel=noreferrer supports this.
+
+
+&gt;<i> &gt; From &lt;form action&gt;?
+</I>&gt;<i> 
+</I>&gt;<i> I don't know of any immediate use cases for this, but it might be nice 
+</I>&gt;<i> for consistency.
+</I>
+I haven't supported this. In general, &lt;form&gt; doesn't support rel=&quot;&quot; 
+features.
+
+
+&gt;<i> &gt; Is this a symmetric feature?
+</I>&gt;<i> 
+</I>&gt;<i> Sorry, I'm not sure what you mean by symmetric here.  The page opened in 
+</I>&gt;<i> the unrelated context may also be able to open pages in another 
+</I>&gt;<i> unrelated context.
+</I>
+I meant &quot;is access blocked in both directions&quot;, as in, the new page can't 
+see the original page and vice versa. The answer seems to be yes.
+
+
+&gt;<i> &gt; At a more fundamental level: what are the use cases here? Is it just 
+</I>&gt;<i> &gt; e-mail clients that want to open links?
+</I>&gt;<i> 
+</I>&gt;<i> Links in email clients is one use case.  For user agents that can open 
+</I>&gt;<i> such links in a different event loop, another use case is to allow 
+</I>&gt;<i> multiple independent apps under the same domain to run in parallel, even 
+</I>&gt;<i> when opening one app from another.  (For example, Chrome could open 
+</I>&gt;<i> links to different Google apps like Search, Maps, Mail, etc, in 
+</I>&gt;<i> different processes.)
+</I>
+For these use cases, blocking referrers seems like a good thing, or at 
+least not a problem.
+
+
+On Wed, 6 Jun 2012, Michal Zalewski wrote:
+&gt;<i> 
+</I>&gt;<i> 1) How would this mechanism work with named windows (which may be 
+</I>&gt;<i> targeted by means other than accessing opener.*)? In certain 
+</I>&gt;<i> implementations (e.g., Chrome), the separation in this namespace comes 
+</I>&gt;<i> free, but that's not given for other browsers. There are ways in which 
+</I>&gt;<i> the attacker could, for example, load GMail in a window that already has 
+</I>&gt;<i> window.name set.
+</I>
+Yeah, if you set the name you're not going to necessarily have as good a 
+separation. If you want this to work well, use target=&quot;_blank&quot;.
+
+
+&gt;<i> 2) What would be the behavior of a rel=unrelated link with target= 
+</I>&gt;<i> pointing to an existing iframe on the page? Could it work in any useful 
+</I>&gt;<i> way?
+</I>&gt;<i> 3) What about the same with target= pointing to an existing window? 
+</I>&gt;<i> Would that window become isolated? What would happen to the 'back' 
+</I>&gt;<i> button / history.back()?
+</I>
+It drops the referrer, but that's all, basically.
+
+
+On Wed, 6 Jun 2012, Adam Barth wrote:
+&gt;<i> 
+</I>&gt;<i> That doesn't seem necessary.  Why not navigate the current window to a 
+</I>&gt;<i> new document in an unrelated browsing context?
+</I>
+Browsers can do that if they want, but a new browsing context implies a 
+new session history and I think it'd be really confusing for a link to 
+seem to work like any normal link except it neuters the back button, or 
+otherwise makes the history act in a special way.
+
+
+On Thu, 14 Jun 2012, James Graham wrote:
+&gt;<i> 
+</I>&gt;<i> [...] except in the case where the two are same-origin which is allowed 
+</I>&gt;<i> but with some fuzzy condition about &quot;[if] the user agent determines that 
+</I>&gt;<i> the two browsing contexts are related enough that it is ok if they reach 
+</I>&gt;<i> each other&quot;. As far as I can tell only Gecko implements that and it 
+</I>&gt;<i> seems reasonable that others wouldn't want to have behaviour that 
+</I>&gt;<i> requires multiple event loops to interact (assuming one event loop per 
+</I>&gt;<i> unit of related browsing context).
+</I>&gt;<i> 
+</I>&gt;<i> Therefore I think that part of the spec should be changed to only reuse 
+</I>&gt;<i> the same named window within a single unit of related browsing contexts.
+</I>
+I haven't changed this, but it doesn't seem that unreasonable. Does anyone 
+have any tests of this? In particular, do browsers really guarantee that 
+you can reach _any_ browsing context in a unit of related browsing 
+contexts? Or is it sometimes more strict than this? Is Gecko going to 
+change in the other direction, making things tighter? Is Chrome, in the 
+case of reused processes? Charlie even suggests that Safari, IE, and Opera 
+allow different unrelated windows to find each other; if that is the case, 
+it's not clear that the spec should change since that puts all the 
+browsers on the side of matching the spec. :-)
+
+(If we change this (change &quot;related enough&quot; to &quot;in the same unit of 
+related browsing contexts&quot;), then even a named browsing context, assuming 
+the name is new and doesn't end up referring to an existing window, would 
+be cut off in the way we're describing above regarding event loops.)
+
+
+On Tue, 19 Jun 2012, Boris Zbarsky wrote:
+&gt;<i> On 6/19/12 1:56 PM, Charlie Reis wrote:
+</I>&gt;<i> &gt; That's from the &quot;[if] the user agent determines that the two browsing 
+</I>&gt;<i> &gt; contexts are related enough that it is ok if they reach each other&quot; 
+</I>&gt;<i> &gt; part, which is quite vague.
+</I>&gt;<i> 
+</I>&gt;<i> This is, imo, the part that says unrelated browsing contexts should not 
+</I>&gt;<i> be able to reach each other by name.
+</I>&gt;<i> 
+</I>&gt;<i> It's only vague because hixie wanted all current implementations to be 
+</I>&gt;<i> conforming, I think.  Which I believe is a mistake.
+</I>
+I'm happy to make the spec not match implementations, if the 
+implementations are going to change to match the spec. :-)
+
+
+&gt;<i> &gt; Firefox appears to allow cross-origin windows find each other by name.
+</I>&gt;<i> 
+</I>&gt;<i> This is actually necessary for web compat, last I checked, if the 
+</I>&gt;<i> cross-origin window is one that you opened or one that you are framing.  
+</I>
+The spec enumerates a set of cases where it's ok.
+
+
+On Mon, 27 Aug 2012, Maciej Stachowiak wrote:
+&gt;<i> 
+</I>&gt;<i> I'm still not clear on the use case for nulling the opener but still 
+</I>&gt;<i> sending the Referer header. It seems like it is better for mail clients 
+</I>&gt;<i> to clear referrer. What kinds of web apps need to open new windows and 
+</I>&gt;<i> null window.opener, but still send Referer?
+</I>&gt;<i> 
+</I>&gt;<i> The reason I'm asking is that it seems regrettable to have two link 
+</I>&gt;<i> types with such similar but subtly different behavior.
+</I>
+Agreed.
+
+
+On Tue, 28 Aug 2012, Charlie Reis wrote:
+&gt;<i> 
+</I>&gt;<i> There are two main differences from the rel=noreferrer feature.  First 
+</I>&gt;<i> (as you note), this does still send the referrer.  That's useful for 
+</I>&gt;<i> sites that don't want to be affected by the newly opened page but that 
+</I>&gt;<i> still rely on referrers for analytics.  From my earlier examples, that 
+</I>&gt;<i> might include links in social networks (where the social network might 
+</I>&gt;<i> want to be seen as the source of the referral) or links between apps on 
+</I>&gt;<i> the same domain.  I suppose it could also be useful for ads.
+</I>
+These are different use cases than the GMail case.
+
+
+On Tue, 28 Aug 2012, Glenn Maynard wrote:
+&gt;<i> 
+</I>&gt;<i> I had to do this recently (a script-initiated rel=noreferrer 
+</I>&gt;<i> navigation). FYI, I worked around it by creating a temporary 
+</I>&gt;<i> HTMLAnchorElement, setting its href and rel properties and calling 
+</I>&gt;<i> click().  A way to do this directly with window.open would be nice, but 
+</I>&gt;<i> it's orthogonal to noreferrer vs. unrelated.
+</I>
+On Wed, 29 Aug 2012, Charlie Reis wrote:
+&gt;<i> 
+</I>&gt;<i> That's a fair point, actually.  It would be possible to use noreferrer 
+</I>&gt;<i> from script code (if somewhat inelegant).
+</I>
+Even better is to just use a real link and have the user really click it. 
+No need for script-initiated anything, then.
+
+
+&gt;<i> To be honest, I haven't heard strong enough support for the 
+</I>&gt;<i> allow-referrer case to justify this proposal on the basis of &quot;cleaner 
+</I>&gt;<i> syntax&quot; alone. Maybe we should table the discussion unless a stronger 
+</I>&gt;<i> use case arises?
+</I>
+Ok.
+
+
+On Mon, 24 Sep 2012, Mihai Parparita wrote:
+&gt;<i> 
+</I>&gt;<i> I can't speak for Gmail, but Google Reader uses window.open since it 
+</I>&gt;<i> allows &quot;unrelated&quot; links to be opened in response to a key event (the 
+</I>&gt;<i> &quot;v&quot; keyboard shortcut). It would also benefit from severing all ties to 
+</I>&gt;<i> the opened window.
+</I>
+There's still a real link in this case, though, no? So you can call 
+.click() on it. (Or use accesskey=&quot;&quot;...)
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="079757.html">[whatwg] Default scope for table headers
+</A></li>
+	<LI>Next message: <A HREF="079759.html">[whatwg] Proposal for Links to Unrelated Browsing Contexts
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#37485">[ date ]</a>
+              <a href="thread.html#37485">[ thread ]</a>
+              <a href="subject.html#37485">[ subject ]</a>
+              <a href="author.html#37485">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

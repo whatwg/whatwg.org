@@ -1,0 +1,142 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] window.opener and security
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20window.opener%20and%20security&In-Reply-To=%3Ccee13aa30703201933y733b331fx1199d078af3e72b8%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="010307.html">
+   <LINK REL="Next"  HREF="010297.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] window.opener and security</H1>
+<!--htdig_noindex-->
+    <B>liorean</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20window.opener%20and%20security&In-Reply-To=%3Ccee13aa30703201933y733b331fx1199d078af3e72b8%40mail.gmail.com%3E"
+       TITLE="[whatwg] window.opener and security">liorean at gmail.com
+       </A><BR>
+    <I>Tue Mar 20 19:33:55 PDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="010307.html">[whatwg] window.opener and security
+</A></li>
+        <LI>Next message: <A HREF="010297.html">[whatwg] window.opener and security
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#10333">[ date ]</a>
+              <a href="thread.html#10333">[ thread ]</a>
+              <a href="subject.html#10333">[ subject ]</a>
+              <a href="author.html#10333">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On 20/03/07, Thomas Broyer &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">t.broyer at gmail.com</A>&gt; wrote:
+&gt;<i> 2007/3/20, liorean:
+</I>&gt;<i> &gt; Some thing I would like to add here, is that your &quot;solution&quot; doesn't
+</I>&gt;<i> &gt; do anything to solve the actual l problem case. Even if window.opener
+</I>&gt;<i> &gt; would be read only, that is just a reference to a window object. Even
+</I>&gt;<i> &gt; if that property would be read only you could still write to the
+</I>&gt;<i> &gt; location property of the window object it references. For your
+</I>&gt;<i> &gt; solution to work the read only attribute would have to cascade to all
+</I>&gt;<i> &gt; properties, something defying the nature of JavaScript.
+</I>&gt;<i>
+</I>&gt;<i> I'm not so sure.
+</I>&gt;<i>
+</I>&gt;<i> And this would be similar to a node being read-only in the DOM (see
+</I>&gt;<i> the NO_MODIFICATION_ALLOWED_ERR DOMException in
+</I>&gt;<i> &lt;<A HREF="http://www.w3.org/TR/DOM-Level-2-Core/core.html#ID-258A00AF">http://www.w3.org/TR/DOM-Level-2-Core/core.html#ID-258A00AF</A>&gt;)
+</I>
+In the case of writing to windowobject.location, yes. Then it would
+work just like that, because just like the DOM exception you talk
+about, the cross domain security checks lay in a deeper layer than
+JavaScript.
+
+However, consider an access to foo.bar.baz. JavaScript will first
+access the first variable foo it can find in the current scope. When
+found, it will access the first bar property it can find in the
+prototype chain of the object referenced by that variable. And
+finally, it will access the first baz it can find in the prototype
+chain of the object referenced by that property.
+
+In other words, the access to baz will operate on an object already
+extracted from the bar property of an already extracted object from
+the foo variable. All of these accesses only operate on one object,
+how that object was originally gotten to has already been forgotten
+when that access takes place.
+
+Similarly, for window.opener.location=&quot;<A HREF="http://phishing.exampe.net/evil&quot;">http://phishing.exampe.net/evil&quot;</A>
+
+1. Access the &quot;window&quot; variable in current scope chain.
+2. Set the working object to the value of that  variable.
+3. Access the &quot;opener&quot; property of the working object.
+4. Set the working object to the value of that property.
+5. Set the &quot;location&quot; property of that object to the string
+&quot;<A HREF="http://phishing.exampe.net/evil&quot;">http://phishing.exampe.net/evil&quot;</A>
+
+In this, the setting of location happens on a window object.
+JavaScript has no memory of how it got that window object, so
+JavaScript itself cannot treat it specifically depending on how that
+was. However, the implementation of the property getters/setters in
+this example can themselves apply security checks and/or give a
+wrapped object with security restrictions. That's where the solution
+to this fix belongs.
+
+&gt;<i> &gt; A much better solution, in my opinion, would be to make the location
+</I>&gt;<i> &gt; object safe from cross domain attacks by making it only writable from
+</I>&gt;<i> &gt; same domain, or if the document does not have a domain yet.
+</I>&gt;<i> &gt; (window.open without address) I do think this would break some sites,
+</I>&gt;<i> &gt; however.
+</I>&gt;<i>
+</I>&gt;<i> Yep, e.g. redirecting to a mirror-site.
+</I>&gt;<i>
+</I>&gt;<i> But this is a very interesting idea (similar to XMLHttpRequest not
+</I>&gt;<i> allowing cross-domain requests; you'd just need a page on the same
+</I>&gt;<i> level to issue redirects at the HTTP-level to word-around that new
+</I>&gt;<i> limitation; and this is a really sane work-around IMO).
+</I>&gt;<i>
+</I>&gt;<i> I would personally combine both suggestions: window.opener, window.top
+</I>&gt;<i> and other windowobject accessors return readonly objects when called
+</I>&gt;<i> from a page within a different domain; and within the page, constrain
+</I>&gt;<i> window.location setting (imagine someone hacks Google and adds a
+</I>&gt;<i> window.location=XXX in Google Analytics script).
+</I>
+Or, they don't actually access window objects. They return security
+restriction wrapper objects for those window objects, and these give
+similar security restriction wrapped objects (recursively for
+arbitrary depth) to all JavaScript instances not being contained in
+their window object. This way the read/write access can be dynamically
+changed depending on any security restriction factor. It incurs a
+slight cost for all cross frame/window scripting (compared to scripts
+contained in the same window object), but I would think some mechanism
+like this is already in place in browsers, at least for some specific
+objects.
+-- 
+David &quot;liorean&quot; Andersson
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="010307.html">[whatwg] window.opener and security
+</A></li>
+	<LI>Next message: <A HREF="010297.html">[whatwg] window.opener and security
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#10333">[ date ]</a>
+              <a href="thread.html#10333">[ thread ]</a>
+              <a href="subject.html#10333">[ subject ]</a>
+              <a href="author.html#10333">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

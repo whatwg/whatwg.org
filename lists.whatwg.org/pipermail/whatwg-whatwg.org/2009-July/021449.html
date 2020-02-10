@@ -1,0 +1,173 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] DOMTokenList is unordered but yet requires sorting
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20DOMTokenList%20is%20unordered%20but%20yet%20requires%20sorting&In-Reply-To=%3CPine.LNX.4.62.0907280007270.23663%40hixie.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="021046.html">
+   <LINK REL="Next"  HREF="021462.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] DOMTokenList is unordered but yet requires sorting</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20DOMTokenList%20is%20unordered%20but%20yet%20requires%20sorting&In-Reply-To=%3CPine.LNX.4.62.0907280007270.23663%40hixie.dreamhostps.com%3E"
+       TITLE="[whatwg] DOMTokenList is unordered but yet requires sorting">ian at hixie.ch
+       </A><BR>
+    <I>Mon Jul 27 17:17:14 PDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="021046.html">[whatwg] DOMTokenList is unordered but yet requires sorting
+</A></li>
+        <LI>Next message: <A HREF="021462.html">[whatwg] DOMTokenList is unordered but yet requires sorting
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21449">[ date ]</a>
+              <a href="thread.html#21449">[ thread ]</a>
+              <a href="subject.html#21449">[ subject ]</a>
+              <a href="author.html#21449">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Sun, 12 Jul 2009, Jonas Sicking wrote:
+&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; Oh, I have forseen that. Is it really necessary to remove duplicates 
+</I>&gt;<i> &gt;&gt; ? I imagine DOMTokenList to be similar to what can be achieved with a 
+</I>&gt;<i> &gt;&gt; String.split(), but then it would be just more duplicate 
+</I>&gt;<i> &gt;&gt; functionality.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; If we don't remove duplicates, then things like the .toggle() method 
+</I>&gt;<i> &gt; could have some quite weird effects.
+</I>&gt;<i> 
+</I>&gt;<i> Such as?
+</I>
+Such as .length changing by more than 1 after a call to .toggle().
+
+
+&gt;<i> I definitely think it'd be worth avoiding the code complexity and perf 
+</I>&gt;<i> hit of having the implementation remove duplicates if they appear in the 
+</I>&gt;<i> class attribute given how extremely rare duplicates are.
+</I>
+Fair enough. I've made DOMTokenList not remove duplicates.
+
+
+On Mon, 13 Jul 2009, Sylvain wrote:
+&gt;<i> 
+</I>&gt;<i> This is a bit unrelated, but when looking at the DOMTokenList 
+</I>&gt;<i> implementation, I had an idea about an alternative algorithm that could 
+</I>&gt;<i> be easier to implement and could also be described more simply in the 
+</I>&gt;<i> spec. The disadvantage is that the DOMTokenList methods mutating the 
+</I>&gt;<i> underlying string wouldn't preserve existing whitespace (which the 
+</I>&gt;<i> current algorithms try hard to do).
+</I>&gt;<i> 
+</I>&gt;<i> The idea is that any DOMTokenList method that mutates the underlying string
+</I>&gt;<i> would do:
+</I>&gt;<i>  - split the attribute in unique tokens (preserving order).
+</I>&gt;<i>  - add or remove the token according to the method called.
+</I>&gt;<i>  - rebuild the attribute string by concatenating tokens together (with a
+</I>&gt;<i> single space).
+</I>&gt;<i> 
+</I>&gt;<i> At first, this may look like inefficient (if implemented naively).
+</I>&gt;<i> But I guess that implementations will usually keep both the attribute string
+</I>&gt;<i> and a list of tokens in memory, so they wouldn't have to tokenize the string
+</I>&gt;<i> on every mutation. There is a small performance hit during attribute
+</I>&gt;<i> tokenization: the list of tokens would need to keep only unique tokens. But
+</I>&gt;<i> after that, the DOMTokenList methods are very simple: length/item() don't need
+</I>&gt;<i> to take care of duplicates, add/remove/toggle are simple list manipulation
+</I>&gt;<i> (the attribute string could be lazily generated from the token list when
+</I>&gt;<i> needed).
+</I>&gt;<i> 
+</I>&gt;<i> To summarize:
+</I>&gt;<i> pros: simpler spec algorithms, simpler implementation
+</I>&gt;<i> cons: less whitespace preservation, small perf hit during tokenization
+</I>&gt;<i> 
+</I>&gt;<i> I don't know if I'm missing something. Does this sound reasonable?
+</I>
+It ends up being not much simpler since you still have to deal with direct 
+changes to the underlying string, as far as I can tell.
+
+
+On Mon, 13 Jul 2009, Jonas Sicking wrote:
+&gt;<i> 
+</I>&gt;<i> I do agree that the spec seems to go extraordinary far to not touch 
+</I>&gt;<i> whitespace. Normalizing whitespace when parsing is a bad idea, but once 
+</I>&gt;<i> the user modifies the DOMTokenList, I don't see a lot of value in 
+</I>&gt;<i> maintaining whitespace exactly as it was.
+</I>&gt;<i> 
+</I>&gt;<i> Ian: What is the reason for the fairly complicated code to deal with 
+</I>&gt;<i> removals? At least in Gecko it would be much simpler to just regenerate 
+</I>&gt;<i> the string completely. That way generating the string-value could just 
+</I>&gt;<i> be dropped on modifications, and regenerated lazily when requested.
+</I>
+In general, I try to be as conservative as possible in making changes to 
+the DOM. Are the algorithms really as complicated as you're making out? 
+They seem pretty trivial to me.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="021046.html">[whatwg] DOMTokenList is unordered but yet requires sorting
+</A></li>
+	<LI>Next message: <A HREF="021462.html">[whatwg] DOMTokenList is unordered but yet requires sorting
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21449">[ date ]</a>
+              <a href="thread.html#21449">[ thread ]</a>
+              <a href="subject.html#21449">[ subject ]</a>
+              <a href="author.html#21449">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

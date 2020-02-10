@@ -1,0 +1,157 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Fixing two security vulnerabilities in	registerProtocolHandler
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Fixing%20two%20security%20vulnerabilities%20in%0A%09registerProtocolHandler&In-Reply-To=%3CPine.LNX.4.64.1204022333490.22654%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="077783.html">
+   <LINK REL="Next"  HREF="077577.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Fixing two security vulnerabilities in	registerProtocolHandler</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Fixing%20two%20security%20vulnerabilities%20in%0A%09registerProtocolHandler&In-Reply-To=%3CPine.LNX.4.64.1204022333490.22654%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg] Fixing two security vulnerabilities in	registerProtocolHandler">ian at hixie.ch
+       </A><BR>
+    <I>Mon Apr  2 16:39:28 PDT 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="077783.html">[whatwg] register*Handler and Web Intents
+</A></li>
+        <LI>Next message: <A HREF="077577.html">[whatwg] Fixing two security vulnerabilities in	registerProtocolHandler
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#35302">[ date ]</a>
+              <a href="thread.html#35302">[ thread ]</a>
+              <a href="subject.html#35302">[ subject ]</a>
+              <a href="author.html#35302">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Mon, 26 Sep 2011, Tyler Close wrote:
+&gt;<i>
+</I>&gt;<i> I was recently experimenting with the registerProtocolHandler (RPH) API 
+</I>&gt;<i> and came across a couple of security gotchas that make it hard to safely 
+</I>&gt;<i> use the API. One of these is already known, but AFAICT, hasn't been 
+</I>&gt;<i> fixed yet. I haven't seen the other discussed yet.
+</I>&gt;<i> 
+</I>&gt;<i> The Mozilla blog post that introduces the registerProtocolHandler API 
+</I>&gt;<i> makes use of window.parent.postMessage to send a response from the RPH 
+</I>&gt;<i> handler back to the client page.
+</I>
+I presume it uses this in conjunction with an &lt;a href=&quot;&quot;&gt; link with a 
+target=&quot;&quot; attribute to load the handler in an iframe.
+
+
+&gt;<i> In the example code, the targetOrigin for this postMessage invocation is 
+</I>&gt;<i> '*', while also noting that this is not secure. AFAICT, there is no API 
+</I>&gt;<i> that the intent handler can reliably use to determine the correct 
+</I>&gt;<i> targetOrigin for this postMessage invocation.
+</I>
+How can the origin be anything other than the origin of the page that 
+triggered the link?
+
+
+&gt;<i> I suggest fixing this problem by adding a new readonly DOMString that 
+</I>&gt;<i> contains the correct origin for the postMessage invocation; perhaps 
+</I>&gt;<i> document.origin. So the response invocation would then be coded as:
+</I>&gt;<i> 
+</I>&gt;<i>   window.parent.postMessage('my response data', document.origin);
+</I>&gt;<i> 
+</I>&gt;<i> Perhaps a different name or location is better for this field, so I'll 
+</I>&gt;<i> defer to the editor's judgment.
+</I>
+You can work out your own origin from window.location's members, but I 
+don't see how this helps you determine the origin of your parent. There's 
+a separate thread about adding a way to obtain your parent's origin, but 
+again, I don't see why you would need it in this case. Can you elaborate 
+on what the attack scenario you are envisaging is?
+
+
+&gt;<i> The second problem with RPH is that the handler page doesn't have a
+</I>&gt;<i> way of reliably getting the URL of the content to be handled from the
+</I>&gt;<i> browser. In order to work in offline scenarios, the RPH handler must
+</I>&gt;<i> put the %s placeholder in the fragment of its handler's URL.
+</I>
+It's not clear to me that it makes sense to have an offline protocol 
+handler. What kind of protocol do you have in mind?
+
+
+&gt;<i> Unfortunately, this means that other content in the browser could
+</I>&gt;<i> modify the content URL before the handler reads it.
+</I>
+Well, any content can load any URL, so it doesn't matter whether the URL 
+is in the fragment identifier or the path or anything else, surely.
+
+
+&gt;<i> For example, an attacker could open a window on a victim web page. The 
+</I>&gt;<i> victim web page then opens an &lt;iframe&gt; on a content URL that triggers 
+</I>&gt;<i> RPH. The attacker then navigates the &lt;iframe&gt; so that its 
+</I>&gt;<i> window.location contains a different content URL.
+</I>
+How can the attacker navigate that iframe? Surely it would not be allowed 
+to navigate it, per the &quot;allowed to navigate&quot; definition in HTML.
+
+
+&gt;<i> The intent handler sees a request coming from the victim page, but with 
+</I>&gt;<i> a content URL specified by the attacker. A related problem is that the 
+</I>&gt;<i> intent handler has no way to distinguish whether its URL was loaded via 
+</I>&gt;<i> the browser's RPH handling, or whether the client page directly 
+</I>&gt;<i> navigated to the intent handler's URL. Both of these problems could be 
+</I>&gt;<i> fixed by adding another readonly DOMString to the API that contains the 
+</I>&gt;<i> %s data for the RPH invocation.
+</I>
+I don't understand why it matters how the URL was invoked.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="077783.html">[whatwg] register*Handler and Web Intents
+</A></li>
+	<LI>Next message: <A HREF="077577.html">[whatwg] Fixing two security vulnerabilities in	registerProtocolHandler
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#35302">[ date ]</a>
+              <a href="thread.html#35302">[ thread ]</a>
+              <a href="subject.html#35302">[ subject ]</a>
+              <a href="author.html#35302">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

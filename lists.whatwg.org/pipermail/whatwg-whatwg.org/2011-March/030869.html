@@ -1,0 +1,201 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] input element's value should not be sanitized during	parsing
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20input%20element%27s%20value%20should%20not%20be%20sanitized%20during%0A%09parsing&In-Reply-To=%3CAANLkTin5NB_uWOcj9TSx1Mx07B4X0UzNS75rSx1COWFT%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="030867.html">
+   <LINK REL="Next"  HREF="073359.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] input element's value should not be sanitized during	parsing</H1>
+<!--htdig_noindex-->
+    <B>Jonas Sicking</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20input%20element%27s%20value%20should%20not%20be%20sanitized%20during%0A%09parsing&In-Reply-To=%3CAANLkTin5NB_uWOcj9TSx1Mx07B4X0UzNS75rSx1COWFT%40mail.gmail.com%3E"
+       TITLE="[whatwg] input element's value should not be sanitized during	parsing">jonas at sicking.cc
+       </A><BR>
+    <I>Fri Mar 11 15:56:54 PST 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="030867.html">[whatwg] Improving the application cache.
+</A></li>
+        <LI>Next message: <A HREF="073359.html">[whatwg] input element's value should not be sanitized during parsing
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#30869">[ date ]</a>
+              <a href="thread.html#30869">[ thread ]</a>
+              <a href="subject.html#30869">[ subject ]</a>
+              <a href="author.html#30869">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>(Sorry to bring back an old thread. Trying to catch up on old to-do's
+now that FF4 is almost out the door)
+
+On Tue, Dec 28, 2010 at 11:46 PM, Ian Hickson &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">ian at hixie.ch</A>&gt; wrote:
+&gt;<i> On Mon, 20 Sep 2010, Mounir Lamouri wrote:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> With the current specification, these two elements will not have the
+</I>&gt;&gt;<i> same value:
+</I>&gt;&gt;<i> &lt;input value=&quot;foo&#13;bar&quot; type='hidden'&gt;
+</I>&gt;&gt;<i> &lt;input type='hidden' value=&quot;foo&#13;bar&quot;&gt;
+</I>&gt;<i>
+</I>&gt;<i> Yes they will. The attribute order has no effect. Elements are created
+</I>&gt;<i> by the parser with their attributes already set:
+</I>&gt;<i>
+</I>&gt;<i> # When the steps below require the UA to create an element for a token in
+</I>&gt;<i> # a particular namespace, the UA must create a node implementing the interface
+</I>&gt;<i> # appropriate for the element type corresponding to the tag name of the
+</I>&gt;<i> # token in the given namespace (as given in the specification that defines
+</I>&gt;<i> # that element, e.g. for an a element in the HTML namespace, this
+</I>&gt;<i> # specification defines it to be the HTMLAnchorElement interface), with
+</I>&gt;<i> # the tag name being the name of that element, with the node being in the
+</I>&gt;<i> # given namespace, and with the attributes on the node being those given
+</I>&gt;<i> # in the given token.
+</I>&gt;<i> &#160;-- <A HREF="http://www.whatwg.org/specs/web-apps/current-work/complete.html#create-an-element-for-the-token">http://www.whatwg.org/specs/web-apps/current-work/complete.html#create-an-element-for-the-token</A>
+</I>
+Except that I don't think this is how any implementation actually
+works. Nor do I have any desire to write the implementation this way
+since it means duplicating a lot of code. I'd have to add code which
+implemented attribute behavior both in some special code path
+triggered during element creation, as well as code to react to
+attribute changes triggered by attribute changes in
+setAttribute/removeAttribute.
+
+So far this hasn't been needed and the parsing code basically just
+calls setAttribute. Unless there are really good reasons to change
+this I'd like to avoid it. So far I haven't heard of any such reasons.
+
+&gt;<i> On Tue, 21 Sep 2010, Boris Zbarsky wrote:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Where does it say that it's atomic? &#160;I don't see that anywhere (and in
+</I>&gt;&gt;<i> fact, the &quot;create an element&quot; code in the Gecko parser is most decidedly
+</I>&gt;&gt;<i> non-atomic). &#160;Now maybe the spec intends this to be an atomic operation;
+</I>&gt;&gt;<i> if so it needs to say that.
+</I>&gt;<i>
+</I>&gt;<i> The operation it describes is a single operation: create a node. It
+</I>&gt;<i> describes various constraints on that operation, one of which is that the
+</I>&gt;<i> node have the various tokenised attributes set. I don't understand how
+</I>&gt;<i> creating a node could be anything other than atomic -- either it exists or
+</I>&gt;<i> it does not.
+</I>
+You're expecting several operations to happen at the same time. We
+could certainly manually insert the attributes and their value into
+the datastructure inside the element which stores the attribute
+name/value pairs. However at some point we need to update all of the
+state that these values drive. Things like sticking elements into
+id-hashes, storing the calculated type of an input, calculating the
+effective URI of an image, etc. This involves several separate pieces
+of state and so can't happen &quot;all at the same time&quot;.
+
+&gt;<i> On Tue, 21 Sep 2010, Boris Zbarsky wrote:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> That doesn't work if your parser and DOM aren't very very _very_ tightly
+</I>&gt;&gt;<i> coupled, since there are no DOM APIs to &quot;atomically&quot; set a bunch of
+</I>&gt;&gt;<i> attributes.
+</I>&gt;<i>
+</I>&gt;<i> The HTML spec in general assumes that the implementation of the parser is
+</I>&gt;<i> the implementation of the DOM and that you wouldn't use the DOM Core API
+</I>&gt;<i> to implement the DOM or the parser.
+</I>
+I wouldn't build a parser on the raw DOM API either. But mostly for
+performance reasons since we have to do a lot more checks on data that
+comes from untrusted script (things like prevent ancestor cycles etc).
+But I'd also strongly want to share most of the code path between the
+API that the DOM uses and that the parser uses. Not doing that is
+going to lead to a lot more bloat and a lot more bugs.
+
+&gt;<i> On Tue, 21 Sep 2010, Jonas Sicking wrote:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Also, it would mean that the following two pieces of code behaves differently:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> inp = document.createElement(&quot;input&quot;);
+</I>&gt;&gt;<i> inp.setAttribute(&quot;value&quot;, &quot;foo\nbar&quot;);
+</I>&gt;&gt;<i> inp.setAttribute(&quot;type&quot;, &quot;hidden&quot;);
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> and
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> inp = document.createElement(&quot;input&quot;);
+</I>&gt;&gt;<i> inp.setAttribute(&quot;type&quot;, &quot;hidden&quot;);
+</I>&gt;&gt;<i> inp.setAttribute(&quot;value&quot;, &quot;foo\nbar&quot;);
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> This does not seem desirable.
+</I>&gt;<i>
+</I>&gt;<i> I can't argue that it's desireable, but it's how the Web works, as I
+</I>&gt;<i> understand it.
+</I>
+Gecko doesn't exhibit this behavior and I don't know of any sites that
+doesn't work in Gecko because of this.
+
+/ Jonas
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="030867.html">[whatwg] Improving the application cache.
+</A></li>
+	<LI>Next message: <A HREF="073359.html">[whatwg] input element's value should not be sanitized during parsing
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#30869">[ date ]</a>
+              <a href="thread.html#30869">[ thread ]</a>
+              <a href="subject.html#30869">[ subject ]</a>
+              <a href="author.html#30869">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

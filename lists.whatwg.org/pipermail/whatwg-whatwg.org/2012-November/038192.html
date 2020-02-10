@@ -1,0 +1,203 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Load events fired during onload handlers
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Load%20events%20fired%20during%20onload%20handlers&In-Reply-To=%3CPine.LNX.4.64.1211300034070.9975%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="038188.html">
+   <LINK REL="Next"  HREF="038195.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Load events fired during onload handlers</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Load%20events%20fired%20during%20onload%20handlers&In-Reply-To=%3CPine.LNX.4.64.1211300034070.9975%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg] Load events fired during onload handlers">ian at hixie.ch
+       </A><BR>
+    <I>Thu Nov 29 21:14:25 PST 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="038188.html">[whatwg] A &lt;link rel=stylesheet scoped&gt; usecase
+</A></li>
+        <LI>Next message: <A HREF="038195.html">[whatwg] URL: URLQuery
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#38192">[ date ]</a>
+              <a href="thread.html#38192">[ thread ]</a>
+              <a href="subject.html#38192">[ subject ]</a>
+              <a href="author.html#38192">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Mon, 30 Jul 2012, James Graham wrote:
+&gt;<i>
+</I>&gt;<i> There seems to be general agreement (amongst browsers, not yet the spec) 
+</I>&gt;<i> that if a document does something that causes a new load event from 
+</I>&gt;<i> within an onload handler (document.open/document.close) the second load 
+</I>&gt;<i> event is not dispatched. This also applies to the load event on iframe 
+</I>&gt;<i> elements if an event handler in the iframe would synchronously cause a 
+</I>&gt;<i> second load event to fire.
+</I>&gt;<i> 
+</I>&gt;<i> There is not agreement about what happens where there are multiple 
+</I>&gt;<i> frames e.g. if a load event handler on iframe element A would cause a 
+</I>&gt;<i> load event in iframe B, should the handler on B fire. Gecko says yes, 
+</I>&gt;<i> WebKit no. There is a slightly rubbish demo at [1].
+</I>&gt;<i>
+</I>&gt;<i> [1] <A HREF="http://software.hixie.ch/utilities/js/live-dom-viewer/saved/1686">http://software.hixie.ch/utilities/js/live-dom-viewer/saved/1686</A>
+</I>
+On Tue, 31 Jul 2012, Boris Zbarsky wrote:
+&gt;<i> 
+</I>&gt;<i> Gecko fires the load event on the &lt;iframe&gt; as part of the default action 
+</I>&gt;<i> of the load event on the window inside that iframe.  I think the spec 
+</I>&gt;<i> might actually call for it to fire async instead, though I haven't 
+</I>&gt;<i> tested what other UAs do there.
+</I>
+Per spec it's effectively async. More importantly, though, per spec the 
+'load' event on the &lt;iframe&gt; is delayed by some stuff that the 'load' 
+event _in_ the &lt;iframe&gt; isn't delayed by, e.g. readyState changes, 
+pageshow is fired, and delayed printing steps are executed, between them.
+
+
+&gt;<i> The code for firing the load event looks somewhat like this:
+</I>&gt;<i> 
+</I>&gt;<i>     if (!mEODForCurrentDocument) {
+</I>&gt;<i>         mIsExecutingOnLoadHandler = true;
+</I>&gt;<i>         // Fire onload here
+</I>&gt;<i>         mIsExecutingOnLoadHandler = false;
+</I>&gt;<i>         mEODForCurrentDocument = true;
+</I>&gt;<i>     }
+</I>&gt;<i> 
+</I>&gt;<i> and the handling for document.open() sets mEODForCurrentDocument to 
+</I>&gt;<i> false. Now what happens is we enter the above code for the normal load.  
+</I>&gt;<i> We fire the onload handler, which does the open()/write()/close() thing.  
+</I>&gt;<i> That tries to set mEODForCurrentDocument to false, but of course it's 
+</I>&gt;<i> already false.  When close() happens, onload does NOT fire sync from the 
+</I>&gt;<i> close() call, because there are still outstanding async tasks on the new 
+</I>&gt;<i> document that block onload. So we unwind the stack to the code above, 
+</I>&gt;<i> and set mEODForCurrentDocument to true, and block any further firing of 
+</I>&gt;<i> onload for this document until another open() call happens.
+</I>&gt;<i>
+</I>&gt;<i> Fundamentally, that looks like a bug in the handling of 
+</I>&gt;<i> mEODForCurrentDocument, really.
+</I>&gt;<i> 
+</I>&gt;<i> So if either that bug were fixed or item #1 above were changed, I think 
+</I>&gt;<i> you'd get two load events here in Gecko right now.
+</I>
+I haven't changed the spec to match Gecko here, since you seem open to 
+changing Gecko. :-)
+
+
+On Mon, 30 Jul 2012, James Graham wrote:
+&gt;<i> On 07/30/2012 05:44 PM, Boris Zbarsky wrote:
+</I>&gt;<i> &gt; On 7/30/12 11:10 AM, James Graham wrote:
+</I>&gt;<i> &gt; &gt; I don't think I have a strong opinion about what should happen here, 
+</I>&gt;<i> &gt; &gt; but the Gecko behaviour could be easier to implement, and the WebKit 
+</I>&gt;<i> &gt; &gt; behaviour slightly safer (presumably the point of this anomaly is to 
+</I>&gt;<i> &gt; &gt; prevent infinite loops in load event handers).
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; In Gecko's case, the only thing like that I know of is that onload 
+</I>&gt;<i> &gt; fires synchronously in Gecko in some cases, I believe. So we had to 
+</I>&gt;<i> &gt; put in some sort of recursion guard to prevent firing onload on a 
+</I>&gt;<i> &gt; parent in the middle of a child firing onload or something like that.  
+</I>&gt;<i> &gt; See &lt;<A HREF="https://bugzilla.mozilla.org/show_bug.cgi?id=330089">https://bugzilla.mozilla.org/show_bug.cgi?id=330089</A>&gt;.  Per spec, 
+</I>&gt;<i> &gt; onload is always async, so this wouldn't be a concern.
+</I>&gt;<i> 
+</I>&gt;<i> Yeah, but as far as I can tell all browsers block (same document) load 
+</I>&gt;<i> events that happen from inside onload [1], so I *guess* at some point in 
+</I>&gt;<i> the past a site got into an infinite loop by trying to use document.open 
+</I>&gt;<i> from inside onload.
+</I>&gt;<i> [1] <A HREF="https://www.w3.org/Bugs/Public/show_bug.cgi?id=17231">https://www.w3.org/Bugs/Public/show_bug.cgi?id=17231</A>
+</I>
+I wrote a similar test to the one you put in the bug:
+
+   <A HREF="http://damowmow.com/playground/demos/onload/001.html">http://damowmow.com/playground/demos/onload/001.html</A>
+
+It shows the onload handler actually getting called again in Gecko.
+
+The interesting thing about the test in the bug is that it's actually the 
+&lt;iframe&gt;'s onload that's not being called again, no page onload is being 
+tested in that test. So for that test, the solution I suggested in comment 
+10 in that bug is worthless.
+
+Also interesting is that if you check what's actually going on, you'll 
+find that in Opera and Gecko (and per spec) the iframe's onload is run 
+asynchronously, whereas in WebKit it's synchronous.
+
+That it's asynchronous means that what we need to do is:
+
+ * in the iframe code that fires 'load', annotate the iframe's document so 
+   that it knows we're in a 'load' event handler,
+ * in the document.open() code, set a flag to true if the aforementioned
+   annotation is set, and false otherwise,
+ * in the iframe code that fires 'load', don't fire 'load' if the
+   aforementioned flag is set.
+
+Sibling frames:
+
+   <A HREF="http://software.hixie.ch/utilities/js/live-dom-viewer/saved/1937">http://software.hixie.ch/utilities/js/live-dom-viewer/saved/1937</A>
+   <A HREF="http://software.hixie.ch/utilities/js/live-dom-viewer/saved/1938">http://software.hixie.ch/utilities/js/live-dom-viewer/saved/1938</A>
+
+Gecko and Opera go on to infinity there; WebKit blocks, but being 
+synchronous means that the algorithm above would block this case, so that 
+makes sense.
+
+I've put the above suggestion in the bug, if nobody objects to it then 
+I'll spec that.
+
+
+On Thu, 2 Aug 2012, Henri Sivonen wrote:
+&gt;<i>
+</I>&gt;<i> For what it's worth, I think the weirdness described in this thread is a 
+</I>&gt;<i> good reason not to try to make DOMContentLoaded consistent with the load 
+</I>&gt;<i> event for the sake of consistency. For one thing, the code that manages 
+</I>&gt;<i> the weirdness of the load event lives in a different place compared to 
+</I>&gt;<i> the code that fires DOMContentLoaded.
+</I>
+Per spec they're about as consistent with each other as they can be, 
+currently. (That's not to say that they're correctly specced; indeed 
+there's an outstanding bug about making the &quot;abort&quot; steps work like the 
+&quot;the end&quot; steps.)
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="038188.html">[whatwg] A &lt;link rel=stylesheet scoped&gt; usecase
+</A></li>
+	<LI>Next message: <A HREF="038195.html">[whatwg] URL: URLQuery
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#38192">[ date ]</a>
+              <a href="thread.html#38192">[ thread ]</a>
+              <a href="subject.html#38192">[ subject ]</a>
+              <a href="author.html#38192">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

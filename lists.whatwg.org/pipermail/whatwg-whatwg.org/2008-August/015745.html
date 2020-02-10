@@ -1,0 +1,178 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] WebWorkers vs. Threads
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20WebWorkers%20vs.%20Threads&In-Reply-To=%3C48A32CF7.4050605%40arc.net.au%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="015738.html">
+   <LINK REL="Next"  HREF="015746.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] WebWorkers vs. Threads</H1>
+<!--htdig_noindex-->
+    <B>Shannon</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20WebWorkers%20vs.%20Threads&In-Reply-To=%3C48A32CF7.4050605%40arc.net.au%3E"
+       TITLE="[whatwg] WebWorkers vs. Threads">shannon at arc.net.au
+       </A><BR>
+    <I>Wed Aug 13 11:50:31 PDT 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="015738.html">[whatwg] WebWorkers vs. Threads
+</A></li>
+        <LI>Next message: <A HREF="015746.html">[whatwg] WebWorkers vs. Threads
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#15745">[ date ]</a>
+              <a href="thread.html#15745">[ thread ]</a>
+              <a href="subject.html#15745">[ subject ]</a>
+              <a href="author.html#15745">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Kristof Zelechovski wrote:
+&gt;<i> A background task invoked by setTimeout has to be split to small chunks;
+</I>&gt;<i> _yielding_ occurs when each chunk ends (having called setTimeout to execute
+</I>&gt;<i> the next chunk).  It is very hard to code in this way; you have to maintain
+</I>&gt;<i> an explicit stack and create an exit/entry point at every chunk boundary.
+</I>&gt;<i> This technique is interesting as an academic exercise only, real-world
+</I>&gt;<i> developers will be right to stay away from it.
+</I>&gt;<i>   
+</I>
+I'm not sure I get your meaning. If this is how current browsers 
+implement setTimeout then how is it &quot;academic&quot;? Also since nobody is 
+talking about deprecating setTimeout I don't see how its relevant. 
+Whatever happens setTimeout remains an issue that real-world developers 
+can't stay away from.
+
+&gt;<i> Guarding concurrent access to global variables is not enough if those
+</I>&gt;<i> variables hold references to objects because an object can end up in a
+</I>&gt;<i> logically inconsistent state if two threads try modifying its properties
+</I>&gt;<i> concurrently.  The objects would have to be lockable to avoid corrupting
+</I>&gt;<i> global state.
+</I>&gt;<i> Even if you limit yourself to scalar variables, there is nothing to prevent
+</I>&gt;<i> a script to define a compound state as a set of scalar variables, each one
+</I>&gt;<i> with its own name.  While it is not a good programming practice, old code
+</I>&gt;<i> does it a lot because it is (or was) more efficient to say 'gTransCount'
+</I>&gt;<i> than 'gTrans.count'.
+</I>&gt;<i> Chris
+</I>
+Ok I'm clear on that, these are good arguments for providing explicit 
+locking. I'm still not clear on how variable race conditions in multiple 
+interleaved setTimeout  chunks would be different for true threads but 
+I'll take your word for it that automated locking is hard or impossible 
+to implement.
+
+What I really don't understand is how the WebWorkers proposal solves 
+this. As far as I can tell it does some hand-waving with MessagePorts to 
+pretend it goes away but what happens when you absolutely DO need 
+concurrent access to global variables - say for example the DOM - from 
+multiple threads? How do you perform any sort of synchronisation?
+
+Take the example given:
+{ var la = g.i; g.i = la + 1 }
+
+
+The WebWorkers implementation (scary! hide your children!!):
+
+--- worker.js ---
+updateGlobalLa = function (e) {
+   var localLa = someLongRunningFunction( e );
+   workerGlobalScope.port.postMessage(&quot;set la = &quot;+ localLa);
+}
+workerGlobalScope.port.AddEventListener(&quot;onmessage&quot;, updateGlobalLa, false);
+workerGlobalScope.port.postMessage(&quot;get la&quot;);
+
+--- main.js ---
+// global object or variable
+var la = 0;
+
+handleMessage = function(e) {
+   if (typeof e.match(&quot;set la&quot;))
+      la = parseInt(e.substr(3));
+   } else if (typeof e.match(&quot;get la&quot;)) {
+      worker.postMessage(la.toString());
+   }
+}
+var worker = new Worker(&quot;worker.js&quot;);
+worker.AddEventListener(&quot;onmessage&quot;, handleMessage, false);
+
+
+Unlike the one-line example above we increment the global value based on 
+some long-running calculation on its original value (rather than just 
+add 1). This shows a more realistic use case for threading. 
+Unfortunately our potentially dangerous one-liner is now an equally 
+dangerous 18-line monster spread over 2 files and we STILL haven't 
+solved the issue of another worker or the main context updating 'la' 
+between our original postMessage query and our response.
+
+I should also point out that even this simple, naive and probably 
+incorrect example still took me nearly 2 hours to write - largely due to 
+the complexity of the WebWorkers spec and the lack of any decent 
+examples. Honestly anyone who thinks this interface is supposed to make 
+things easier is kidding themselves.
+
+Regardless of the kind of Getters/Setters/Managers/Whatever paradigm you 
+use in your main thread you can never escape the possibility that 2 
+workers might want exclusive access to an essential global object (ie, 
+DOM node or global setting). So far I have not found any real-world 
+programming language or hardware that can do this without some kind of 
+side-effect or programming construct (ie, locks, mutexes, semaphores, 
+etc...). What WebWorkers is really doing is requiring the author to 
+write their own.
+
+In other words despite all the complexity and limitations of workers all 
+that's actually achieved is:
+a.) Synchronisation problems simply promoted to the message queue level.
+b.) Decrease in performance due to horrible string-only messaging interface.
+c.) Increase in browser and javascript bugs due to API complexity.
+d.) Decrease in programmer interest in using threads (I certainly 
+wouldn't use them in their current state).
+
+I don't think I can stress enough how many important properties and 
+functions of a web page are ONLY available as globals. DOM nodes, style 
+properties, event handlers, window.status ... the list goes on. These 
+can't be duplicated because they are properties of the page all workers 
+are sharing. Without direct access to these the only useful thing a 
+worker can do is &quot;computation&quot; or more precisely string parsing and 
+maths. I've never seen a video encoder, physics engine, artificial 
+intelligence or gene modeller written in javascript and I don't really 
+think I ever will. Apart from being slow there is the obvious 
+correlation that anything that complex is:
+
+a.) The realm of academics and science geeks using highly parallel 
+specialist systems and languages, not web developers.
+b.) Valuable enough to be commercial software - and therefore requiring 
+protection against illicit copying (something Javascript can't provide).
+
+Shannon
+
+
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="015738.html">[whatwg] WebWorkers vs. Threads
+</A></li>
+	<LI>Next message: <A HREF="015746.html">[whatwg] WebWorkers vs. Threads
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#15745">[ date ]</a>
+              <a href="thread.html#15745">[ thread ]</a>
+              <a href="subject.html#15745">[ subject ]</a>
+              <a href="author.html#15745">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

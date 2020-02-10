@@ -1,0 +1,200 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Proposal for readyState behavior
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Proposal%20for%20readyState%20behavior&In-Reply-To=%3CCAJQvAuchTA4pCDtQHTBv1Vua7iWY0DfXOc0UqVB3Dcyo%3DrHQHg%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="077796.html">
+   <LINK REL="Next"  HREF="035524.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Proposal for readyState behavior</H1>
+<!--htdig_noindex-->
+    <B>Henri Sivonen</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Proposal%20for%20readyState%20behavior&In-Reply-To=%3CCAJQvAuchTA4pCDtQHTBv1Vua7iWY0DfXOc0UqVB3Dcyo%3DrHQHg%40mail.gmail.com%3E"
+       TITLE="[whatwg] Proposal for readyState behavior">hsivonen at iki.fi
+       </A><BR>
+    <I>Mon Apr 23 08:29:34 PDT 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="077796.html">[whatwg] createTBody on the table element.
+</A></li>
+        <LI>Next message: <A HREF="035524.html">[whatwg] [Canvas] Text height
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#35521">[ date ]</a>
+              <a href="thread.html#35521">[ thread ]</a>
+              <a href="subject.html#35521">[ subject ]</a>
+              <a href="author.html#35521">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>I propose we adopt the following rules:
+ 1) Every document that's being built by a parser or being built by an
+XSLT engine has &quot;loading&quot; as its readyState.
+     Rationale:
+       * This is intuitive.
+       * It makes sense to make the XSLT experience as similar as
+possible to the parser experience to avoid weirdness and also because
+in most browser the XSLT result going through the HTML parser.
+       * This is already true in Chrome, Opera and Firefox 14. (It's
+not always true in older Firefox: document.open() forgets to change
+readyState to &quot;loading&quot; in Firefox &lt; 14.)
+     Note: This is not true for trivial non-script-created documents
+in IE 6 through 10 inclusive, but since all other engines get away
+with not cloning IE's weirdness, it seems we don't need to clone it.
+In all versions of IE 6 through 10 inclusive, it's possible for a
+document to be in mid-parse but have &quot;interactive&quot; as its readyState.
+It seems to me that complex cases (enough external resources not
+already in cache) may change the behavior to a direction more similar
+with other browsers, but now I fail to reproduce this.
+     Delta from the spec: Make this explicit for XSLT.
+ 2) Every document that's no longer being parsed reaches readyState
+&quot;complete&quot; as the event loop gets to spin.
+     Rationale:
+       * It's counter-intuitive for aborted documents to stay in the
+&quot;loading&quot; state forever.
+       * This seems to be already true in Chrome, Opera and IE for
+documents that have been being parsed at some point. (Curiously,
+Firefox makes an effort to keep this false for Firefox!)
+     Delta from the spec: Aborted documents reach &quot;complete&quot;. Making
+this explicit for XSLT.
+ 3) No document transitions from &quot;loading&quot; to &quot;complete&quot; without an
+intermediate &quot;interactive&quot; state.
+     Rationale:
+       * It's counter-intuitive and potentially bug-inducing for
+special cases to skip the &quot;interactive&quot; state when the &quot;interactive&quot;
+state occurs on the common path in Chrome, Opera and Firefox.
+       * Cases where this currently isn't true are so inconsistent
+between browsers that I'm assuming they are bugs or intentional ad hoc
+hacks that haven't been informed by broader research.
+    Delta from the spec: To the extent there's the above delta that
+aborted documents reach &quot;complete&quot;, this is new. Making this explicit
+for XSLT.
+ 4) Whenever a transition to &quot;interactive&quot; is made, &quot;DOMContentLoaded&quot;
+must eventually get fired later if the document stays in a state where
+events can fire on it.
+     Rationale:
+       * This seems sensible for consistency with the common case.
+Currently, there are cases where Firefox fires DOMContentLoaded
+without a transition to &quot;interactive&quot; or transitions to &quot;interactive&quot;
+without ever firing DOMContentLoaded, but these cases are inconsistent
+with other browsers, so it's hard to believe they are well-considered
+compatibility features.
+    Delta from the spec: Same as for point 3.
+ 5) window.stop() aborts the parser.
+     Rationale:
+       * Already true in Firefox and Chrome.
+       * document.execCommand('Stop') is the closest equivalent in IE
+and it aborts the parser when loading from network (not in the
+document.open() case, though!)
+    Delta from the spec: Currently, the spec cancels navigation
+instead of aborting the parser.
+ 6) The &quot;load&quot; event doesn't fire for documents whose parser has been aborted.
+     Rationale:
+       * Already true in Firefox, Chrome and IE. (I don't know of a
+way to abort the parser in Opera from JS without side effects that'd
+interfere with testing.)
+    Delta from the spec: If &quot;the end&quot; part of the parse starts running
+on abort, &quot;load&quot; can't fire as an unconditional part of &quot;the end&quot;.
+ 7) The &quot;load&quot; event shouldn't fire synchronously.
+     Rationale:
+       * Events that sometimes fire synchronously and sometimes
+asynchronously are trouble.
+       * Already true in Opera and Firefox. (But not in Chrome and IE9!)
+    Delta from the spec: No delta.
+ 8) When readyState changes, a &quot;readystatechange&quot; should be fired
+(synchronously immediately after readyState changed)
+     Rationale:
+       * Seems illogical not to.
+       * Already true in Chrome and Firefox, so it seems browsers can
+get away with doing the logical thing.
+    Delta from the spec: No delta.
+ 9) Never fire &quot;readystatechange&quot; so that the old and new readyState
+are the same.
+     Rationale:
+       * Logic.
+       * All deviations from this rule look like browser-specific bugs.
+    Delta from the spec: No delta.
+10) XSLT error pages don't count as aborts but instead as non-aborted
+loads of the error page.
+     Rationale:
+       * Makes parent pages less confused about events they are waiting.
+       * Already true except for bugs in Firefox which is the only
+browser with XSLT error pages.
+    Delta from the spec: Make explicit in spec.
+
+Aside: Might make sense to spec DOMFrameContentLoaded. Firefox and
+Opera support it.
+
+Demos of interest:
+<A HREF="http://hsivonen.iki.fi/test/moz/readystate/">http://hsivonen.iki.fi/test/moz/readystate/</A>
+
+IE can go to &quot;interactive&quot; prematurely:
+<A HREF="http://hsivonen.iki.fi/test/moz/readystate/baseline.html">http://hsivonen.iki.fi/test/moz/readystate/baseline.html</A>
+IE can omit &quot;interactive&quot;:
+<A HREF="http://hsivonen.iki.fi/test/moz/readystate/document-open.html">http://hsivonen.iki.fi/test/moz/readystate/document-open.html</A>
+&quot;load&quot; can be synchronous in Chrome and IE:
+<A HREF="http://hsivonen.iki.fi/test/moz/readystate/document-open.html">http://hsivonen.iki.fi/test/moz/readystate/document-open.html</A>
+Firefox forgets DOMContentLoaded for XSLT:
+<A HREF="http://hsivonen.iki.fi/test/moz/readystate/xslt.html">http://hsivonen.iki.fi/test/moz/readystate/xslt.html</A>
+Firefox skips &quot;interactive&quot; but not DOMContentLoaded when aborting:
+<A HREF="http://hsivonen.iki.fi/test/moz/readystate/window-stop.html">http://hsivonen.iki.fi/test/moz/readystate/window-stop.html</A>
+Documents aborted by window.location reach &quot;complete&quot; in Opera:
+<A HREF="http://hsivonen.iki.fi/test/moz/readystate/window-location.html">http://hsivonen.iki.fi/test/moz/readystate/window-location.html</A>
+Defer scripts are executed at the wrong time in Firefox:
+<A HREF="http://hsivonen.iki.fi/test/moz/readystate/defer-script.html">http://hsivonen.iki.fi/test/moz/readystate/defer-script.html</A>
+
+-- 
+Henri Sivonen
+<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">hsivonen at iki.fi</A>
+<A HREF="http://hsivonen.iki.fi/">http://hsivonen.iki.fi/</A>
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="077796.html">[whatwg] createTBody on the table element.
+</A></li>
+	<LI>Next message: <A HREF="035524.html">[whatwg] [Canvas] Text height
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#35521">[ date ]</a>
+              <a href="thread.html#35521">[ thread ]</a>
+              <a href="subject.html#35521">[ subject ]</a>
+              <a href="author.html#35521">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

@@ -1,0 +1,264 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Localization on script level and non form field
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Localization%20on%20script%20level%20and%20non%20form%20field&In-Reply-To=%3C4F222F77.3030209%40bauglir.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="076819.html">
+   <LINK REL="Next"  HREF="076821.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Localization on script level and non form field</H1>
+<!--htdig_noindex-->
+    <B>Bronislav Klu&#269;ka</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Localization%20on%20script%20level%20and%20non%20form%20field&In-Reply-To=%3C4F222F77.3030209%40bauglir.com%3E"
+       TITLE="[whatwg] Localization on script level and non form field">Bronislav.Klucka at bauglir.com
+       </A><BR>
+    <I>Thu Jan 26 21:00:39 PST 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="076819.html">[whatwg] Cut and paste (and related) events' futures
+</A></li>
+        <LI>Next message: <A HREF="076821.html">[whatwg] Localization on script level and non form field
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#34547">[ date ]</a>
+              <a href="thread.html#34547">[ thread ]</a>
+              <a href="subject.html#34547">[ subject ]</a>
+              <a href="author.html#34547">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Hello,
+we are currently discussing localization in form fields, but that may 
+result in some unfortunate behavior if implemented alone, because data 
+will be displayed in localized representation in form fields but not in 
+HTML - server can translate text, but not localize data, since it has no 
+idea about local settings (language is not enough) and when data are 
+inserted into HTML on UA side using scripting, the problem is the same.
+
+
+Suggestion
+1/ output element
+output element should follow similar logic for presentation as form fields
+there is an example of output usage 
+<A HREF="http://dev.w3.org/html5/spec/the-output-element.html#the-output-element">http://dev.w3.org/html5/spec/the-output-element.html#the-output-element</A>
+&lt;form onsubmit=&quot;return false&quot; oninput=&quot;o.value = a.valueAsNumber + 
+b.valueAsNumber&quot;&gt;
+&lt;input name=a type=number step=any&gt; +
+&lt;input name=b type=number step=any&gt; =
+&lt;output name=o&gt;&lt;/output&gt;
+&lt;/form&gt;
+but imagine full stop as thousands separator, comma as decimal , 
+inserting 12.135,5 + 4.125,6 would result in 16261.1 (Number is fine, 
+presentation confusing)
+so output element should follow presentation form of the forms as well
+
+2/ FormatSettings object
+[Constructor(),
+  Constructor(DOMString locale),
+  Constructor(FormatSettings locale),
+]
+interface FormatSettings {
+    attribute DOMString CurrencyString;
+    attribute Number CurrencyFormat;
+    attribute Number CurrencyDecimals;
+    attribute DOMString ThousandSeparator;
+    attribute DOMString DecimalSeparator;
+    attribute DOMString DateSeparator;
+    attribute DOMString TimeSeparator;
+    attribute DOMString ShortDateFormat;
+    attribute DOMString LongDateFormat;
+    attribute DOMString TimeAMString;
+    attribute DOMString TimePMString;
+    attribute DOMString ShortTimeFormat;
+    attribute DOMString LongTimeFormat;
+    attribute Array ShortMonthNames;
+    attribute Array LongMonthNames;
+    attribute Array ShortDayNames;
+    attribute Array LongDayNames;
+    attribute bool DaylightSavingTime;
+    attribute Number TimeZoneOffset;
+
+
+    DOMString format (String input, Array data)
+
+    Number CurrencyAsNumber (DOMString value)
+    Number StringAsNumber (DOMString value)
+    Date StringAsDate (DOMString value)
+
+   [and probably set of constants representing different types of error 
+regarding formatting and data sanitation]
+
+}
+Window and similar objects (WorkerGlobalScope, etc.) should provide 
+access to instance of FormatSettings object (e.g. window.formatSettings) 
+prefilled with actual local settings, all properties should be settable 
+to change default behavior. And such object should be constructable by 
+script to be used in formatting functions if some nonstandard formatting 
+should be required.
+
+examples:
+var x = new FormatSettings();
+should fill the properties with current (underlying) locale
+var x = new FormatSettings('sk_SK');
+accept language parameter and should fill the properties with locales 
+according to Slovak language
+
+var x = new FormatSettings();
+alert(x.DecimalSeparator);
+on Czech OS should show comma,
+x.DecimalSeparator = '.';
+alert(x.DecimalSeparator);
+on Czech OS should show full stop
+var y = new FormatSettings(x);
+should create new format settings wit properties set up according to 
+constructor parameter
+x.DecimalSeparator = ',.';
+should throw an exception
+
+This should allow easy localization on client side based on users locale 
+and switching locales on application level
+
+
+all attributes should be settable (with certain sanitations)
+* CurrencyString: currency sign/abbreviation  ($, &#8364;, K&#269;), any string
+no sanitation
+* CurrencyFormat: enum(0, 1, 2, 3)
+this property defines where the currency sign is (before, after) and 
+whether is separated by space or not (0 = $1, 1 = 1$, 2 = $ 1, 3 = 1 $)
+sanitation required on settings
+* CurrencyDecimals: not negative integer number of decimals in currency
+sanitation required on settings
+* ThousandSeparator:  char(1); DecimalSeparator:  char(1)
+clear meaning of those
+sanitation required on settings
+* DateSeparator:  char(1); TimeSeparator:  char(1)
+characters separating parts of date (year, month, day) and time (hour, 
+minutes, seconds)
+separation on milliseconds should be ruled by DecimalSeparator
+sanitation required on settings
+* ShortDateFormat: string; LongDateFormat: string;
+substitution format defining how dates should be displayed
+something like
+<A HREF="http://php.net/manual/en/function.date.php">http://php.net/manual/en/function.date.php</A>
+<A HREF="http://www.freepascal.org/docs-html/rtl/sysutils/formatchars.html">http://www.freepascal.org/docs-html/rtl/sysutils/formatchars.html</A>
+could not care less about the replacement letters at this point :)
+sanitation required on settings
+* ShortTimeFormat: string; LongTimeFormat: string;
+see date formats above
+* TimeAMString: string; TimePMString: string;
+am/pm localizations
+no sanitation
+* ShortMonthNames: array; LongMonthNames: array
+array[0..11] of strings representing month names; 0 = January
+sanitation required on settings
+* LongDayNames: array; ShortDayNames: array
+array[0..6] of strings representing day names; 0 = Sunday (not happy 
+about it but corresponding to Date.prototype.getDay)
+sanitation required on settings
+* DaylightSavingTime: bool
+whether DST does apply
+* TimeZoneOffset: number;
+basically Date.prototype.getTimezoneOffset()
+
+Those values can be easily retrieved from underlying  OS, and are common 
+variables used for localization. More and more applications will need 
+those values and those are not values one can get now. One can create 
+list of 250 localizations all over the world but still be wrong about 
+actual settings (I'm Czech, having Czech Windows7 but with adjusted 
+local setting to fit me more; OS, office and other applications respect 
+my settings, browser does not.)
+
+for those functions there, more and more data are generated on client 
+level and it's becoming increasingly annoying to drag along set of 
+powerful function able to deliver functionality so common in other 
+languages over and over in each project... this is long time missing...
+All functions should use formatting locales according to caller
+
+window.formatSettings.format(....)
+on Czech computer (without adjusted locales) should use comma as decimal 
+separator
+var x = new FormatSettings('en_US');
+x.format(....)
+should use full stop as decimal separator regardless of OS locales
+x.DecimalSeparator = ',';
+x.format(....)
+should always use comma as decimal separator regardless of anything else 
+(the fact, that other settings corresponds to USA locales)
+
+
+* DOMString format (DOMString input, Array data)
+just as we know it from other languages, with substitutions for string, 
+number (integer, float), date and parts of date, time and parts of time, 
+currency, etc. Basically C-like languages sprintf or pascals Format
+<A HREF="http://cz2.php.net/manual/en/function.sprintf.php">http://cz2.php.net/manual/en/function.sprintf.php</A>
+<A HREF="http://www.freepascal.org/docs-html/rtl/sysutils/format.html">http://www.freepascal.org/docs-html/rtl/sysutils/format.html</A>
+with additions of date, time, currency formatting (day name, currency 
+sign, everything one can extract from incoming data and FormatSettings 
+instance) replacement charactes
+
+* Number CurrencyAsNumber (DOMString value)
+should parse string according to CurrencyString, CurrencyDecimals, 
+ThousandSeparator, DecimalSeparator regardless of CurrencyFormat and 
+return Number or throw error
+
+* Number StringAsNumber (DOMString value)
+should parse string according to  ThousandSeparator and DecimalSeparator 
+and return Number or throw error
+
+* Date StringAsDate (DOMString value)
+should parse string according to DateSeparator, TimeSeparator, 
+ShortDateFormat, LongDateFormat, TimeAMString, TimePMString, 
+ShortTimeFormat, LongTimeFormat, ShortMonthNames, LongMonthNames, 
+ShortDayNames, LongDayNames, DaylightSavingTime, TimeZoneOffset and 
+return Date or throw error
+
+
+Brona
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="076819.html">[whatwg] Cut and paste (and related) events' futures
+</A></li>
+	<LI>Next message: <A HREF="076821.html">[whatwg] Localization on script level and non form field
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#34547">[ date ]</a>
+              <a href="thread.html#34547">[ thread ]</a>
+              <a href="subject.html#34547">[ subject ]</a>
+              <a href="author.html#34547">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

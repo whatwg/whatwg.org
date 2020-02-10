@@ -1,0 +1,427 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Challenging canvas.supportsContext
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Challenging%20canvas.supportsContext&In-Reply-To=%3Calpine.DEB.2.00.1309032240300.7443%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="082952.html">
+   <LINK REL="Next"  HREF="082956.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Challenging canvas.supportsContext</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Challenging%20canvas.supportsContext&In-Reply-To=%3Calpine.DEB.2.00.1309032240300.7443%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg] Challenging canvas.supportsContext">ian at hixie.ch
+       </A><BR>
+    <I>Tue Sep  3 16:13:59 PDT 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="082952.html">[whatwg] Reconsidering how we deal with text track cues
+</A></li>
+        <LI>Next message: <A HREF="082956.html">[whatwg] Challenging canvas.supportsContext
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#40680">[ date ]</a>
+              <a href="thread.html#40680">[ thread ]</a>
+              <a href="subject.html#40680">[ subject ]</a>
+              <a href="author.html#40680">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>
+The long and short of this is that I renamed &quot;supportsContext()&quot; to 
+&quot;probablySupportsContext()&quot;. It's already implemented in WebKit (and dino 
+says he's going to rename it in the implementation also).
+
+Fundamentally, it addresses a need that none of the other proposals 
+addressed: how to know whether or not you can expect to be able to do 3D. 
+It's not 100% reliable, but then neither would actually attempting to 
+create a context, because creating a context is so expensive on some 
+platforms that some UAs are going to move to doing it lazily and so you're 
+back to exactly the same level of reliability as this API. Plus, it'd be a 
+lot more awkward as an API.
+
+
+On Wed, 19 Jun 2013, Benoit Jacob wrote:
+&gt;<i> 
+</I>&gt;<i> I'd like to question the usefulness of canvas.supportsContext. I tried to
+</I>&gt;<i> think of an actual application use case for it, and couldn't find one.
+</I>
+The use case is libraries like Modernizr that want to do feature detection 
+up-front, but don't want a high performance hit on startup.
+
+
+&gt;<i> However, that only shifts the question to: what is the reason for them 
+</I>&gt;<i> to expose such APIs? In the end, I claim that the only thing that we 
+</I>&gt;<i> should recognize as a reason to add a feature to the HTML spec, is 
+</I>&gt;<i> *application* use cases.
+</I>
+Oh well the use case for knowing whether or not 3D is supported on a 
+particular device is straight-forward: you want to know which set of 
+assets and logic to download and run.
+
+
+&gt;<i> So let's look at the naive application usage pattern for supportsContext:
+</I>&gt;<i> 
+</I>&gt;<i>   if (canvas.supportsContext(&quot;webgl&quot;)) {
+</I>&gt;<i>     context = canvas.getContext(&quot;webgl&quot;);
+</I>&gt;<i>   }
+</I>&gt;<i> 
+</I>&gt;<i> The problem is that the same can be achieved with just the getContext 
+</I>&gt;<i> call, and checking whether it succeeded.
+</I>
+Suppose you have an app that has a 3D feature, but it's not immediately 
+used upon startup. For example, a preview window that is displayed on 
+request. You want to preload all the code to run the preview window, but 
+you need to load different code based on whether the device can do 3D or 
+not. So the use case is more:
+
+   if (canvas.supportsContext(&quot;webgl&quot;))
+     load3DCode();
+   else
+     load2DCode();
+
+   // 3D code:
+   function run() {
+     context = canvas.getContext(&quot;webgl&quot;);
+     // ...
+   }
+
+You don't want to pay the cost of creating a throw-away 3D context on 
+startup just to know which scripts to load. It defeats the whole point of 
+not loading all the code up-front.
+
+
+&gt;<i> Outside of exceptional cases (out of memory...), the slow path in 
+</I>&gt;<i> getContext is the *success* case, and again, in that case a real 
+</I>&gt;<i> application would want to actually *use* that context.
+</I>
+Not necessarily, as noted above. The &lt;canvas&gt; you're going to draw to 
+might not even exist at the point you need to know if it's 3D or not.
+
+
+&gt;<i> Keep in mind that supportsContext can't guarantee that if it returns true,
+</I>&gt;<i> then a subsequent getContext will succeed.
+</I>
+Sure. getContext() can't guarantee that if it returns a context, the 
+context will work forever, either.
+
+
+&gt;<i> The spec doesn't require it to, either. So if the existence of 
+</I>&gt;<i> supportsContext misleads application developers into no longer checking 
+</I>&gt;<i> for getContext failures, then we'll just have rendered canvas-using 
+</I>&gt;<i> applications a little bit more fragile.
+</I>
+That's a risk, yes.
+
+
+&gt;<i> Another problem with supportsContext is that it's untestable, at least 
+</I>&gt;<i> when it returns true; it is spec-compliant to just implement it as 
+</I>&gt;<i> returning whether the JS interface for the required canvas context 
+</I>&gt;<i> exists, which is quite useless.
+</I>
+That would indeed be useless.
+
+
+&gt;<i> Given such deep problems, I think that the usefulness bar for accepting 
+</I>&gt;<i> supportsContext into the spec should be quite high.
+</I>
+The problem is that there's no alternative solution.
+
+
+On Wed, 19 Jun 2013, Tab Atkins Jr. wrote:
+&gt;<i> 
+</I>&gt;<i> This is missing the point.  You don't want to wait until it's actually 
+</I>&gt;<i> time to create the context.  Unless you torture your code flow, by the 
+</I>&gt;<i> time you're creating a context you should already know that the context 
+</I>&gt;<i> is supported.  The knowledge of which context to use is most useful well 
+</I>&gt;<i> before that, when you're first entering the app.
+</I>&gt;<i>
+</I>&gt;<i> Plus, it doesn't matter how late you do the detection - if you do a 
+</I>&gt;<i> straight *detection* at all rather than an initialization (that is, if 
+</I>&gt;<i> you throw away the context you've just created for testing), you'll 
+</I>&gt;<i> still incur the start-up costs of spinning up a context.  Doing that 
+</I>&gt;<i> early or late doesn't matter too much - it's bad either way.
+</I>
+Indeed.
+
+
+&gt;<i> Like @supports, the supportsContext() method can be easy and reliable 
+</I>&gt;<i> with a very simple definition for &quot;supports&quot; - it returns true if 
+</I>&gt;<i> calling getContext() with the same arguments would return a context 
+</I>&gt;<i> rather than erroring, and false otherwise.  No capacity for lying there 
+</I>&gt;<i> without breaking sites.
+</I>
+At least, no capacity beyond the same one that getContext() has in the 
+first place, namely that it might return a useful object that later stops 
+working.
+
+
+On Wed, 19 Jun 2013, Kenneth Russell wrote:
+&gt;&gt;<i> 
+</I>&gt;<i> Additionally, though, application developers wanted to be able to ask 
+</I>&gt;<i> questions like &quot;is software rendering supported for WebGL&quot;:
+</I>&gt;<i> 
+</I>&gt;<i> <A HREF="http://lists.whatwg.org/pipermail/whatwg-whatwg.org/2012-September/037232.html">http://lists.whatwg.org/pipermail/whatwg-whatwg.org/2012-September/037232.html</A>
+</I>&gt;<i>
+</I>&gt;<i> I think this second use case is valid. One could imagine a graphing or 
+</I>&gt;<i> charting library which would use low-power, software-rendered WebGL if 
+</I>&gt;<i> available, but otherwise would fall back to using 
+</I>&gt;<i> CanvasRenderingContext2D.
+</I>
+Indeed. This is supported per the spec, assuming getContext() supports the 
+relevant arguments.
+  
+
+On Wed, 19 Jun 2013, Boris Zbarsky wrote:
+&gt;<i> 
+</I>&gt;<i> I see.  For this use case, the current definition of supportsContext is 
+</I>&gt;<i> of limited utility, unless you make some assumptions about behavior that 
+</I>&gt;<i> the spec does not require....
+</I>
+I think what the spec requires is as close as one can get to those 
+assumptions without requiring something that can't be implemented, no?
+
+
+On Wed, 19 Jun 2013, James Robinson wrote:
+&gt;<i> 
+</I>&gt;<i> What would a page using Modernizr (or other library) to feature detect 
+</I>&gt;<i> WebGL do if the supportsContext('webgl') call succeeds but the later 
+</I>&gt;<i> getContext('webgl') call fails?
+</I>
+Presumably the same as if the first getContext('webgl') call succeeds 
+today, but the next getContext('webgl') call fails.
+
+
+On Wed, 19 Jun 2013, Kenneth Russell wrote:
+&gt;<i> 
+</I>&gt;<i> supportsContext() can give a much more accurate answer than 
+</I>&gt;<i> !!window.WebGLRenderingContext. I can only speak for Chromium, but in 
+</I>&gt;<i> that browser, it can take into account factors such as whether the GPU 
+</I>&gt;<i> sub-process was able to start, whether WebGL is blacklisted on the 
+</I>&gt;<i> current card, whether WebGL is disabled on the current domain due to 
+</I>&gt;<i> previous GPU resets, and whether WebGL initialization succeeded on any 
+</I>&gt;<i> other page. All of these checks can be done without the heavyweight 
+</I>&gt;<i> operation of actually creating an OpenGL context.
+</I>
+Yeah, it seems to me that the cases where probablySupportsContext() would 
+return the wrong result are not that common.
+
+
+On Wed, 19 Jun 2013, Kenneth Russell wrote:
+&gt;<i> 
+</I>&gt;<i> Any application which has a complex set of fallback paths. For example,
+</I>&gt;<i> 
+</I>&gt;<i>   - Preference 1: supportsContext('webgl', { softwareRendered: true })
+</I>&gt;<i>   - Preference 2: supportsContext('2d', { gpuAccelerated: true })
+</I>&gt;<i>   - Preference 3: supportsContext('webgl', { softwareRendered: false })
+</I>&gt;<i>   - Fallback: 2D canvas
+</I>&gt;<i> 
+</I>&gt;<i> I agree that ideally, if supportsContext returns true then -- without 
+</I>&gt;<i> any other state changes that might affect supportsContext's result -- 
+</I>&gt;<i> getContext should return a valid rendering context. It's simply 
+</I>&gt;<i> impossible to guarantee this correspondence 100% of the time, but if 
+</I>&gt;<i> supportsContext's spec were tightened somehow, and conformance tests 
+</I>&gt;<i> were added which asserted consistent results between supportsContext and 
+</I>&gt;<i> getContext, would that address your concern?
+</I>
+If there's a way to tighten up the requirements in the spec, please do let 
+me know. I'm not sure what more to say there right now.
+
+
+On Wed, 19 Jun 2013, Tab Atkins Jr. wrote:
+&gt;<i> 
+</I>&gt;<i> It seems like this falls into the canPlayType() bucket, where you can 
+</I>&gt;<i> definitely give negatives, but your positives are at best hopeful. Maybe 
+</I>&gt;<i> we should just have it do the same thing, and return &quot;maybe&quot; or 
+</I>&gt;<i> &quot;probably&quot; rather than a boolean true?
+</I>
+I renamed the method to try to make this clearer.
+
+
+On Wed, 19 Jun 2013, James Robinson wrote:
+&gt;<i> 
+</I>&gt;<i> var ctx = canvas.getContext('webgl', { 'allowSoftware': false});
+</I>&gt;<i> if (ctx) {
+</I>&gt;<i>   doPreference1(ctx);
+</I>&gt;<i>   return;
+</I>&gt;<i> }
+</I>&gt;<i> ctx = canvas.getContext('2d', {'allowSoftware': false});
+</I>&gt;<i> if (ctx) {
+</I>&gt;<i>   doPreference2(ctx);
+</I>&gt;<i> // etc
+</I>&gt;<i> 
+</I>&gt;<i> how could I simplify this code using supportsContext() ?
+</I>
+&quot;doPreference1()&quot; and friends here are most likely to be &quot;fetch the code, 
+create the &lt;canvas&gt;es, create the contexts&quot;, etc. Getting the context from 
+the feature test all the way to where it is first used seems like a lot of 
+complexity.
+
+
+&gt;<i> It seems overwhelmingly likely that one of the state changes that might 
+</I>&gt;<i> affect the result will be attempting to instantiate a real context.
+</I>
+Can you elaborate on this?
+
+
+&gt;<i> I don't see how supportsContext() could be as accurate as getContext() 
+</I>&gt;<i> without doing all of the work getContext() does.  If it's not 100% 
+</I>&gt;<i> accurate, when is it useful?
+</I>
+getContext() isn't 100% accurate either, and it's more expensive.
+
+
+On Wed, 19 Jun 2013, Benoit Jacob wrote:
+&gt;<i> 
+</I>&gt;<i> In Mozilla code, we fail WebGL context creation if any GL error occurs 
+</I>&gt;<i> during initialization, where we have to make a number of specific OpenGL 
+</I>&gt;<i> calls (e.g. querying many constants, enabling point sprites...). So it 
+</I>&gt;<i> is perfectly possible for WebGL specifically to fail on a given device 
+</I>&gt;<i> where OpenGL compositing works, without being specifically blacklisted, 
+</I>&gt;<i> and currently we can rely on these automatic checks rather than having 
+</I>&gt;<i> to curate a blacklist for these problems, which is very nice.
+</I>
+You could bring these tests forward in the implementation, so that 
+probablySupportsContext() itself doesn't have to do them, right?
+
+
+&gt;<i> Another way in which WebGL specifically can fail, is that some driver 
+</I>&gt;<i> bugs cause errors that we may want to ignore in our compositor code but 
+</I>&gt;<i> not in WebGL. To give an example, on many Vivante GPU drivers, which are 
+</I>&gt;<i> very common in Chinese mobile devices, the first eglMakeCurrent call on 
+</I>&gt;<i> a newly created context can return false without any actual EGL error 
+</I>&gt;<i> [1]. A browser may want to ignore this error in its compositor to be 
+</I>&gt;<i> able to run nonetheless on such devices, but without WebGL support.
+</I>
+Wouldn't you know this before the call to getContext(), though?
+
+
+On Thu, 20 Jun 2013, Boris Zbarsky wrote:
+&gt;<i> On 6/19/13 6:04 PM, Kenneth Russell wrote:
+</I>&gt;<i> &gt; supportsContext() can give a much more accurate answer than 
+</I>&gt;<i> &gt; !!window.WebGLRenderingContext. I can only speak for Chromium, but in 
+</I>&gt;<i> &gt; that browser, it can take into account factors such as whether the GPU 
+</I>&gt;<i> &gt; sub-process was able to start, whether WebGL is blacklisted on the 
+</I>&gt;<i> &gt; current card, whether WebGL is disabled on the current domain due to 
+</I>&gt;<i> &gt; previous GPU resets, and whether WebGL initialization succeeded on any 
+</I>&gt;<i> &gt; other page.
+</I>&gt;<i> 
+</I>&gt;<i> window.WebGLRenderingContext can take things like that into account too, 
+</I>&gt;<i> in Gecko.  For what it's worth.
+</I>
+Wouldn't checking for window.WebGLRenderingContext be just as unreliable 
+then? I don't understand why it's ok to be able to test that, but why 
+probablySupportsContext() wouldn't be ok.
+
+
+On Wed, 19 Jun 2013, Paul Irish wrote:
+&gt;<i>
+</I>&gt;<i> On the Modernizr side, an old version did indeed create a context for 
+</I>&gt;<i> feature detection. For the past two years we have advocated the soft 
+</I>&gt;<i> `&quot;WebGLRenderingContext&quot; in window` test instead. There, of course, is 
+</I>&gt;<i> some gap between the results of that detect and how successful a 
+</I>&gt;<i> getContext call will be, but I don't have data those false positive 
+</I>&gt;<i> rates.
+</I>
+Right, this would let you close that gap a bit.
+
+
+On Thu, 20 Jun 2013, Boris Zbarsky wrote:
+&gt;<i> 
+</I>&gt;<i> So that's an interesting question.  Should UAs simply not have 
+</I>&gt;<i> window.WebGLRenderingContext in situations in which supportsContext 
+</I>&gt;<i> would return false?
+</I>
+probablySupportsContext() takes arguments that affect the answer. (Also, 
+the answer can vary over time.)
+
+
+On Wed, 19 Jun 2013, Boris Zbarsky wrote:
+&gt;<i> &gt; 
+</I>&gt;<i> &gt; Plus, it doesn't matter how late you do the detection - if you do a 
+</I>&gt;<i> &gt; straight *detection* at all rather than an initialization (that is, if 
+</I>&gt;<i> &gt; you throw away the context you've just created for testing)
+</I>&gt;<i> 
+</I>&gt;<i> OK, but why are we making that assumption?  I guess if people insist on 
+</I>&gt;<i> doing that, then we do in fact need something that will basically try to 
+</I>&gt;<i> guess whether getContext might succeed.
+</I>
+Paul reported that this is common practice, for what it's worth.
+
+
+&gt;<i> &gt; Like @supports, the supportsContext() method can be easy and reliable 
+</I>&gt;<i> &gt; with a very simple definition for &quot;supports&quot; - it returns true if 
+</I>&gt;<i> &gt; calling getContext() with the same arguments would return a context 
+</I>&gt;<i> &gt; rather than erroring, and false otherwise.
+</I>&gt;<i> 
+</I>&gt;<i> Just so we're clear, this is _not_ what supportsContext is specified to 
+</I>&gt;<i> do. As specced, it will return false if you know for a fact that 
+</I>&gt;<i> getContext would return null.  It will return true if you think that 
+</I>&gt;<i> getContext might not return null.  This means that a true return doesn't 
+</I>&gt;<i> really mean squat about what getContext will do.
+</I>&gt;<i> 
+</I>&gt;<i> And the reason for that is that you can't tell whether getContext will 
+</I>&gt;<i> return null until you try to do it, given how getContext is specced.
+</I>
+I'm happy to try to tighten this up if you have any suggestions.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="082952.html">[whatwg] Reconsidering how we deal with text track cues
+</A></li>
+	<LI>Next message: <A HREF="082956.html">[whatwg] Challenging canvas.supportsContext
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#40680">[ date ]</a>
+              <a href="thread.html#40680">[ thread ]</a>
+              <a href="subject.html#40680">[ subject ]</a>
+              <a href="author.html#40680">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

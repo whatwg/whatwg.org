@@ -1,0 +1,274 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Recursion and loops of Microdata items
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Recursion%20and%20loops%20of%20Microdata%20items&In-Reply-To=%3Cop.vwqx5vo1rkwrfs%40herring.wroclaw.osa%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="031950.html">
+   <LINK REL="Next"  HREF="074238.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Recursion and loops of Microdata items</H1>
+<!--htdig_noindex-->
+    <B>Tomasz Jamroszczak</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Recursion%20and%20loops%20of%20Microdata%20items&In-Reply-To=%3Cop.vwqx5vo1rkwrfs%40herring.wroclaw.osa%3E"
+       TITLE="[whatwg] Recursion and loops of Microdata items">toja at opera.com
+       </A><BR>
+    <I>Wed Jun  8 00:38:09 PDT 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="031950.html">[whatwg] PeerConnection and Stream API feedback
+</A></li>
+        <LI>Next message: <A HREF="074238.html">[whatwg] Recursion and loops of Microdata items
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#31951">[ date ]</a>
+              <a href="thread.html#31951">[ thread ]</a>
+              <a href="subject.html#31951">[ subject ]</a>
+              <a href="author.html#31951">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>
+	Hello.
+	I'm implementing Microdata for Opera and I've got problems with loops in  
+graphs of Microdata items.
+
+
+	Summary:
+	1. Is there a bug in the &quot;crawl the properties&quot; algorithm of Microdata?
+	2. Is there a bug in &quot;get the object&quot; algorithm of converting Microdata  
+to JSON?
+	3. What is the true meaning of itemref?
+
+
+	I've been looking into Microdata specification and it struck me, that  
+crawling algorithm  
+(<A HREF="http://dev.w3.org/html5/md/Overview.html#associating-names-with-items">http://dev.w3.org/html5/md/Overview.html#associating-names-with-items</A>) is  
+so complex, when it comes to expressing simple ideas.  I think that  
+foremost the algorithm should be described in the specification with  
+explanation what it's supposed to do, before steps of what exactly is to  
+be done are written.
+	Let's see, what are the properties of Microdata item from HTML element  
+with id=up from following HTML:
+
+&lt;div itemscope id=up itemprop=prop0&gt;
+	&lt;div itemscope id=down itemprop=prop1 itemref=&quot;up&quot;&gt;&lt;/DIV&gt;
+&lt;/div&gt;.
+
+
+CRAWL
+root = up
+memory = {}
+1. xxx
+2. COLLECT
+    1. results = {}
+       pending = {}
+    3. pending = {down}
+    4. xxx
+    5. pending = {}
+       current = down
+    7. xxx
+    8. results = {down}
+    results = {down}
+3. xxx
+4. new_memory = {up}
+5. element = down
+    CRAWL
+    0. memory2 = {up}
+       root2 = down
+    1. xxx
+    2. COLLECT
+       1. results2 = {}
+          pending2 = {}
+       3. xxx
+       4. pending2 = {up}
+       5. pending2 = {}
+          current2 = up
+       7. xxx
+       8. results2 = {up}
+       results2 = {up}
+    3. xxx
+    4. new_memory2 = {up, down}
+    5. element2 = up
+       CRAWL
+       0. memory3 = {up, down}
+          root3 = up
+       1. return FAIL
+!!!   results2 = results2 - up = {}
+    7. return results2 == {} (not FAIL).
+7. return results == {down}
+
+	In the end properties of Microdata item from HTML element with id=up has  
+length=1.
+	The troubling part is in the line marked with triple exclamation marks.   
+It means that step 5. of the algorithm should be simplified to &quot;For each  
+element in results that has an itemscope attribute specified, if the  
+element is equal to /root/, then remove the element from results [and  
+increment errors]&quot;.  Further recursive crawling is not needed.
+
+	But then there's problem with infinite recursion when going through  
+stringification algorithm of <A HREF="http://dev.w3.org/html5/md/Overview.html#json">http://dev.w3.org/html5/md/Overview.html#json</A>  
+for HTML given above.  We can proceed in two ways:
+
+a) allow loops of Microdata items and make JSONification of Microdata item  
+behave just like JSONification of any javascript object, that is - throw  
+exception when loop is found.  Or
+
+b) exclude loops of Microdata items (so in above example Microdata item  
+ from HTML element with id=up would have no Microdata properties).  This  
+will result in crippling functionality of a quite nice HTML API, but also  
+it will produce consistent results in HTMLPropertiesCollection and  
+stringification.  Third solution:
+
+c) cut only offending links, is not good, because in case of graph of  
+Microdata items with following paths: &quot;A-&gt;B-&gt;C-&gt;D-&gt;B&quot; and &quot;E-&gt;D&quot;  
+stringification of item A would result in item D having no properties,  
+while stringification of E would result in D having property B - so  
+presence of property would depend on path's starting part.
+
+	I can imagine good usages of loops of Microdata items, for example &quot;John  
+knows Amy, Amy knows John&quot;:
+
+&lt;div itemscope id=&quot;john&quot; itemprop&gt;
+	&lt;div itemprop=&quot;friends&quot; itemref=&quot;fred1 jenny2 amy1&quot;&gt;&lt;/div&gt;
+&lt;/div&gt;
+&lt;div itemscope id=&quot;amy1&quot; itemprop&gt;
+	&lt;div itemprop=&quot;friends&quot; itemref=&quot;john&quot;&gt;&lt;/div&gt;
+&lt;/div&gt;
+
+There's loop:  jonh-&gt;amy1-&gt;john-&gt;... .
+
+If the loop is to be excluded, and thus recursion, the same data could be  
+written as:
+
+&lt;div itemscope&gt;
+	&lt;div itemprop=addressbook_id&gt;1&lt;/div&gt;
+	&lt;div itemprop=name&gt;John&lt;/div&gt;
+	&lt;div itemprop=knows&gt;2&lt;/div&gt;
+&lt;/div&gt;
+&lt;div itemscope&gt;
+	&lt;div itemprop=addressbook_id&gt;2&lt;/div&gt;
+	&lt;div itemprop=name&gt;Amy&lt;/div&gt;
+	&lt;div itemprop=knows&gt;1&lt;/div&gt;
+&lt;/div&gt;.
+
+maybe with some &lt;meta&gt; instead of &lt;div&gt; or more verbosely:
+
+&lt;p itemscope itemid=&quot;#john&quot; id=&quot;#john&quot;&gt;John knows &lt;a  
+itemprop=&quot;<A HREF="http://xmlns.com/foaf/0.1/knows">http://xmlns.com/foaf/0.1/knows</A>&quot; href=&quot;#amy&quot;&gt;Amy&lt;/a&gt;.&lt;/p&gt;
+&lt;p itemscope itemid=&quot;#amy&quot; id=&quot;#amy&quot;&gt;Amy knows &lt;a  
+itemprop=&quot;<A HREF="http://xmlns.com/foaf/0.1/knows">http://xmlns.com/foaf/0.1/knows</A>&quot; href=&quot;#john&quot;&gt;John&lt;/a&gt;.&lt;/p&gt;
+
+	The problem I'm addressing revolves around meaning of link between  
+itemref and id attributes.  Is it meant to be a part of Microdata data  
+model?  Or maybe it is introduced to cope with the fact that Microdata  
+graph is defined on top of existing data, which is something completely  
+different, and is meant to be rendered to the user (that is on top of HTML  
+tree)?  So the meaning of itemref attribute should also hint  
+interpretation of it inside the specification.
+
+-- 
+Best Regards,
+Tomasz Jamroszczak
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="031950.html">[whatwg] PeerConnection and Stream API feedback
+</A></li>
+	<LI>Next message: <A HREF="074238.html">[whatwg] Recursion and loops of Microdata items
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#31951">[ date ]</a>
+              <a href="thread.html#31951">[ thread ]</a>
+              <a href="subject.html#31951">[ subject ]</a>
+              <a href="author.html#31951">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

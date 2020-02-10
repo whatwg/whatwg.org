@@ -1,0 +1,327 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Priority between &lt;a download&gt; and content-disposition
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Priority%20between%20%3Ca%20download%3E%20and%20content-disposition&In-Reply-To=%3Calpine.DEB.2.00.1308092205480.9685%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="082750.html">
+   <LINK REL="Next"  HREF="082719.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Priority between &lt;a download&gt; and content-disposition</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Priority%20between%20%3Ca%20download%3E%20and%20content-disposition&In-Reply-To=%3Calpine.DEB.2.00.1308092205480.9685%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg] Priority between &lt;a download&gt; and content-disposition">ian at hixie.ch
+       </A><BR>
+    <I>Fri Aug  9 15:53:17 PDT 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="082750.html">[whatwg] Blurry lines in 2D Canvas (and SVG)
+</A></li>
+        <LI>Next message: <A HREF="082719.html">[whatwg] Priority between &lt;a download&gt; and content-disposition
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#40445">[ date ]</a>
+              <a href="thread.html#40445">[ thread ]</a>
+              <a href="subject.html#40445">[ subject ]</a>
+              <a href="author.html#40445">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Sat, 16 Mar 2013, Jonas Sicking wrote:
+&gt;<i>
+</I>&gt;<i> It's currently unclear what to do if a page contains markup like &lt;a 
+</I>&gt;<i> href=&quot;page.txt&quot; download=&quot;A.txt&quot;&gt; if the resource at audio.wav responds 
+</I>&gt;<i> with either
+</I>
+(I'm assuming this is all on the same origin, that there is no script 
+changing the various attributes, etc, just the user clicking, that we're 
+on a platform with meaningful filename extensions, and that the file is 
+returned with an audio/wave type.)
+
+&gt;<i> 1) Content-Disposition: inline
+</I>
+You go down the &quot;as a download&quot; algorithm, as follows:
+
+ 1. filname = void
+ 2. doesn't apply
+ 3. interface origin = origin A
+ 4. resource origin = origin A
+ 5. trusted operation = true, since they're the same
+ 6. doesn't apply
+ 7. doesn't apply
+ 8. proposed filename = &quot;A.txt&quot;
+ 9. filename = proposed filename, &quot;A.txt&quot;; jump to 13
+13. allow user to influence filename; let's assume user does not
+14. filename looks ok, so nothing changes
+15. doesn't apply
+16. claimed type = {audio/wave -&gt; wav}; named type = {text/plain -&gt; txt}
+17. doesn't apply given assumption in step 13
+18. doesn't apply
+19. filename becomes &quot;A.txt.wav&quot;
+20. return &quot;A.txt.wav&quot;
+
+This seems unambiguous. Where's the problem?
+
+
+&gt;<i> 2) Content-Disposition: inline; filename=&quot;B.txt&quot;
+</I>
+You go down the &quot;as a download&quot; algorithm, as follows:
+
+ 1. filename = void
+ 2. doesn't apply
+ 3. interface origin = origin A
+ 4. resource origin = origin A
+ 5. trusted operation = true, since they're the same
+ 6. filename = &quot;B.txt&quot;, jump to 13
+13. allow user to influence filename; let's assume user does not
+14. filename looks ok, so nothing changes
+15. doesn't apply
+16. claimed type = {audio/wave -&gt; wav}; named type = {text/plain -&gt; txt}
+17. doesn't apply given assumption in step 13
+18. doesn't apply
+19. filename becomes &quot;B.txt.wav&quot;
+20. return &quot;B.txt.wav&quot;
+
+Again, this seems unambiguous.
+
+
+&gt;<i> 3) Content-Disposition: attachment; filename=&quot;B.txt&quot;
+</I>
+You go down the &quot;as a download&quot; algorithm, as follows:
+
+ 1. filename = void
+ 2. filename = &quot;B.txt&quot;, jump to 13
+13. allow user to influence filename; let's assume user does not
+14. filename looks ok, so nothing changes
+15. doesn't apply
+16. claimed type = {audio/wave -&gt; wav}; named type = {text/plain -&gt; txt}
+17. doesn't apply given assumption in step 13
+18. doesn't apply
+19. filename becomes &quot;B.txt.wav&quot;
+20. return &quot;B.txt.wav&quot;
+
+Again, seems clear.
+
+
+&gt;<i> People generally seem to have a harder time with getting header data 
+</I>&gt;<i> right, than getting markup right, and so I think that in all cases we 
+</I>&gt;<i> should display the &quot;save as&quot; dialog (or display equivalent download UI) 
+</I>&gt;<i> and suggest the filename &quot;A.txt&quot;.
+</I>
+I agree that people fail to set headers. But do we have reason to believe 
+that people are setting their content-attachment headers with a filename 
+incorrectly in the wild?
+
+The problem with ignoring the server in the cross-origin case is that it's 
+a security risk (imagine a page trying to cause someone to download a 
+sensitive file, but claiming it's a local file with some filename specific 
+to the site, and then later asking for it to be uploaded again).
+
+Given that, it seems sane to try to be consistent between cross-origin and 
+same-origin cases where possible, which means trusting the server over the 
+markup if there's a filename. It seems to me that if a filename is given 
+by the server, it's more likely to be right than wrong. (I agree that it's 
+more likely that there won't be a filename at all.)
+
+
+&gt;<i> Potentially there are reasons to do something different in the case when 
+</I>&gt;<i> the linked resource lives off of a different origin since in that case 
+</I>&gt;<i> there might be security reasons to use the filename or disposition of 
+</I>&gt;<i> the server that is actually serving up the content. However I don't 
+</I>&gt;<i> think we can expect people to indicate &quot;Content-Disposition: inline&quot; in 
+</I>&gt;<i> order to protect resources.
+</I>
+The only way you can end up using the download=&quot;&quot; attribute's value in the 
+cross-origin case is if the server says Content-Disposition:attachment but 
+doesn't include a filename.
+
+
+&gt;<i> Nor do I think that simply using a different filename is going to 
+</I>&gt;<i> meaningfully protect downloaded content.
+</I>
+I think it's a heck of a lot more likely that you can trick someone into 
+uploading &quot;highscores.dat&quot; or &quot;cartoon-profile.jpeg&quot; than it is that you 
+can trick them into uploading &quot;John-Doe-bank-account-8172002.csv&quot;.
+
+
+&gt;<i> So I think a stronger UI warning is needed in this scenario.
+</I>
+Steps 12 and 13 of the &quot;as a download&quot; algorithm, 12 in particular, are 
+all about this. That's what all the warning text in step 12 says, 
+including: &quot;it is in the user's interests that the user be somehow 
+notified that the resource in question comes from quite a different 
+source, and to prevent confusion, any suggested file name from the 
+potentially hostile interface origin should be ignored&quot;.
+
+
+On Sun, 17 Mar 2013, Glenn Maynard wrote:
+&gt;<i> 
+</I>&gt;<i> &quot;inline&quot; is only there because it has to be; there's no way of saying 
+</I>&gt;<i> &quot;Content-Disposition: don't care; filename=foo&quot;.  &quot;inline&quot; is the 
+</I>&gt;<i> default.
+</I>&gt;<i> 
+</I>&gt;<i> I think @download should be able to force a download regardless of 
+</I>&gt;<i> whether a C-D header exists: treat the default C-D as &quot;inline&quot;, and 
+</I>&gt;<i> don't change behavior just because a header states the default.
+</I>
+I believe this is consistent with the spec, modulo the cross-origin issues 
+discussed above.
+
+
+On Mon, 18 Mar 2013, Jonas Sicking wrote:
+&gt;<i> 
+</I>&gt;<i> Over in [1] we immediately ran into people wanting to override an 
+</I>&gt;<i> explicitly set header.
+</I>&gt;<i> 
+</I>&gt;<i> So no, I don't think that is accurate.
+</I>&gt;<i> 
+</I>&gt;<i> I think it is just as common to want to control a situation from markup 
+</I>&gt;<i> when you are dealing with a server that is sending a header, as when 
+</I>&gt;<i> dealing with a server that is not sending a header. At least if you 
+</I>&gt;<i> account for the number of servers setting headers.
+</I>&gt;<i> 
+</I>&gt;<i> [1] <A HREF="https://bugzilla.mozilla.org/show_bug.cgi?id=676619#c117">https://bugzilla.mozilla.org/show_bug.cgi?id=676619#c117</A>
+</I>
+Well, this is a Mozilla site. Why is a filename set if you don't want it? 
+Why would you want that video.ogg file downloaded as &quot;with-target.txt&quot;?
+
+It seems to me that this is working as intended. The page is setting bogus 
+filenames, the server is setting a good one, the good one is winning.
+
+
+On Wed, 8 May 2013, Gordon P. Hemsley wrote:
+&gt;<i> 
+</I>&gt;<i> Here's what the spec says:
+</I>&gt;<i> 
+</I>&gt;<i> &quot;The download attribute, if present, indicates that the author intends 
+</I>&gt;<i> the hyperlink to be used for downloading a resource. The attribute may 
+</I>&gt;<i> have a value; the value, if any, specifies the default file name that 
+</I>&gt;<i> the author recommends for use in labeling the resource in a local file 
+</I>&gt;<i> system.&quot;
+</I>&gt;<i> 
+</I>&gt;<i> I interpret that first sentence to mean that the file should be 
+</I>&gt;<i> downloaded (disposition type = attachment) rather than displayed 
+</I>&gt;<i> (disposition type = inline). The second sentence very clearly suggests 
+</I>&gt;<i> that &quot;A.txt&quot; would be the filename presented to the user by default in 
+</I>&gt;<i> the save dialog.
+</I>
+There's much more specific text later in the spec that answers this in 
+much more detail.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="082750.html">[whatwg] Blurry lines in 2D Canvas (and SVG)
+</A></li>
+	<LI>Next message: <A HREF="082719.html">[whatwg] Priority between &lt;a download&gt; and content-disposition
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#40445">[ date ]</a>
+              <a href="thread.html#40445">[ thread ]</a>
+              <a href="subject.html#40445">[ subject ]</a>
+              <a href="author.html#40445">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

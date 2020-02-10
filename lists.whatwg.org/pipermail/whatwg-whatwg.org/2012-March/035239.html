@@ -1,0 +1,694 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Canvas v5 API additions
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Canvas%20v5%20API%20additions&In-Reply-To=%3CPine.LNX.4.64.1203280359570.22654%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="077536.html">
+   <LINK REL="Next"  HREF="077514.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Canvas v5 API additions</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Canvas%20v5%20API%20additions&In-Reply-To=%3CPine.LNX.4.64.1203280359570.22654%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg] Canvas v5 API additions">ian at hixie.ch
+       </A><BR>
+    <I>Wed Mar 28 14:41:12 PDT 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="077536.html">[whatwg] Encoding: big5 and big5-hkscs
+</A></li>
+        <LI>Next message: <A HREF="077514.html">[whatwg] Canvas v5 API additions
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#35239">[ date ]</a>
+              <a href="thread.html#35239">[ thread ]</a>
+              <a href="subject.html#35239">[ subject ]</a>
+              <a href="author.html#35239">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>
+I just added a bunch of things to the &lt;canvas&gt; 2D API:
+
+ - Path primitives:
+     var p = new Path();
+     p.rect(0,0,100,100);
+     context.fill(p);
+
+ - Ellipses:
+     // arcs from center point, similar to arc()
+     context.ellipse(x, y, width/2, height/2, angle, 0, Math.PI*2);
+     context.stroke();
+     // arc corners
+     context.arcTo(x1, y1, x2, y2, width/2, height/2, angle);
+
+  - SVG path description syntax
+     context.stroke(new Path('M 100,100 h 50 v 50 h 50'));
+
+  - Dashed lines
+     context.setLineDash([3,1,0,1]); // --- . --- . --- .
+     context.moveTo(100,100);
+     context.lineTo(200,300);
+     context.stroke();
+
+ - Text on a path:
+     var p1 = new Path('M 100 350 q 150 -300 300 0');
+     var p2 = new Path();
+     var styles = new DrawingStyle();
+     styles.font = '20px sans-serif';
+     p2.addText('Hello World', styles, null, p1);
+     context.fill(p2);
+
+  - Hit testing:
+     context.beginPath();
+     context.rect(10,10,100,100);
+     context.fill();
+     context.addHitRegion({ id: 'The First Button' });
+     context.beginPath();
+     context.rect(120,10,100,100);
+     context.fill();
+     context.addHitRegion({ id: 'The Second Button' });
+     canvas.onclick = function (event) {
+       if (event.region)
+         alert('You clicked ' + event.region);
+     });
+
+  - Region discovery for AT users
+     context.rect(10,100,100,50);
+     context.fill();
+     context.addHitRegion({
+       id: 'button',
+       control: canvas.getElementsByTagName('button')[0],
+     });
+     context.beginPath();
+     context.rect(0,0,100,50);
+     context.textAlign = 'center';
+     context.textBaseline = 'top';
+     context.fillText('My Game', 50, 0, 100);
+     context.addHitRegion({
+       id: 'header',
+       label: 'My Game',
+       role: 'heading',
+     });
+     // now user can discover (via touch on a touch device, or via the 
+     // virtual cursor in a traditional desktop AT) that there's a heading 
+     // at the top of the canvas that says &quot;My Game&quot; and a button lower 
+     // down that looks (to the AT) exactly like the canvas element's
+     // first child &lt;button&gt;.
+
+  - Automatic cursor control
+     context.addHitRegion({
+       path: new Path('M 10 10 h 20 v 20 h -20 z'),
+       cursor: 'url(fight.png)',
+     });
+     context.addHitRegion({
+       path: new Path('M 50 30 h 20 v 20 h -20 z'),
+       cursor: 'url(quaff.png)',
+     });
+
+  - APIs that take SVGMatrix objects for transforms
+     // transform a path when you add it to another path
+     var duck = new Path('M 0 0 c 40 48 120 -32 160 -6 c 0 0 5 4 10 '+ 
+                         '-3 c 10 -103 50 -83 90 -42 c 0 0 20 12 30 7 c '+ 
+                         '-2 12 -18 17 -40 17 c -55 -2 -40 25 -20 35 c '+
+                         '30 20 35 65 -30 71 c -50 4 -170 4 -200 -79z');
+     var identity = new SVGMatrix(); // constructor will be in SVG2 DOM
+     var threeDucks = new Path();
+     threeDucks.addPath(duck, identity.translate(0,0));
+     threeDucks.addPath(duck, identity.translate(100,0));
+     threeDucks.addPath(duck, identity.translate(200,0));
+
+     // set the transform using an SVGMatrix
+     cantext.currentTransform = context.currentTransform.flipX();
+
+  - many more metrics from measureText()
+     var metrics = context.measureText('Hello World');
+     var bL = metrics.actualBoundingBoxLeft;
+     var bR = metrics.actualBoundingBoxRight;
+     var bU = metrics.actualBoundingBoxAscent;
+     var bD = metrics.actualBoundingBoxDescent;
+     context.fillStyle = 'black';
+     context.fillRect(x-bL, y-bU, bL+bR, bU+bD);
+     context.fillStyle = 'white';
+     context.fillText(x, y, 'Hello World');
+     // there are also values for all the baselines
+
+  - ability to transform a pattern
+     var identity = new SVGMatrix();
+     context.fillStyle = context.createPattern(img, 'repeat');
+     context.fillStyle.setTransform(identity.rotate(angle));
+     context.fillRect(0, 0, canvas.width, canvas.height);
+
+  - various other additions
+     // reset the clip region
+     context.resetClip();
+     // reset the transform
+     context.resetTransform();
+
+
+I include below responses to relevant feedback and to proposals that I 
+have not added but do not intend to add or do not understand well enough 
+to add. If I haven't replied to your feedback on canvas, that means it's 
+about a feature I haven't added yet but do not see immediate problems 
+with. (If you have sent feedback regarding bugs in canvas, or regarding 
+some of the canvas features already in the spec and not asking for a new 
+feature, but have not received a reply, then I may have missed it. Let me 
+know and I'll see if it's been misfiled.)
+
+On Sun, 4 Apr 2010, Saurabh Jain wrote:
+&gt;<i> 
+</I>&gt;<i> I have a proposal for adding generic image collision API in Canvas. 
+</I>&gt;<i> Given two images HTMLImageElement objects and there respective x, y, 
+</I>&gt;<i> clip width and clip height the API call will let you know if there's any 
+</I>&gt;<i> non-transparent pixel (any opaque or translucent pixel) in one image's 
+</I>&gt;<i> clipping region that overlaps a non-transparent pixel in another image's 
+</I>&gt;<i> clipping region. The clipping region defined by this API call is for 
+</I>&gt;<i> local use only for this purpose.
+</I>&gt;<i> 
+</I>&gt;<i> This API will be useful for game programmers. I am author of India's 
+</I>&gt;<i> first book on J2ME and have been developing mobile games since 2002. I 
+</I>&gt;<i> have through personal experience observed that this pixel level 
+</I>&gt;<i> collision at native level is required for game developers to build games 
+</I>&gt;<i> easily. What I am referring to is a kind of generic pixel level 
+</I>&gt;<i> collision. People are free to develop there own complex collision 
+</I>&gt;<i> mechanisms for complex games but small teams composed of new game 
+</I>&gt;<i> developers find image collision detection implementation the most 
+</I>&gt;<i> difficult concept in the whole game development process to grasp.
+</I>&gt;<i> 
+</I>&gt;<i> Also pixel level checking for two 100 pixel x 100pixel images will 
+</I>&gt;<i> involve lot of execution time if done at JavaScript level since up to 
+</I>&gt;<i> 10000 checks may have to be performed. Native browser support can speed 
+</I>&gt;<i> things a lot. Similar thing happened in J2ME where before MIDP 2.0 
+</I>&gt;<i> people had hard time to do pixel level collision both due to programming 
+</I>&gt;<i> complexity and execution issues.
+</I>
+If you mean path collision detection, I haven't added this, but the path 
+objects we have now have lain the groundwork for this in the future: one 
+can easily imagine adding a feature to this API that takes two Path 
+objects and tells you if they intersect. If this is a feature that other 
+people ask for, then I imagine we will add this in the next canvas feature 
+update.
+
+On the other hand, if you specifically meant collision detection for 
+alpha-channel sprites, then I haven't added that yet either, but am 
+unsure whether it makes much sense to add. Does anyone else (especially 
+implementors) have any opinions on this matter?
+
+
+On Thu, 8 Apr 2010, Saurabh Jain wrote:
+&gt;<i> 
+</I>&gt;<i> As of now 3D is not there in Canvas in official WHATWG specification. 
+</I>&gt;<i> When 3D comes the 3D game developer can be told that 2D collisions and 
+</I>&gt;<i> 3D collisions are different. We can have ray tracking in 3D when it 
+</I>&gt;<i> comes similar to what 3D API is there in J2ME (JSR 184).
+</I>
+3D canvas graphics is now handled as part of WebGL.
+
+
+On Thu, 8 Apr 2010, Stefan Haustein wrote:
+&gt;<i> 
+</I>&gt;<i> Why not add a general BitBlt library on top of typed arrays (1) instead?
+</I>&gt;<i> 
+</I>&gt;<i> This could also be useful for other applications, e.g. web-based photo 
+</I>&gt;<i> editors...
+</I>
+getImageData() is now based on typed arrays.
+
+
+On Tue, 6 Apr 2010, Mathieu 'p01' Henri wrote:
+&gt;<i> 
+</I>&gt;<i> However, a extra readonly attribute float &quot;height&quot; to the &quot;TextMetrics&quot; 
+</I>&gt;<i> interface should be fairly trivial to implement for browser vendors and 
+</I>&gt;<i> would greatly help web developers layout text in Canvas.
+</I>
+On Tue, 6 Apr 2010, Greg Brown wrote:
+&gt;<i> 
+</I>&gt;<i> It would certainly help - might it also be possible to add a similar 
+</I>&gt;<i> &quot;baseline&quot; (or &quot;ascent&quot;) attribute? If so, I would be very happy, since 
+</I>&gt;<i> this would cover most (if not all) of my use cases.  :-)
+</I>
+I have now extended TextMetrics to cover a range of vertical metrics.
+
+
+
+On Sun, 2 May 2010, Charles Pritchard wrote:
+&gt;<i> 
+</I>&gt;<i> At present, it's quite difficult to get the binary code for a jpg image; 
+</I>&gt;<i> you must first draw it to a Canvas and export it as a png.
+</I>
+Canvas supports toDataURL('image/jpeg') and toBlob(..., 'image/jpeg').
+
+
+On Wed, 28 Jul 2010, David Flanagan wrote:
+&gt;<i>
+</I>&gt;<i> The Canvas API has a setTransform() method to set an arbitrary 
+</I>&gt;<i> transformation matrix, but has no corresponding getTransform() method to 
+</I>&gt;<i> query the current transformation matrix or even to use the CTM to 
+</I>&gt;<i> transform a point in the current coordinate system to the default 
+</I>&gt;<i> coordinate system.
+</I>
+You can now get a (live) SVGMatrix object representing the current 
+transformation matrix.
+
+
+&gt;<i> [snip great description of use cases]
+</I>
+Thanks for those! They are very helpful in examining proposals.
+
+
+&gt;<i> From a programmer usability perspective, perhaps adding methods like 
+</I>&gt;<i> transformPoints(), transformBoundingBox(), and transformDimensions() 
+</I>&gt;<i> would be more helpful.  But I'm not sure what the optimal set of such 
+</I>&gt;<i> methods would be.
+</I>
+I haven't added these yet, since as with you I'm not really sure what the 
+right API would be here.
+
+
+On Fri, 29 Jul 2011, Charles Pritchard wrote:
+&gt;<i>
+</I>&gt;<i> Having spoken to several developers, I think that we're clear to add a 
+</I>&gt;<i> new method to the canvas 2d api; though there is some question about how 
+</I>&gt;<i> it should be added.
+</I>&gt;<i> 
+</I>&gt;<i> The method would take a DOMString using SVG path semantics.
+</I>
+I have added support for this.
+
+
+On Fri, 5 Aug 2011, Charles Pritchard wrote:
+&gt;<i>
+</I>&gt;<i> The current description of draw*FocusRing does not have &quot;inform the 
+</I>&gt;<i> user&quot; in the correct priority. It currently follows cases where the user 
+</I>&gt;<i> should be informed, but the steps have been aborted.
+</I>
+Fixed.
+
+
+On Thu, 18 Aug 2011, Charles Pritchard wrote:
+&gt;<i>
+</I>&gt;<i> Following is a change proposal for the canvas 2d spec
+</I>
+For the record, it's more productive to explain use cases that are not 
+handled by the existing API than to propose changes to the API.
+
+Please see this FAQ entry and the one that follows it:
+<A HREF="http://wiki.whatwg.org/wiki/FAQ#Is_there_a_process_for_adding_new_features_to_a_specification.3F">http://wiki.whatwg.org/wiki/FAQ#Is_there_a_process_for_adding_new_features_to_a_specification.3F</A>
+
+
+On Sat, 27 Aug 2011, Charles Pritchard wrote:
+&gt;<i>
+</I>&gt;<i> Currently, Canvas 2d has a drawFocusRing API, enabling authors (at least 
+</I>&gt;<i> in IE9, currently) to create elements inside of the Canvas subtree, set 
+</I>&gt;<i> onfocus handlers, and let the OS know that a path/rectangle within the 
+</I>&gt;<i> canvas image currently has focus (and that focus event, is of course, on 
+</I>&gt;<i> the selected element).
+</I>&gt;<i> 
+</I>&gt;<i> The API only works for tracking a single element at one time. We need a 
+</I>&gt;<i> more broad method for notifying the OS about multiple regions within an 
+</I>&gt;<i> image, as cycling through drawFocusRing is both inefficient and not 
+</I>&gt;<i> quite the appropriate use of the method semantics.
+</I>&gt;<i>
+</I>&gt;<i> Something like: setClickableElement(elementInSubtree), which would use 
+</I>&gt;<i> the current path, and the element passed as the first argument, and 
+</I>&gt;<i> share that information with the OS (more specifically, the UAs 
+</I>&gt;<i> accessibility tree).
+</I>
+I've added something along these lines (though more flexible) to the spec.
+
+
+On Wed, 31 Aug 2011, David Geary wrote:
+&gt;<i>
+</I>&gt;<i> I&#146;ve implemented some polygon objects for my book that I can drag around in
+</I>&gt;<i> a canvas. I detect mouse clicks in the polygons with the isPointInPath()
+</I>&gt;<i> method. Here&#146;s a simple code snippet that detects mouse clicks in a set of
+</I>&gt;<i> polygons (dnd code is too lengthy for this purpose):
+</I>&gt;<i> 
+</I>&gt;<i> context.canvas.onmousedown = function (e) {
+</I>&gt;<i>    var loc = windowToCanvas(context.canvas, e);
+</I>&gt;<i> 
+</I>&gt;<i>    polygons.forEach( function (polygon) {  // polygons is an array of
+</I>&gt;<i> polygon objects
+</I>&gt;<i>       polygon.createPath();  // my polygons have a createPath() method
+</I>&gt;<i> 
+</I>&gt;<i>       if (context.isPointInPath(loc.x, loc.y)) {
+</I>&gt;<i>          alert('mouse clicked in polygon');
+</I>&gt;<i>       }
+</I>&gt;<i>    });
+</I>&gt;<i> }
+</I>&gt;<i> 
+</I>&gt;<i> Notice that I have to recreate each path for every polygon. 
+</I>&gt;<i> Polygon.createPath() is implemented with 
+</I>&gt;<i> beginPath()...moveTo()...repeated calls to lineTo()...and 
+</I>&gt;<i> finally...closePath().
+</I>&gt;<i> 
+</I>&gt;<i> It seems to me that it would be great if the Canvas context provided two 
+</I>&gt;<i> new methods: Path getPath(), which would return a path object 
+</I>&gt;<i> representing the context&#146;s current path, and setPath(Path), which would 
+</I>&gt;<i> set the current path.
+</I>
+I haven't quite added what you suggest, but I have added Path primitives, 
+which does more or less the same thing and can be passed to 
+isPointInPath(), and also added a mechanism that more directly addresses 
+your underlying request, namely a way to define hit regions and have them 
+be directly reported in the mousedown event rather than having to go 
+through each path in turn.
+
+
+On Thu, 6 Oct 2011, Brian Ernesto wrote:
+&gt;<i> 
+</I>&gt;<i> We have been using a script called html2canvas that utilizes the CANVAS 
+</I>&gt;<i> tag to render screen captures of HTML blocks via the toDataURL() method. 
+</I>&gt;<i> It does this by recreating and drawing each element to a CANVAS tag, but 
+</I>&gt;<i> it can be very slow on large pages.
+</I>&gt;<i> 
+</I>&gt;<i> It occurred to us today that it would really be useful to have every 
+</I>&gt;<i> element in the DOM have the method toDataURL() (e.g. 
+</I>&gt;<i> document.getElementById('myDiv').toDataURL() ). This would be a powerful 
+</I>&gt;<i> way of capturing image data of any element from the whole HTML level 
+</I>&gt;<i> down to a lone DIV. This would allow use in things such as animations, 
+</I>&gt;<i> graphical annotations, and various UI effects.
+</I>
+A mechanism to draw parts of the page to a canvas is one a lot of people 
+would very much like to have. Unfortunately it's an incredibly difficult 
+problem to solve in a way that doesn't introduce security flaws.
+
+
+On Fri, 28 Oct 2011, Ashley Gullen wrote:
+&gt;<i> 
+</I>&gt;<i> The retro (pixellated style) is still very popular in 2D gaming, and 
+</I>&gt;<i> many new games are still being made with this style.  (Have a quick 
+</I>&gt;<i> scroll through <A HREF="http://www.tigsource.com/">http://www.tigsource.com/</A> and notice how many retro games 
+</I>&gt;<i> are still hitting headlines.)  I've noticed most browsers today are 
+</I>&gt;<i> using bilinear filtering for scaling.  Compared to point filtering (aka 
+</I>&gt;<i> nearest neighbour) this makes retro style games look blurry.  See here: 
+</I>&gt;<i> <A HREF="http://www.scirra.com/images/point-vs-linear.png">http://www.scirra.com/images/point-vs-linear.png</A>
+</I>
+I've added a feature that lets you disable image smoothing in drawImage().
+
+
+On Fri, 28 Oct 2011, Tab Atkins Jr. wrote:
+&gt;<i> 
+</I>&gt;<i> The CSS Working Group is interested in this topic more generally for all 
+</I>&gt;<i> images or videos.  There was previously a property in the CSS3 Image 
+</I>&gt;<i> Values spec for this; it's currently punted to the level 4 spec, but you 
+</I>&gt;<i> can find it in an older WD like 
+</I>&gt;<i> &lt;<A HREF="http://www.w3.org/TR/2011/WD-css3-images-20110712/#image-rendering">http://www.w3.org/TR/2011/WD-css3-images-20110712/#image-rendering</A>&gt;.
+</I>&gt;<i> 
+</I>&gt;<i> Currently there are two values defined: 'auto' means &quot;do what you want, 
+</I>&gt;<i> preserving image quality&quot;, which will generally make pixel art blurry; 
+</I>&gt;<i> and 'crisp-edges' which means &quot;do what you want, but don't blur edges or 
+</I>&gt;<i> colors&quot;, which is expected to often use nearest-neighbor, but is allowed 
+</I>&gt;<i> to use more complex pixel-art scaling algorithms.  There's been a 
+</I>&gt;<i> persistent request to explicitly ask for nearest-neighbor, so I expect 
+</I>&gt;<i> that will be addressed at some point with a value named 'pixelated' or 
+</I>&gt;<i> something.
+</I>&gt;<i> 
+</I>&gt;<i> Once this property is implemented, browsers should respect it for 
+</I>&gt;<i> scaling &lt;canvas&gt;, so you won't need anything explicit in the API.
+</I>
+I added the control for drawImage() anyway, so that you don't have to rely 
+on scaling canvas (which might result in a higher-res backing store or 
+might not) to get the effect, and so that you can have some images (e.g. 
+backgrounds) smoothed and others (e.g. foreground sprites) not.
+
+
+On Fri, 28 Oct 2011, Boris Zbarsky wrote:
+&gt;<i> 
+</I>&gt;<i> There is experimental support for this in Gecko at the moment via the 
+</I>&gt;<i> boolean mozImageSmoothingEnabled property on the 2d context.  At the 
+</I>&gt;<i> time this was added there was talk about getting more feedback from this 
+</I>&gt;<i> group; not sure whether that ever happened.
+</I>
+This is what I modelled the spec's proposal on.
+
+
+On Sat, 29 Oct 2011, Ashley Gullen wrote:
+&gt;<i> 
+</I>&gt;<i> I had a quick go with setting ctx.mozImageSmoothingEnabled = false.  It 
+</I>&gt;<i> works great with drawImage.  However it does not appear to affect 
+</I>&gt;<i> repeated patterns. This makes for quite a strange effect where the 
+</I>&gt;<i> game's sprites are pixellated but the tiled backgrounds are bilinear 
+</I>&gt;<i> filtered.  So it's half way there.
+</I>
+This matches what the spec has done; you can make it also affect patterns 
+if you like by first drawing the image scaled to another canvas and then 
+using that as the pattern (so the pattern doesn't have to be scaled).
+
+If you just have everything scaled, though, you might be better off just 
+drawing everything to the canvas without any scaling and then just scaling 
+the whole thing once per frame, either by stretching the canvas and 
+relying on CSS to turn off smoothing, or by using drawImage().
+
+
+On Wed, 2 Nov 2011, Chris Jones wrote:
+&gt;<i>
+</I>&gt;<i> Most 2d graphics libraries support stroking paths with a &quot;dash pattern&quot; 
+</I>&gt;<i> of on/off strokes.  Canvas should have it for completeness.
+</I>
+Completeness is definitely not a compelling reason to add something to the 
+Web platform. :-)
+
+
+&gt;<i> [proposal...]
+</I>&gt;<i> Note: a similar spec has been implemented in Gecko as 
+</I>&gt;<i> |mozDash/mozDashOffset|[2], however with mozDash as a sequence 
+</I>&gt;<i> attribute, which Cameron McCormack pointed out is forbidden by 
+</I>&gt;<i> WebIDL[3].  In the API above, the attribute is converted into explicit 
+</I>&gt;<i> setDash()/getDash() methods.
+</I>
+I have taken this into account in the design.
+
+
+On Wed, 2 Nov 2011, Chris Jones wrote:
+&gt;<i>
+</I>&gt;<i> An important canvas use case that arose during the development of 
+</I>&gt;<i> pdf.js[1] is implementing a &quot;fill-to-current-clip&quot; operation.  In PDF, 
+</I>&gt;<i> the shading fill operator, &quot;sh&quot;, requires this.  In the cairo library, 
+</I>&gt;<i> cairo_paint() is this operation.  The operation can be implemented by 
+</I>&gt;<i> tracking the current transform matrix (CTM) in script, then at paint 
+</I>&gt;<i> time, inverting the CTM and filling the canvas bounds transformed by the 
+</I>&gt;<i> inverse CTM.  However, tracking the CTM from script is cumbersome and 
+</I>&gt;<i> not likely to be performant.  It's also not always possible for script 
+</I>&gt;<i> to track the CTM; for example, if an external library is passed a canvas 
+</I>&gt;<i> to draw to, the library doesn't know the initial CTM.  Another use case 
+</I>&gt;<i> that requires the CTM is creating a minimal temporary surface for a fill 
+</I>&gt;<i> operation that's bounded by user-space coordinates, for which canvas 
+</I>&gt;<i> doesn't have native support for creating the contents of what's to be 
+</I>&gt;<i> filled.  This case also arose in pdf.js.
+</I>&gt;<i> 
+</I>&gt;<i> To that end, we propose a canvas interface that allows querying the CTM.  
+</I>&gt;<i> The concrete proposal is
+</I>&gt;<i> 
+</I>&gt;<i>   interface CanvasRenderingContext2D {
+</I>&gt;<i>     //...
+</I>&gt;<i>     attribute SVGMatrix currentTransform;  // default is the identity matrix
+</I>&gt;<i>     //...
+</I>&gt;<i>   };
+</I>&gt;<i> 
+</I>&gt;<i> The first use case above is satisfied by |inverseCtm = 
+</I>&gt;<i> context.currentTransform.inverse();|.  This attribute also serves as a 
+</I>&gt;<i> convenience attribute for updating the CTM.  The |currentTransform| 
+</I>&gt;<i> attribute tracks updates made to the CTM through 
+</I>&gt;<i> |setTransform()/scale()/translate()|.
+</I>
+I've added this to the spec as proposed here.
+
+
+On Thu, 22 Dec 2011, David Karger wrote:
+&gt;<i> 
+</I>&gt;<i> Firefox and chrome inconsistently handle &quot;destination-in&quot; compositing; I 
+</I>&gt;<i> suspect this may be due to a missing specification in the standard.  
+</I>&gt;<i> The inconsistency happens when I use the drawImage method to draw one 
+</I>&gt;<i> canvas onto another while the globalCompositionOperation is set to 
+</I>&gt;<i> &quot;destination-in&quot;  . Under destination in, pixels in the destination 
+</I>&gt;<i> canvas should be left alone where the source canvas has a set pixel and 
+</I>&gt;<i> cleared where the source canvas has a cleared/transparent pixel.
+</I>&gt;<i> 
+</I>&gt;<i> Both browsers do this properly inside the range of the source canvas. 
+</I>&gt;<i> But if the source canvas has smaller dimensions than the destination 
+</I>&gt;<i> canvas, they inconsistently handle parts of the destination canvas 
+</I>&gt;<i> _outside_ the source canvas: firefox clears those pixels while chrome 
+</I>&gt;<i> leaves them alone.  I believe the standard isn't clear on what should 
+</I>&gt;<i> happen in this case.  I'd say that firefox's behavior is more consistent 
+</I>&gt;<i> with the intent of &quot;destination-in&quot;, but obviously cross-platform 
+</I>&gt;<i> consistency is the most important consideration.
+</I>
+On Thu, 22 Dec 2011, Darin Adler wrote:
+&gt;<i> 
+</I>&gt;<i> It sounds like the Chrome behavior you are describing is a symptom of 
+</I>&gt;<i> this WebKit bug, fixed in the WebKit source code on 2011-10-26
+</I>
+I agree with Darin's assessment here. Let me know if you still think the 
+spec should be changed.
+
+
+On Fri, 13 Jan 2012, Jeremy Apthorp wrote:
+&gt;<i> 
+</I>&gt;<i> I'd like to draw non-antialiased lines in a &lt;canvas&gt;. Currently it seems 
+</I>&gt;<i> that the only way to do this is to directly access the pixel data.
+</I>&gt;<i> 
+</I>&gt;<i> Is there a reason there's no way to turn off antialiasing?
+</I>
+What's the use case?
+
+
+On Sat, 28 Jan 2012, Bronislav Klu&#196;~Mka wrote:
+&gt;<i> On 27.1.2012 20:02, Ian Hickson wrote:
+</I>&gt;<i> &gt; On Thu, 20 Oct 2011, Bronislav Klu&#239;&#191;&#189;~Mka wrote:
+</I>&gt;<i> &gt; &gt; Would it be possible to extend canvas specification to include 
+</I>&gt;<i> &gt; &gt; scroll bar functionality? To add scroll bar, to manage scroll bar 
+</I>&gt;<i> &gt; &gt; (total size, page size). Creating control based on canvas that needs 
+</I>&gt;<i> &gt; &gt; scrollbar at this point is unnecessarily difficult at this point.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; It is expected that the component model feature being discussed in the 
+</I>&gt;<i> &gt; <A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">public-webapps at w3.org</A> mailing list will be how you make widgets on the 
+</I>&gt;<i> &gt; platform.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; You wouldn't want to put the scrollbar in the canvas itself, since 
+</I>&gt;<i> &gt; then it wouldn't follow platform native conventions, for example. 
+</I>&gt;<i> &gt; Instead, you would create a widget which uses overflow:scroll with an 
+</I>&gt;<i> &gt; element of the right height or width to create scrollbars, and then 
+</I>&gt;<i> &gt; you would react to scroll events to repaint the canvas.
+</I>&gt;<i>
+</I>&gt;<i> How does scrollbar on div, p, textarea etc. follow platform native 
+</I>&gt;<i> conventions but scroll bar on canvas would not?
+</I>
+I presumed you meant a scrollbar drawn by the author. If that's not what 
+you mean, I don't understand your proposal. Could you elaborate?
+
+
+&gt;<i> &gt; On Thu, 20 Oct 2011, Bronislav Klu&#239;&#191;&#189;~Mka wrote:
+</I>&gt;<i> &gt; &gt; b) how about creating user controls using canvas? (rich controls are
+</I>&gt;<i> &gt; &gt; better doing this way, one has pixel perfect control, full browser
+</I>&gt;<i> &gt; &gt; compatibility) like document viewer, rich listview/treeview control...
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Generally speaking, canvas isn't intended for anything but the 
+</I>&gt;<i> &gt; simplest of interactive controls.
+</I>&gt;<i>
+</I>&gt;<i> Generally speaking, widgets are intended to be HTML container, which 
+</I>&gt;<i> makes them far inferior to possibilities of canvas... simpler, but 
+</I>&gt;<i> inferior (as is any HTML container at this point).
+</I>
+I'm not sure I follow. What is the use case you had in mind?
+
+
+On Tue, 31 Jan 2012, Charles Pritchard wrote:
+&gt;<i> 
+</I>&gt;<i> I'd like to see scrollTop and scrollLeft supported for the Canvas 
+</I>&gt;<i> element. They would simply fire an onscroll event on the element, and do 
+</I>&gt;<i> nothing else. Many Canvas UIs use only one visible canvas layer, or 
+</I>&gt;<i> otherwise, one main canvas layer.
+</I>&gt;<i> 
+</I>&gt;<i> It'd be quite handy to be able to use the scrollTop and scrollLeft 
+</I>&gt;<i> setters, and as an author, hook into canvas.onscroll to identify when 
+</I>&gt;<i> updates ought to be painted.
+</I>&gt;<i> 
+</I>&gt;<i> Currently, authors can create a large canvas, and place it in a div:
+</I>&gt;<i> &lt;div style=&quot;overflow: hidden&quot;&gt;
+</I>&gt;<i> &lt;canvas&gt;This can is larger than the div&lt;/canvas&gt;
+</I>&gt;<i> &lt;/div&gt;
+</I>&gt;<i> 
+</I>&gt;<i> It would be great to be able to respond to scroll events, such as
+</I>&gt;<i> Element.scrollIntoViewIfNeeded and/or ctx.scrollPathIntoView,
+</I>&gt;<i> and simplify the model in the future.
+</I>&gt;<i> 
+</I>&gt;<i> &lt;div&gt;
+</I>&gt;<i> &lt;canvas onscroll=&quot;repaint(scrollLeft,scrollTop)&quot;&gt;This canvas is the same size
+</I>&gt;<i> as the div and responds to onscroll&lt;/canvas&gt;
+</I>&gt;<i> &lt;/div&gt;
+</I>&gt;<i> 
+</I>&gt;<i> The values for scrollLeft and scrollTop would be in css pixels, as they 
+</I>&gt;<i> are for other elements, and when set, they would trigger an onscroll 
+</I>&gt;<i> event, as usual.
+</I>
+On Sat, 4 Feb 2012, Anne van Kesteren wrote:
+&gt;<i> 
+</I>&gt;<i> That would require special casing &lt;canvas&gt; in 
+</I>&gt;<i> <A HREF="http://dev.w3.org/csswg/cssom-view/#scroll-an-element">http://dev.w3.org/csswg/cssom-view/#scroll-an-element</A> which I'm not sure 
+</I>&gt;<i> is a good idea. Why don't you just dispatch a synthetic scroll event?
+</I>
+On Sat, 4 Feb 2012, Charles Pritchard wrote:
+&gt;<i> 
+</I>&gt;<i> Does the scroll event carry x/y information?
+</I>&gt;<i> 
+</I>&gt;<i> I agree, this is a special case for canvas -- the precedent set by 
+</I>&gt;<i> &lt;input type=text&gt; is that form controls may have separate scroll 
+</I>&gt;<i> semantics.
+</I>&gt;<i> 
+</I>&gt;<i> My proposal is not thought-out all the way, but I'm hoping it can float.
+</I>&gt;<i> 
+</I>&gt;<i> The idea here is to enable scroll with limited height/width canvas layer 
+</I>&gt;<i> to work well.
+</I>&gt;<i> 
+</I>&gt;<i> This is going to be useful for context.scrollPathIntoView as well as 
+</I>&gt;<i> simply running Element.scrollIntoView on elements within the Canvas 
+</I>&gt;<i> sub-tree.
+</I>&gt;<i> 
+</I>&gt;<i> Currently, the scroll* attributes in Canvas are read only and set to 
+</I>&gt;<i> zero. So, I think there is room to support them in the future.
+</I>
+I don't really understand the use case here. Could you elaborate?
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="077536.html">[whatwg] Encoding: big5 and big5-hkscs
+</A></li>
+	<LI>Next message: <A HREF="077514.html">[whatwg] Canvas v5 API additions
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#35239">[ date ]</a>
+              <a href="thread.html#35239">[ thread ]</a>
+              <a href="subject.html#35239">[ subject ]</a>
+              <a href="author.html#35239">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

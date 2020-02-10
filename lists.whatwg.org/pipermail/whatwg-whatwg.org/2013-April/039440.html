@@ -1,0 +1,149 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] API to delay the document load event
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20API%20to%20delay%20the%20document%20load%20event&In-Reply-To=%3C517D5C59.2020501%40gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="039444.html">
+   <LINK REL="Next"  HREF="039441.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] API to delay the document load event</H1>
+<!--htdig_noindex-->
+    <B>David Bruant</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20API%20to%20delay%20the%20document%20load%20event&In-Reply-To=%3C517D5C59.2020501%40gmail.com%3E"
+       TITLE="[whatwg] API to delay the document load event">bruant.d at gmail.com
+       </A><BR>
+    <I>Sun Apr 28 10:28:57 PDT 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="039444.html">[whatwg] API to delay the document load event
+</A></li>
+        <LI>Next message: <A HREF="039441.html">[whatwg] API to delay the document load event
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#39440">[ date ]</a>
+              <a href="thread.html#39440">[ thread ]</a>
+              <a href="subject.html#39440">[ subject ]</a>
+              <a href="author.html#39440">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Le 24/04/2013 13:51, Robert O'Callahan a &#233;crit :
+&gt;<i> Context: <A HREF="https://bugzilla.mozilla.org/show_bug.cgi?id=863499">https://bugzilla.mozilla.org/show_bug.cgi?id=863499</A>
+</I>&gt;<i>
+</I>&gt;<i> Use-cases:
+</I>&gt;<i> 1) User-agents provide thumbnails of Web pages (e.g. desktop Firefox,
+</I>&gt;<i> FirefoxOS and Safari do this). We want to avoid taking a thumbnail while
+</I>&gt;<i> the application is incompletely loaded. The firing of the document load
+</I>&gt;<i> event is not currently a reliable indicator since the application might
+</I>&gt;<i> have ongoing load activities (e.g. IndexedDB transactions, Websocket
+</I>&gt;<i> activity) that do not block the document load event.
+</I>Tools built on top of headless browser tools struggle with this kind of 
+problem too. The user agent &quot;load&quot; event is most of the time meaningless 
+at the application abstraction level.
+Crawlers/search engines might be interested too as sometimes links in 
+documents are added dynamically.
+
+&gt;<i> 2) User-agent has UI to distinguish pages that are in the process of
+</I>&gt;<i> loading from pages that are fully loaded. As in use-case #1, relying on the
+</I>&gt;<i> document load event as currently defined to transition the UI to the &quot;fully
+</I>&gt;<i> loaded&quot; state may be inaccurate.
+</I>&gt;<i>
+</I>&gt;<i> Proposal:
+</I>&gt;<i> Give Web applications APIs to explicitly delay the document load event. In
+</I>&gt;<i> particular, add a method &quot;document.delayLoadEvent()&quot; that causes the
+</I>&gt;<i> document load event to be delayed until a corresponding
+</I>&gt;<i> &quot;document.stopDelayingLoadEvent()&quot; method is called. Allow these to nest so
+</I>&gt;<i> that the document load event is delayed until at least as many calls to
+</I>&gt;<i> stopDelayingLoadEvent() have been made as there were calls to
+</I>&gt;<i> delayLoadEvent().
+</I>Both of use cases suggest that the definition of an application being 
+&quot;loaded&quot; or &quot;ready&quot; is different from the user agent definition, so I 
+believe delaying the UA load event is a wrong approach as it will lead 
+in confusion.
+
+Also, I don't see how nested calls to delayLoadEvent help any of your 2 
+use cases.
+
+
+Proposal:
+* Have a declarative way for an application to say &quot;I'll tell you when 
+I'm ready&quot;
+* A event dispatched by the application to tell when it is ready
+Something along the lines of (better names and better details are welcome):
+
+&lt;html&gt;
+   &lt;head&gt;
+     &lt;meta name=&quot;customApplicationReadyEvent&quot;&gt;
+     &lt;script&gt;
+         // do a lot of things
+             document.dispatchEvent(
+                 document.createEvent('AppReady', appReadydata)
+             );
+         //
+     &lt;/script&gt;
+   &lt;/head&gt;
+&lt;/html&gt;
+
+This way, any tool waiting for the application to be ready can use the 
+following algorithm (JS-like pseudo-code):
+     // after &lt;head&gt; is parsed:
+     if(document.applicationWillTellMeWhenReady){
+         document.addEventListener('AppReady', takeScreenshot)
+     }
+     else{
+         // waiting for load, like today
+         document.addEventListener('load', takeScreenshot)
+     }
+
+Having a different independent event will also be the occasion to have a 
+measure in PerformanceTiming [1] that is different than load. I believe 
+having both is useful for different purposes (comparing &quot;load&quot; and 
+&quot;AppReady&quot; across different user agents, etc.)
+This also allows the 'AppReady' event to occur before the UA &quot;load&quot; 
+which can make sense in some circumstances (below the fold images are 
+still loading, but the app can already consider itself ready)
+
+What do you think?
+
+David
+
+[1] 
+<A HREF="https://dvcs.w3.org/hg/webperf/raw-file/tip/specs/NavigationTiming/Overview.html#performancetiming">https://dvcs.w3.org/hg/webperf/raw-file/tip/specs/NavigationTiming/Overview.html#performancetiming</A>
+</PRE>
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="039444.html">[whatwg] API to delay the document load event
+</A></li>
+	<LI>Next message: <A HREF="039441.html">[whatwg] API to delay the document load event
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#39440">[ date ]</a>
+              <a href="thread.html#39440">[ thread ]</a>
+              <a href="subject.html#39440">[ subject ]</a>
+              <a href="author.html#39440">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

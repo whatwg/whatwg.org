@@ -1,0 +1,166 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] URL spec and IDN
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20URL%20spec%20and%20IDN&In-Reply-To=%3C530543F9.8070806%40verizon.net%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="084335.html">
+   <LINK REL="Next"  HREF="042063.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] URL spec and IDN</H1>
+<!--htdig_noindex-->
+    <B>Joshua Cranmer</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20URL%20spec%20and%20IDN&In-Reply-To=%3C530543F9.8070806%40verizon.net%3E"
+       TITLE="[whatwg] URL spec and IDN">Pidgeot18 at verizon.net
+       </A><BR>
+    <I>Wed Feb 19 15:53:29 PST 2014</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="084335.html">[whatwg] &lt;input type=number&gt; for year input
+</A></li>
+        <LI>Next message: <A HREF="042063.html">[whatwg] Proposal: requestBackgroundProcessing()
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#42058">[ date ]</a>
+              <a href="thread.html#42058">[ thread ]</a>
+              <a href="subject.html#42058">[ subject ]</a>
+              <a href="author.html#42058">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>I've noted that the URL specification is currently rather vague when it 
+comes to IDN, and has some uncertain comments about issues related to 
+IDNA2003, IDNA2008, and UTS #46.
+
+Roughly speaking, in my experience, there are three kinds of labels: 
+A-labels, U-labels, and &quot;displayable&quot; U-labels. A-labels are the 
+Punycode-encoded version of the labels used for DNS (normalized to ASCII 
+lower-case, naturally). U-labels are the results of converting an 
+A-label to Unicode. &quot;Displayable&quot; U-labels are A-labels converted to 
+U-labels only if they do not contain a Unicode homograph attack. My 
+drawing a distinction between the &quot;displayable&quot; U-label and the regular 
+kind is out of concern that the definition of &quot;displayable&quot; may change 
+over time (e.g., certain script combinations are newly 
+permitted/prohibited), whereas the U-label derived from an A-label 
+should be constant.
+
+Given these three kinds of labels, it ought to be possible (IMO) to 
+convert a generic domain in any (i.e., unnormalized) format. The 
+specification currently provides for a domainToASCII and a 
+domainToUnicode function which naturally map to producing A-labels and 
+U-labels, but contains a note suggesting that they shouldn't be 
+implemented due to the &quot;IDNA clusterfuck.&quot; The way to a &quot;displayable&quot; 
+U-label would seem to me to come most naturally via |new URL(&quot;<A HREF="http://">http://</A>&quot; + 
+domain).host|.
+
+Looking at the spec, it's not clear if the host, href, and other methods 
+are supposed to return U-labels or A-labels (or some potential mix of 
+the two). Running some tests appears to indicate that Firefox, Chrome, 
+and IE actually all do different things:
+* Firefox appears to use &quot;displayable&quot; U-labels (i.e., the result 
+matches what is seen in the address bar)
+* Chrome appears to always use A-labels
+* IE appears to always use U-labels (on <A HREF="http://&#9731;.net,">http://&#9731;.net,</A> the address bar 
+displays <A HREF="http://xn--n3h.net">http://xn--n3h.net</A> but location.href returns <A HREF="http://&#9731;.net">http://&#9731;.net</A>).
+
+I'm guessing the reason why the domainTo* methods are unspecified are 
+due to inconsistent handling of IDNA2008 by current web browsers, 
+although it appears to me that a consensus has emerged on 
+implementation. Chrome and IE appear to roughly implement UTR #46 
+transitional mode:
+* Uses Unicode $RELATIVELY_NEW for case folding/mapping
+* Processes eszett, final sigma, ZWJ, and ZWNJ according to IDNA2003 
+(UTR #46's transitional) instead of IDNA2008
+* Symbols and punctuation are allowed, in violation of IDNA2008.
+* The BiDi check rules appear to follow IDNA2008 instead of IDNA2003. 
+Neither Chrome's documentation nor IE's documentation are explicit about 
+the changes (sufficiently so, at least, for someone like me who doesn't 
+know all that much about how IDNA* is implemented but rather wants to 
+make sure things work &quot;correctly&quot; and safely).
+* They do not appear to enforce IDNA2008's contextual rules (again, the 
+documentation is slightly unclear).
+* Chrome's documentation calls out ignoring STD3 rules (i.e., permitting 
+more ASCII characters) and disallowing unassigned code points. IE's 
+documentation does not suggest what they do here.
+Firefox still implements IDNA2003, but this is only because the person 
+who would be implementing IDNA2008 lacks the time.
+
+Given these facts, I'd like to propose changes to the URL spec to better 
+specify and more reliably reflect IDN processing as is currently done:
+1. Expressly identify how to normalize and process an IDN address under 
+IDNA2008 + UTR #46 + other modifications that reflects reality. I'm not 
+qualified to know what happens at precise edge cases here.
+2. Resolve that URL should reflect U-labels as much as possible while 
+placing the burden of avoiding Unicode homograph attacks on the browser 
+implementors rather than JS consumers of the API.
+3. The comments about avoiding implementation on domainTo* methods 
+should be dropped.
+4. Tests should be added to ensure that domain labels are processed 
+correctly. There is already a testsuite for UTR #46 processing available 
+at <A HREF="http://www.unicode.org/Public/idna,">http://www.unicode.org/Public/idna,</A> which I suspect could be adapted 
+into a testsuite for processing domain labels.
+5. Browser vendors should implement domainToASCII and domainToUnicode to 
+at least as well as they internally implement these methods, even in 
+lieu of precise definitions on how to handle IDN. In any case, I'd 
+rather have IDN handling that matches how my browser implements it 
+internally than one that matches an official, blessed spec, if the two 
+diverge. Note that this includes handling deciding when U-labels are 
+&quot;safe&quot; to display (assuming that browsers are competent to enough to 
+already think about this).
+
+-- 
+Beware of bugs in the above code; I have only proved it correct, not tried it. -- Donald E. Knuth
+
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="084335.html">[whatwg] &lt;input type=number&gt; for year input
+</A></li>
+	<LI>Next message: <A HREF="042063.html">[whatwg] Proposal: requestBackgroundProcessing()
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#42058">[ date ]</a>
+              <a href="thread.html#42058">[ thread ]</a>
+              <a href="subject.html#42058">[ subject ]</a>
+              <a href="author.html#42058">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

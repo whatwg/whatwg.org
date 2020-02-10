@@ -1,0 +1,179 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Two session history issues caused by navigating while a	load is pending
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Two%20session%20history%20issues%20caused%20by%20navigating%20while%20a%0A%09load%20is%20pending&In-Reply-To=%3CCAFWcpZ51Zp-FQD06mHzfdNKbYrgcT9DOB%2Bc12a2vA3EPyGbbHA%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="079573.html">
+   <LINK REL="Next"  HREF="079598.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Two session history issues caused by navigating while a	load is pending</H1>
+<!--htdig_noindex-->
+    <B>Justin Lebar</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Two%20session%20history%20issues%20caused%20by%20navigating%20while%20a%0A%09load%20is%20pending&In-Reply-To=%3CCAFWcpZ51Zp-FQD06mHzfdNKbYrgcT9DOB%2Bc12a2vA3EPyGbbHA%40mail.gmail.com%3E"
+       TITLE="[whatwg] Two session history issues caused by navigating while a	load is pending">justin.lebar at gmail.com
+       </A><BR>
+    <I>Sun Sep 16 19:14:52 PDT 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="079573.html">[whatwg] Regarding &quot;Examples for rel=tag&quot;
+</A></li>
+        <LI>Next message: <A HREF="079598.html">[whatwg] Navigation and history traversal issues
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#37302">[ date ]</a>
+              <a href="thread.html#37302">[ thread ]</a>
+              <a href="subject.html#37302">[ subject ]</a>
+              <a href="author.html#37302">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>It's time for another episode of everyone's favorite show: &quot;Find the
+session history spec bug&quot;.  Today's episode is a double-header of
+related issues.
+
+== Issue #1 ==
+
+Suppose an attack page evil.html controls a separate frame F (e.g.
+evil.html frames F, evil.html opened F as a popup window, or vice
+versa).
+
+We discovered that if evil.html causes F to
+
+  1. load a.html
+  2. start loading b.html
+  3. load a.html#h
+
+then step (3) cannot cancel the load of b.html.  That is, the final
+session history from this sequence must be either
+
+  a.html  &lt;-- oldest
+  a.html#h
+  b.html  &lt;-- current
+
+or
+
+  a.html &lt;-- oldest
+  b.html &lt;-- current.
+
+All browsers I tested gave one of the above two results.
+
+Doing anything else breaks the web (we shipped this in Firefox Nightly
+and people were unable to log into ingdirect.com, for example).  I
+didn't investigate too thoroughly, but I believe what happens is, some
+sites use a link with href &quot;#&quot; and then navigate themselves in the
+link's onclick handler, without cancelling the click event.  In that
+case, we do precisely steps 1-3 above.
+
+As I read the spec, browsers are supposed to cancel the load of b.html
+in step 3 above.  In the navigation algorithm [1], step 6 explicitly
+cancels the load of b.html, because the load of b.html has not
+matured.  So if I understand correctly, the spec is dictating behavior
+that we know won't work and that no browser implements.
+
+The presence of steps 6 and 8 in the algorithm suggest that the spec
+is already trying to walk this line, so maybe I misunderstand what's
+going on, either in my tests or in the spec.
+
+== Issue #2 ==
+
+Suppose again that evil.com controls a frame F, and evil.com causes F to
+
+  1. load a.html
+  2. load a.html#h
+  3. start loading b.html
+  4. go back
+
+When we go back, we traverse the history [2] from a.html#h to a.html.
+Per the spec, this doesn't cancel the load of b.html.
+
+This caused a problem for us in Firefox because we create a session
+history entry for b.html at the beginning of step 3 and insert it
+after the current one.  Then, when the load of b.html completes, we
+use whichever session history entry happens to be after the current
+one, assuming that it was the session history entry we created
+earlier.  In this case, our assumption is wrong, and we load b.html
+into a.html#h's session history entry.  This is somewhat disastrous,
+but I'd prefer not to elaborate further until we've shipped a fix for
+this issue in all supported versions of Firefox.
+
+The fix for this bug is not as simple as merely ensuring that the
+session history entry's URL matches the document's URL.  Due to hash
+navigations and pushstate, these URLs may not match even when we're
+behaving correctly.
+
+We fixed this bug by cancelling the load of b.html when you go back.
+This matches Chrome's behavior in my tests [3].
+
+Notice that this means we're cancelling an outstanding network load
+due to a synchronous same-document load, which I said in part 1 breaks
+the web.  But based on the (lack of) feedback we've received from our
+test audience, it seems that cancelling the load of b.html does /not/
+break the web if the navigation from a.html to a.html#h is a history
+navigation.
+
+The right thing to do is probably to load b.html after a.html, so the
+final session history is
+
+  a.html &lt;-- oldest
+  b.html &lt;-- current.
+
+I /think/ this is what the spec says should happen, but I'm not sure.
+But matching the spec here would be difficult in our current
+architecture, and anyway wouldn't match the one other browser I was
+able to test, so perhaps a spec should be changed to match.
+
+Regards,
+-Justin
+
+[1] <A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/history.html#navigating-across-documents">http://www.whatwg.org/specs/web-apps/current-work/multipage/history.html#navigating-across-documents</A>
+[2] <A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/history.html#history-traversal">http://www.whatwg.org/specs/web-apps/current-work/multipage/history.html#history-traversal</A>
+[3] I wasn't able to test Opera or IE because my testcase was
+cross-origin and other browsers forbid cross-origin back/forward.  The
+testcase uses the fact that it's cross-origin to get the right timing,
+so it's actually not clear to me how to test this behavior in other
+browsers.
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="079573.html">[whatwg] Regarding &quot;Examples for rel=tag&quot;
+</A></li>
+	<LI>Next message: <A HREF="079598.html">[whatwg] Navigation and history traversal issues
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#37302">[ date ]</a>
+              <a href="thread.html#37302">[ thread ]</a>
+              <a href="subject.html#37302">[ subject ]</a>
+              <a href="author.html#37302">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

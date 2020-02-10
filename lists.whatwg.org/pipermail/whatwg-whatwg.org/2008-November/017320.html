@@ -1,0 +1,166 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Workers feedback
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Workers%20feedback&In-Reply-To=%3CC548D211.61F07%25ap%40webkit.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017275.html">
+   <LINK REL="Next"  HREF="016995.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Workers feedback</H1>
+<!--htdig_noindex-->
+    <B>Alexey Proskuryakov</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Workers%20feedback&In-Reply-To=%3CC548D211.61F07%25ap%40webkit.org%3E"
+       TITLE="[whatwg] Workers feedback">ap at webkit.org
+       </A><BR>
+    <I>Tue Nov 18 09:12:01 PST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017275.html">[whatwg] Workers feedback
+</A></li>
+        <LI>Next message: <A HREF="016995.html">[whatwg] [WF2] backwards compatibility with values of custom required attributes
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17320">[ date ]</a>
+              <a href="thread.html#17320">[ thread ]</a>
+              <a href="subject.html#17320">[ subject ]</a>
+              <a href="author.html#17320">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>on 18.11.2008 06:43, Ian Hickson at <A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">ian at hixie.ch</A> wrote:
+
+&gt;&gt;<i> I'd be more that happy with a separate interface if the objects actually
+</I>&gt;&gt;<i> behaved differently. One example of a good reason to have separate
+</I>&gt;&gt;<i> interfaces was recently proposed here: shared workers should outlive
+</I>&gt;&gt;<i> their creators. This is the sort of difference that would make having a
+</I>&gt;&gt;<i> separate API reasonable, in my opinion.
+</I>&gt;<i> 
+</I>&gt;<i> You don't think that the way that a handle to a shared worker can be
+</I>&gt;<i> obtained dynamically without contact with the original creator is enough
+</I>&gt;<i> of a difference?
+</I>
+I think that this is a difference in a single function (namely, constructor)
+behavior. One constructor can create named workers, and another can create
+unnamed (&quot;null-named&quot;) workers, which doesn't mean that they need to create
+different kinds of objects.
+
+But I've already said it before, so this is not new feedback.
+
+&gt;<i> The complication here seems to be in the way you are implementing this.
+</I>&gt;<i> Port entangling should be atomic across threads -- when you are sending a
+</I>&gt;<i> port over another channel, you should block both threads, create the new
+</I>&gt;<i> object, 
+</I>
+Sorry if this looks like I'm just trying to be difficult, but you already
+have a chance to deadlock here. If the blocked thread was inside malloc(),
+then attempting to allocate memory in the main thread will freeze the
+application.
+
+This is very much an implementation concern, and in this particular case, it
+is easily resolvable (you could allocate memory before locking).
+Unfortunately, implementation bugs like this are notoriously hard to find
+with testing, as they may be triggered by very specific usage scenarios. So,
+even having a working implementation doesn't really mean that a spec written
+in this manner is implementable, paradoxically.
+
+&gt;<i> update the information,
+</I>
+I'm not sure what you mean here - certainly not hunting down all references
+to the old entangled port that may be anywhere, or fixing all results of
+calculations that involved its address? Yet, this is necessary if you are
+blocking threads at arbitrary moments.
+
+Again, an implementation concern, but the spec as it is talks about
+algorithms, and not observable effects, and it is not clear to me what the
+observable effects should be in cases where synchronous communication is
+specced.
+
+&gt;<i> shunt all pending messages over, and then
+</I>&gt;<i> resume the threads. If you implement the actual IPC using, say, a Unix
+</I>&gt;<i> socket, then you can just pass the actual socket along and do the same
+</I>&gt;<i> thing without blocking.
+</I>
+This is an interesting point. I do not know enough about how Unix domain
+sockets are passed around, but since they the laws of nature are the same
+for them, it's either that:
+- my FUD is unbased, and it is in fact possible to implement the behavior;
+- or semantics are very different for sockets. Some guesses are that queues
+may be strictly limited in size, message delivery may not be guaranteed, or
+that it is possible for client code to irrepairably deadlock processes with
+them - something that JS developers obviously shouldn't be able to do.
+
+I do not know which of the options is correct, but if the spec talked in
+terms of message passing, it would have been more easily verifiable.
+
+&gt;&gt;&gt;<i> For example, any method that entangles two ports blocks until both
+</I>&gt;&gt;&gt;<i> threads are synchronised and entangled.
+</I>&gt;&gt;<i> 
+</I>&gt;&gt;<i> This will cause deadlocks - if portB' is sent to the first thread as
+</I>&gt;&gt;<i> portB'' in the above scheme, the lock will not let synchronization ever
+</I>&gt;&gt;<i> finish.
+</I>&gt;<i> 
+</I>&gt;<i> Could you elaborate on this? I'm not sure I follow what you mean. If you
+</I>&gt;<i> mean that two ports in two threads are posted to each other's threads at
+</I>&gt;<i> the same time, 
+</I>
+Yes, this is what I'm talking about.
+
+&gt;<i> then deadlock would only happen in a naive implementation
+</I>&gt;<i> that didn't keep pumping its message queue while waiting for a response
+</I>&gt;<i> from the other thread. Instead what you would want to do is to ask for a
+</I>&gt;<i> semaphore to communicate with the other thread, and if you don't get it,
+</I>&gt;<i> see if anyone wants to communicate with you, and if they do, let them do
+</I>&gt;<i> whatever they want, and then try again.
+</I>
+Designs like this are quite prone to all sorts of crazy problems, too. As a
+simple example, the port waiting to be entangled may be sent further on, if
+you let them &quot;do whatever they want&quot;.
+
+&gt;<i> I'm certainly open to changing the algorithms around if a better solution
+</I>&gt;<i> exists in a manner that gets the same behavior. I'm certainly no expert on
+</I>&gt;<i> the topic (as I'm sure the above responses have shown).
+</I>
+Since the spec is written in form of algorithms, and relies on a number of
+arguable implicit assumptions on the implementation of their steps, it is
+hard to process or verify the algorithms. In my opinion (I'm not claiming
+expertise either!), a message passing design would be much clearer.
+
+There are lots of discussions about designing multi-threaded algorithms on
+the net, one I liked quite a bit recently is
+&lt;<A HREF="http://codemines.blogspot.com/2006/09/another-thread-on-threads.html">http://codemines.blogspot.com/2006/09/another-thread-on-threads.html</A>&gt; - it
+presents the do's and don'ts very well.
+
+- WBR, Alexey Proskuryakov.
+
+
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017275.html">[whatwg] Workers feedback
+</A></li>
+	<LI>Next message: <A HREF="016995.html">[whatwg] [WF2] backwards compatibility with values of custom required attributes
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17320">[ date ]</a>
+              <a href="thread.html#17320">[ thread ]</a>
+              <a href="subject.html#17320">[ subject ]</a>
+              <a href="author.html#17320">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

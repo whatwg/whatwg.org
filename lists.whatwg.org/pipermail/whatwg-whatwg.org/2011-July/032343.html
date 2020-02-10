@@ -1,0 +1,227 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Timing API proposal for measuring intervals
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Timing%20API%20proposal%20for%20measuring%20intervals&In-Reply-To=%3CCAD73mdL9fR1TSNLA4oPmnNFe9NnUm%2BpdvaciL7mNriRadd8Lzw%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="074673.html">
+   <LINK REL="Next"  HREF="074617.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Timing API proposal for measuring intervals</H1>
+<!--htdig_noindex-->
+    <B>James Robinson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Timing%20API%20proposal%20for%20measuring%20intervals&In-Reply-To=%3CCAD73mdL9fR1TSNLA4oPmnNFe9NnUm%2BpdvaciL7mNriRadd8Lzw%40mail.gmail.com%3E"
+       TITLE="[whatwg] Timing API proposal for measuring intervals">jamesr at google.com
+       </A><BR>
+    <I>Thu Jul  7 18:15:11 PDT 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="074673.html">[whatwg] Microdata feedback
+</A></li>
+        <LI>Next message: <A HREF="074617.html">[whatwg] Timing API proposal for measuring intervals
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#32343">[ date ]</a>
+              <a href="thread.html#32343">[ thread ]</a>
+              <a href="subject.html#32343">[ subject ]</a>
+              <a href="author.html#32343">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>PROBLEM
+
+It is not possible to accurately measure time intervals using existing web
+platform APIs, or to specify times at a given interval from the current
+time.  Date.now() and DOM timestamps are inadequate for this purpose, see
+&lt;sectiontitle&gt; below for reasons why this is so.
+
+USE CASES
+
+1.) When updating an imperative animation state from script, authors need to
+know how much time has elapsed in the animation so far in order to properly
+update the animation.
+
+2.) When synchronizing imperative animation updates with audio, authors need
+to know how much time has elapsed in the animation and in the audio sample's
+progression and be able to schedule future audio cues to specific points in
+the animation.
+
+3.) When measuring the time that a given operation has taken (for example, a
+network request or a application process), authors need to be able to
+measure the amount of time elapsed from script.
+
+ISSUES WITH EXISTING APIS
+
+In ECMAScript the Date object is typically used for timing.  It is defined
+(in ES-262 5th edition section 15.9.1.1) as representing milliseconds since
+the unix epoch, Jan 1 1970 00:00:00 UTC, ignoring leap seconds.  DOM
+timestamps are defined in a similar way, although it doesn't seem to specify
+anything about leap seconds.  In practice, implementations depend on the
+system clock for these APIs and are likely to use the same implementation
+for both.  This poses a problem whenever the system clock is adjusted.  In
+all implementations I tested, Date.now() varies whenever the system clock is
+adjusted.  This means that, for example, the following snippet:
+
+var start = Date.now();
+dosomething();
+window.alert(Date.now() - start);
+
+may alert a positive number, negative number, or zero if the system clock is
+adjusted in between the two calls to Date.now().  Similarly, timestamps from
+a series of DOM events may be increasing, decreasing, or unchanging if the
+system clock adjusts in between event dispatches.  System clock adjustments
+are not as rare as you might thing, many systems are configured to receive
+clock updates over the network via NTP or similar systems.  When developing
+and implementing the navigation timing spec we ran in to many reported time
+intervals from users in the wild that were bogus in one way or another,
+either negative (easily detectable) or artificially inflated (very difficult
+to detect).  I've put a simple test page up here:
+<A HREF="http://webstuff.nfshost.com/timers.html.">http://webstuff.nfshost.com/timers.html.</A>
+
+Additionally, there's a practical concern that querying the system clock on
+some systems is more expensive and/or less reliable than other timing APIs.
+ On windows, for instance, GetSystemTimeAsFileTime() has a resolution of
+~15.5ms, so browsers use a combination of GetSystemTimeAsFileTime() with
+higher-resolution timing APIs like QueryPerformanceCounter() that provide
+better resolution but are not affected by adjustments to the system clock.
+ See <A HREF="http://drdobbs.com/windows/184416651?pgno=1">http://drdobbs.com/windows/184416651?pgno=1</A> and
+<A HREF="https://bugzilla.mozilla.org/show_bug.cgi?id=363258">https://bugzilla.mozilla.org/show_bug.cgi?id=363258</A> for some background
+information.
+
+PROPOSAL
+
+I propose that we add a new attribute to the Window interface that provides
+a monotonic, uniformly increasing timestamp suitable for interval
+measurements.
+
+&lt;bikeshed-topic&gt;
+partial interface Window {
+  readonly attribute double monotonicTime;
+};
+&lt;/bikeshed-topic&gt;
+
+&lt;bikeshed-topic&gt;
+I propose that monotonicTime be defined as the number of milliseconds
+elapsed since the window creation.  There is likely to be no meaningful
+relationship between the value exposed by this interval and a date and time
+in the past (such as the unix epoch), so starting at zero seems a good at
+choice as any.
+&lt;/bikeshed-topic&gt;
+
+I do not believe we can change the meaning of Date.now() in ECMAScript since
+the current behavior has existing for a very long time and is genuinely
+useful when the author wants to know the system clock's current value, for
+example in a calendar type application.
+
+RELATIONSHIP TO EXISTING WORK, IMPLEMENTATION NOTES
+
+The setTimeout() and setInterval() algorithms (
+<A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/timers.html#timers">http://www.whatwg.org/specs/web-apps/current-work/multipage/timers.html#timers</A>)
+implicitly depend on a uniformly monotonic clock in the various &quot;wait for X
+milliseconds&quot; phase, since there is no allowance in this text for
+adjustments to the system clock to change when the timer actually fires.
+ All browsers except for WebKit ignore system clock changes for timer
+scheduling, and the WebKit behavior is a bug which I plan to fix.
+
+The Web Perf WG has run into similar issues and defined a monotonic clock as
+part of the Navigation Timing API:
+<A HREF="http://dvcs.w3.org/hg/webperf/raw-file/tip/specs/NavigationTiming/Overview.html#mono-clock.">http://dvcs.w3.org/hg/webperf/raw-file/tip/specs/NavigationTiming/Overview.html#mono-clock.</A>
+ This clock is very similar to the above proposal but is not exposed
+directly to authors.  I expect that implementations of the Navigation Timing
+API would use the same mechanism to implement this proposal.
+
+The proposed Web Audio API (
+<A HREF="http://chromium.googlecode.com/svn/trunk/samples/audio/specification/specification.html#AudioContext-section">http://chromium.googlecode.com/svn/trunk/samples/audio/specification/specification.html#AudioContext-section</A>)
+exposes
+a timestamp on the AudioContext interface that is defined to map to a
+monotonic uniformly increasing hardware timestamp.
+
+- James
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="074673.html">[whatwg] Microdata feedback
+</A></li>
+	<LI>Next message: <A HREF="074617.html">[whatwg] Timing API proposal for measuring intervals
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#32343">[ date ]</a>
+              <a href="thread.html#32343">[ thread ]</a>
+              <a href="subject.html#32343">[ subject ]</a>
+              <a href="author.html#32343">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>
