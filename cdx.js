@@ -1,5 +1,6 @@
 'use strict';
 
+const assert = require('assert');
 const fetch = require('node-fetch');
 const mkdirp = require('mkdirp');
 const path = require('path');
@@ -7,6 +8,9 @@ const {stat, writeFile} = require('fs').promises;
 
 // Wayback CDX Server API: https://github.com/internetarchive/wayback/tree/master/wayback-cdx-server
 const cdxURL = 'http://web.archive.org/cdx/search/cdx?url=lists.whatwg.org/*&output=json';
+
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July',
+                'August', 'September', 'October', 'November', 'December'];
 
 async function isFile(path) {
     try {
@@ -24,7 +28,7 @@ async function main() {
     for (let rowIndex = 1; rowIndex < rows.length; rowIndex++) {
         const row = rows[rowIndex];
         const entry = {};
-        console.assert(row.length === header.length)
+        assert(row.length === header.length)
         for (const [index, value] of row.entries()) {
             entry[header[index]] = value;
         }
@@ -51,22 +55,17 @@ async function main() {
             continue;
         }
 
-        // There was a big crawl that started right before midnight 2014-04-01.
-        // Only use the entries from that narrow slice of time for now.
-        console.assert(entry.timestamp.length == 14);
-        const timestamp = +entry.timestamp;
-        if (timestamp < 20140331000000 || timestamp >= 20140403000000) {
+        // Only deal with the thread / subject / author / date listings.
+        const match = /\/([0-9]{4})-([A-Z][a-z]+)\/([a-z]+)\.html$/.exec(pathname);
+        if (!match) {
             continue;
         }
-
-        // Skip any entries after the first renumbering of messages:
-        // https://github.com/whatwg/meta/issues/153#issuecomment-566980200
-        const basename = path.basename(pathname);
-        if (/^[0-9]+\.html$/.test(basename)) {
-            const n = parseInt(basename.split('.')[0], 10);
-            if (n >= 42273) {
-                continue;
-            }
+        const year = +match[1];
+        assert(year >= 2004 && year <= 2019);
+        const month = MONTHS.indexOf(match[2]) + 1;
+        assert(month >= 1 && month <= 12);
+        if (!['thread', 'subject', 'author', 'date', 'index'].includes(match[3])) {
+            continue;
         }
 
         if (entriesByPathname.has(pathname)) {
