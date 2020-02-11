@@ -50,8 +50,13 @@ async function main() {
             pathname += 'index.html';
         }
 
-        // Only deal with whatwg@whatwg.org attachments.
-        if (!pathname.startsWith('/pipermail/whatwg-whatwg.org/attachments/')) {
+        // Only deal with the archives of the whatwg@whatwg.org list.
+        if (!pathname.startsWith('/pipermail/whatwg-whatwg.org/')) {
+            continue;
+        }
+
+        // Only deal with monthly archives.
+        if (!pathname.endsWith('.txt.gz')) {
             continue;
         }
 
@@ -71,7 +76,7 @@ async function main() {
             continue;
         }
         const entries = entriesByPathname.get(pathname);
-        // Pick the most recent entry.
+        // Pick the oldest entry (archives only created once month is over).
         entries.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
         for (const entry of entries) {
             const archiveURL = `https://web.archive.org/web/${entry.timestamp}id_/${entry.original}`;
