@@ -17,7 +17,7 @@ async function isFile(path) {
 }
 
 async function main() {
-    const entriesBySubPath = new Map();
+    const entriesByPathname = new Map();
 
     const rows = await (await fetch(cdxURL)).json();
     const header = rows[0];
@@ -33,14 +33,23 @@ async function main() {
         if (status !== 200) {
             continue;
         }
-        const pathname = path.normalize(new URL(entry.original).pathname);
+
+        let pathname = path.normalize(new URL(entry.original).pathname);
+
+        // Treat /htdig.cgi as an alias of /pipermail.
+        if (pathname.startsWith('/htdig.cgi/')) {
+            pathname = '/pipermail/' + pathname.substr(11);
+        }
+
+        // Expand index.html to alias the two forms.
+        if (pathname.endsWith('/')) {
+            pathname += 'index.html';
+        }
 
         // Only deal with the archives of the whatwg@whatwg.org list.
-        const listnameIndex = pathname.indexOf('/whatwg-whatwg.org/');
-        if (listnameIndex === -1) {
+        if (!pathname.startsWith('/pipermail/whatwg-whatwg.org/')) {
             continue;
         }
-        const subPath = pathname.substr(listnameIndex + 19);
 
         // There was a big crawl that started right before midnight 2014-04-01.
         // Only use the entries from that narrow slice of time for now.
@@ -60,25 +69,22 @@ async function main() {
             }
         }
 
-        if (entriesBySubPath.has(subPath)) {
-            entriesBySubPath.get(subPath).push(entry);
+        if (entriesByPathname.has(pathname)) {
+            entriesByPathname.get(pathname).push(entry);
         } else {
-            entriesBySubPath.set(subPath, [entry]);
+            entriesByPathname.set(pathname, [entry]);
         }
     }
 
-    const subPaths = Array.from(entriesBySubPath.keys());
-    subPaths.sort();
-    for (const subPath of subPaths) {
-        let filePath = `./lists.whatwg.org/pipermail/whatwg-whatwg.org/${subPath}`;
-        if (filePath.endsWith('/')) {
-            filePath += 'index.html';
-        }
+    const pathnames = Array.from(entriesByPathname.keys());
+    pathnames.sort();
+    for (const pathname of pathnames) {
+        const filePath = path.join('./lists.whatwg.org/', pathname);
         if (await isFile(filePath)) {
             console.log(`Already have ${filePath}`);
             continue;
         }
-        const entries = entriesBySubPath.get(subPath);
+        const entries = entriesByPathname.get(pathname);
         let entry = entries[0];
         if (entries.length > 1) {
             // Pick the biggest entry.
