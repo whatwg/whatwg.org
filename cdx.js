@@ -88,6 +88,10 @@ async function main() {
                 continue;
             }
             const buffer = await response.buffer();
+            if (!buffer.includes('</html>') && !buffer.includes('</HTML>')) {
+                console.log(`Incomplete response for ${archiveURL}`);
+                continue;
+            }
             // These responses are effectively 404 but not served as such.
             if (buffer.includes('Sought (htdig) archive file not found')) {
                 console.log(`Treating ${archiveURL} as 404 (skipping)`);
