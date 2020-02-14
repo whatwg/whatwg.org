@@ -1,0 +1,163 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Need to define same-origin policy for WebIDL	operations/getters/setters
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Need%20to%20define%20same-origin%20policy%20for%20WebIDL%0A%09operations/getters/setters&In-Reply-To=%3CCAJE5ia8N%2BRTTuVfOdEtLRcaDPmTS6T3UFhS_yR5QOPGjreOTPg%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="080873.html">
+   <LINK REL="Next"  HREF="080888.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Need to define same-origin policy for WebIDL	operations/getters/setters</H1>
+<!--htdig_noindex-->
+    <B>Adam Barth</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Need%20to%20define%20same-origin%20policy%20for%20WebIDL%0A%09operations/getters/setters&In-Reply-To=%3CCAJE5ia8N%2BRTTuVfOdEtLRcaDPmTS6T3UFhS_yR5QOPGjreOTPg%40mail.gmail.com%3E"
+       TITLE="[whatwg] Need to define same-origin policy for WebIDL	operations/getters/setters">w3c at adambarth.com
+       </A><BR>
+    <I>Wed Jan  9 14:58:30 PST 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="080873.html">[whatwg] Need to define same-origin policy for WebIDL	operations/getters/setters
+</A></li>
+        <LI>Next message: <A HREF="080888.html">[whatwg] Need to define same-origin policy for WebIDL	operations/getters/setters
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#80875">[ date ]</a>
+              <a href="thread.html#80875">[ thread ]</a>
+              <a href="subject.html#80875">[ subject ]</a>
+              <a href="author.html#80875">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Wed, Jan 9, 2013 at 2:24 PM, Boris Zbarsky &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">bzbarsky at mit.edu</A>&gt; wrote:
+&gt;<i> On 1/9/13 5:19 PM, Adam Barth wrote:
+</I>&gt;&gt;<i> Those checks are neither required for compatibility nor security.  The
+</I>&gt;&gt;<i> spec might say to perform the checks, but they aren't needed to build
+</I>&gt;&gt;<i> a secure, compatible browser.
+</I>&gt;<i>
+</I>&gt;<i> OK.  So what checks do you believe are required, then?  Just effective
+</I>&gt;<i> script origin checks on Window?
+</I>&gt;<i>
+</I>&gt;<i> I would really appreciate it if you would actually describe the security
+</I>&gt;<i> model you think the spec should have instead of us having to guess what
+</I>&gt;<i> parts you think are needed and which parts you think are not needed, with
+</I>&gt;<i> more gotchas and details all the time.
+</I>
+Answering this question in detail would take a great deal of time.  I
+can try to summarize how WebKit handles this issues.  In general
+WebKit tries to follow the spec's approach to these security checks,
+although there are some difference for historical reasons (e.g., not
+throwing exceptions, exposing or not exposing certain properties
+across origins).
+
+Generally speaking, I'd recommend exposing as few things across
+origins as possible.  For example, I view WebKit's not exposing
+Document across origins as &quot;better&quot; than the spec's exposing it,
+whereas I view WebKit's exposing window.history across origins as
+&quot;worse&quot; than the spec's not exposing it.  IMHO, we should aim for
+exposing the minimal set of things across origins.
+
+To gather this information, I grepped the WebKit IDL files for
+&quot;CheckSecurity&quot;.  Here's what I learned:
+
+1) By default, DOMWindow (which might translate into Window or
+WindowProxy in the spec---I'd need to study that issue more carefully)
+needs to perform access checks.  There are a number of properties that
+are white listed, similar to what's described in the spec
+(cross-origin readers get &quot;fresh&quot; copies of the underlying interfaces
+regardless of any changes made to the DOMWindow in JavaScript and
+these fresh copies have prototype chains that connect up with the
+*caller's* JavaScript prototypes, not the DOMWindow's JavaScript
+prototypes).
+
+2) window.history, window.location, window.focus, window.blur,
+window.close, window.closed, window.length, window.window,
+window.frames, window.opener, window.parent, window.top,
+window.postMessage, and window.toString are whitelisted to be exposed
+across origins (often just the getters, not the setters).  There's
+some additional complexity related to the names of nested browsing
+context and the indexed property getter, but I believe the description
+in the current spec is accurate.
+
+3) The History interfaces works much like the DOMWindow interface
+(properties are blocked by default and certain whitelisted properties
+are visible across origins on the same &quot;fresh, pristine&quot; basis as the
+properties on DOMWindow).
+
+4) history.back, history.forward, and history.go are whitelisted.
+
+5) The Location interface works much like DOMWindow and History, but
+the only whitelisted property is the location.href setter.
+
+6) In addition, the following APIs have extra security checks.  All
+these APIs return a Node.  Before returning the Node, they check
+whether the Node's document's origin is the same origin as the script
+calling the API.  If not, they return null instead of the node.  (We
+could potentially throw an exception here, but I'm just describing
+what WebKit does, not what I think the optimum design is.)
+
+  A) HTMLEmbedObject#getSVGDocument()
+  B) HTMLFrameElement#contentDocument
+  C) HTMLFrameElement#getSVGDocument()
+  D) HTMLIFrameElement#contentDocument
+  E) HTMLIFrameElement#getSVGDocument()
+  F) HTMLObjectElement#contentDocument
+  G) HTMLObjectElement#getSVGDocument()
+  H) DOMWindow#frameElement
+
+With regards to your original question about using
+Function.prototype.call to manipulate the &quot;this&quot; value passed to
+function, I don't remember the details of how we dealt with that
+issue.  I'd have to write some careful test cases to study WebKit's
+behavior to give you a definitive answer.  We might have either
+ignored the &quot;this&quot; value entirely (and always operated on the object
+that &quot;held&quot; the property originally) or we might have insisted on
+always checking whether the calling script was same-origin with the
+&quot;this&quot; parameter for the three interfaces (DOMWindow, Location, and
+History) where the caller could possibly have a reference to a
+cross-origin object to pass as &quot;this&quot;.
+
+In addition to everything described above, there are some additional
+security issues related to operator eval and function eval, but I've
+left them out here because they're not relevant for the HTML spec.
+
+I should also say that it's entirely possible we've screwed up our
+implementation of this security model.  If you discover that we have,
+I'd prefer if you filed a security bug rather than telling the world
+on this public mailing list.  :)
+
+Adam
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="080873.html">[whatwg] Need to define same-origin policy for WebIDL	operations/getters/setters
+</A></li>
+	<LI>Next message: <A HREF="080888.html">[whatwg] Need to define same-origin policy for WebIDL	operations/getters/setters
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#80875">[ date ]</a>
+              <a href="thread.html#80875">[ thread ]</a>
+              <a href="subject.html#80875">[ subject ]</a>
+              <a href="author.html#80875">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

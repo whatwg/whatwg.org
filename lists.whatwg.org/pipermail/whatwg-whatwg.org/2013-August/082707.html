@@ -1,0 +1,215 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Window and WindowProxy
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Window%20and%20WindowProxy&In-Reply-To=%3C52041E62.6050007%40mit.edu%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="082705.html">
+   <LINK REL="Next"  HREF="082759.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Window and WindowProxy</H1>
+<!--htdig_noindex-->
+    <B>Boris Zbarsky</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Window%20and%20WindowProxy&In-Reply-To=%3C52041E62.6050007%40mit.edu%3E"
+       TITLE="[whatwg] Window and WindowProxy">bzbarsky at MIT.EDU
+       </A><BR>
+    <I>Thu Aug  8 15:40:34 PDT 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="082705.html">[whatwg] Window and WindowProxy
+</A></li>
+        <LI>Next message: <A HREF="082759.html">[whatwg] Window and WindowProxy
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#82707">[ date ]</a>
+              <a href="thread.html#82707">[ thread ]</a>
+              <a href="subject.html#82707">[ subject ]</a>
+              <a href="author.html#82707">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On 8/8/13 5:05 PM, Ian Hickson wrote:
+&gt;<i> I think the problem is that I have no idea what these ES6 terms are or
+</I>&gt;<i> what they mean.
+</I>
+OK.  Which terms, exactly?
+
+&gt;<i> Was all this a problem in previous revisions of JavaScript? Or is it some
+</I>&gt;<i> new problem caused by some new JavaScript feature?
+</I>
+It's a &quot;problem&quot;, as far as it goes, caused by the ability to get 
+property descriptors at all.  In the old world there was no way to 
+explicitly invoke [[DefineProperty]] or check whether something is 
+configurable.  So some things were not observable that are now 
+observable, and the ES spec had to define what happens when you observe 
+them.
+
+This is not an ES6 issue; ES5 has similar problems, but a bit less 
+clarity (e.g. no Proxy objects in ES5,
+
+&gt;&gt;&gt;&gt;<i> &quot;var&quot; needs to be able to define non-configurable properties.
+</I>&gt;&gt;&gt;&gt;<i> Proxies don't necessarily offer useful guarantees about being able
+</I>&gt;&gt;&gt;&gt;<i> to define such properties on them, and in particular the behavior
+</I>&gt;&gt;&gt;&gt;<i> for index/named getters in WebIDL precludes definition of
+</I>&gt;&gt;&gt;&gt;<i> non-configurable properties of the corresponding kind on the
+</I>&gt;&gt;&gt;&gt;<i> relevant object.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> I don't understand what this means, sorry.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Hmm.  Which part is unclear?
+</I>&gt;<i>
+</I>&gt;<i> I have basically no idea what any of it means. I understand all the
+</I>&gt;<i> individual words of that paragraph, but I've no idea what they mean when
+</I>&gt;<i> put next to each other in that order. :-) A property is just an entry in
+</I>&gt;<i> the bag that is a JS object, what does it mean for it to be or not be
+</I>&gt;<i> configurable?
+</I>
+Ah, ok.  So in ES5 there is a concept of a &quot;property descriptor&quot;.  There 
+is both an internal representation of property descriptors and a way to 
+get JS objects that represent a property descriptor: 
+Object.getOwnPropertyDescriptor.
+
+See ECMA-262 edition 5 section 8.10 for details on how property 
+descriptors work, but fundamentally a property descriptor for an 
+existing property describes how it's set up.  A property descriptor can 
+also be used to create new properties via Object.defineProperty.
+
+Every property descriptor has two booleans it stores: [[Enumerable]] and 
+[[Configurable]].  [[Enumerable]] controls whether the property shows up 
+in for..in enumeration.  [[Configurable]] controls how the property 
+descriptor for this property can change.  In particular, if 
+[[Configurable]] is false, then the values of [[Configurable]], 
+[[Enumerable]], [[Get]], [[Set]], and [[Writable]] for this property 
+cannot change in the future ([[Value]] can still change if this is a 
+value property that is [[Writable]]).
+
+All property manipulation in ES5 and later is defined in terms of 
+property descriptors.  For example, the definition of [[Put]] (which is 
+the thing that happens on &quot;foo.bar = something&quot;) in ES5 section 8.12.5 
+does gets the property descriptor and then looking at that descriptor 
+and deciding what to do based on that ([[GetOwnProperty]] and 
+[[GetProperty]] return property descriptors, somewhat non-obviously).
+
+&gt;<i> A proxy is something that passes incoming requests from one
+</I>&gt;<i> object to another object
+</I>
+A Proxy in ES6 is a particular kind of JS object that has pointers to 
+two other objects: a target and a handler.  The target is what requests 
+get passed to, if desired.  The handler is basically a mapping from MOP 
+names to JS functions implementing the relevant MOP operation.
+
+So for example, an object with an indexed getter is defined in WebIDL by 
+defining that it has special implementations for three MOP operations: 
+[[GetOwnProperty]], [[DefineProperty]], and [[Delete]].  If you wanted 
+to implement such an object in JS, there is no way to do this in ES5. 
+In ES6, you would create a Proxy whose target is just a vanilla object 
+for storing expandos and the proto link and whose handler does the steps 
+defined by WebIDL for those three operations.
+
+Note that your description of a proxy above is certainly implementable 
+as a Proxy, but a Proxy can also implement other things (again, like 
+things with indexed or named getters as currently specced).
+
+See <A HREF="http://people.mozilla.org/~jorendorff/es6-draft.html#sec-8.5">http://people.mozilla.org/~jorendorff/es6-draft.html#sec-8.5</A> for the 
+full-on spec bits.
+
+&gt;<i> what does it mean for a proxy to have a property?
+</I>
+If it returns something other than undefined from [[GetOwnProperty]].
+
+&gt;&gt;<i> Er... That's a cross-site information leak.
+</I>&gt;<i>
+</I>&gt;<i> How so? The names of the IDL attributes and methods on Window objects are
+</I>&gt;<i> the same on all Window objects (WindowModal notwithstanding), and the
+</I>&gt;<i> non-IDL properties aren't enumerable cross-origin.
+</I>
+getOwnPropertyNames returns all own properties, not just enumerable ones.
+
+&gt;<i> &quot;For members that return objects (including function objects), each
+</I>&gt;<i> distinct effective script origin that is not the same as the Window
+</I>&gt;<i> object's Document's effective script origin must be provided with a
+</I>&gt;<i> separate set of objects. These objects must have the prototype chain
+</I>&gt;<i> appropriate for the script for which the objects are created (not those
+</I>&gt;<i> that would be appropriate for scripts whose script's global object is the
+</I>&gt;<i> Window object in question).&quot;
+</I>
+Mmm...  I don't think this works very well for Window.
+
+&gt;<i> (same effective origin)
+</I>
+Sure.
+
+&gt;&gt;<i> in that situation two different origins become the same origin and the
+</I>&gt;&gt;<i> fact that they have different Window objects for the same current window
+</I>&gt;&gt;<i> ends up observable.
+</I>&gt;<i>
+</I>&gt;<i> Well, what the spec says now is that when the script changes effective
+</I>&gt;<i> origin, it also changes its prototypes and so forth, essentially.
+</I>
+Does any UA do this?  I would be somewhat surprised if this were web 
+compatible, and even more surprised if it were implementable in practice 
+and if any UA wanted to implement it....
+
+&gt;<i> We (the Web community) can change what's allowed and what isn't allowed.
+</I>&gt;<i> We do so all the time.
+</I>
+Sure, but changing this makes it very hard to reason about ES, in very 
+undesirable ways.  This has been pretty extensively hashed out on 
+es-discuss and public-script-coord...
+
+And more to the point it seems unnecessary to throw out useful 
+invariants in this case just so we can preserve a particular 
+specification device.
+
+&gt;&gt;<i> If an object (in this case a WindowProxy, since that's what the script
+</I>&gt;&gt;<i> is working with) ever claims that it has a non-configurable property for
+</I>&gt;&gt;<i> some property name, ES requires that it _always_ do that from that point
+</I>&gt;&gt;<i> on.
+</I>&gt;<i>
+</I>&gt;<i> That's fine. The Window will keep having that property. The WindowProxy
+</I>&gt;<i> object's own properties can't be examined
+</I>
+The WindowProxy is the object the script has.  It's the object 
+[[GetOwnProperty]] (via Object.getOwnPropertyDescriptor) is called on. 
+So the above requirement about the property not disappearing if it's 
+non-configurable applies to the WindowProxy.
+
+Which is why WindowProxy can't ever claim to have non-configurable 
+properties...  It would violate basic language invariants.
+
+-Boris
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="082705.html">[whatwg] Window and WindowProxy
+</A></li>
+	<LI>Next message: <A HREF="082759.html">[whatwg] Window and WindowProxy
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#82707">[ date ]</a>
+              <a href="thread.html#82707">[ thread ]</a>
+              <a href="subject.html#82707">[ subject ]</a>
+              <a href="author.html#82707">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

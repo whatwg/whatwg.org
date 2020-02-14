@@ -1,0 +1,236 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] TCPConnection feedback
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20TCPConnection%20feedback&In-Reply-To=%3C31fb000f0806191659k577a18cejbca8f9ef94fc3bc0%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="057426.html">
+   <LINK REL="Next"  HREF="057430.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] TCPConnection feedback</H1>
+<!--htdig_noindex-->
+    <B>Frode B&#248;rli</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20TCPConnection%20feedback&In-Reply-To=%3C31fb000f0806191659k577a18cejbca8f9ef94fc3bc0%40mail.gmail.com%3E"
+       TITLE="[whatwg] TCPConnection feedback">frode at seria.no
+       </A><BR>
+    <I>Thu Jun 19 16:59:53 PDT 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="057426.html">[whatwg] TCPConnection feedback
+</A></li>
+        <LI>Next message: <A HREF="057430.html">[whatwg] TCPConnection feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#57428">[ date ]</a>
+              <a href="thread.html#57428">[ thread ]</a>
+              <a href="subject.html#57428">[ subject ]</a>
+              <a href="author.html#57428">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>&gt;&gt;<i> I think we should have both a pure TCPSocket, and also a ServerSocket
+</I>&gt;&gt;<i> that keeps the same connection as the original document was downloaded
+</I>&gt;&gt;<i> from. The ServerSocket will make it very easy for web developers to
+</I>&gt;&gt;<i> work with, since the ServerSocket object will be available both from
+</I>&gt;&gt;<i> the server side and the client side while the page is being generated.
+</I>&gt;&gt;<i> I am posting a separate proposal that describes my idea soon.
+</I>&gt;<i>
+</I>&gt;<i> I don't see the benefit of making sure that its the same connection that the
+</I>&gt;<i> page was &quot;generated&quot; from.
+</I>
+It does not have to be exactly the same connection, but I think it
+should be handled by the web server because then there is no need to
+think about transferring state information between for example a PHP
+script and a WebSocketServer. It would be almost like creating a
+desktop application. Simply because it would be easy for
+webdevelopers: Sample PHP script:
+
+There is probably a better approach to implementing this in php, but
+its just a concept:
+----
+   &lt;input id='test' type='button'&gt;&quot;;
+   &lt;script type='text/javascript'&gt;
+      // when the button is clicked, raise the test_click event
+handler on the server.
+      document.getElementById('test').addEventListener('click',
+document.serverSocket.createEventHandler('test_click');
+      // when the server raises the &quot;message&quot; event, alert the message
+      document.serverSocket.addEventListener('message', alert);
+   &lt;/script&gt;
+&lt;?php
+// magic PHP method that is called whenever a client side event is
+sent to the server
+function __serverSocketEvent($name, $event)
+{
+    if($name == 'test_click')
+       server_socket_event(&quot;message&quot;, &quot;You clicked the button&quot;);
+}
+?&gt;
+ ----
+
+&gt;<i>  If you establish a Connection: Keep-Alive with the proxy server, it will
+</I>&gt;<i> leave the connection open to you, but that doesn't mean that it will leave
+</I>&gt;<i> the connection open to the back end server as the Connection header is a
+</I>&gt;<i> single-hop header.
+</I>
+So it is not possible at all? There are no mechanisms in HTTP and
+proxy servers that facilitates keeping the connection alive all the
+way trough to the web server?
+
+
+If a Session ID (or perhaps a Request ID) is added to the headers then
+it is possible to create server side logic that makes it easier for
+web developers. When session ids are sent trough cookies, web servers
+and proxy servers have no way to identiy a session (since only the
+script knows which cookie is the session id). The SessionID header
+could be used by load balancers and more - and it could also be used
+by for example IIS/Apache to connect a secondary socket to the script
+that created the page (and ultimately achieving what I want).
+
+&gt;&gt;<i> The script on the server decides if the connection should be closed or
+</I>&gt;&gt;<i> kept open. (Protection against DDOS attacks)
+</I>&gt;<i> With the proposed spec, the server can close the connection at any point.
+</I>I stated it as a benefit in the context of the web server handling the
+requests. An image would close the connection immediately, but a
+script could decide to keep it open. All servers can ofcourse close
+any connection any time.
+
+&gt;&gt;<i> This allows implementing server side listening to client side events,
+</I>&gt;&gt;<i> and vice versa. If this works, then the XMLHttpRequest object could be
+</I>&gt;&gt;<i> updated to allow two way communications in exactly the same way.
+</I>&gt;<i>
+</I>&gt;<i> The previously proposed protocol already allows the server side listening to
+</I>&gt;<i> client side events, and vice versa. Rather or not to put that in the
+</I>&gt;<i> XMLHttpRequest interface is another issue. I think making XHR bi-directional
+</I>&gt;<i> is a bad idea because its confusing. Better to use a brand new api, like
+</I>&gt;<i> WebSocket.
+</I>
+If the implementation works as I tried to examplify in the PHP script
+above; a document.serverSocket object is available, then the xhr
+object should also have a .serverSocket object.
+
+document.serverSocket.addEventListener(...)
+xhr.serverSocket.addEventListener(...)
+
+I am sure this can be achieved regardless of the protocol.
+
+&gt;&gt;<i> Also, by adding a SessionID header sent from the client (instead of
+</I>&gt;&gt;<i> storing session ids in cookies), the web server could transparently
+</I>&gt;&gt;<i> rematch any client with its corresponding server side process in case
+</I>&gt;&gt;<i> of disconnect.
+</I>&gt;<i> Isn't that what cookies are supposed to do?  Regardless, it sounds like an
+</I>&gt;<i> application-level concern that should be layered on top of the protocol.
+</I>
+One important advantage is that javascript.cookie can be used for
+hijacking sessions by sending the cookie trough for example an
+img-tag. If javascript can't access the SessionID then sessions cant
+be hijacked through XSS attacks.
+
+Also I think load balancers and web servers and other applications
+that do not have intimate knowledge about the web application should
+be able to pair WebSocket connections with the actual http request.
+How else can load balancers be created if they have to load balance
+both pages and websockets to the same webserver? The load balancer
+does not know what part of the cookie identifies the session.
+
+I am sure that some clever people will find other uses if the session
+id and request id is available for each request made from a script.
+
+&gt;&gt;<i> The HTTP spec has these features already:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> 1: Header: Connection: Keep-Alive
+</I>&gt;&gt;<i> 2: Status: HTTP 101 Switching Protocol
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> No need to rewrite the HTTP spec at all probably.
+</I>&gt;<i> You can't use HTTP 101 Switching Protocols without a Connection: Upgrade
+</I>&gt;<i> header. I think you'll note that the proposal that started this thread uses
+</I>&gt;<i> just this combination.
+</I>
+The HTTP 101 Switching Protocols can be sent by the server, without
+the client asking for a protocol change. The only requirement is that
+the server sends 426 Upgrade Required first, then specifies which
+protocol to switch to. The protocol switched to could possibly be the
+one proposed in the beginning of this thread.
+
+The new protocol should be based on this:
+<A HREF="http://tools.ietf.org/id/draft-burdis-http-sasl-00.txt">http://tools.ietf.org/id/draft-burdis-http-sasl-00.txt</A>
+
+It is essentially the same, except we are upgrading to a two way
+protocol, instead of an HTTPS protocol.
+
+&gt;&gt;<i> TCPConnections are only allowed to the server where the script was
+</I>&gt;&gt;<i> downloaded from (same as Flash and Java applets). A DNS TXT record can
+</I>&gt;&gt;<i> create a white list of servers whose scripts can connect. Also the
+</I>&gt;&gt;<i> TCPConnection possibly should be allowed to connect to local network
+</I>&gt;&gt;<i> resources, after a security warning - but only if the server has a
+</I>&gt;&gt;<i> proper HTTPS certificate.
+</I>&gt;<i> How would a DNS TXT record solve the problem? I  could register evil.com and
+</I>&gt;<i> point it at an arbitrary ip address and claim that anyone who wants to can
+</I>&gt;<i> connect.
+</I>
+Doh, ofcourse! :) So I am going back to my first suggestion - the
+server with the script must have a certificate as well. The script
+must be signed with a private key, and the DNS server must have the
+public key.
+
+&gt;&gt;<i> With the security measures I suggest above, there is no need for
+</I>&gt;&gt;<i> protection against brute force attacks. Most developers only use one
+</I>&gt;&gt;<i> server per site, and those that have multiple servers will certainly
+</I>&gt;&gt;<i> be able to add a TXT-record to the DNS.
+</I>&gt;<i> I don't actually understand which part of the specification you want to
+</I>&gt;<i> change aside from doing the access control in a DNS TXT record instead of
+</I>&gt;<i> the protocol.
+</I>
+I care more about how it works for the developer than how the protocol
+itself is implemented. I think maybe the protocol should be discussed
+with others or have its own WG.
+
+Summarizing what I want as a web developer:
+
+The script that generates the page should be able to communicate with
+the page it generated. The page should also be able to connect to a
+separate script, if the web developer thinks that it is important.
+
+Reasons:
+
+1. Simplicity for developers.
+2. No need to propagate state information between applications than
+handles sockets and applications that generate the page.
+3. It is more similar to a standard desktop application.
+4. Resources opened by the script that created page, can be kept open
+(file locking etc).
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="057426.html">[whatwg] TCPConnection feedback
+</A></li>
+	<LI>Next message: <A HREF="057430.html">[whatwg] TCPConnection feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#57428">[ date ]</a>
+              <a href="thread.html#57428">[ thread ]</a>
+              <a href="subject.html#57428">[ subject ]</a>
+              <a href="author.html#57428">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

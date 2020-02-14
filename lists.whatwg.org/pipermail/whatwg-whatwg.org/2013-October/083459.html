@@ -1,0 +1,230 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Counterproposal for canvas in workers
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Counterproposal%20for%20canvas%20in%20workers&In-Reply-To=%3CCAGN7qDDcSax-FZo27pNCyJ%3DL98r%2BjS7s3QnmYpF7qYGoUrSExg%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="083457.html">
+   <LINK REL="Next"  HREF="083470.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Counterproposal for canvas in workers</H1>
+<!--htdig_noindex-->
+    <B>Rik Cabanier</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Counterproposal%20for%20canvas%20in%20workers&In-Reply-To=%3CCAGN7qDDcSax-FZo27pNCyJ%3DL98r%2BjS7s3QnmYpF7qYGoUrSExg%40mail.gmail.com%3E"
+       TITLE="[whatwg] Counterproposal for canvas in workers">cabanier at gmail.com
+       </A><BR>
+    <I>Thu Oct 17 21:50:43 PDT 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="083457.html">[whatwg] Counterproposal for canvas in workers
+</A></li>
+        <LI>Next message: <A HREF="083470.html">[whatwg] Counterproposal for canvas in workers
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#83459">[ date ]</a>
+              <a href="thread.html#83459">[ thread ]</a>
+              <a href="subject.html#83459">[ subject ]</a>
+              <a href="author.html#83459">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Extra methods on the canvas API:
+
+Promise setTaskScript(DOMString script); // can error be in promise?
+Promise executeTask(DOMString id, dictionary json, boolean synchronized =
+true); // Transferable elements allowed in dictionary
+
+Object that is active in the task:
+
+interface CanvasTask {
+
+HTMLCanvasElement createCanvas(unsigned long width, unsigned long height);
+attribute Function onTask;
+
+}
+
+CanvasTask implements HTMLCanvasElement;
+
+Example code:
+
+var c = document.getElementById(&quot;gameCanvas&quot;);
+
+var gameState = {};
+
+window.addEventListener(&quot;load&quot;, function(){
+
+c.setTaskScript(&quot;gameLogic.js&quot;).then(function(){
+
+c.executeTask(&quot;mainscene&quot;, gameState);
+
+});
+
+});
+
+
+window.requestAnimationFrame(function(){
+
+c.executeTask(&quot;mainscene&quot;, gameState);
+
+}
+
+
+Example code for gameLogic.js:
+
+var ctx = getContext(&quot;2d&quot;);
+
+onTask = function(DOMString id, dictionary json) {
+
+if(id == &quot;mainscene&quot;) {
+
+if(typeof(MinionCanvas)==&quot;Undefined&quot;) {
+
+MinionCanvas = createCanvas(200, 300);
+
+MinionCanvas.executeTask(&quot;drawMinion&quot;, {}) // creates promise under the hood
+
+}
+
+if(typeof(SpaceShipCanvas)==&quot;Undefined&quot;)
+
+SpaceShipCanvas = createCanvas(300, 300);
+
+
+SpaceShipCanvas.executeTask(&quot;drawSpaceShip&quot;, gameState); // redraw spaceship
+
+
+executeTask(&quot;drawBackDrop&quot;,  gameState); // in other task
+
+executeTask(&quot;drawBoss&quot;, gameState); // lots of js to draw the boss so
+better done in task
+
+
+for(...) //for each minion {
+
+... // set the matrix
+ctx.drawImage(MinionCanvas, ...); // draw the minion &lt;- note that the
+minion might still be drawing in the other thread
+
+}
+for(...) //for each spaceship {
+
+..// set the matrix
+
+ctx.drawImage(SpaceShipCanvas); // draw the spaceship &lt;- it might still be
+drawing in the other task
+
+}
+
+.. // other drawing commands for score, controls, etc
+
+} else if(id == &quot;drawMinion&quot;) {
+
+...
+
+}  else if(id == &quot;drawSpaceShip&quot;) {
+
+... // set up tasks to draw parts of the ship?
+
+} ...
+
+}
+
+
+
+On Thu, Oct 17, 2013 at 8:10 PM, Rik Cabanier &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">cabanier at gmail.com</A>&gt; wrote:
+
+&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> On Thu, Oct 17, 2013 at 4:01 PM, Robert O'Callahan &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">robert at ocallahan.org</A>&gt;wrote:
+</I>&gt;<i>
+</I>&gt;&gt;<i> On Fri, Oct 18, 2013 at 10:56 AM, Justin Novosad &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">junov at google.com</A>&gt;wrote:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> On Thu, Oct 17, 2013 at 5:50 PM, Rik Cabanier &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">cabanier at gmail.com</A>&gt;wrote:
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> Creating temporary canvases is still possible. I'm unsure how it would
+</I>&gt;&gt;&gt;&gt;<i> be different from a worker.
+</I>&gt;&gt;&gt;&gt;<i> An advantage would be that you can draw to the temporary canvases in
+</I>&gt;&gt;&gt;&gt;<i> parallel to using them. Only PIXEL access is disallowed, you can still call
+</I>&gt;&gt;&gt;&gt;<i> drawImage using a canvas that has outstanding tasks.
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> Right. The write-only restriction would only apply to canvas contexts
+</I>&gt;&gt;&gt;<i> that commit (push their tasks) directly down to the compositor. You could
+</I>&gt;&gt;&gt;<i> still create a canvas that is local to the worker, rasterize it in the
+</I>&gt;&gt;&gt;<i> worker and do readbacks in the worker, create ImageBitmaps from it, etc.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> I'm not sure that you and Rik are talking about the same thing, since
+</I>&gt;&gt;<i> he's still talking about &quot;outstanding tasks&quot;. If you are talking about the
+</I>&gt;&gt;<i> same thing, I don't know what it is. I'd like to see some concrete details
+</I>&gt;&gt;<i> for what you'd change in the current WorkerCanvas proposal. For the sake of
+</I>&gt;&gt;<i> clarity I've put (my understand of) it here:
+</I>&gt;&gt;<i> <A HREF="https://wiki.mozilla.org/User:Roc/WorkerCanvasProposal">https://wiki.mozilla.org/User:Roc/WorkerCanvasProposal</A>
+</I>&gt;&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> I'll work on drawing up an example of my proposal.
+</I>&gt;<i>
+</I>&gt;<i> With WorkerCanvas and transferToImageBitmap, you can draw multiple layers
+</I>&gt;&gt;<i> in parallel (and actually draw, not just queue drawing commands) by
+</I>&gt;&gt;<i> creating multiple workers, having them each produce an ImageBitmap, and
+</I>&gt;&gt;<i> compositing those ImageBitmaps together by stacking &lt;img&gt; elements or
+</I>&gt;&gt;<i> drawing them all to a single canvas. It uses more memory but you get more
+</I>&gt;&gt;<i> parallelism.
+</I>&gt;&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> They would still have to wait for each other so the images are composited
+</I>&gt;<i> in-order. If you don't care about that, the 'synchronized' option would let
+</I>&gt;<i> you draw as soon as you exit the task (which is how Chrome always draws
+</I>&gt;<i> since it's faster)
+</I>&gt;<i>
+</I>&gt;<i> In fact, an implementation could choose to take the deferred-drawing
+</I>&gt;&gt;<i> approach instead. You would queue up drawing commands in the WorkerCanvas
+</I>&gt;&gt;<i> (or the drawing context), and then transferToImageBitmap would not
+</I>&gt;&gt;<i> immediately render but produce an ImageBitmap implementation encapsulating
+</I>&gt;&gt;<i> the list of drawing commands to be drawn later, wherever/whenever that
+</I>&gt;&gt;<i> ImageBitmap ended up being used. I think for commit() the implementation
+</I>&gt;&gt;<i> would always want to force rasterization on the worker (or possibly some
+</I>&gt;&gt;<i> dedicated canvas-rendering thread); you could forward a list of drawing
+</I>&gt;&gt;<i> commands to the compositor thread for rasterization but I don't think
+</I>&gt;&gt;<i> there's any reason to do that (and some good reasons not to).
+</I>&gt;&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> Can you tell me how you can ensure that you don't do too much work?
+</I>&gt;<i> Drawing in a continuous loop using 'Commit' would waste a lot of resources.
+</I>&gt;<i>
+</I>
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="083457.html">[whatwg] Counterproposal for canvas in workers
+</A></li>
+	<LI>Next message: <A HREF="083470.html">[whatwg] Counterproposal for canvas in workers
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#83459">[ date ]</a>
+              <a href="thread.html#83459">[ thread ]</a>
+              <a href="subject.html#83459">[ subject ]</a>
+              <a href="author.html#83459">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

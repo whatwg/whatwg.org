@@ -1,0 +1,156 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] &lt;video preload&gt; implementation feedback
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20%3Cvideo%20preload%3E%20implementation%20feedback&In-Reply-To=%3C4E4C7DE9.2020106%40mozilla.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="032945.html">
+   <LINK REL="Next"  HREF="075226.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] &lt;video preload&gt; implementation feedback</H1>
+<!--htdig_noindex-->
+    <B>Chris Pearce</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20%3Cvideo%20preload%3E%20implementation%20feedback&In-Reply-To=%3C4E4C7DE9.2020106%40mozilla.com%3E"
+       TITLE="[whatwg] &lt;video preload&gt; implementation feedback">cpearce at mozilla.com
+       </A><BR>
+    <I>Wed Aug 17 19:50:17 PDT 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="032945.html">[whatwg] &lt;video preload&gt; implementation feedback
+</A></li>
+        <LI>Next message: <A HREF="075226.html">[whatwg] &lt;video preload&gt; implementation feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#75221">[ date ]</a>
+              <a href="thread.html#75221">[ thread ]</a>
+              <a href="subject.html#75221">[ subject ]</a>
+              <a href="author.html#75221">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>I implemented preload support in Firefox.
+
+
+On 18/08/2011 3:44 a.m., Philip J&#228;genstedt wrote:
+&gt;<i> I'd very much like to see feedback from other implementors. Are you 
+</I>&gt;<i> happy with treating autoplay and preload as &quot;just hints&quot; as in [4] or 
+</I>&gt;<i> do you think that we should specify them in greater detail?
+</I>
+I think autoplay should not be treated as a hint, else it's can't be 
+relied upon to work, and thus would be completely useless.
+
+Preload is a less critical; if it's not supported users will just end up 
+loading more data, which isn't too bad. Clients that care more about 
+bandwidth will probably be more likely to support it.
+
+&gt;<i>
+</I>&gt;<i> == Dynamically changing preload ==
+</I>&gt;<i>
+</I>&gt;<i> It makes no sense for a script to change preload=&quot;auto&quot; to 
+</I>&gt;<i> preload=&quot;none&quot;. Going from preload=&quot;auto&quot; to preload=&quot;metadata&quot; isn't 
+</I>&gt;<i> nonsensical, but supporting it would allow authors to toggle it 
+</I>&gt;<i> continuously to work around buggy buffering behavior. I'd much rather 
+</I>&gt;<i> that buffering problems be fixed in the browser, so I don't want to 
+</I>&gt;<i> support this. Consequently, we only allow the internal preload states 
+</I>&gt;<i> to increase, not decrease. I understand that Mozilla has done the 
+</I>&gt;<i> same. Unless there are strong reasons not do, I think this should be 
+</I>&gt;<i> spec'd.
+</I>
+I agree.
+
+&gt;<i>
+</I>&gt;<i> == Resetting internal preload state ==
+</I>&gt;<i>
+</I>&gt;<i> Due to the above, it's necessary to reset the internal preload state 
+</I>&gt;<i> at some point. Otherwise, a script like this wouldn't work:
+</I>&gt;<i>
+</I>&gt;<i> function setSource(url) {
+</I>&gt;<i>   var v = document.querySelector('video');
+</I>&gt;<i>   v.src = url;
+</I>&gt;<i>   v.preload = &quot;none&quot;;
+</I>&gt;<i>   v.onplay = function() { v.preload = &quot;autoplay&quot;; };
+</I>
+Did you mean |v.preload = &quot;auto&quot;;| here instead? or |v.autoplay = 
+true&quot;;|? It seems in this case the onplay handler would only happen if 
+the user pressed play on the controls or from script, so the preload 
+action be promoted to auto anyway since the resource is playing. I guess 
+that's what you're getting at with your point about preload internal 
+state promotion?
+
+&gt;<i> }
+</I>&gt;<i>
+</I>&gt;<i> If a previous resource was playing and preload was set to &quot;autoplay&quot; 
+</I>&gt;<i> by script, then we still want preload=&quot;none&quot; to apply to the new 
+</I>&gt;<i> resource. To solve this, we are resetting the internal preload state 
+</I>&gt;<i> as part of the resource selection algorithm, right before step 5 to 
+</I>&gt;<i> fire the loadstart event. There are various other places one could do 
+</I>&gt;<i> this, but we think it is important to do it in the async section so 
+</I>&gt;<i> that the order of setting .src and .preload does not matter.
+</I>
+Currently we update the internal preload action whenever the value of 
+the preload state changes, and we check it's not preload=none before 
+kicking off a new resource load (resource fetch algorithm step 2) and we 
+check it again when we reach loadedmetadata and suspend the load if it's 
+preload=metadata.
+
+I think the preload=metadata case is implied by the spec, but having it 
+explicitly stated wouldn't hurt.
+
+&gt;<i>
+</I>&gt;<i> == &lt;video preload=&quot;none&quot;&gt; ==
+</I>&gt;<i>
+</I>&gt;<i> It's not possible to specify exactly how much preload=&quot;metadata&quot; and 
+</I>&gt;<i> preload=&quot;auto&quot; buffers and when, but this is possible for 
+</I>&gt;<i> preload=&quot;none&quot;. This is what we do:
+</I>&gt;<i>
+</I>&gt;<i> After step 1 of the source selection algorithm, if preload==&quot;none&quot;, 
+</I>&gt;<i> set networkState to IDLE, fire a suspend event and set the 
+</I>&gt;<i> delaying-the-load-event flag to false.
+</I>
+This is actually specified now in step 2 of the resource fetch algorithm 
+(this must have been added after we implemented @preload).
+
+Doing this at step 1 of the resource selection algorithm means that if 
+you're loading from child &lt;source&gt; elements, and none of them have a 
+supported type, then you won't report the error until something calls 
+play() or load() explicitly.
+
+
+Regards,
+Chris Pearce.
+
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="032945.html">[whatwg] &lt;video preload&gt; implementation feedback
+</A></li>
+	<LI>Next message: <A HREF="075226.html">[whatwg] &lt;video preload&gt; implementation feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#75221">[ date ]</a>
+              <a href="thread.html#75221">[ thread ]</a>
+              <a href="subject.html#75221">[ subject ]</a>
+              <a href="author.html#75221">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

@@ -1,0 +1,143 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] localStorage + worker processes
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20localStorage%20%2B%20worker%20processes&In-Reply-To=%3C63df84f0903211357t79640f82of122f776310d2aa1%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="061204.html">
+   <LINK REL="Next"  HREF="061189.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] localStorage + worker processes</H1>
+<!--htdig_noindex-->
+    <B>Jonas Sicking</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20localStorage%20%2B%20worker%20processes&In-Reply-To=%3C63df84f0903211357t79640f82of122f776310d2aa1%40mail.gmail.com%3E"
+       TITLE="[whatwg] localStorage + worker processes">jonas at sicking.cc
+       </A><BR>
+    <I>Sat Mar 21 13:57:00 PDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="061204.html">[whatwg] localStorage + worker processes
+</A></li>
+        <LI>Next message: <A HREF="061189.html">[whatwg] localStorage + worker processes
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#61205">[ date ]</a>
+              <a href="thread.html#61205">[ thread ]</a>
+              <a href="subject.html#61205">[ subject ]</a>
+              <a href="author.html#61205">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>As a side note, if we do go with this async lock acquiring, we could
+add an API like:
+
+getLockedFeatures(callback, 'localStore', 'cookie');
+
+This would be an asynchronously grab locks to multiple features and
+only call the callback once all of them have been acquired. This would
+allow computations across data from multiple locations guaranteed to
+be in sync. The implementation would be responsible for grabbing the
+locks in a consistent order to prevent deadlocks.
+
+/ Jonas
+
+On Sat, Mar 21, 2009 at 12:48 AM, Jonas Sicking &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">jonas at sicking.cc</A>&gt; wrote:
+&gt;<i> On Fri, Mar 20, 2009 at 3:10 PM, Aaron Boodman &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">aa at google.com</A>&gt; wrote:
+</I>&gt;&gt;<i> I think the best option is to make access to localstorage asynchronous
+</I>&gt;&gt;<i> for workers. This reduces the amount of time a worker can hold the
+</I>&gt;&gt;<i> localstore lock so that it shouldn't be a problem for normal pages. It
+</I>&gt;&gt;<i> sucks to make such a simple and useful API aync though.
+</I>&gt;<i>
+</I>&gt;<i> As I understand the current API (on main window) to be defined, as
+</I>&gt;<i> soon as someone accesses the .localStorage property, the
+</I>&gt;<i> implementation is supposed to acquire a lock. This lock would be held
+</I>&gt;<i> on to until that script returns to the event loop for that thread.
+</I>&gt;<i>
+</I>&gt;<i> So if javascript in another window, running in another thread or
+</I>&gt;<i> process, tries to access .localStorage for the same origin, the
+</I>&gt;<i> .localStorage getter would try to acquire the same lock and block
+</I>&gt;<i> until the first thread releases the lock.
+</I>&gt;<i>
+</I>&gt;<i> This could in theory be applied to applied to workers as well. However
+</I>&gt;<i> as Jeremy points out that could result in the a worker script running
+</I>&gt;<i> for a very long time blocking the window thread.
+</I>&gt;<i>
+</I>&gt;<i> What we could do, is to have an API like
+</I>&gt;<i>
+</I>&gt;<i> getLocalStorage(callback);
+</I>&gt;<i>
+</I>&gt;<i> This function returns immediately, but will then call the callback
+</I>&gt;<i> function as soon as the localStorage becomes available and the lock
+</I>&gt;<i> been acquired. This would always happen asynchronously off the event
+</I>&gt;<i> loop, which means that once the callback returns the lock is released
+</I>&gt;<i> again.
+</I>&gt;<i>
+</I>&gt;<i> Of course, it would still mean that a window context or worker could
+</I>&gt;<i> hold on to the lock for an indefinite time, but as long as the asych
+</I>&gt;<i> getLocalStorage API is used, this means that no thread is blocked,
+</I>&gt;<i> just that they aren't able to get access to the localStorage.
+</I>&gt;<i>
+</I>&gt;<i> So for example, the following code would safely add 1 to the 'foo'
+</I>&gt;<i> property in localStorage:
+</I>&gt;<i>
+</I>&gt;<i> getLocalStorage(function(store) {
+</I>&gt;<i> &#160;store.foo = parseInt(store.foo, 10) + 1;
+</I>&gt;<i> });
+</I>&gt;<i>
+</I>&gt;<i> Additionally, we would have to define that if the store object passed
+</I>&gt;<i> to the callback function is accessed outside after the callback has
+</I>&gt;<i> ended this will throw an exception. If the object is reactivated next
+</I>&gt;<i> time a callback is entered, or if a new storage object is created also
+</I>&gt;<i> needs to be defined.
+</I>&gt;<i>
+</I>&gt;<i> This new API I believe is good enough to be used both from workers and
+</I>&gt;<i> window contexts.
+</I>&gt;<i>
+</I>&gt;<i> We could even keep the current API implemented in IE8, or we could
+</I>&gt;<i> just ask people to write a wrapper for IE8 like:
+</I>&gt;<i>
+</I>&gt;<i> function getLocalStorage(callback) {
+</I>&gt;<i> &#160;setTimeout(function() { callback(localStorage); }, 0);
+</I>&gt;<i> }
+</I>&gt;<i>
+</I>&gt;<i> in an implementation that implements correct locking for the
+</I>&gt;<i> synchronous API, this will even produce the correct locking behavior
+</I>&gt;<i> for the new API.
+</I>&gt;<i>
+</I>&gt;<i> / Jonas
+</I>&gt;<i>
+</I>
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="061204.html">[whatwg] localStorage + worker processes
+</A></li>
+	<LI>Next message: <A HREF="061189.html">[whatwg] localStorage + worker processes
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#61205">[ date ]</a>
+              <a href="thread.html#61205">[ thread ]</a>
+              <a href="subject.html#61205">[ subject ]</a>
+              <a href="author.html#61205">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

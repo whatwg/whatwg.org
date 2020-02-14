@@ -1,0 +1,201 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Endianness of typed arrays
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Endianness%20of%20typed%20arrays&In-Reply-To=%3C638931684.827802.1335530452621.JavaMail.root%40mozilla.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="035560.html">
+   <LINK REL="Next"  HREF="035561.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Endianness of typed arrays</H1>
+<!--htdig_noindex-->
+    <B>Benoit Jacob</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Endianness%20of%20typed%20arrays&In-Reply-To=%3C638931684.827802.1335530452621.JavaMail.root%40mozilla.com%3E"
+       TITLE="[whatwg] Endianness of typed arrays">bjacob at mozilla.com
+       </A><BR>
+    <I>Fri Apr 27 05:40:52 PDT 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="035560.html">[whatwg] Endianness of typed arrays
+</A></li>
+        <LI>Next message: <A HREF="035561.html">[whatwg] [Server-Sent Events] Infinite reconnection	clarification
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#77835">[ date ]</a>
+              <a href="thread.html#77835">[ thread ]</a>
+              <a href="subject.html#77835">[ subject ]</a>
+              <a href="author.html#77835">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>
+
+----- Original Message -----
+&gt;<i> Sorry for joining the conversation late.
+</I>&gt;<i> 
+</I>&gt;<i> On Mar 28, 2012, at 1:39 PM, Kenneth Russell wrote:
+</I>&gt;<i> 
+</I>&gt;<i> &gt; On Wed, Mar 28, 2012 at 12:34 PM, Benoit Jacob &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">bjacob at mozilla.com</A>&gt;
+</I>&gt;<i> &gt; wrote:
+</I>&gt;<i> &gt;&gt; 
+</I>&gt;<i> &gt;&gt; 1. In webgl.bufferData implementation, don't call glBufferData,
+</I>&gt;<i> &gt;&gt; instead just cache the buffer data.
+</I>&gt;<i> &gt;&gt; 
+</I>&gt;<i> &gt;&gt; 2. In webgl.vertexAttribPointer, record the attributes structure
+</I>&gt;<i> &gt;&gt; (their types, how they use buffer data). Do not convert/upload
+</I>&gt;<i> &gt;&gt; buffers yet.
+</I>&gt;<i> &gt;&gt; 
+</I>&gt;<i> &gt;&gt; 3. In the first WebGL draw call (like webgl.drawArrays) since the
+</I>&gt;<i> &gt;&gt; last bufferData/vertexAttribPointer call, do the conversion of
+</I>&gt;<i> &gt;&gt; buffers and the glBufferData calls. Use some heuristics to drop
+</I>&gt;<i> &gt;&gt; the buffer data cache, as most WebGL apps will not have a use for
+</I>&gt;<i> &gt;&gt; it anymore.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; It would never be possible to drop the CPU side buffer data cache.
+</I>&gt;<i> &gt; A
+</I>&gt;<i> &gt; subsequent draw call may set up the vertex attribute pointers
+</I>&gt;<i> &gt; differently for the same buffer object, which would necessitate
+</I>&gt;<i> &gt; going
+</I>&gt;<i> &gt; back through the buffer's data and generating new, appropriately
+</I>&gt;<i> &gt; byte-swapped data for the GPU.
+</I>
+I wanted to reply to the above that while indeed in theory it's never possible to drop these caches, in practice some heuristics might work well enough that it doesn't matter for real content; and in the worst case where we effectively can't ever drop caches, we have a +10% or +20% memory usage increase for typical WebGL applications (as buffers typically aren't the majority of a WebGL application's memory usage), which is bad but still better than not running WebGL at all.
+
+&gt;<i> 
+</I>&gt;<i> That's true. But there are other plausible approaches. There's
+</I>&gt;<i> GL_PACK_SWAP_BYTES:
+</I>&gt;<i> 
+</I>&gt;<i>     <A HREF="http://www.opengl.org/sdk/docs/man/xhtml/glPixelStore.xml">http://www.opengl.org/sdk/docs/man/xhtml/glPixelStore.xml</A>
+</I>
+This seems specific to desktop OpenGL and doesn't seem to exist in the core OpenGL ES 2.0 specification. Maybe as an extension?
+
+&gt;<i> 
+</I>&gt;<i> Or code generation: translate the shaders to do the byte-swapping
+</I>&gt;<i> explicitly in GLSL. For floats you should be able to cast back and
+</I>&gt;<i> forth to ints via intBitsToFloat/floatBitsToInt.
+</I>
+Interesting; one would have to measure the performance impact of this. What makes me hopeful is that this should only slow down vertex shaders, not fragment shaders (which are the performance critical shaders in most applications). So this could well be the most practical solution so far. WebGL implementations must have a shader compiler anyways, for multiple reasons (validation, shading language differences, working around driver bugs).
+
+This only applies to ARRAY_BUFFER, not ELEMENT_ARRAY_BUFFER buffers, but for the latter, we already have to keep a permanent CPU-side copy anyway for validation purposes, so the approach of swapping bytes in the implementation of drawElements should work well and not have any major downside (since having to keep a CPU-side copy was the main downside).
+
+Cheers,
+Benoit
+
+&gt;<i> 
+</I>&gt;<i> But these days more and more big-endian systems have support for
+</I>&gt;<i> little-endian mode, which is probably the simplest approach. And
+</I>&gt;<i> honestly, there just don't seem to be WebGL-enabled user agents on
+</I>&gt;<i> big-endian systems. We've left a specification hole in a place
+</I>&gt;<i> that's easy to trip over, only out of concern for hypothetical
+</I>&gt;<i> systems -- in an era when little-endian has clearly won.
+</I>&gt;<i> 
+</I>&gt;<i> If the web isn't already de facto little-endian -- and I believe my
+</I>&gt;<i> colleagues have seen evidence that sites are beginning to depend on
+</I>&gt;<i> it -- then typed arrays force developers to test on big-endian
+</I>&gt;<i> systems to make sure their code is portable, when it's quite likely
+</I>&gt;<i> they don't have any big-endian systems to test on. That's a tax on
+</I>&gt;<i> developers they may not be willing or able to pay. I should know, I
+</I>&gt;<i> am one! :)
+</I>&gt;<i> 
+</I>&gt;<i>     <A HREF="https://github.com/dherman/float.js/blob/master/float.js">https://github.com/dherman/float.js/blob/master/float.js</A>
+</I>&gt;<i> 
+</I>&gt;<i> In a hilariously ironic twist of fate, I recently noticed that the
+</I>&gt;<i> endianness-testing logic originally had a stupid bug that made
+</I>&gt;<i> LITTLE_ENDIAN always true. It's now fixed, but I didn't detect the
+</I>&gt;<i> bug because I didn't have a big-endian JS engine to test on.
+</I>&gt;<i> 
+</I>&gt;<i> &gt; Our emails certainly crossed, but please refer to my other email.
+</I>&gt;<i> &gt; WebGL applications that assemble vertex data for the GPU using
+</I>&gt;<i> &gt; typed
+</I>&gt;<i> &gt; arrays will already work correctly on big-endian architectures.
+</I>&gt;<i> &gt; This
+</I>&gt;<i> &gt; was a key consideration when these APIs were being designed. The
+</I>&gt;<i> &gt; problems occur when binary data is loaded via XHR and uploaded to
+</I>&gt;<i> &gt; WebGL directly. DataView is supposed to be used in such cases to
+</I>&gt;<i> &gt; load
+</I>&gt;<i> &gt; the binary data, because the endianness of the file format must
+</I>&gt;<i> &gt; necessarily be known.
+</I>&gt;<i> 
+</I>&gt;<i> I'm afraid this is wishful thinking. API's have more than a fixed set
+</I>&gt;<i> of use cases. The beautiful thing about platforms is that people
+</I>&gt;<i> invent new uses the designers didn't think of. Typed arrays are
+</I>&gt;<i> simple, powerful, and general-purpose, and people will use them for
+</I>&gt;<i> all kinds of purposes. Take my &quot;float explorer&quot;:
+</I>&gt;<i> 
+</I>&gt;<i>     <A HREF="http://dherman.github.com/float.js/">http://dherman.github.com/float.js/</A>
+</I>&gt;<i> 
+</I>&gt;<i> There's no XHR and no WebGL involved in that code. (And I didn't
+</I>&gt;<i> invent that to make a point here -- I wrote it months ago when I
+</I>&gt;<i> wanted to visualize the bit patterns of floating-point numbers.)
+</I>&gt;<i> 
+</I>&gt;<i> Or imagine writing a crypto algorithm that optimizes bit
+</I>&gt;<i> manipulations by working on int-sized chunks via casts:
+</I>&gt;<i> 
+</I>&gt;<i>     <A HREF="http://mxr.mozilla.org/mozilla-central/source/security/nss/lib/freebl/arcfour.c#347">http://mxr.mozilla.org/mozilla-central/source/security/nss/lib/freebl/arcfour.c#347</A>
+</I>&gt;<i> 
+</I>&gt;<i> If you don't carefully endian-detect, the hashing logic will produce
+</I>&gt;<i> gibberish.
+</I>&gt;<i> 
+</I>&gt;<i> &gt; Once DataView is available everywhere then the top priority should
+</I>&gt;<i> &gt; be
+</I>&gt;<i> &gt; to write educational materials regarding binary I/O. It should be
+</I>&gt;<i> &gt; possible to educate the web development community about correct
+</I>&gt;<i> &gt; practices with only a few high profile articles.
+</I>&gt;<i> 
+</I>&gt;<i> DataView is great and we're working on it in SpiderMonkey, but as I
+</I>&gt;<i> say that won't solve this issue. There are all kinds of
+</I>&gt;<i> possibilities for using typed arrays with casts purely in-memory.
+</I>&gt;<i> Where there's incentive to write unportable code, people will write
+</I>&gt;<i> unportable code. A few articles or tutorials won't change that.
+</I>&gt;<i> That's not a knock against webdevs; it's entirely rational behavior.
+</I>&gt;<i> 
+</I>&gt;<i> We shouldn't tax web developers by forcing them to implement
+</I>&gt;<i> portability logic they can't realistically test, nor should we
+</I>&gt;<i> expect that they will. Particularly when it's only for potential
+</I>&gt;<i> performance problems on hypothetical big-endian user agents. If
+</I>&gt;<i> worse comes to worst, and big-endian browsers crop up with serious
+</I>&gt;<i> performance problems, we can extend the API's to allow an optional
+</I>&gt;<i> boolean bigEndian flag (that defaults to false), and a way to
+</I>&gt;<i> feature-detect the system's native endianness (navigator.isBigEndian
+</I>&gt;<i> or something like that). That way, developers who don't opt in to
+</I>&gt;<i> writing portable logic get *performance degradation* instead of
+</I>&gt;<i> *incorrect behavior*.
+</I>&gt;<i> 
+</I>&gt;<i> Dave
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="035560.html">[whatwg] Endianness of typed arrays
+</A></li>
+	<LI>Next message: <A HREF="035561.html">[whatwg] [Server-Sent Events] Infinite reconnection	clarification
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#77835">[ date ]</a>
+              <a href="thread.html#77835">[ thread ]</a>
+              <a href="subject.html#77835">[ subject ]</a>
+              <a href="author.html#77835">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

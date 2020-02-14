@@ -1,0 +1,926 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Sandboxing ideas
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Sandboxing%20ideas&In-Reply-To=%3CPine.LNX.4.62.0705020541350.21710%40dhalsim.dreamhost.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="053520.html">
+   <LINK REL="Next"  HREF="053476.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Sandboxing ideas</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Sandboxing%20ideas&In-Reply-To=%3CPine.LNX.4.62.0705020541350.21710%40dhalsim.dreamhost.com%3E"
+       TITLE="[whatwg] Sandboxing ideas">ian at hixie.ch
+       </A><BR>
+    <I>Mon May  7 20:50:38 PDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="053520.html">[whatwg] Proposal: Allow block content inside label element
+</A></li>
+        <LI>Next message: <A HREF="053476.html">[whatwg] Sandboxing ideas
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#53471">[ date ]</a>
+              <a href="thread.html#53471">[ thread ]</a>
+              <a href="subject.html#53471">[ subject ]</a>
+              <a href="author.html#53471">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>
+A number of people made proposals related to sandboxing content to improve 
+Web security.
+
+To be honest, I did not think the proposals by and large were very well 
+thought out; they seemed to be based mostly on intuition and not on 
+careful design. For example, none of the proposals clearly stated what 
+problem they were trying to solve.
+
+Now, in all fairness, this is a complicated issue, with many subtleties 
+and with a number of unintuitive aspects.
+
+First I'll reply to the key e-mails received on this topic, and then I'll 
+review possible problems we could try to solve and possible solutions to 
+those problems.
+
+
+On Thu, 15 Dec 2005, Hallvord R M Steen wrote:
+&gt;<i>
+</I>&gt;<i> A script from another server today has no limits if included in a page 
+</I>&gt;<i> with a SCRIPT src= tag. In many scenarios it would be interesting to a 
+</I>&gt;<i> webmaster to have a sort of &quot;grades of trust&quot; approach and specify some 
+</I>&gt;<i> more about what one would allow a foreign script to do, for example but 
+</I>&gt;<i> not limited to when including third-party advertising. However, I would 
+</I>&gt;<i> rather not see anything approaching the Java security model in terms of 
+</I>&gt;<i> complexity.
+</I>
+Indeed, every bit of complexity is another possibility for bugs.
+
+
+&gt;<i> Here's what I thought: a new attribute &quot;sandbox&quot; (or &quot;securitypolicy&quot;, 
+</I>&gt;<i> name doesn't matter much) might tell the UA something about what the 
+</I>&gt;<i> script can do:
+</I>&gt;<i> 
+</I>&gt;<i> &lt;script src=&quot;...&quot; sandbox=&quot;writeonly&quot;&gt;
+</I>&gt;<i> - script may use ECMAScript features and variables already created in
+</I>&gt;<i> page but may not use any host objects or methods except document.open
+</I>&gt;<i> / .write / .close. Typical use case is advertisment scripts that only
+</I>&gt;<i> add content to document.
+</I>
+What if it document.write()s something evil? e.g. it could document.write 
+a static replacement to your login form, with a form that redirects 
+through an authentication collection server.
+
+(Note that if you don't trust the company that is putting advertisments on 
+your Web page, you have bigger problems than controlling what scripts they 
+can run.)
+
+
+&gt;<i> &lt;script src=&quot;...&quot; sandbox=&quot;none&quot;&gt;
+</I>&gt;<i> - script may not alter document at all, only create variables. Typical
+</I>&gt;<i> use case is a script that just adds data from a third-party source,
+</I>&gt;<i> for example creates arrays or JSON structures.
+</I>
+In many cases, though, adding variables can cause as much damage as just 
+writing the data in the first place.
+
+
+&gt;<i> In all cases the limitation would apply only to the thread created by 
+</I>&gt;<i> that SCRIPT tag. Functions defined in those scripts might be called 
+</I>&gt;<i> later and would run with normal privileges.
+</I>
+Unfortunately that itself opens the door to a lot of abuse (it's trivial 
+to cause future scripts to run your functions in a situation like this).
+
+
+On Fri, 16 Dec 2005, Alexey Feldgendler wrote:
+&gt;<i> 
+</I>&gt;<i> 1. The entire thing has to degrade SAFELY in existing browsers. With 
+</I>&gt;<i> your approach, any existing browser will just ignore the unknown 
+</I>&gt;<i> &quot;sandbox&quot; attribute, effectively allowing the script to do anything. 
+</I>&gt;<i> This is not acceptable.
+</I>
+This probably depends on the use cases in question. For some use cases, 
+the status quo is in fact the script running with full privileges, so 
+while not being ideal, it is indeed acceptable; in other cases, you 
+wouldn't want scripts to run at all if they weren't limited in some way.
+
+
+&gt;<i> The primary danger of JS is that when different kinds of a single HTML 
+</I>&gt;<i> page come from different sources (are authored by different persons). As 
+</I>&gt;<i> a real life example, I'll take LiveJournal.com, where it's currently 
+</I>&gt;<i> completely forbidden to include any scripts in journal entries or 
+</I>&gt;<i> comments. They would like to allow some scripting, only if they could 
+</I>&gt;<i> somehow separate harmless scripts from potentially dangerous ones.
+</I>&gt;<i> 
+</I>&gt;<i> The idea is to add a new element, &lt;sandbox&gt; (the actual name doesn't 
+</I>&gt;<i> matter much). This element can appear anywhere (in both &lt;head&gt; and 
+</I>&gt;<i> &lt;body&gt;) and can include any elements that it's direct parent can 
+</I>&gt;<i> include. It has no other effect on its contents than altering the 
+</I>&gt;<i> contained scripts' security. Everything enclosed in 
+</I>&gt;<i> &lt;sandbox&gt;...&lt;/sandbox&gt; is somewhat limited in what scripts can do.
+</I>&gt;<i> 
+</I>&gt;<i> 1. All scripts inside &lt;sandbox&gt; are affected. This includes &lt;script&gt;, 
+</I>&gt;<i> javascript: URIs, &quot;onclick&quot; etc. Other active objects like &lt;object&gt; that 
+</I>&gt;<i> can access DOM are affected too (for example, Flash is restricted by 
+</I>&gt;<i> &lt;sandbox&gt;, too).
+</I>&gt;<i> 
+</I>&gt;<i> 2. The script in a &lt;sandbox&gt; thinks that it's god. It can do everything, 
+</I>&gt;<i> but only inside that sandbox.
+</I>&gt;<i> 
+</I>&gt;<i> 2.1. The window.document actually represents the part of document inside 
+</I>&gt;<i> &lt;sandbox&gt;. Yes, it's not a valid HTML document -- with fake body element 
+</I>&gt;<i> (window.document.body being the document fragment inside &lt;sandbox&gt;), and 
+</I>&gt;<i> otherwise looking strange, but it's usable by most scripts. Other DOM 
+</I>&gt;<i> facilities also pretend that there's nothing outside the sandbox.
+</I>&gt;<i> 
+</I>&gt;<i> 2.2. If the &lt;sandbox&gt; has a domain=&quot;...&quot; attribute, then the scripts 
+</I>&gt;<i> inside the sandbox have access to cookies from the specified domain, can 
+</I>&gt;<i> interact with other sandboxes and frames from that domain, and are 
+</I>&gt;<i> otherwise restricted in a similar way as a regular content from that 
+</I>&gt;<i> domain (but not breaking out of 2.1 restriction). The &quot;domain&quot; attribute 
+</I>&gt;<i> can only specify the domain of the containing document or a subdomain 
+</I>&gt;<i> thereof. (For example, LiveJournal can specify synthetized subdomains 
+</I>&gt;<i> like &lt;user&gt;.livejournal.com for entries by each user.) If there is no 
+</I>&gt;<i> &quot;domain&quot; attribute, then the inner JS doesn't have access to any 
+</I>&gt;<i> cookies.
+</I>&gt;<i> 
+</I>&gt;<i> 2.3. The JS namespace in a sandbox is isolated. JS inside the sandbox 
+</I>&gt;<i> cannot see the variables and functions declared outside, and vice versa. 
+</I>&gt;<i> JS outside the sandbox can accesss JS variables and functions from 
+</I>&gt;<i> inside the sandbox in an explicit way (like 
+</I>&gt;<i> sandboxElement.sandbox['variable']). If the outer JS needs to make 
+</I>&gt;<i> several things (DOM nodes, JS variables) from the outside accessible to 
+</I>&gt;<i> the inner JS, it can do so by putting references to these into 
+</I>&gt;<i> sandboxElement.sandbox array.
+</I>&gt;<i> 
+</I>&gt;<i> 2.4. Multiple sandboxes on one page sharing the same &quot;domain&quot; attribute 
+</I>&gt;<i> value share the same JS namespace (sandboxElement1.sandbox == 
+</I>&gt;<i> sandboxElement2.sandbox). Sandboxes without a &quot;domain&quot; attribute are 
+</I>&gt;<i> always isolated.
+</I>&gt;<i> 
+</I>&gt;<i> 3. Sandboxes can be nested, with each inner one being additionally 
+</I>&gt;<i> restricted by the outer.
+</I>&gt;<i> 
+</I>&gt;<i> 4. The script can find out that it's running in a sandbox. There's 
+</I>&gt;<i> nothing bad about it.
+</I>&gt;<i> 
+</I>&gt;<i> 5. There should be a discussion about what a sandboxed script can do. 
+</I>&gt;<i> Can it set window.location? Can it do window.open()? Maybe these 
+</I>&gt;<i> permissions should be governed by additional attributes to &lt;sandbox&gt;.
+</I>&gt;<i> 
+</I>&gt;<i> 6. A sandbox can specify a single JS error handler for all enclosed 
+</I>&gt;<i> scripts (to address known cases of scripts which are not ready for the 
+</I>&gt;<i> unusual environment they are in).
+</I>&gt;<i> 
+</I>&gt;<i> 7. Backward compatibility. The current browsers will ignore the unknown 
+</I>&gt;<i> &lt;sandbox&gt; element and give the enclosed scripts full access to 
+</I>&gt;<i> everything. This is not acceptable. As there is no way to disable 
+</I>&gt;<i> scripting inside a certain element in HTML 4, the HTML cleaners usually 
+</I>&gt;<i> found on sites live LiveJournal.com are still required. Here's what they 
+</I>&gt;<i> should do.
+</I>&gt;<i> 
+</I>&gt;<i> 7.1. There are new elements: &lt;safe-script&gt;, &lt;safe-object&gt;, &lt;safe-iframe&gt; 
+</I>&gt;<i> (did I forget something?). They are equivalent to their &quot;unsafe&quot; 
+</I>&gt;<i> counterparts, except that the existing browsers simply ignore them. HTML 
+</I>&gt;<i> cleaners should replace &lt;script&gt; with &lt;safe-script&gt; and likewise.
+</I>&gt;<i> 
+</I>&gt;<i> 7.2. HTML event handler attributes are mangled likewise: safe-onclick, 
+</I>&gt;<i> for example. Note that this doesn't affect the names of DOM properties 
+</I>&gt;<i> like element.onclick.
+</I>&gt;<i> 
+</I>&gt;<i> 7.3. A new URI scheme is introduced: &quot;safe-javascript:&quot;. Likewise.
+</I>
+This is unfortunately far too complicated. It basically duplicates most of 
+the &lt;iframe&gt; security and DOM model, which itself has been a big source of 
+bugs over the years.
+
+
+On Wed, 28 Dec 2005, Alexey Feldgendler wrote:
+&gt;<i> 
+</I>&gt;<i> JS already has origin-checking in the sense that every function is bound 
+</I>&gt;<i> to its parent namespace (class, window, whatever). No extra 
+</I>&gt;<i> origin-checking is required beyond that. Functions inside the sandbox 
+</I>&gt;<i> are just bound to their isolated namespace, just like normal functions 
+</I>&gt;<i> are bound to the window namespace.
+</I>
+Actually the origin-checking in browsers is simpler than that. It only 
+happens at certain very specific places, namely the Window interface entry 
+points. If we want to add a security model here, it has to be at the 
+Window level, which basically means a new browsing context.
+
+
+On Tue, 14 Mar 2006, Alexey Feldgendler wrote:
+&gt;<i> 
+</I>&gt;<i> No, it's not really a change in getElementBy* functions. Because there 
+</I>&gt;<i> have been no sandboxes before HTML 5, noone can really expect that these 
+</I>&gt;<i> functions treat sandbox elements the same as all other elements. Well, 
+</I>&gt;<i> sandboxes are &quot;security barriers&quot; by their nature, so it seems, at least 
+</I>&gt;<i> to me, quite natural to have getElementBy* functions stop at them.
+</I>
+We have had one kind of sandbox: browsing contexts -- and indeed, they 
+break getElementById() at sandbox boundaries.
+
+
+&gt;<i> &gt; Therefore, I'd say this security issue should be left to be taken care 
+</I>&gt;<i> &gt; of by web application authors themselves. It's impossible for specs to 
+</I>&gt;<i> &gt; force authors to make secured apps.
+</I>&gt;<i> 
+</I>&gt;<i> It's not to force them, it's to help them. Sanitizing user-supplied HTML 
+</I>&gt;<i> is a very difficult task today, and new security holes in HTML cleaners 
+</I>&gt;<i> of many web applications are found again and again. I think that the 
+</I>&gt;<i> spec should make it easier to write a secure web application.
+</I>
+While I agree with the general sentiment, to design features to help with 
+this we have to have very specific goals and use cases in mind.
+
+
+&gt;<i> &gt; The spec can't do much in these situations. Shall the spec provide a 
+</I>&gt;<i> &gt; way for CSS files to *not* be applied in &lt;sandbox&gt;ed content?
+</I>&gt;<i> 
+</I>&gt;<i> CSS3 already has negation selectors that can be used for this:
+</I>&gt;<i> 
+</I>&gt;<i> *:not(sandbox) p { text-align: left; }
+</I>&gt;<i> 
+</I>&gt;<i> This makes all paragraphs left-aligned except in sandboxes.
+</I>
+No, it makes all paragraphs left-aligned so long as they have at least one 
+ancestor that isn't a &lt;sandbox&gt; element. Since every element in HTML has 
+at least one ancestor that isn't a &lt;sandbox&gt; element (they all have an 
+&lt;html&gt; element parent), the above would match all elements (except the 
+&lt;html&gt; element itself, ironically).
+
+
+On Wed, 15 Mar 2006, Alexey Feldgendler wrote:
+&gt;<i> 
+</I>&gt;<i> (A wild thought: maybe enforce ID uniqueness only for &lt;!DOCTYPE html&gt;?)
+</I>
+We don't want to do anything that is DOCTYPE-specific if we can help it.
+
+
+On Thu, 16 Mar 2006, Alexey Feldgendler wrote:
+&gt;<i> 
+</I>&gt;<i> I'm not speaking about enforcing ID uniqueness at the time of parsing 
+</I>&gt;<i> the page, but only at the time of calling getElementById(). I believe it 
+</I>&gt;<i> will break very few pages, if any.
+</I>
+According to my research, over 10% of pages have duplicate IDs. That's a 
+lot of risk.
+
+
+&gt;<i> And another thing: HTML 5 is about to make HTML pages more powerful, 
+</I>&gt;<i> there are going to be menus, datagrids and such, but most of these 
+</I>&gt;<i> features are useless without scripting, aren't they? For example, a 
+</I>&gt;<i> datagrid isn't really sortable at client side without a script, which 
+</I>&gt;<i> makes it useless in blogs and CMS unless they allow some scripting.
+</I>
+&lt;datagrid&gt; has since been changed to allow client-side sorting, FWIW. But 
+your point is well taken.
+
+
+&gt;<i> Of course, there is a lot more to think and talk about. I suppose there 
+</I>&gt;<i> are going to be problems with particular buggy implementations of 
+</I>&gt;<i> sandboxing and exploits specifically targetted at holes in such 
+</I>&gt;<i> implementations. I suspect that web application authors and site 
+</I>&gt;<i> administrators will be hesitant to allow user scripting even in 
+</I>&gt;<i> sandboxes because of the possible browser bugs.
+</I>
+Because of this, we really want to make sure we leverage as much of the 
+existing infrastructure as possible. I'm worried that the DOMSandbox idea, 
+with its &quot;fake&quot; documents, etc, introduces too much complexity.
+
+
+On Sat, 27 May 2006, Alexey Feldgendler wrote:
+&gt;<i> 
+</I>&gt;<i> I propose to define the notion of &quot;side effect free script&quot;. All 
+</I>&gt;<i> browsers which allow scripts in declarations like CSS should only allow 
+</I>&gt;<i> side effect free scripts in such places.
+</I>&gt;<i> 
+</I>&gt;<i> A script thread should be started in side effect free mode if the script 
+</I>&gt;<i> is invoked from:
+</I>&gt;<i> 
+</I>&gt;<i> 1. Anywhere within CSS, including inline style attributes.
+</I>&gt;<i> 
+</I>&gt;<i> 2. Any javascript: URI of external stylesheets, scripts, objects and 
+</I>&gt;<i> such.
+</I>&gt;<i> 
+</I>&gt;<i> 3. Other ideas?
+</I>&gt;<i> 
+</I>&gt;<i> When a script thread is in side effect free mode:
+</I>&gt;<i> 
+</I>&gt;<i> 1. It stays in this mode until the thread completes.
+</I>&gt;<i> 
+</I>&gt;<i> 2. It can call any non-native function, but the same restrictions apply.
+</I>
+So it can get hold of data that the rest of the page has created, or is 
+storing in its temporary variables (e.g. it can get hold of your calendar 
+data if you're looking at an online calendar application).
+
+&gt;<i> 3. It cannot assign any variables except locals.
+</I>&gt;<i> 
+</I>&gt;<i> 4. It cannot call any native function except those specifically marked 
+</I>&gt;<i> by the spec as side effects free. For example, sin() is side effects 
+</I>&gt;<i> free, and window.open() is not.
+</I>&gt;<i> 
+</I>&gt;<i> 5. It can read any property that can be normally read.
+</I>&gt;<i> 
+</I>&gt;<i> 6. It cannot assign any property for which a native setter function is 
+</I>&gt;<i> used.
+</I>&gt;<i> 
+</I>&gt;<i> 7. It cannot create new object instances except those specifically 
+</I>&gt;<i> marked by the spec as side effects free. For example, RegExp is side 
+</I>&gt;<i> effects free, and Image is not.
+</I>&gt;<i> 
+</I>&gt;<i> 8. Any attempt to break these restrictions should generate an exception.
+</I>&gt;<i> 
+</I>&gt;<i> 9. Optionally, execution time limit may be imposed on the thread, so 
+</I>&gt;<i> that it doesn't make the document unrenderable by running an endless 
+</I>&gt;<i> loop inside CSS expression().
+</I>
+With the above you could still do something like:
+
+   &lt;a style=&quot;display: expression(...)&quot; href=&quot;<A HREF="http://evil.example.com?a">http://evil.example.com?a</A>&quot;&gt;a&lt;/a&gt;
+   &lt;a style=&quot;display: expression(...)&quot; href=&quot;<A HREF="http://evil.example.com?b">http://evil.example.com?b</A>&quot;&gt;b&lt;/a&gt;
+
+...where the first &quot;...&quot; script returns 'none' to convey one piece of 
+information and 'block' to convey another, and the second is the reverse; 
+the user who clicks on the link then exposes the bit of information the 
+script was trying to steal. I'm sure there are more powerful attacks as 
+well, e.g. using href=javascript: to return an HTML page with script.
+
+In short, the complexity is high, as is the risk that it isn't 
+comprehensive. Also, it seems to me that most scripts want to do something 
+more fancy. For example, a calendar widget will want to talk to its 
+server, render new DOMs, interact with the user, etc. What's the use case 
+for these scripts? Are they common enough to warrant their own security 
+model?
+
+
+
+On Mon, 30 Oct 2006, Douglas Crockford wrote:
+&gt;<i>
+</I>&gt;<i> I had been thinking that the solution was to replace JavaScript with a 
+</I>&gt;<i> capability language like E (<A HREF="http://erights.org/">http://erights.org/</A>) and to replace the DOM 
+</I>&gt;<i> with a capability DOM. I am now thinking that a far less drastic 
+</I>&gt;<i> solution is required: a module facility that forms a trust boundary in 
+</I>&gt;<i> the page with a communications mechanism that does not allow capability 
+</I>&gt;<i> leakage.
+</I>&gt;<i> 
+</I>&gt;<i> It requires no changes to JavaScript and a small, incremental change to 
+</I>&gt;<i> HTML. The proposal is here: <A HREF="http://json.org/module.html">http://json.org/module.html</A>
+</I>
+This is basically a subset of the functionality described here:
+
+   <A HREF="http://www.whatwg.org/specs/web-apps/current-work/#crossDocumentMessages">http://www.whatwg.org/specs/web-apps/current-work/#crossDocumentMessages</A>
+
+
+On Tue, 31 Oct 2006, Douglas Crockford wrote:
+&gt;<i>
+</I>&gt;<i> I am proposing the module tag instead.
+</I>
+It basically is the same as the &lt;iframe&gt; element in conjunction with the 
+cross-document messaging functionality in the WHATWG spec.
+
+
+&gt;<i> JSON is a safe subset of JavaScript. It is meaningful in a JavaScsript 
+</I>&gt;<i> context (which is where we currently are). If we ever have a 
+</I>&gt;<i> multilingual future (and I hope that we do), JSON has demonstrated 
+</I>&gt;<i> amazing interoperability.
+</I>
+Indeed. JSON can be used with the API cited above.
+
+
+&gt;<i> I am a big fan of asynchronicity, but I don't think it is indicated in 
+</I>&gt;<i> this case. I want tighter temporal binding between the sender and the 
+</I>&gt;<i> receiver so that they can cooperate in event handling. Such patterns are 
+</I>&gt;<i> complicated if event handling is also the medium of communication. I 
+</I>&gt;<i> also want an exception raised on sending if there isn't a corresponding 
+</I>&gt;<i> receiver. This is an important indication of willingness and ability to 
+</I>&gt;<i> cooperate.
+</I>
+The postMessage() method in the API cited above is actually synchronous, 
+much as in your proposal.
+
+
+&gt;<i> Also I am worried about the event object itself. It is possible to 
+</I>&gt;<i> implement an event mechanism such that the event object is not itself a 
+</I>&gt;<i> conduit for capability leakage, but it is not required by the current 
+</I>&gt;<i> draft.
+</I>
+Could you elaborate on this?
+
+
+On Fri, 15 Dec 2006, Dean Edwards wrote:
+&gt;<i>
+</I>&gt;<i> When creating DHTML widgets (e.g. a colour picker) developers have to 
+</I>&gt;<i> battle the CSS cascade. A widget might be made of various HTML elements 
+</I>&gt;<i> which inherit style from the page. Sometimes inherited styles can mess 
+</I>&gt;<i> with the layout of your widget. So we end up coding stuff like this:
+</I>&gt;<i> 
+</I>&gt;<i> #widget div {margin: 0 !important; padding: 0 !important;}
+</I>&gt;<i> #widget input {border: 0 !important;}
+</I>&gt;<i> 
+</I>&gt;<i> You can't realistically cover all the cases so potentially a new style rule
+</I>&gt;<i> can ruin your widget layout completely.
+</I>&gt;<i> 
+</I>&gt;<i> So I'm suggesting a new element: &lt;reset&gt;
+</I>&gt;<i> 
+</I>&gt;<i> This element is in the document flow as normal except that it acts as a 
+</I>&gt;<i> blank canvas as far as CSS is concerned. Ideally, it should have no 
+</I>&gt;<i> style at all. Like this:
+</I>&gt;<i> 
+</I>&gt;<i> <A HREF="http://developer.yahoo.com/yui/reset/">http://developer.yahoo.com/yui/reset/</A>
+</I>&gt;<i> 
+</I>&gt;<i> The &lt;reset&gt; element acts as a container for HTML elements that are not 
+</I>&gt;<i> included in the CSS cascade. That way we can build and style widgets 
+</I>&gt;<i> without worrying about the page that will contain them.
+</I>
+This sounds very much like something you'd do with XBL, no? Could you 
+elaborate on the use case? I mean, colour pickers are the poster child of 
+XBL use cases.
+
+
+On Fri, 15 Dec 2006, Dean Edwards wrote:
+&gt;<i> 
+</I>&gt;<i> I would still like a way to prevent CSS inheritance though. So far the 
+</I>&gt;<i> suggestions are:
+</I>&gt;<i> 
+</I>&gt;<i> 1. &lt;reset&gt; element
+</I>&gt;<i> 2. inheritstyle=&quot;false&quot; attribute
+</I>&gt;<i> 3. cascade:off; CSS property
+</I>&gt;<i> 
+</I>&gt;<i> I don't really mind which one it is. None of them seems particularly 
+</I>&gt;<i> wrong.
+</I>
+Is it really inheritance you want to stop? Wouldn't you want to stop all 
+styles from applying at that point? e.g. if someone had:
+
+   * { border: solid; }
+
+The 'border' property isn't inherited, but would yous till want the border 
+rule to not apply to the &quot;widget&quot;?
+
+
+On Sun, 17 Dec 2006, Paul Arzul wrote:
+&gt;<i> 
+</I>&gt;<i> (another) common problematic example is google cache. style can 
+</I>&gt;<i> overreach and create a mishmash of unreadable overlapping text and 
+</I>&gt;<i> images. for an example, see the top of the page on wikipedia's entry for 
+</I>&gt;<i> whatwg:
+</I>&gt;<i> 
+</I>&gt;<i> &lt;<A HREF="http://209.85.129.104/custom?q=cache:0s8ftW8HviQJ:en.wikipedia.org/wiki/Web_Hypertext_Application_Technology_Working_Group">http://209.85.129.104/custom?q=cache:0s8ftW8HviQJ:en.wikipedia.org/wiki/Web_Hypertext_Application_Technology_Working_Group</A>&gt;
+</I>&gt;<i> 
+</I>&gt;<i> something that can help is if each party using style limits it's reach 
+</I>&gt;<i> by css signature (eg. &lt;body id=&quot;www-whatwg-org&quot;&gt; and then add the id 
+</I>&gt;<i> selector prefix #www-whatwg-org to each style rule). mixed html shares 
+</I>&gt;<i> the same canvas, so this won't help when absolute positioning interferes 
+</I>&gt;<i> with layout-- as is the case with the google cache example.
+</I>&gt;<i> 
+</I>&gt;<i> do browsers make it easy enough to disable style that we can ignore 
+</I>&gt;<i> this? anyone mixing html seems to run into this problem-- i've seen it 
+</I>&gt;<i> in bookmarklets and greasemonkey scripts too.
+</I>&gt;<i> 
+</I>&gt;<i> advertisers seem to use &lt;iframe&gt;-- although minor tweaking is required: 
+</I>&gt;<i> opera inherits the base document's background-color, mozilla doesn't. i 
+</I>&gt;<i> couldn't find the correct behaviour defined-- any pointers?
+</I>
+This seems like a CSS issue to me. If you change the markup without 
+looking at the styles (the way the Google Cache does) then you should 
+expect weird things to happen.
+
+
+&gt;<i> if this is not out of scope, perhaps we can help vendor clarity by 
+</I>&gt;<i> mentioning which elements (eg. &lt;iframe&gt; and &lt;object&gt;) should typically 
+</I>&gt;<i> &quot;reset&quot; style?
+</I>
+The styles &quot;reset&quot; when you have a new Document. It's quite simple. :-)
+CSS covers this (possibly implicitly).
+
+
+On Fri, 12 Jan 2007, James M Snell wrote:
+&gt;<i> 
+</I>&gt;<i> I've recently been musing over some ideas around sandboxing scripts and 
+</I>&gt;<i> styles within a document [1].  The basic idea is to have some means of 
+</I>&gt;<i> isolating potentially untrustworthy scripts.
+</I>&gt;<i> 
+</I>&gt;<i>   From my blog entry: &quot;Scripts within the sandbox would only see the DOM
+</I>&gt;<i>   of the sandbox. Methods defined outside the sandbox would still be
+</I>&gt;<i>   accessible. External methods could return objects from outside the
+</I>&gt;<i>   sandbox.&quot;
+</I>&gt;<i> 
+</I>&gt;<i> The example I go on to give is this:
+</I>&gt;<i> 
+</I>&gt;<i>   &lt;html&gt;
+</I>&gt;<i>   &lt;body&gt;
+</I>&gt;<i>     &lt;script&gt;
+</I>&gt;<i>       function getElement(id) {
+</I>&gt;<i>         return document.getElementById(id);
+</I>&gt;<i>       }
+</I>&gt;<i>     &lt;/script&gt;
+</I>&gt;<i> 
+</I>&gt;<i>     &lt;sandbox id=&quot;a&quot;&gt;
+</I>&gt;<i>       &lt;div id=&quot;a1&quot;&gt;&lt;/div&gt;
+</I>&gt;<i>       &lt;script&gt;
+</I>&gt;<i>         // this will fail because b1 does not exist in sandbox a
+</I>&gt;<i>         document.getElementById('b1').innerHTML = &quot;foo&quot;;
+</I>&gt;<i> 
+</I>&gt;<i>         // this will succeed because getElement(id) can be called from
+</I>&gt;<i>   within sandbox a
+</I>&gt;<i>         getElement('b1').innerHTML = &quot;foo&quot;;
+</I>&gt;<i>       &lt;/script&gt;
+</I>&gt;<i>     &lt;/sandbox&gt;
+</I>&gt;<i> 
+</I>&gt;<i>     &lt;sandbox id=&quot;b&quot;&gt;
+</I>&gt;<i>       &lt;div id=&quot;b1&quot;&gt;&lt;/div&gt;
+</I>&gt;<i>     &lt;/sandbox&gt;
+</I>&gt;<i>   &lt;/body&gt;
+</I>&gt;<i>   &lt;/html&gt;
+</I>&gt;<i> 
+</I>&gt;<i> The use of the sandbox tag is purely illustrative.  As Asbj&#195;&#184;rn Ulsberg 
+</I>&gt;<i> points out in the comments on my entry, the same effect could be 
+</I>&gt;<i> achieved using either a new DOM and/or CSS property. For instance, we 
+</I>&gt;<i> could replace the &lt;sandbox&gt; with &lt;div style=&quot;scripts:restricted&quot;&gt; (or 
+</I>&gt;<i> some variation thereof).
+</I>&gt;<i> 
+</I>&gt;<i> Whatever shape the mechanism ultimately takes, having a way of isolating 
+</I>&gt;<i> scripts within a document would be extremely beneficial.
+</I>
+This is similar to some of the other ideas. It's not entirely clear what 
+this solves exactly, though, nor how it should work (e.g. does it require 
+per-method-invocation security checks? That's expensive).
+
+
+On Fri, 12 Jan 2007, Asbj&#248;rn Ulsberg wrote:
+&gt;<i> 
+</I>&gt;<i> Frames are a terrible solution. The content is after all a part of the 
+</I>&gt;<i> page it's hosted in, but we want to sandbox it to make sure it can't do 
+</I>&gt;<i> any harm.
+</I>&gt;<i> 
+</I>&gt;<i> Let's say we'd like to sandbox anonymous user-contributed comments on a 
+</I>&gt;<i> blog, but not comments from logged in users. That would require all 
+</I>&gt;<i> anonymous comments to be placed within an iframe. For 100 anonymous 
+</I>&gt;<i> comments, that's 100 iframes on a single web page. Don't tell me that's 
+</I>&gt;<i> an elegant solution.
+</I>
+Why not? Or rather, why is a 100 &lt;sandbox&gt; frames (or whatever) better? 
+
+
+On Fri, 12 Jan 2007, James M Snell wrote:
+&gt;<i> 
+</I>&gt;<i> Again, I'm not proposing any particular solution.  Nor am I saying there 
+</I>&gt;<i> aren't already existing solutions to these problems that can work.  
+</I>&gt;<i> What I'm saying is that having some way of isolating a script would be 
+</I>&gt;<i> ideal and I was curious as to what others had to say about it.
+</I>
+We have a way to isolate a remote script -- run it in an &lt;iframe&gt;. I'm not 
+sure I really understand the use case or requirement here.
+
+
+On Sat, 13 Jan 2007, Mike Schinkel wrote:
+&gt;<i> 
+</I>&gt;<i> A community site could allow user-contributed script to add 
+</I>&gt;<i> functionality to the community on sites such as free-form as a wiki, and 
+</I>&gt;<i> hence with open-ended use cases. But that's not really possible today 
+</I>&gt;<i> because the almost certainty of maliciousness.
+</I>
+I'm not sure how it could be possible, really.
+
+
+&gt;<i> I'd rather not describe it explicitly yet, but consider a situation 
+</I>&gt;<i> where I have a script that operates on a section of HTML that allows 
+</I>&gt;<i> plugs-in from arbitrary URLs.  A webmaster could use this but would have 
+</I>&gt;<i> to trust that the webmaster of the plugins would not change their script 
+</I>&gt;<i> after he used them and thus would be much less likely to use this 
+</I>&gt;<i> functionality. If he could sandbox it, that requirement for trust would 
+</I>&gt;<i> be diminished and it would increase the likelihood the use of the 
+</I>&gt;<i> functionality would spread. FYI, an IFRAME would NOT work for this 
+</I>&gt;<i> use-case as it is about linking script files ot the main document, not 
+</I>&gt;<i> about visual widgets.
+</I>
+Without much more detail, it's hard to really analyse this case.
+
+
+
+PROBLEMS
+
+There are several areas where we could help matters.
+
+* Insertion of non-markup data into:
+   - the body of the page
+   - text attributes
+   - URI attributes
+   - parts of URIs in attributes
+   - strings in scripts
+   - CSS in external files
+   - CSS in &lt;style&gt;
+   - CSS in style=&quot;&quot;
+   - etc
+
+* Insertion of limited markup into the page body, e.g. blog comments or 
+forum posts, allowing a subset of site-hosted images, allowing links (but 
+only with certain values, forcing them to have rel=nofollow), allowing 
+certain semantic markup idioms (&lt;del&gt;, &lt;cite&gt;, &lt;i&gt;, &lt;ul&gt;, &lt;dialog&gt;) but 
+disallowing anything script- or style- related.
+
+* Insertion of limited script-enabled content, e.g. animated scripted SVG 
+or HTML, without allowing the script to access content on the site to 
+perform any kind of cross-site scripting, or e.g. to enable widgets to be 
+included safely. This can be further subdivided into two different cases:
+   - Only block cross-site scripting (basically, allow the page to do 
+     anything, but pretend it is from another domain)
+   - Block anything that could be obnoxious (e.g. alert(),
+     window.open(), etc)
+
+There are also other use cases, but I'm not clear on what those are. We 
+didn't really see much detailed descriptions of problems in the threads on 
+the topic.
+
+
+SOLUTIONS
+
+Inserting a block of non-markup content safely could be done in HTML (not 
+XML) by introducing a new feature to the parser, which switched the parser 
+into &quot;plaintext&quot; mode for a certain number of characters:
+
+   &lt;body&gt;
+    &lt;p&gt;Hello, you said:
+     &lt;?insert size=11?&gt;Hello World
+    &lt;/p&gt;
+   &lt;/body&gt;
+
+Then, if the user tries to insert something bad like 
+&quot;&lt;script&gt;alert(window.cookie)&lt;/script&gt;&quot; it would just be treated as plain 
+text and nothing bad would happen:
+
+   &lt;body&gt;
+    &lt;p&gt;Hello, you said:
+     &lt;?insert size=37?&gt;&lt;script&gt;alert(window.cookie)&lt;/script&gt;
+    &lt;/p&gt;
+   &lt;/body&gt;
+
+...nothing bad would happen in new UAs.
+
+However, servers would still have to do processing server-side to handle 
+legacy UAs. Furthermore, servers would have to count characters the same 
+way as the user agent. For example, that would mean that we would have to 
+define exactly how many characters a malformed UTF-8 sequence is, and even 
+then, we'd have to rely on the server being able to handle it. This is 
+actually much more complicated than just escaping all &lt; and &amp; characters, 
+and thus would actually probably make things worse.
+
+We can't do something like this:
+
+   &lt;body&gt;
+    &lt;p&gt;Hello, you said:
+     &lt;sandbox&gt;Hello World&lt;/sandbox&gt;
+    &lt;/p&gt;
+   &lt;/body&gt;
+
+...because nothing stops the user from inserting &quot;&lt;/sandbox&gt;&quot; into the 
+string -- e.g. if the user tried to insert 
+&quot;&lt;/sandbox&gt;&lt;script&gt;alert(window.cookie)&lt;/script&gt;&quot; the result would be:
+
+   &lt;body&gt;
+    &lt;p&gt;Hello, you said:
+     &lt;sandbox&gt;&lt;/sandbox&gt;&lt;script&gt;alert(window.cookie)&lt;/script&gt;&lt;/sandbox&gt;
+    &lt;/p&gt;
+   &lt;/body&gt;
+
+...and the result would be the script executing. Now we could exand that 
+by putting, e.g., a hash into the &lt;sandbox&gt; element's attributes:
+
+   &lt;body&gt;
+    &lt;p&gt;Hello, you said:
+     &lt;sandbox md5=&quot;e59ff97941044f85df5297e1c302d260&quot;&gt;Hello World&lt;/sandbox&gt;
+    &lt;/p&gt;
+   &lt;/body&gt;
+
+...but that doesn't actually help us determine where the end should be. 
+For example consider the case where the user tries to insert the 
+following:
+
+   Hello World&lt;/sandbox&gt;
+    &lt;/p&gt;
+   &lt;/body&gt;
+   &lt;script&gt;alert(window.cookie)&lt;/script&gt;
+   &lt;!--
+
+When you insert the data, it ends up like:
+
+   &lt;body&gt;
+    &lt;p&gt;Hello, you said:
+     &lt;sandbox md5=&quot;06fa1b24b7c533055bddabbbae04b77b&quot;&gt;Hello World&lt;/sandbox&gt;
+    &lt;/p&gt;
+   &lt;/body&gt;
+   &lt;script&gt;alert(window.cookie)&lt;/script&gt;
+   &lt;!--
+   &lt;/sandbox&gt;
+    &lt;/p&gt;
+   &lt;/body&gt;
+
+...which has a non-matching md5sum for the first part, but that doesn't 
+really help us -- where should we stop parsing? Aborting the rendering 
+altogether would just change this from an XSS attack to a DOS attack, 
+which isn't much more pleasant.
+
+You could say that the user must simply remove all instances of 
+&quot;&lt;/sandbox&quot;, but that at that point I wouldn't be able to post this e-mail 
+in a blog comment (as it contains the string &quot;&lt;/sandbox&quot;). Requiring, 
+then, that the server escape the &lt; characters just leads us back to where 
+we are today, with this strawman &lt;sandbox&gt; not having helped us at all.
+
+And here we haven't even discussed the possibilities of the attacker 
+faking the hash so that the hash for the part up to the attacker's 
+&quot;&lt;/sandbox&gt;&quot; end tag is the same as the sum for the whole thing (which 
+would prevent the element from working at all). MD5 and SHA-1 are both 
+broken to some extent or another. In fact, in this case even a brute force 
+attack (e.g. leveraging the millions of machines that the attacker might 
+already have compromised) would be a problem, as it would only take a 
+single known hash collision with some suitable plain text (where 
+&quot;suitable&quot; means that it contains the payload after the &lt;/noscript&gt;) to 
+permanently break &lt;sandbox&gt; for an entire generation of browsers.
+
+In fact I cannot see _any_ solution to the problem of allowing safe and 
+server-side-free inclusion of arbitrary text in the body of an HTML page 
+that doesn't have obvious attacks or limitations.
+
+The current solution for server-side inclusion of arbitrary text is well 
+known: escape all &amp; and &lt; characters in the string to their HTML entities.
+
+
+The solutions listed above only address the body of an HTML document; one 
+might want to introduce markup in many other parts of a page. However, the 
+syntax of the language constrains us even further in finding ways to put 
+data there. For instance, to do the same kind of thing for attributes 
+would require some new attribute syntax:
+
+   &lt;a href=&quot;...&quot; ?21 title=&quot;This is inserted text&quot;&gt; ...
+
+...(where the ?21 means &quot;the next attribute has 21 characters), but that 
+has all the problems described above, and is thus no simpler to do in 
+practice than simply escaping all &quot; and &amp; characters.
+
+I can't really see _any_ way of doing safe insertion (that is, as safe as 
+you can get by the methods above) of strings into attributes containing 
+URIs, or into the middle of those URIs, given the desire to avoid systems 
+that redirect to javascript: URIs and the like.
+
+Similarly, I couldn't see a good way of labelling where strings are going 
+to be inserted into scripts (either externally, in &lt;script&gt;, or in onfoo 
+attributes) or stylesheets (externally, &lt;style&gt;, style=&quot;&quot;) to ensure their 
+proper escaping.
+
+
+Here are some general rules for safety when handling user input that isn't 
+CSS, JS, or HTML, when you want to embed it into CSS, JS, or HTML.
+
+Always know the encoding of input you receive, and convert it to UTF-8 
+immediately. Store it as UTF-8.
+
+Always output UTF-8, with Content-Type headers that specify UTF-8.
+
+If you want to insert text into a URI component (e.g. a query), the 
+simplest way is to convert the string to UTF-8, then encode all bytes that 
+aren't in the ASCII a-z A-Z 0-9 range as %XX where XX is the hexadecimal 
+representation of the byte's value.
+
+Always quote JS and CSS strings that are to take user input with single 
+quote characters.
+
+If you want to insert text into a JS or CSS string delimited by single 
+quote characters, escape all \, / and ' characters by prefixing them all 
+by a single \ character.
+
+Always quote attribute values that are to take user input with double 
+quote characters.
+
+If you want to insert JS, CSS, or a URI into an attribute delimited by 
+double-quote characters, you need to escape all &amp; and &quot; characters by 
+replacing them with their entity equivalents (&amp; and &quot; 
+respectively).
+
+If you want to insert text into the body of an HTML file, or into a 
+&lt;title&gt; element, escape all &amp; and &lt; characters by replacing them with 
+their entity equivalents (&amp; and &lt; respectively).
+
+
+
+Insertion of limited markup is even harder for two reasons. First, nobody 
+agrees on exactly what markup to limit it to. Secondly, you have all the 
+problems described in the previous set of features, except that the 
+parsing is even more complex.
+
+One way to do it would be to encode the markup into a base64-encoded data: 
+URI and then point an &lt;iframe&gt; at it:
+
+   &lt;iframe src=&quot;data:text/html;base64,PHA%2BVGhpcyBpcyBteSBzYW1wbGUgbWFya3VwITwvcD4%3D&quot;
+   &gt;&lt;/iframe&gt;
+
+...of course then we'd lose the styling, so we'd have to have some sort of 
+way to make the styling go through:
+
+   &lt;iframe src=&quot;data:text/html;base64,PHA%2BVGhpcyBpcyBteSBzYW1wbGUgbWFya3VwITwvcD4%3D&quot;
+           let-style-through
+   &gt;&lt;/iframe&gt;
+
+...and we'd need a way to make sure the UA blocked the dangerous stuff:
+
+   &lt;iframe src=&quot;data:text/html;base64,PHA%2BVGhpcyBpcyBteSBzYW1wbGUgbWFya3VwITwvcD4%3D&quot;
+           let-style-through
+           disable-scripting-and-other-dangerous-things
+   &gt;&lt;/iframe&gt;
+
+&quot;Dangerous things&quot; might include forms and styling (to prevent phishing).
+
+
+At this point though we're very close to the next and last thing on my 
+list, namely insertion of carefully controlled content with scripting.
+
+The sanest way I can see of limiting scripting is to give it its own 
+browsing context (aka scripting context, or global scope). Anything short 
+of this would make the security model overly complicated -- the security 
+model is what we want to keep at its simplest, as I've said several times 
+in this e-mail.
+
+This basically implies an &lt;iframe&gt;, again possibly with the data in a 
+data: URI, and combined with a way to ioslate the content in the &lt;iframe&gt; 
+from the content of the parent browsing context:
+
+   &lt;iframe src=&quot;data:text/html;base64,PHA%2BVGhpcyBpcyBteSBzYW1wbGUgbWFya3VwITwvcD4%3D&quot;
+           isolate-scripts
+   &gt;&lt;/iframe&gt;
+
+In addition, if we want to enable untrusted scripting without enabling
+annoyances, we could add an attribute that sets a flag on the browsing 
+context to disable certain APIs including window.alert and the ability to 
+open new browsing contexts:
+
+   &lt;iframe src=&quot;data:text/html;base64,PHA%2BVGhpcyBpcyBteSBzYW1wbGUgbWFya3VwITwvcD4%3D&quot;
+           isolate-scripts
+           disable-annoyances
+   &gt;&lt;/iframe&gt;
+
+The names above are a bit long; here's a summary of what the four modes 
+could be:
+
+   seamless - if present, styles cascade through the browsing context 
+   boundary; ignored if the origin doesn't match the parent's.
+
+   noscript - disables all scripts in the embedded page
+
+   isolate - make the origin of the file not match the parent's, 
+   regardless of the real origins
+
+   restrict - disable certain APIs in the browsing context
+
+What do people think?
+
+
+In addition to the above, another area that currently involves scripts 
+which could be sandboxed is one Hallvord pointed out, namely getting JSON 
+data from a remote server. In my opinion this is better served by using a 
+safe data download mechanism such as XXX (the Cross-site Extensions to 
+XMLHttpRequest that I proposed to the W3C eleven months ago [1]), coupled 
+with a safe parser mechanism (e.g. using XML, or a JSON parser).
+
+[1] <A HREF="http://lists.w3.org/Archives/Public/public-webapi/2006Jun/0012">http://lists.w3.org/Archives/Public/public-webapi/2006Jun/0012</A>
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="053520.html">[whatwg] Proposal: Allow block content inside label element
+</A></li>
+	<LI>Next message: <A HREF="053476.html">[whatwg] Sandboxing ideas
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#53471">[ date ]</a>
+              <a href="thread.html#53471">[ thread ]</a>
+              <a href="subject.html#53471">[ subject ]</a>
+              <a href="author.html#53471">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

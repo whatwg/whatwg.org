@@ -1,0 +1,208 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] ConnectionPeer experiences
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20ConnectionPeer%20experiences&In-Reply-To=%3C4D435BFC.7040204%40alvestrand.no%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="030098.html">
+   <LINK REL="Next"  HREF="030125.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] ConnectionPeer experiences</H1>
+<!--htdig_noindex-->
+    <B>Harald Alvestrand</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20ConnectionPeer%20experiences&In-Reply-To=%3C4D435BFC.7040204%40alvestrand.no%3E"
+       TITLE="[whatwg] ConnectionPeer experiences">harald at alvestrand.no
+       </A><BR>
+    <I>Fri Jan 28 16:14:52 PST 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="030098.html">[whatwg] ConnectionPeer experiences
+</A></li>
+        <LI>Next message: <A HREF="030125.html">[whatwg] ConnectionPeer experiences
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#30109">[ date ]</a>
+              <a href="thread.html#30109">[ thread ]</a>
+              <a href="subject.html#30109">[ subject ]</a>
+              <a href="author.html#30109">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Thank you Patrik, I enjoyed reading that!
+
+Questions:
+- In your experimentation, did you find any reasonable underlying 
+protocol to map sendFile, sendBitmap and their corresponding callbacks 
+to, or did you just ignore them for now?
+- In connecting, did you operate with connections going via a server, or 
+did you go between browsers? If so, how did you identify the server vs 
+identifying the remote participant? Was the &quot;remoteConfiguration&quot; method 
+flexible enough?
+
+I'm currently staring at the problem of defining a set of semantics for 
+mapping this to RTC-Web protocols, and am having some problems 
+interpreting what's currently in the spec, so would like your 
+interpretation.
+
+                     Harald
+
+On 01/26/11 01:04, Patrik Persson J wrote:
+&gt;<i> We have done some experimentation with the ConnectionPeer API. We have
+</I>&gt;<i> an initial implementation of a subset of the API, using ICE (RFC 5245)
+</I>&gt;<i> for the peer-to-peer handshaking.  Our implementation is
+</I>&gt;<i> WebKit/GTK+/gstreamer-based, and we of course intend to submit it to
+</I>&gt;<i> WebKit, but the implementation is not quite ready for that yet.
+</I>&gt;<i>
+</I>&gt;<i> More information about our work so far can be found here:
+</I>&gt;<i> <A HREF="https://labs.ericsson.com/developer-community/blog/beyond-html5-peer-peer-conversational-video">https://labs.ericsson.com/developer-community/blog/beyond-html5-peer-peer-conversational-video</A>
+</I>&gt;<i>
+</I>&gt;<i> However, we have bumped into some details that we'd like to discuss
+</I>&gt;<i> here right away.  The following is our mix of proposals and questions.
+</I>&gt;<i>
+</I>&gt;<i> 1. We propose adding a readyState attribute, to decouple the
+</I>&gt;<i>     onconnect() callback from any observers (such as the UI).
+</I>&gt;<i>
+</I>&gt;<i>        const unsigned short CONNECTING = 0;
+</I>&gt;<i>        const unsigned short CONNECTED = 1;
+</I>&gt;<i>        const unsigned short CLOSED = 2;
+</I>&gt;<i>        readonly attribute unsigned short readyState;
+</I>&gt;<i>
+</I>&gt;<i> 2. We propose replacing the onstream event with custom events of type
+</I>&gt;<i>     RemoteStreamEvent, to distinguish between adding and removing
+</I>&gt;<i>     streams.
+</I>&gt;<i>
+</I>&gt;<i>        attribute Function onstreamadded;   // RemoteStreamEvent
+</I>&gt;<i>        attribute Function onstreamremoved; // RemoteStreamEvent
+</I>&gt;<i>        ...
+</I>&gt;<i>        interface RemoteStreamEvent : Event {
+</I>&gt;<i>           readonly attribute Stream stream;
+</I>&gt;<i>        };
+</I>&gt;<i>
+</I>&gt;<i>     The 'stream' attribute indicates which stream was added/removed.
+</I>&gt;<i>
+</I>&gt;<i> 3. We propose renaming addRemoteConfiguration to
+</I>&gt;<i>     setRemoteConfiguration.  Our understanding of the ConnectionPeer is
+</I>&gt;<i>     that it provides a single-point-to-single-point connection; hence,
+</I>&gt;<i>     only one remote peer configuration is to be set, rather than many
+</I>&gt;<i>     to be added.
+</I>&gt;<i>
+</I>&gt;<i>        void setRemoteConfiguration(in DOMString configuration, in optional DOMString remoteOrigin);
+</I>&gt;<i>
+</I>&gt;<i> 4. We propose swapping the ConnectionPeerConfigurationCallback
+</I>&gt;<i>     callback parameters. The current example seems to use only one (the
+</I>&gt;<i>     second one).  Swapping them allows clients that care about 'server'
+</I>&gt;<i>     to do so, and clients that ignore it (such as the current example)
+</I>&gt;<i>     to do so too.
+</I>&gt;<i>
+</I>&gt;<i>        [Callback=FunctionOnly, NoInterfaceObject]
+</I>&gt;<i>        interface ConnectionPeerConfigurationCallback {
+</I>&gt;<i>           void handleEvent(in DOMString configuration, in ConnectionPeer server);
+</I>&gt;<i>        };
+</I>&gt;<i>
+</I>&gt;<i> 5. Should a size limit to text messages be specified? Text messages
+</I>&gt;<i>     with UDP-like behavior (unimportant=true) can't really be reliably
+</I>&gt;<i>     split into several UDP packets.  For such long chunks of data, file
+</I>&gt;<i>     transfer seems like a better option anyway.
+</I>&gt;<i>
+</I>&gt;<i> In summary, then, our proposal for a revised ConnectionPeer looks as follows:
+</I>&gt;<i>
+</I>&gt;<i>     [Constructor(in DOMString serverConfiguration)]
+</I>&gt;<i>     interface ConnectionPeer {
+</I>&gt;<i>        void sendText(in DOMString text, in optional boolean unimportant); // if second arg is true, then use unreliable low-latency transport (UDP-like), otherwise guarantee delivery (TCP-like)
+</I>&gt;<i>        attribute Function ontext; // receiving
+</I>&gt;<i>
+</I>&gt;<i>        void sendBitmap(in HTMLImageElement image);
+</I>&gt;<i>        attribute Function onbitmap; // receiving
+</I>&gt;<i>
+</I>&gt;<i>        void sendFile(in File file);
+</I>&gt;<i>        attribute Function onfile; // receiving
+</I>&gt;<i>
+</I>&gt;<i>        void addStream(in Stream stream, in optional DOMString metadata, in optional String mediaFormat);
+</I>&gt;<i>                                 //Start stream, add meta data and encoding parameters
+</I>&gt;<i>        void removeStream(in Stream stream);
+</I>&gt;<i>        readonly attribute Stream[] localStreams;
+</I>&gt;<i>        readonly attribute Stream[] remoteStreams;
+</I>&gt;<i>
+</I>&gt;<i>        attribute Function onstreamadded; // receiving new stream
+</I>&gt;<i>        attribute Function onstreamremoved; // stream not received any more
+</I>&gt;<i>
+</I>&gt;<i>        void getLocalConfiguration(in ConnectionPeerConfigurationCallback callback); // maybe this should be in the constructor, or be an event
+</I>&gt;<i>        void setRemoteConfiguration(in DOMString configuration, in optional DOMString remoteOrigin); // remote origin is assumed to be same-origin if not specified. If specified, has to match remote origin (checked in handshake). Should support leading &quot;*.&quot; to mean &quot;any subdomain of&quot;.
+</I>&gt;<i>        void close(); // disconnects and stops listening
+</I>&gt;<i>
+</I>&gt;<i>        attribute Function onconnect;
+</I>&gt;<i>        attribute Function onerror;
+</I>&gt;<i>        attribute Function ondisconnect;
+</I>&gt;<i>
+</I>&gt;<i>        const unsigned short CONNECTING = 0;
+</I>&gt;<i>        const unsigned short CONNECTED = 1;
+</I>&gt;<i>        const unsigned short CLOSED = 2;
+</I>&gt;<i>        readonly attribute unsigned short readyState;
+</I>&gt;<i>     };
+</I>&gt;<i>
+</I>&gt;<i>     interface RemoteStreamEvent : Event {
+</I>&gt;<i>        readonly attribute Stream stream;
+</I>&gt;<i>     };
+</I>&gt;<i>
+</I>&gt;<i>     [Callback=FunctionOnly, NoInterfaceObject]
+</I>&gt;<i>     interface ConnectionPeerConfigurationCallback {
+</I>&gt;<i>        void handleEvent(in DOMString configuration, in ConnectionPeer server);
+</I>&gt;<i>     };
+</I>&gt;<i>
+</I>&gt;<i> What do you think?
+</I>&gt;<i>
+</I>&gt;<i> In addition to the above there is a need to add support for
+</I>&gt;<i> identifying streams (so that the receiving end can use the right
+</I>&gt;<i> element for rendering) and for influencing the media format.  Those
+</I>&gt;<i> parts we're still working on.
+</I>&gt;<i>
+</I>&gt;<i> --
+</I>&gt;<i>     Patrik Persson, Ericsson Research
+</I>&gt;<i>     mailto:<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">patrik.j.persson at ericsson.com</A>
+</I>&gt;<i>
+</I>
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="030098.html">[whatwg] ConnectionPeer experiences
+</A></li>
+	<LI>Next message: <A HREF="030125.html">[whatwg] ConnectionPeer experiences
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#30109">[ date ]</a>
+              <a href="thread.html#30109">[ thread ]</a>
+              <a href="subject.html#30109">[ subject ]</a>
+              <a href="author.html#30109">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

@@ -1,0 +1,147 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] RFC: Alternatives to storage mutex for cookies and localStorage
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20RFC%3A%20Alternatives%20to%20storage%20mutex%20for%20cookies%20and%0A%20localStorage&In-Reply-To=%3C4AA6A133.6050907%40mozilla.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="065034.html">
+   <LINK REL="Next"  HREF="065046.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] RFC: Alternatives to storage mutex for cookies and localStorage</H1>
+<!--htdig_noindex-->
+    <B>Chris Jones</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20RFC%3A%20Alternatives%20to%20storage%20mutex%20for%20cookies%20and%0A%20localStorage&In-Reply-To=%3C4AA6A133.6050907%40mozilla.com%3E"
+       TITLE="[whatwg] RFC: Alternatives to storage mutex for cookies and localStorage">cjones at mozilla.com
+       </A><BR>
+    <I>Tue Sep  8 11:23:47 PDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="065034.html">[whatwg] RFC: Alternatives to storage mutex for cookies and	localStorage
+</A></li>
+        <LI>Next message: <A HREF="065046.html">[whatwg] RFC: Alternatives to storage mutex for cookies and	localStorage
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#65045">[ date ]</a>
+              <a href="thread.html#65045">[ thread ]</a>
+              <a href="subject.html#65045">[ subject ]</a>
+              <a href="author.html#65045">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>In general, I agree with Rob about this proposal.  What problem with 
+storage mutex as spec'd today does your proposal solve?
+
+I'm eagerly willing to concede explicit 
+beginTransaction()/commitTransaction() for a window.transaction() 
+wrapper that implicitly does those.
+
+Aaron Boodman wrote:
+&gt;<i> On Tue, Sep 8, 2009 at 1:41 AM, Robert O'Callahan&lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">robert at ocallahan.org</A>&gt; wrote:
+</I>&gt;&gt;<i> What is the intended semantics here? Chris' explicit commitTransaction would
+</I>&gt;&gt;<i> throw an exception if the transaction was aborted due to data inconsistency,
+</I>&gt;&gt;<i> leaving it up to the script to retry --- and making it clear to script
+</I>&gt;&gt;<i> authors that non-storage side effects during the transaction are not undone.
+</I>&gt;&gt;<i> How would you handle transaction aborts?
+</I>&gt;<i> 
+</I>&gt;<i> Calls to transaction() are queued and executed serially per-origin
+</I>&gt;<i> with exclusive access. There is no such thing as a transaction abort
+</I>&gt;<i> because there cannot be consistency problems because of the serialized
+</I>&gt;<i> access.
+</I>&gt;<i> 
+</I>
+No, transactions can still fail.  They can fail in ways immediately 
+hidden from the script that requested them if the UA has to interrupt 
+the conceptually executing transaction in the ways enumerated in a 
+separate branch of this thread.  Later script executions can observe 
+inconsistent state unless more is specified by your proposal.
+
+Transactions can also fail visibly if write-to-disk fails (probably also 
+in other ways I haven't considered).  It's not clear what should happen 
+wrt to your proposal in this case.
+
+(We could pretend that these failures never occur, but IMHO my original 
+proposal handles both naturally.)
+
+&gt;&gt;<i> You'd have to implement it via a mutex.
+</I>&gt;<i> 
+</I>&gt;<i> I think you would have a queue of all pending requests for access to
+</I>&gt;<i> storage, along with their associated callbacks, message loops, and
+</I>&gt;<i> execution environments. Each time the local storage frees up, if there
+</I>&gt;<i> is any queued request, invoke the callback in the correct environment.
+</I>&gt;<i> 
+</I>&gt;&gt;<i> An optimized implementation could
+</I>&gt;&gt;<i> wait until the first operation that can't be un-done before acquiring it,
+</I>&gt;&gt;<i> and do everything optimistically until then.  This is the same situation as
+</I>&gt;&gt;<i> WebDatabase if I understand it correctly.
+</I>&gt;<i> 
+</I>&gt;<i> You can't do this because upgrading the lock could block the UI
+</I>&gt;<i> thread. Same thing with the database spec.
+</I>&gt;<i> 
+</I>&gt;<i> If you want to get fancy, the transaction() method can take a
+</I>&gt;<i> read/write param. This is what the database spec does, but I think it
+</I>&gt;<i> is overkill here, personally.
+</I>&gt;<i> 
+</I>
+I have to admit that I didn't closely read the Web Database spec before 
+making the OP.  Like Rob, my scan of the text led me to believe that it 
+provided an API to asynchronously execute SQL free from script side 
+effects.  It does *not*.  Arbitrary side-effecty script statements can 
+execute within Web Database transactions.  And these transactions can be 
+synchronous.  And like my OP concerning localStorage, Web Database 
+transactions are allowed to fail by the spec.
+
+In fact, I believe that the &quot;Synchronous database API&quot; describes the 
+same transaction semantics as I proposed in the OP.  That spec adds 
+implicit begin/commitTransaction and read-only transactions, but 
+otherwise the semantics are the same.
+
+So I'd like to amend my original proposal to be
+
+   Use Synchronous Web Database API transaction semantics.  Except do 
+not offer readTransaction: a transaction is implicitly a read-only 
+transaction if only getItem() is called on localStorage from within 
+localStorage.transaction().
+
+SELUAs (single-event-loop UAs) can implement this semantics without 
+mutexes.  MELUAs (multi-event-loop UAs) can implement this semantics 
+with mutexes, but more interesting and performant non-blocking 
+implementations also seem possible (which is what I had in mind with the 
+OP.)
+
+Cheers,
+Chris
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="065034.html">[whatwg] RFC: Alternatives to storage mutex for cookies and	localStorage
+</A></li>
+	<LI>Next message: <A HREF="065046.html">[whatwg] RFC: Alternatives to storage mutex for cookies and	localStorage
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#65045">[ date ]</a>
+              <a href="thread.html#65045">[ thread ]</a>
+              <a href="subject.html#65045">[ subject ]</a>
+              <a href="author.html#65045">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

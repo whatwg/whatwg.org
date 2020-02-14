@@ -1,0 +1,190 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg]  Canvas suggestions
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20%20Canvas%20suggestions&In-Reply-To=%3C4623E0C1.1060903%40laposte.net%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="053195.html">
+   <LINK REL="Next"  HREF="053210.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg]  Canvas suggestions</H1>
+<!--htdig_noindex-->
+    <B>Jordan OSETE</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20%20Canvas%20suggestions&In-Reply-To=%3C4623E0C1.1060903%40laposte.net%3E"
+       TITLE="[whatwg]  Canvas suggestions">jordan.osete at laposte.net
+       </A><BR>
+    <I>Mon Apr 16 13:46:57 PDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="053195.html">[whatwg] Canvas suggestions
+</A></li>
+        <LI>Next message: <A HREF="053210.html">[whatwg] Canvas suggestions
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#53206">[ date ]</a>
+              <a href="thread.html#53206">[ thread ]</a>
+              <a href="subject.html#53206">[ subject ]</a>
+              <a href="author.html#53206">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Maciej Stachowiak wrote :
+
+&gt;<i> One reason the API works this way is that in the CoreGraphics drawing 
+</I>API on
+&gt;<i> the Mac, there's no way to add anything to the clip region directly, so 
+</I>&gt;<i> it would be necessary to track all the context state manually and union 
+</I>&gt;<i> paths to support these operations. The
+</I>
+Didn't know that. Being able to do other operations with clipping paths 
+would be useful, though. Wouldn't there a way to implement it in the UAs 
+itself for these cases, even if there is a slight loss of performance on 
+some systems?
+Unfortunately if we want to do another operation that is not native, 
+only the UA can implement it, not the web application.
+If that is not possible, a way to reset the clipping path to full 
+without having to call save/restore would still be appreciated.
+
+&gt;<i> Many graphics APIs (including CoreGraphics) have a built-in LIFO model 
+</I>&gt;<i> for save/restore, so it's likely to actually lead to worse performance 
+</I>&gt;<i> to support fine-grained save/restore on such systems.
+</I>
+Hm, unfortunate. Well, if there is a way to restore to a full clipping 
+path without that, it is less important for me.
+
+&gt;<i> Changing the [color] property would be a compatibility risk, but
+</I>
+In that case, we could detect if the application tries to set an array 
+to the properties fillStyle or strokeStyle, and if it is the case, then 
+it means that the given application is more recent than the change from 
+string to array, and we can switch to an array-like reading.
+An internal &quot;colorsAsArray&quot; flag could then be set, and any reading from 
+any color property would after that return an array.
+Maybe let the possibility to switch back to the original behaviour by 
+setting to a string?
+Note that setting any color to a zero-length array should not modify the 
+property itself, but still set the internal &quot;colorsAsArray&quot; flag.
+
+Ie:
+ctx.fillStyle = [];		//sets the global internal colorsAsArray flag 
+without changing the fill-color value
+alert( ctx.strokeStyle.length );//should display 4
+ctx.fillStyle[4] = 0.5;		//only affect transparency
+ctx.strokeStyle = '';		//clears flag colorsAsArray without changing the 
+value
+alert( ctx.strokeStyle );	//displays either a &quot;#xxxxxx&quot; or a &quot;rgba(...)&quot; 
+string depending on the alpha value
+
+&gt;<i> If we wanted to have more introspection of paths, I think it would make 
+</I>&gt;<i> sense to have a path object and let you get one for the current path.
+</I>
+Indeed, it would be the best way, though retrieving the last point would 
+still be handy, and probably simpler to implement ;)
+If this is accepted, a &quot;getLastAngle&quot; would be useful as well, wich 
+would return the angle of the tangeant to the last path component drawn, 
+at the last point. The browser already knows how to calculate that (it 
+has to know because of line joins and miter limit).
+
+Maciej Stachowiak wrote:
+
+ &gt; You can achieve relative moves by doing a translation to the current
+ &gt; point when drawing; this is a more general version of what your
+ &gt; pathBase property would do.
+
+It would indeed be more the best way, allowing full transformations 
+while drawing. See the next point.
+
+Stefan Haustein wrote:
+
+ &gt;the WHATWG spec says you cannot do so (section 3.14.11.1.8):
+ &gt;
+ &gt;&quot;Note: The transformation is applied to the path when it is drawn, not
+ &gt; when the path is constructed. Thus, a single path can be constructed
+ &gt; and then drawn according to different transformations without
+ &gt; recreating the path.&quot;
+ &gt;
+ &gt; BTW: The Mozilla Developer Connection clock sample relies on applying
+ &gt; transformations at construction time, but runs fine in Firefox 2, so
+ &gt; at least the Firefox implementation seems to be non-conforming in this
+ &gt; respect.
+
+Yes, but there are complex shapes that can be made really easier to draw 
+this way. On the other hand, the way the current specification works 
+allows to construct a single shape once, and draw it in different ways 
+around, by just modifying the transform attribute...
+It would be nice to have both, being able to use transformations 
+independantly for drawing and constructing the path.
+I don't know if it would be very hard to implement or not? (well, 
+obviously not for the mozilla project, since they already have it ;)
+
+Anyway, now that you mention it, we really need a way to retrieve the 
+current transform matrix. Like the current point, it is something that 
+already is in the browser's memory, so a function returning an array 
+would be enough.
+
+
+ &gt; In my opinion, relative moves easily become confusing in the case of
+ &gt; Bezier Curves (what is the point of reference for the third and fourth
+ &gt; coordinate pair?), and additional methods would basically be redundant
+ &gt; without significant gains in functionality or speed.
+
+Hm, i think i can agree. As mentionned before, transformations would be 
+more versatile for this purpose, and the whole 3*3 matrix is used 
+everywhere, so it is well known. If we can have a mecanism affecting the 
+path when it is constructed, transformations would probably be better.
+
+
+ &gt; BTW2: What about drawString(), I'd really love to see this one...
+
+Again, i can only agree. I read most of the subject:
+<A HREF="http://lists.whatwg.org/htdig.cgi/whatwg-whatwg.org/2006-October/007363.html">http://lists.whatwg.org/htdig.cgi/whatwg-whatwg.org/2006-October/007363.html</A>
+and it seems it is one of the most wanted features (just like font 
+downloading for the &quot;usual&quot; web). It seems the concerns where mostly 
+technical, but the discussion stops in the middle of it, with no 
+apparent reason...
+
+ &gt; Best regards,
+ &gt; Stefan Haustein
+
+ &gt; Regards,
+ &gt; Maciej
+
+Thank you for answering :)
+Regards.
+Jordan Osete
+
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="053195.html">[whatwg] Canvas suggestions
+</A></li>
+	<LI>Next message: <A HREF="053210.html">[whatwg] Canvas suggestions
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#53206">[ date ]</a>
+              <a href="thread.html#53206">[ thread ]</a>
+              <a href="subject.html#53206">[ subject ]</a>
+              <a href="author.html#53206">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

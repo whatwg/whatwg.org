@@ -1,0 +1,149 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Worker lifecycle
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Worker%20lifecycle&In-Reply-To=%3Cf965ae410905281416vda23cc8rc65864697d993122%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="019979.html">
+   <LINK REL="Next"  HREF="019984.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Worker lifecycle</H1>
+<!--htdig_noindex-->
+    <B>Drew Wilson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Worker%20lifecycle&In-Reply-To=%3Cf965ae410905281416vda23cc8rc65864697d993122%40mail.gmail.com%3E"
+       TITLE="[whatwg] Worker lifecycle">atwilson at google.com
+       </A><BR>
+    <I>Thu May 28 14:16:28 PDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="019979.html">[whatwg] Worker lifecycle
+</A></li>
+        <LI>Next message: <A HREF="019984.html">[whatwg] Worker lifecycle
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19982">[ date ]</a>
+              <a href="thread.html#19982">[ thread ]</a>
+              <a href="subject.html#19982">[ subject ]</a>
+              <a href="author.html#19982">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>So I got a chance to review the latest changes (Hurray for the tracking
+view!: <A HREF="http://html5.org/tools/web-workers-tracker?from=139&amp;to=140">http://html5.org/tools/web-workers-tracker?from=139&amp;to=140</A>).
+Do we still need the concept of a &quot;protected&quot; worker? We define what a
+protected worker is, but we don't actually reference that definition
+anywhere in the spec anymore, since active needed/permissible status is
+entirely driven by the existence of active/inactive documents.
+
+Overall it looks good, and I think the steps taken to remove GC behavior
+from the spec will greatly facility implementation. However, I did have a
+question about the definition of orphaned workers and &quot;active needed&quot;
+workers:
+
+A worker is said to be an *active needed worker* if any of the
+Documentobjects in the
+worker's Documents
+&lt;<A HREF="http://dev.w3.org/html5/workers/#the-worker-s-documents">http://dev.w3.org/html5/workers/#the-worker-s-documents</A>&gt;are fully
+active.
+
+*Closing orphan workers*: Start monitoring the worker such that no sooner
+than it stops being either an active needed
+worker&lt;<A HREF="http://dev.w3.org/html5/workers/#active-needed-worker">http://dev.w3.org/html5/workers/#active-needed-worker</A>&gt;or a
+suspendable
+worker &lt;<A HREF="http://dev.w3.org/html5/workers/#suspendable-worker">http://dev.w3.org/html5/workers/#suspendable-worker</A>&gt;, and no later
+than it stops being a permissible
+worker&lt;<A HREF="http://dev.w3.org/html5/workers/#permissible-worker">http://dev.w3.org/html5/workers/#permissible-worker</A>&gt;,
+*worker global scope*'s
+closing&lt;<A HREF="http://dev.w3.org/html5/workers/#dom-workerglobalscope-closing">http://dev.w3.org/html5/workers/#dom-workerglobalscope-closing</A>&gt;flag
+is set to true.
+
+
+It sounds like the worker is guaranteed to not be orphaned as long as the
+parent window is active, even if the user agent is able to identify that the
+worker is not reachable, which might be a stronger guarantee than was
+intended. Perhaps the spec already has an implicit assumption that UAs are
+able to do whatever they want with unreachable items?
+
+-atw
+
+On Thu, May 28, 2009 at 1:08 PM, Ian Hickson &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">ian at hixie.ch</A>&gt; wrote:
+
+&gt;<i> On Thu, 28 May 2009, Maciej Stachowiak wrote:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; I'm assuming this is one of the changes:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; &gt; User agents must either act as if MessagePort objects have a strong
+</I>&gt;<i> &gt; &gt; reference to their entangled MessagePort object or as if each
+</I>&gt;<i> &gt; &gt; MessagePort object's owner has a strong reference to the MessagePort
+</I>&gt;<i> &gt; &gt; object.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; It seems to me the second alternative prevents MessagePorts created by a
+</I>&gt;<i> &gt; Window from ever being garbage collected until the user leaves the page.
+</I>&gt;<i> &gt; Is that a correct understanding?
+</I>&gt;<i>
+</I>&gt;<i> Yes.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> &gt; If so, that seems like it could create unbounded memory leaks in
+</I>&gt;<i> &gt; long-running Web applications that use MessagePorts, even if all
+</I>&gt;<i> &gt; references to both endpoints of the MessageChannel are dropped. That
+</I>&gt;<i> &gt; seems unacceptable to me, unless I misunderstood.
+</I>&gt;<i>
+</I>&gt;<i> The requirement is actually indistinguishable from the UA using the other
+</I>&gt;<i> alternative and just having a really slow garbage collector that only runs
+</I>&gt;<i> at page-closing time.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> On Thu, 28 May 2009, Drew Wilson wrote:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Is your concern that an ill-behaved app could leak ports (since
+</I>&gt;<i> &gt; obviously an ill-behaved app could leak ports anyway just by stuffing
+</I>&gt;<i> &gt; them in some array), or is it that a well-behaved app can't release
+</I>&gt;<i> &gt; ports? Still need to review the new spec in detail, but from previous
+</I>&gt;<i> &gt; conversations I'd assumed that calling MessagePort.close() on either end
+</I>&gt;<i> &gt; would allow the ports to be freed - perhaps we should clarify the
+</I>&gt;<i> &gt; language in the spec to state that the strong reference is only in place
+</I>&gt;<i> &gt; for *entangled* ports.
+</I>&gt;<i>
+</I>&gt;<i> The UA can at any time switch to the other mechanism, which only has a
+</I>&gt;<i> strong reference through the entanglement, which basically means that the
+</I>&gt;<i> UA can be as aggressive as the UA wants to be.
+</I>&gt;<i>
+</I>&gt;<i> --
+</I>&gt;<i> Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+</I>&gt;<i> <A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+</I>&gt;<i> Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</I>&gt;<i>
+</I>-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: &lt;<A HREF="http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20090528/7e05a4cc/attachment-0001.htm">http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20090528/7e05a4cc/attachment-0001.htm</A>&gt;
+</PRE>
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="019979.html">[whatwg] Worker lifecycle
+</A></li>
+	<LI>Next message: <A HREF="019984.html">[whatwg] Worker lifecycle
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19982">[ date ]</a>
+              <a href="thread.html#19982">[ thread ]</a>
+              <a href="subject.html#19982">[ subject ]</a>
+              <a href="author.html#19982">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

@@ -1,0 +1,137 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] [hybi] Races in websocket API?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20%5Bhybi%5D%20Races%20in%20websocket%20API%3F&In-Reply-To=%3CCC64D0CA-043C-4B38-ADF8-69219D308BF8%40apple.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="066394.html">
+   <LINK REL="Next"  HREF="066389.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] [hybi] Races in websocket API?</H1>
+<!--htdig_noindex-->
+    <B>Maciej Stachowiak</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20%5Bhybi%5D%20Races%20in%20websocket%20API%3F&In-Reply-To=%3CCC64D0CA-043C-4B38-ADF8-69219D308BF8%40apple.com%3E"
+       TITLE="[whatwg] [hybi] Races in websocket API?">mjs at apple.com
+       </A><BR>
+    <I>Sun Nov 22 19:50:46 PST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="066394.html">[whatwg] [hybi] Races in websocket API?
+</A></li>
+        <LI>Next message: <A HREF="066389.html">[whatwg] &lt;link&gt;/&lt;meta&gt; and microdata
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#66406">[ date ]</a>
+              <a href="thread.html#66406">[ thread ]</a>
+              <a href="subject.html#66406">[ subject ]</a>
+              <a href="author.html#66406">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>
+On Nov 20, 2009, at 7:16 AM, Jamie Lokier wrote:
+
+&gt;<i> John Fallows wrote:
+</I>&gt;&gt;<i> Greg,
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> We raised this as a potential issue during the API design for
+</I>&gt;&gt;<i> WebSocket (back when it was called TCPConnection), indicating that a
+</I>&gt;&gt;<i> separate method might be desirable that could be called after the
+</I>&gt;&gt;<i> WebSocket was constructed and event handlers attached.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> But the decision was made that a single-threaded execution  
+</I>&gt;&gt;<i> environment
+</I>&gt;&gt;<i> made a separate method unnecessary, because the execution of the
+</I>&gt;&gt;<i> onopen handler (for example) could not preempt the execution of the
+</I>&gt;&gt;<i> following 2 lines of JavaScript code:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> var ws = new WebSocket(&quot;<A HREF="ws://kaazing.net/echo">ws://kaazing.net/echo</A>&quot;);
+</I>&gt;&gt;<i> ws.onopen = function() { console.log(&quot;OPEN&quot;); }
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Therefore, by the time the open event is delivered, the onopen  
+</I>&gt;&gt;<i> handler
+</I>&gt;&gt;<i> would have already been attached.
+</I>&gt;<i>
+</I>&gt;<i> Unfortunately the single-threaded assumption is not correct.
+</I>&gt;<i>
+</I>&gt;<i> First, it's already been mentioned that when running Javascript under
+</I>&gt;<i> a debugger under at least one browser, events can be sent and lost
+</I>&gt;<i> before the second line executes.
+</I>&gt;<i>
+</I>&gt;<i> Second, all recent browsers have multi-threaded Javascript, under
+</I>&gt;<i> either Google's WorkerPool API, or WHATWG's Web Workers.
+</I>&gt;<i>
+</I>&gt;<i> Web Workers have been suggested as a way to use WebSocket effectively,
+</I>&gt;<i> but this single-threaded assumption might make that combination
+</I>&gt;<i> difficult to use.  What happens when you create a new WebSocket object
+</I>&gt;<i> in a Web Worker?  Can that be done safely?
+</I>
+Short version: yes, WebSocket can work fine in a Web Worker.
+
+Slightly longer version: &quot;Single-threaded&quot; is perhaps a misleading way  
+to characterize the required condition. Here's a slightly more precise  
+description: all WebSocket events are delivered on the logical  
+&quot;thread&quot; of JavaScript execution that spawned them (either a UI thread  
+or a Worker or what have you). The event delivery is not re-entrant -  
+the event will only be sent the next time that thread of execution  
+drops back into the event loop. And you can't pass a WebSocket from  
+one thread to another. This means that any time you do a sequence like  
+this:
+
+   var ws = new WebSocket(&quot;<A HREF="ws://kaazing.net/echo">ws://kaazing.net/echo</A>&quot;);
+   ws.onopen = function() { console.log(&quot;OPEN&quot;); }
+
+You can be guaranteed that no &quot;open&quot; event will fire before the  
+&quot;onopen&quot; attribute is set - the WebSocket object cannot deliver events  
+until the event loop on the thread that created it is free.
+
+  -  Maciej
+
+&gt;<i>
+</I>&gt;<i> I'm surprised at that, given WHATWG is involved with both WebSocket
+</I>&gt;<i> and Web Workers.
+</I>&gt;<i>
+</I>&gt;<i> An obvious solution is a connect() method, similar to XmlHttpRequest's
+</I>&gt;<i> send() method.
+</I>&gt;<i>
+</I>&gt;<i> -- Jamie
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> hybi mailing list
+</I>&gt;<i> <A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">hybi at ietf.org</A>
+</I>&gt;<i> <A HREF="https://www.ietf.org/mailman/listinfo/hybi">https://www.ietf.org/mailman/listinfo/hybi</A>
+</I>
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="066394.html">[whatwg] [hybi] Races in websocket API?
+</A></li>
+	<LI>Next message: <A HREF="066389.html">[whatwg] &lt;link&gt;/&lt;meta&gt; and microdata
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#66406">[ date ]</a>
+              <a href="thread.html#66406">[ thread ]</a>
+              <a href="subject.html#66406">[ subject ]</a>
+              <a href="author.html#66406">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

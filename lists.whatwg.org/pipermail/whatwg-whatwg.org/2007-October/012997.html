@@ -1,0 +1,145 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] SQL API complex for simple cases
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20SQL%20API%20complex%20for%20simple%20cases&In-Reply-To=%3CPine.LNX.4.62.0711010045380.27205%40hixie.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="012995.html">
+   <LINK REL="Next"  HREF="012998.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] SQL API complex for simple cases</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20SQL%20API%20complex%20for%20simple%20cases&In-Reply-To=%3CPine.LNX.4.62.0711010045380.27205%40hixie.dreamhostps.com%3E"
+       TITLE="[whatwg] SQL API complex for simple cases">ian at hixie.ch
+       </A><BR>
+    <I>Wed Oct 31 17:50:22 PDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="012995.html">[whatwg] SQL API complex for simple cases
+</A></li>
+        <LI>Next message: <A HREF="012998.html">[whatwg] SQL API complex for simple cases
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#12997">[ date ]</a>
+              <a href="thread.html#12997">[ thread ]</a>
+              <a href="subject.html#12997">[ subject ]</a>
+              <a href="author.html#12997">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Wed, 31 Oct 2007, Scott Hess wrote:
+&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt;   db.executeSql('CREATE TABLE ...', [], function(...) {
+</I>&gt;<i> &gt; &gt;     db.executeSql('INSERT INTO ...', []);
+</I>&gt;<i> &gt; &gt;   });
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; What if another page dropped the table between the CREATE and the 
+</I>&gt;<i> &gt; INSERT?
+</I>&gt;<i> 
+</I>&gt;<i> What if you went to insert into a table that someone else had dropped in 
+</I>&gt;<i> any case?
+</I>
+True.
+
+
+&gt;<i> I think Timothy's point is that for the simple case where you really 
+</I>&gt;<i> _do_ intend to execute an ordered sequence of SQL statements which 
+</I>&gt;<i> aren't in a transaction, the new API is a bit more convoluted.  I think 
+</I>&gt;<i> his point is sound, but I'm not certain how important that use-case is.  
+</I>&gt;<i> Realistically, you're usually either executing a singleton statement, or 
+</I>&gt;<i> you're executing a set of logically connected statements which want to 
+</I>&gt;<i> be in a single transaction.
+</I>&gt;<i> 
+</I>&gt;<i> I think that there might be some value to having better support for a 
+</I>&gt;<i> singleton statement, though.  Right now, your result-set handling is 
+</I>&gt;<i> inside the implicit transaction.  With a singleton executeSql() API off 
+</I>&gt;<i> of Database, your resultset handling could be pushed out of the 
+</I>&gt;<i> transaction, which would be good.
+</I>
+I entirely agree. I'm just not convinced that we should have this in v1 -- 
+there have been a number of arguments put forward that suggest that we 
+should delay this until v2.
+
+It's cumbersome, but the danger is that if we make it easy, that we make 
+the wrong thing easier than the right thing in several important cases.
+
+
+On Wed, 31 Oct 2007, Brady Eidson wrote:
+&gt;<i> 
+</I>&gt;<i> I have an alternative to propose - how about reinstating 
+</I>&gt;<i> Database.executeSql(), and do something like this.
+</I>&gt;<i> 
+</I>&gt;<i> db.executeSql(&quot;select * from table;&quot;, [], &lt;SQLStatementCallback&gt;, 
+</I>&gt;<i> &lt;SQLStatementErrorCallback&gt;, &lt;SQLTransactionErrorCallback&gt;);
+</I>&gt;<i> 
+</I>&gt;<i> This would &quot;fire and forget&quot; a single, individual statement in its own 
+</I>&gt;<i> transaction.  It would follow transaction steps exactly as they 
+</I>&gt;<i> currently exist, except it would skip the SQLTransactionCallback because 
+</I>&gt;<i> the first sql statement to execute is already queued.
+</I>
+We could do that. I'm not convinced it's of enough benefit to have it in 
+v1, though.
+
+
+&gt;<i> This way you could do:
+</I>&gt;<i> 
+</I>&gt;<i> db.executeSql(&quot;SELECT * FROM Notes&quot;, [], function(tx, results) { // Start a
+</I>&gt;<i> new transaction with one sql statement on the queue
+</I>&gt;<i> 	tx.executeSql(&quot;INSERT INTO Notes...&quot;, [], ...);  // Add a new
+</I>&gt;<i> statement to this transaction
+</I>&gt;<i> 	db.executeSql(&quot;SOME OTHER SQL STATEMENT&quot;, ...); // Start a new
+</I>&gt;<i> transaction with its first sql statement queued up
+</I>&gt;<i> 	}, statementErrorCallback, txErrorCallback);
+</I>
+Right -- but the fear is that the subtle distinction between 
+tx.executeSql() and db.executeSql() in the above code would be the source 
+of many hard-to-track bugs.
+
+
+&gt;<i> But could also do something as simple as:
+</I>&gt;<i> 
+</I>&gt;<i> db.executeSql(&quot;CREATE TABLE Notes (...)&quot;, [], NULL, NULL, NULL);
+</I>&gt;<i> 
+</I>&gt;<i> [...] But I do think this is a reasonable way to A - make it easier to 
+</I>&gt;<i> kick off an individual statement and B - allows the developer, in the 
+</I>&gt;<i> best case scenario of no failures, kick off a sql statement that runs to 
+</I>&gt;<i> completion with *no* callbacks.
+</I>
+I agree. The concern is just that we don't actually want to make this easy 
+in the first version.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="012995.html">[whatwg] SQL API complex for simple cases
+</A></li>
+	<LI>Next message: <A HREF="012998.html">[whatwg] SQL API complex for simple cases
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#12997">[ date ]</a>
+              <a href="thread.html#12997">[ thread ]</a>
+              <a href="subject.html#12997">[ subject ]</a>
+              <a href="author.html#12997">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

@@ -1,0 +1,286 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Application defined &quot;locks&quot;
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Application%20defined%20%22locks%22&In-Reply-To=%3Cfa2eab050909091938r4b20f3b3p11e30539c53f6133%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="022823.html">
+   <LINK REL="Next"  HREF="022826.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Application defined &quot;locks&quot;</H1>
+<!--htdig_noindex-->
+    <B>Michael Nordman</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Application%20defined%20%22locks%22&In-Reply-To=%3Cfa2eab050909091938r4b20f3b3p11e30539c53f6133%40mail.gmail.com%3E"
+       TITLE="[whatwg] Application defined &quot;locks&quot;">michaeln at google.com
+       </A><BR>
+    <I>Wed Sep  9 19:38:03 PDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="022823.html">[whatwg] Application defined &quot;locks&quot;
+</A></li>
+        <LI>Next message: <A HREF="022826.html">[whatwg] Application defined &quot;locks&quot;
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22824">[ date ]</a>
+              <a href="thread.html#22824">[ thread ]</a>
+              <a href="subject.html#22824">[ subject ]</a>
+              <a href="author.html#22824">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>If this feature existed, we likely would have used it for offline Gmail to
+coordinate which instance of the app (page with gmail in it) should be
+responsible for sync'ing the local database with the mail service. In the
+absence of a feature like this, instead we used the local database itself to
+register which page was the 'syncagent'. This involved periodically updating
+the db by the syncagent, and periodic polling by the would be syncagents
+waiting to possibly take over. Much ugliness.
+var isSyncAgent = false;
+window.acquireFlag(&quot;syncAgency&quot;, function() { isSyncAgent = true; });
+
+Much nicer.
+
+
+On Wed, Sep 9, 2009 at 7:02 PM, Maciej Stachowiak &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">mjs at apple.com</A>&gt; wrote:
+
+&gt;<i>
+</I>&gt;<i> On Sep 9, 2009, at 6:33 PM, Jeremy Orlow wrote:
+</I>&gt;<i>
+</I>&gt;<i> In general this seems like a pretty interesting idea.  It definitely would
+</I>&gt;<i> be nice to completely abstract away all concepts of concurrency from web
+</I>&gt;<i> developers, but some of our solutions thus far (message passing, async
+</I>&gt;<i> interfaces, etc) have not been terribly appreciated by developers either.
+</I>&gt;<i>  The GlobalScript proposal is a good example: to us, shared workers were an
+</I>&gt;<i> adequate solution, but in practice the lack of shared state is very
+</I>&gt;<i> difficult for some developers to work around.  Possibly even more difficult
+</I>&gt;<i> than dealing with some levels of concurrency.
+</I>&gt;<i>
+</I>&gt;<i> I think it'd be interesting to introduce this as an experimental API and
+</I>&gt;<i> see what web developers do with it.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> I think it's predictable that it will be used in badly wrong ways without
+</I>&gt;<i> implementing it. Explicit application-managed locking is a massive failure
+</I>&gt;<i> as a mechanism for managing concurrency.
+</I>&gt;<i>
+</I>&gt;<i> As for the idea of a sync API:  What if some library/framework and the
+</I>&gt;<i> embedding page use these flags/locks?  I know you can't actually deadlock
+</I>&gt;<i> with this API, but I worry some developers will just do
+</I>&gt;<i> |while(!acquireLock(&quot;flag&quot;)) {}| which could lead to deadlocks.  Only
+</I>&gt;<i> allowing an async API would fix this, but developers have typically not
+</I>&gt;<i> liked async APIs.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> If we want to go async, then I'd rather have an asynchronous way to acquire
+</I>&gt;<i> an *actual* lock on the resource (as with the LocalStorage async transaction
+</I>&gt;<i> proposal), than an async advisory locking model. Having both asynchronicity
+</I>&gt;<i> *and* advisory locks seems like the worst of both worlds.
+</I>&gt;<i>
+</I>&gt;<i> On the other hand, if we offer only the equivalent of tryLock() and not a
+</I>&gt;<i> blocking lock(), it's almost certain Web apps will build spin locks in the
+</I>&gt;<i> way you describe, leading to wasteful CPU usage, bad performance, and the
+</I>&gt;<i> possibility of deadlocks.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> Here's another idea that I think is actually kind of cool:  What if we kept
+</I>&gt;<i> track of locking precedence (i.e. the graph of which locks have been taken
+</I>&gt;<i> while other locks were held) and threw an exception if any lock was ever
+</I>&gt;<i> taken in a way that violated the graph.  In other words, we wouldn't make
+</I>&gt;<i> the developer tell us the locking precedence, and we wouldn't wait until you
+</I>&gt;<i> hit an actual deadlock.  Instead we would look for the first call site that
+</I>&gt;<i> _could_ have deadlocked.  A long time ago, I was working on a project that
+</I>&gt;<i> had some deadlock problems.  We implemented exactly this and it worked
+</I>&gt;<i> pretty well.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> This seems like a very challenging programming model for little gain. If
+</I>&gt;<i> the locks are purely advisory, they do not prevent race conditions, but a
+</I>&gt;<i> discipline to prevent deadlocks will still make them very hard to use. Note
+</I>&gt;<i> also that the possibility of synchronous cross-site code execution would
+</I>&gt;<i> require a lock precedence graph to be cross-site to really prevent
+</I>&gt;<i> deadlocks, but it would be impossible for a Web application to guarantee
+</I>&gt;<i> anything about lock order with respect to Web apps in different origins. The
+</I>&gt;<i> other possibility is to drop all locks in the case of synchronous
+</I>&gt;<i> cross-origin code execution, but then these advisory locks would not even be
+</I>&gt;<i> useful for preventing race conditions.
+</I>&gt;<i>
+</I>&gt;<i> Locking is broken - just don't do it.
+</I>&gt;<i>
+</I>&gt;<i> Regards,
+</I>&gt;<i> Maciej
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> On Thu, Sep 10, 2009 at 9:22 AM, Olli Pettay &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">Olli.Pettay at helsinki.fi</A>&gt;wrote:
+</I>&gt;<i>
+</I>&gt;&gt;<i> On 9/10/09 2:24 AM, Robert O'Callahan wrote:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> On Thu, Sep 10, 2009 at 6:37 AM, Darin Fisher &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">darin at chromium.org</A>
+</I>&gt;&gt;&gt;<i> &lt;mailto:<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">darin at chromium.org</A>&gt;&gt; wrote:
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>    Yes, exactly. Sorry for not making this clear.  I believe implicit
+</I>&gt;&gt;&gt;<i>    locking for LocalStorage (and the implicit unlocking) is going to
+</I>&gt;&gt;&gt;<i>    yield something very confusing and hard to implement well.  The
+</I>&gt;&gt;&gt;<i>    potential for dead locks when you fail to implicitly unlock properly
+</I>&gt;&gt;&gt;<i>    scares me
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> You mean when the browser implementation has a bug and fails to
+</I>&gt;&gt;&gt;<i> implicitly unlock?
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> Giving Web authors the crappy race-prone and deadlock-prone locking
+</I>&gt;&gt;&gt;<i> programming model scares *me*. Yes, your acquireLock can't get you into
+</I>&gt;&gt;&gt;<i> a hard deadlock, strictly speaking, but you can still effectively
+</I>&gt;&gt;&gt;<i> deadlock your application by waiting for a lock to become available that
+</I>&gt;&gt;&gt;<i> never can. Also, how many authors will forget to test the result of
+</I>&gt;&gt;&gt;<i> acquireLock (because they're used to other locking APIs that block) and
+</I>&gt;&gt;&gt;<i> find that things are OK in their testing?
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;<i> If you're concerned about that, make acquireLock to throw an exception.
+</I>&gt;&gt;<i> Authors sure will notice that things aren't quite right, if the flag
+</I>&gt;&gt;<i> isn't acquired.
+</I>&gt;&gt;<i> And if the acquireLock(&quot;flag&quot;, callback) approach is used, it is
+</I>&gt;&gt;<i> harder to make the mistake to not check whether the flag was really got.
+</I>&gt;&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> This seems like a good idea.
+</I>&gt;<i>
+</I>&gt;<i> As you said on IRC, perhaps there should be a way to acquire
+</I>&gt;&gt;<i> many flags at once and then call the callback.
+</I>&gt;&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> I like this idea as well.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: &lt;<A HREF="http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20090909/d6bf7b2b/attachment-0001.htm">http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20090909/d6bf7b2b/attachment-0001.htm</A>&gt;
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="022823.html">[whatwg] Application defined &quot;locks&quot;
+</A></li>
+	<LI>Next message: <A HREF="022826.html">[whatwg] Application defined &quot;locks&quot;
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22824">[ date ]</a>
+              <a href="thread.html#22824">[ thread ]</a>
+              <a href="subject.html#22824">[ subject ]</a>
+              <a href="author.html#22824">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

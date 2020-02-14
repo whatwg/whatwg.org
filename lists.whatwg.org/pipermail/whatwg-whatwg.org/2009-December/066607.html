@@ -1,0 +1,152 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Thread to run Web Socket feedback from the protocol ?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Thread%20to%20run%20Web%20Socket%20feedback%20from%20the%20protocol%20%3F&In-Reply-To=%3C63df84f0912041430v45d55edek674eeec7a67663d6%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="066603.html">
+   <LINK REL="Next"  HREF="066609.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Thread to run Web Socket feedback from the protocol ?</H1>
+<!--htdig_noindex-->
+    <B>Jonas Sicking</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Thread%20to%20run%20Web%20Socket%20feedback%20from%20the%20protocol%20%3F&In-Reply-To=%3C63df84f0912041430v45d55edek674eeec7a67663d6%40mail.gmail.com%3E"
+       TITLE="[whatwg] Thread to run Web Socket feedback from the protocol ?">jonas at sicking.cc
+       </A><BR>
+    <I>Fri Dec  4 14:30:02 PST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="066603.html">[whatwg] Thread to run Web Socket feedback from the protocol ?
+</A></li>
+        <LI>Next message: <A HREF="066609.html">[whatwg] Thread to run Web Socket feedback from the protocol ?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#66607">[ date ]</a>
+              <a href="thread.html#66607">[ thread ]</a>
+              <a href="subject.html#66607">[ subject ]</a>
+              <a href="author.html#66607">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Fri, Dec 4, 2009 at 9:52 AM, Alexey Proskuryakov &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">ap at webkit.org</A>&gt; wrote:
+&gt;<i>
+</I>&gt;<i> On 04.12.2009, at 4:12, Anne van Kesteren wrote:
+</I>&gt;<i>
+</I>&gt;&gt;&gt;<i> On the other hand, it can't possibly work like XMLHttpRequest - for
+</I>&gt;&gt;&gt;<i> whatever reason, the Web Sockets spec says that events are posted
+</I>&gt;&gt;&gt;<i> asynchronously. Maybe I'm not the last an only one to get confused by this
+</I>&gt;&gt;&gt;<i> difference from XMLHttpRequest events.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> XMLHttpRequest network events are &quot;asynchronous&quot; too.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> Looks like the spec says so now. Does any browser post XMLHttpRequest events
+</I>&gt;<i> asynchronously? This change in the spec is not harmless, as it seems to make
+</I>&gt;<i> readystatechange event pretty much useless.
+</I>
+Depends which events we are talking about. Events that are fired as a
+result of network activity is inheritly asynchronous since network
+events arrive asynchronously. For example &quot;progress&quot; events or &quot;load&quot;
+events.
+
+Other events must be synchronous, for example the &quot;readystatechange&quot;
+event that is fired during the call to XMLHttpRequest.open, or the
+&quot;loadstart&quot; event fired from XMLHttpRequest.send must be fired
+synchronously.
+
+However for the events that are fired as a result of network activity,
+I see no reason to fire these events asynchronously from that code.
+I.e. when a network request is finished, XMLHttpRequest takes several
+actions:
+
+* Sets readystate to 4
+* Fires &quot;readystatechange&quot;
+* Fires &quot;load&quot;
+* Fires &quot;loadend&quot;
+* Makes responseXML non-null
+
+I see no reason to make these events be fired asynchronously *from the
+code that takes all these actions*. In other words, I think the
+XMLHttpRequest implementation should look something like:
+
+XMLHttpRequest::OnRequestDone(status) {
+  if (status != success) {
+    ... error handling ...
+    return;
+  }
+
+  if (isXMLContentType(contentType)) {
+    responseXML = parseAsXML(responseText);
+  }
+
+  readystate = 4;
+  synchronousDispatch(&quot;readystatechange&quot;);
+  synchronousDispatch(&quot;load&quot;);
+  synchronousDispatch(&quot;loadend&quot;);
+}
+
+
+Another way to look at it is that I think the following code:
+
+xhr = new XMLHttpRequest;
+timerId = setInterval(function() { if(xhr.responseXML)
+alert(xhr.responseXML); }, 0);
+xhr.open(...);
+xhr.send();
+xhr.onloadend = function() {
+  cancelInterval(timerId);
+}
+
+should never ever fire the alert.
+
+The whole purpose of firing events asynchronously is to aid
+implementations so that they don't need to have a deep callstack when
+the event fires, but instead can ensure to be in a stable state when
+firing the event. However if the code in question is already started
+asynchronously, such as as a result of a network event, then there is
+no reason not to fire synchronously.
+
+Firing events asynchronously always introduces hassles. Typically that
+conditions change between when the event was scheduled to be fired,
+and when the event actually fires. Many times this means that you have
+to keep track of the task that will fire the event and under certain
+conditions cancel it if what the event indicates is no longer true.
+Thus I think we should as a general rule try to fire synchronously
+when this doesn't risk destabilizing implementations.
+
+/ Jonas
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="066603.html">[whatwg] Thread to run Web Socket feedback from the protocol ?
+</A></li>
+	<LI>Next message: <A HREF="066609.html">[whatwg] Thread to run Web Socket feedback from the protocol ?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#66607">[ date ]</a>
+              <a href="thread.html#66607">[ thread ]</a>
+              <a href="subject.html#66607">[ subject ]</a>
+              <a href="author.html#66607">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

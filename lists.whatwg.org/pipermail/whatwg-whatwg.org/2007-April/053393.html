@@ -1,0 +1,153 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Cue points in media elements
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Cue%20points%20in%20media%20elements&In-Reply-To=%3CEEE3C637-148B-4C12-BF77-B3BF34B6A574%40dartmouth.edu%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="053392.html">
+   <LINK REL="Next"  HREF="053407.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Cue points in media elements</H1>
+<!--htdig_noindex-->
+    <B>Brian Campbell</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Cue%20points%20in%20media%20elements&In-Reply-To=%3CEEE3C637-148B-4C12-BF77-B3BF34B6A574%40dartmouth.edu%3E"
+       TITLE="[whatwg] Cue points in media elements">Brian.P.Campbell at dartmouth.edu
+       </A><BR>
+    <I>Sun Apr 29 00:14:27 PDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="053392.html">[whatwg] Cross-domain components
+</A></li>
+        <LI>Next message: <A HREF="053407.html">[whatwg] Cue points in media elements
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#53393">[ date ]</a>
+              <a href="thread.html#53393">[ thread ]</a>
+              <a href="subject.html#53393">[ subject ]</a>
+              <a href="author.html#53393">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>I'm a developer of a custom engine for interactive multimedia, and  
+I've recently noticed the work WHATWG has been doing on adding  
+&lt;video&gt; and &lt;audio&gt; elements to HTML. I'm very glad to see these  
+being proposed for addition to HTML, because if they (and several  
+other features) are done right, it means that there may be a chance  
+for us to stop using a custom engine, and use an off-the-shelf HTML  
+engine, putting our development focus on our authoring tools instead.  
+My hope is that eventually, if these features get enough penetration,  
+to put our content up on the web directly, rather than having to  
+distribute the runtime software with it.
+
+I've taken a look at the current specification for media elements,  
+and on the whole, it looks like it would meet our needs. We are  
+currently using VP3, and a combination of MP3 and Vorbis audio, for  
+our codecs, so having Ogg Theora (based on VP3) and Ogg Vorbis as a  
+baseline would be completely fine with us, and much preferable to the  
+patent issues and licensing fees we'd need to deal with if we used  
+MPEG4.
+
+For the sort of content that we produce, cue points are incredibly  
+important. Most of our content consists of a video or voiceover  
+playing while bullet points appear, animations play, and graphics are  
+revealed, all in sync with the video. We have a very simple system  
+for doing cue points, that is extremely easy for the content authors  
+to write and is robust for paused media, media that is skipped to the  
+end, etc. We simply have a blocking call, WAIT, that waits until a  
+specific point or the end of a specified media element. For instance,  
+in our language, you might see something like this:
+
+   (movie &quot;Foo.mov&quot; :name 'movie)
+   (wait @movie (tc 2 3))
+   (show @bullet-1)
+   (wait @movie)
+   (show @bullet-2)
+
+If the user skips to the end of the media clip, that simply causes  
+all WAITs on that  media clip to return instantly. If they skip  
+forward in the media clip, without ending it, all WAITs before that  
+point will return instantly. If the user pauses the media clip, all  
+WAITs on the media clip will block until it is playing again.
+
+This is a nice system, but I can't see how even as simple a system as  
+this could be implemented given the current specification of cue  
+points. The problem is that the callbacks execute &quot;when the current  
+playback position of a media element reaches&quot; the cue point. It seems  
+unclear to me what &quot;reaching&quot; a particular time means. If video  
+playback freezes for a second, and so misses a cue point, is that  
+considered to have been &quot;reached&quot;? Is there any way that you can  
+guarantee that a cue point will be executed as long as video has  
+passed a particular cue point? With a lot of bookkeeping and the  
+&quot;timeupdate&quot; event along with the cue points, you may be able to keep  
+track of the current time in the movie well enough to deal with the  
+user skipping forward, pausing, and the video stalling and restarting  
+due to running out of buffer. This doesn't address, as far as I can  
+tell, issues like the thread displaying the video pausing for  
+whatever reason and so skipping forward after it resumes, which may  
+cause cue points to be lost, and which isn't specified to send a  
+&quot;timeupdate&quot; event.
+
+Basically, what is necessary is a way to specify that a cue point  
+should always be fired as long as playback has passed a certain time,  
+not just if it &quot;reaches&quot; a particular time. This would prevent us  
+from having to do a lot of bookkeeping to make sure that cue points  
+haven't been missed, and make everything simpler and less fragile.
+
+We're also greatly interested in making our content accessible, to  
+meet Section 508 requirements. For now, we are focusing on captioning  
+for the deaf. We have voiceovers on some screens with no associated  
+video, video that appears in various places on the screen, and the  
+occasional sound effects. Because there is not a consistent video  
+location, nor is there even a frame for voiceovers to appear in, we  
+don't display the captions directly over the video, but instead send  
+events to the current screen, which is responsible for catching the  
+events and displaying them in a location appropriate for that screen,  
+usually a standard location. In the current spec, all that is  
+provided for is controls to turn closed captions on or off. What  
+would be much better is a way to enable the video element to send  
+caption events, which include the text of the current caption, and  
+can be used to display those captions in a way that fits the design  
+of the content better.
+
+I hope these comments make sense; let me know if you have any  
+questions or suggestions.
+
+Thanks,
+Brian Campbell
+Interactive Media Lab, Dartmouth College
+<A HREF="http://iml.dartmouth.edu">http://iml.dartmouth.edu</A>
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="053392.html">[whatwg] Cross-domain components
+</A></li>
+	<LI>Next message: <A HREF="053407.html">[whatwg] Cue points in media elements
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#53393">[ date ]</a>
+              <a href="thread.html#53393">[ thread ]</a>
+              <a href="subject.html#53393">[ subject ]</a>
+              <a href="author.html#53393">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

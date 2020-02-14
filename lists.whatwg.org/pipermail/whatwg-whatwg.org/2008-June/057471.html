@@ -1,0 +1,315 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] TCPConnection feedback
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20TCPConnection%20feedback&In-Reply-To=%3Cf042876c0806240729g623a57fdg417adb42e28ea384%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="057434.html">
+   <LINK REL="Next"  HREF="057473.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] TCPConnection feedback</H1>
+<!--htdig_noindex-->
+    <B>Philipp Serafin</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20TCPConnection%20feedback&In-Reply-To=%3Cf042876c0806240729g623a57fdg417adb42e28ea384%40mail.gmail.com%3E"
+       TITLE="[whatwg] TCPConnection feedback">phil127 at gmail.com
+       </A><BR>
+    <I>Tue Jun 24 07:29:26 PDT 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="057434.html">[whatwg]  TCPConnection feedback
+</A></li>
+        <LI>Next message: <A HREF="057473.html">[whatwg] TCPConnection feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#57471">[ date ]</a>
+              <a href="thread.html#57471">[ thread ]</a>
+              <a href="subject.html#57471">[ subject ]</a>
+              <a href="author.html#57471">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>(Sorry if this counts as thread necromancy. The discussion just didn't
+seem to have come to an end yet.)
+
+On Fri, Jun 20, 2008 at 3:55 PM, Frode B&#248;rli &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">frode at seria.no</A>&gt; wrote:
+&gt;<i> I would manage, but i do not like the implementation (it is much more
+</I>&gt;<i> complex than it needs to be). I would basically hate doing extra work
+</I>&gt;<i> because the implementation wasnt good enough.
+</I>&gt;<i>
+</I>&gt;<i> It is worth spending months improving the implementation here, if it
+</I>&gt;<i> saves only one minute of work for each of the millions of web
+</I>&gt;<i> developers out there, in the future.
+</I>
+Alright, point taken. You're of course absolutely right with that :)
+I agree, it would be very convenient to basically set up and control a
+web app in a single connection. However, I think there are valid use
+cases for just the opposite set up as well. So, if we use a HTTP
+handshake, we should provide two ways.
+
+&gt;<i> If it is impossible to use HTML, then it is absolutely required that
+</I>&gt;<i> Session ID is added as a standard header - since that will be the only
+</I>&gt;<i> way of linking the generated HTML with the separate persistent
+</I>&gt;<i> connection. You can't assume that an application server or the web
+</I>&gt;<i> server will be able to parse the cookie, since the cookie format is
+</I>&gt;<i> different for each programming language/application.
+</I>
+This depends on the layer where the session management takes place.
+For example, PHP's existing session handling system already uses
+cookies. So, a hypothetical future &quot;PPHP&quot; version of PHP could extend
+the session system to support this.
+This feature couldn't be implemented in the afromentioned &quot;few lines
+of perl&quot; though.
+
+If this feature is still wanted in a standardized way, I think the
+idea to have the server advertise that it wants to change the protocol
+but to let the client do the actual switch would be the best way.
+
+&gt;<i>The HTTP 101 Switching Protocols can be sent by the server, without
+</I>&gt;<i>the client asking for a protocol change. The only requirement is that
+</I>&gt;<i>the server sends 426 Upgrade Required first, then specifies which
+</I>&gt;<i>protocol to switch to. The protocol switched to could possibly be the
+</I>&gt;<i>one proposed in the beginning of this thread.
+</I>
+I don't see how we could use 426 as a notification that the client
+should open a WebSocket connection. 426 is still an error code, so if
+you send it as the reply to the initial GET request, you can't be sure
+the HTML file you pushed gets interpreted the correct way. While this
+would probably work, it would be semantically unclean at best.
+
+However, the TLS -over-HTTP spec states &quot;As specified in HTTP/1.1, the
+server MAY include an Upgrade
+   header in any response other than 101 or 426 to indicate a
+   willingness to switch to any (combination) of the protocols listed.&quot;
+
+&lt;<A HREF="http://www.ietf.org/rfc/rfc2817.txt">http://www.ietf.org/rfc/rfc2817.txt</A>&gt;
+
+I can't seem to find any mention about this in the HTTP spec though.
+Is this implemented or at least widely known?
+Maybe you could reasoneably assume that a proxy keeps a connection
+open if an upgrade seems imminent?
+
+If this works, we could extend Michael's original algorithm as follows
+(this would be in addition to the &quot;new WebSocket()&quot; interface and
+would not replace it)
+
+PROPOSAL: Turning an existing HTTP connection into a WebSocket connection:
+
+If the server sends a Connection: Upgrade header and an Upgrade header
+with a &quot;WebSocket&quot; token as part of a normal response and if the
+resource fetched established a browsing contest, the client must not
+issue any other requests on that connection and must initiate a
+protocol switch.
+After the switch has finished, the client would expose the connection
+to the application via a DefaultWebSocket property or something
+similar.
+
+An exchange could look like this:
+
+C: GET /uri HTTP/1.1
+C: Host: example.com
+C: [ ... usual headers ... ]
+C:
+
+S: HTTP/1.1 200 OK
+S: Content-Type: text/html
+S: [ ... usual headers ... ]
+S: Upgrade: WebSocket/1.0
+S: Connection: Upgrade
+S:
+S: [ ... body ... ]
+
+C: OPTIONS /uri HTTP/1.1
+C: Host: example.com
+C: Upgrade: WebSocket/1.0
+C: Connection: Upgrade
+C:
+
+S: HTTP/1.1 101 Switching Protocols
+S: Upgrade: WebSocket/1.0
+S: Connection: Upgrade
+S:
+
+C/S: [ ... application specific data ... ]
+
+Because the connection would be same-origin pretty much per
+definition, no access checks would be needed in that situation.
+
+Would something like this be doable and wanted?
+
+&gt;<i>
+</I>&gt;&gt;<i> On Fri, Jun 20, 2008 at 1:52 PM, Frode B&#248;rli &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">frode at seria.no</A>&gt; wrote:
+</I>&gt;&gt;&gt;<i> I have a proposal for a cross domain security framework that i think
+</I>&gt;&gt;&gt;<i> should be implemented in browsers, java applets, flash applets and
+</I>&gt;&gt;&gt;<i> more.
+</I>&gt;&gt;<i> If we use any kind of verification that happens outside the
+</I>&gt;&gt;<i> connections, we should at least a hint inside the connection, which
+</I>&gt;&gt;<i> host the browser wants to connect though. I think raw TCP connections
+</I>&gt;&gt;<i> would cause major security holes with shared hosts, even if
+</I>&gt;&gt;<i> cross-domain connections need a DNS record.
+</I>&gt;<i>
+</I>&gt;<i> Yes, if we are using the WebSocket - but not if using the TCP
+</I>&gt;<i> connection. Nobody will be allowed to run a separate application that
+</I>&gt;<i> listens on a port on a shared server anyway.
+</I>&gt;<i>
+</I>&gt;&gt;<i> Consider the following scenario:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Bob and Eve have bought space on a run-of-the-mill XAMPP web hoster.
+</I>&gt;&gt;<i> They have different domains but happen to be on the same IP. Now Eve
+</I>&gt;&gt;<i> wants do bruteforce Bob's password-protected web application. So she
+</I>&gt;&gt;<i> adds a script to her relatively popular site that does the following:
+</I>&gt;<i>
+</I>&gt;<i> So Bob will DDOS his own server? And my proposals allows using
+</I>&gt;<i> hostnames OR ip-addresses in the DNS TXT record, so unless Eve add her
+</I>&gt;<i> own IP-address to the DNS then Bob can't create scripts that are
+</I>&gt;<i> allowed to access her hostname.
+</I>
+I'm sorry, if my wording was unclear. I was talking about a typical
+shared hosting setup where customers get FTP access to a directory
+where they can upload pages and scripts but for example no shell
+access. Bob and Eve would have different directories on the same
+server. Requests to their sites would go to the same port on the same
+IP. The server would use the Host header to determine which request
+goes to which site. In the scenario, Eve would try to attack Bob's
+application.
+
+&gt;<i>
+</I>&gt;<i> Why could he not just do a local connect to the port? Besides; if you
+</I>&gt;<i> have login access to the same server as your target - there are a lot
+</I>&gt;<i> much more efficient ways to find access information.
+</I>
+Eve could connect directly. However, then her IP would be in Bob's
+logs and she could be shut down quickly. If she makes the detour over
+a client-side scripts, only IPs of random visitors of Eve's website
+would be logged.
+
+&gt;<i>
+</I>&gt;&gt;<i> 1) Open a TCP connection to her own domain on port 80. As far as the
+</I>&gt;&gt;<i> browser is concerned, both origin and IP adress match the site one's,
+</I>&gt;&gt;<i> so no cross domain checks are performed.
+</I>&gt;<i>
+</I>&gt;<i> The server will not be able to match a connection to an IP adress with
+</I>&gt;<i> the correct script on the same server. My proposal of reusing the same
+</I>&gt;<i> connection as the page was served from does not have this problem - as
+</I>&gt;<i> the web server can match the connection with the exact
+</I>&gt;<i> hostname/script.
+</I>
+I agree here.
+
+&gt;<i>
+</I>&gt;&gt;<i> 2) Forge HTTP requests on that connection with Bob's site in the Host
+</I>&gt;&gt;<i> header and bruteforce the password. The Browser can't do anything
+</I>&gt;&gt;<i> about this, because it treats the TCP connection as opaque. The
+</I>&gt;&gt;<i> firewall just sees a legitimate HTTP request on a legitimate port.
+</I>&gt;<i>
+</I>&gt;<i> Still, that is more easily done if you are sitting on the local server
+</I>&gt;<i> using the server side script. Also the connections will be many times
+</I>&gt;<i> faster locally than all connections from outside users combined.
+</I>
+See above.
+&gt;<i>
+</I>&gt;&gt;<i> If Bob checks his logs, he will see requests from IPs all oer the
+</I>&gt;&gt;<i> world. Because Eve has control about the Referrer and
+</I>&gt;&gt;<i> Access-Control-Origin headers, there is no trace that leads back to
+</I>&gt;&gt;<i> her. She might even have send the headers with forged values to shift
+</I>&gt;&gt;<i> suspicion to another site.
+</I>&gt;<i>
+</I>&gt;<i> No trace leads back to Bob if he sits locally either (it would
+</I>&gt;<i> probably be more confusing).
+</I>&gt;<i>
+</I>&gt;<i> Perhaps the protocol should send another header stating the origin of
+</I>&gt;<i> the script that started the request?
+</I>
+For HTTP-based connections, this is exactly what Access-Control-Origin is doing.
+For pure TCP connections, this would not be possible, because, after
+all, they wouldn't be pure anymore :)
+
+&gt;<i>
+</I>&gt;&gt;<i> Note that the web hoster doesn't need to support WebSocket server side
+</I>&gt;&gt;<i> in any way for this to work.
+</I>&gt;<i>
+</I>&gt;<i> The web hoster will not allow a shared hosting customer to create
+</I>&gt;<i> programs that listen on arbitrary ports on the server, so for
+</I>&gt;<i> TCPConnection this is not an issue.
+</I>&gt;<i>
+</I>
+The web hoster may not, but the interface on the browsers would still work.
+
+&gt;<i>
+</I>&gt;<i> A big problem here is that we are discussing two separate things in
+</I>&gt;<i> the same threads. TCPConnection is one suggestion, WebConnection is
+</I>&gt;<i> another.
+</I>
+I agree. This attack would only work on pure TCP connections, not on
+HTTP-based connections.
+
+If I see it correctly, we have the following proposals currently:
+
+- Client-initiated HTTP 101, access checks via Access Control (The
+original proposal)
+
+- &quot;Server-initiated&quot; HTTP 101 on an exisiting connection, no checks necessary
+
+- Client-initiated HTTP 101, access checks via DNS/XSocket
+
+- Pure TCP, access checks via DNS/XSocket
+
+Is this correct?
+
+I think we should decide if we should continue the discussion about a
+HTTP-based or a pure TCP connection or if we should include both.
+
+&gt;<i>
+</I>&gt;<i> My DNS record security framework will work for both implementations.
+</I>
+For pure TCP connections, I don't see how it would alleviate the
+attack above. I think the XSocket proposal would solve the problem
+though.
+For HTTP-based connections, it would work, but I think Access Control
+would solve the same problems and would be much easier to implement
+and control.
+
+&gt;<i>
+</I>&gt;<i> Security issues regarding TCPConnection should be discussed. Java
+</I>&gt;<i> applets can already do pure TCP connections to the server they are
+</I>&gt;<i> hosted on, and I have never heard of the type of attack that you
+</I>&gt;<i> describe above.
+</I>&gt;<i>
+</I>&gt;<i> Regards, Frode
+</I>&gt;<i>
+</I>
+Regards, Philipp Serafin
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="057434.html">[whatwg]  TCPConnection feedback
+</A></li>
+	<LI>Next message: <A HREF="057473.html">[whatwg] TCPConnection feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#57471">[ date ]</a>
+              <a href="thread.html#57471">[ thread ]</a>
+              <a href="subject.html#57471">[ subject ]</a>
+              <a href="author.html#57471">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

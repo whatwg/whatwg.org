@@ -1,0 +1,158 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] &quot;first script&quot; and impersonating other pages - pushState(url)
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20%22first%20script%22%20and%20impersonating%20other%20pages%20-%0A%20pushState%28url%29&In-Reply-To=%3CPine.LNX.4.62.0908302144410.6775%40hixie.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="064460.html">
+   <LINK REL="Next"  HREF="064776.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] &quot;first script&quot; and impersonating other pages - pushState(url)</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20%22first%20script%22%20and%20impersonating%20other%20pages%20-%0A%20pushState%28url%29&In-Reply-To=%3CPine.LNX.4.62.0908302144410.6775%40hixie.dreamhostps.com%3E"
+       TITLE="[whatwg] &quot;first script&quot; and impersonating other pages - pushState(url)">ian at hixie.ch
+       </A><BR>
+    <I>Sun Aug 30 14:47:56 PDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="064460.html">[whatwg] &quot;first script&quot; and impersonating other pages -	pushState(url)
+</A></li>
+        <LI>Next message: <A HREF="064776.html">[whatwg] &quot;first script&quot; and impersonating other pages -	pushState(url)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#64747">[ date ]</a>
+              <a href="thread.html#64747">[ thread ]</a>
+              <a href="subject.html#64747">[ subject ]</a>
+              <a href="author.html#64747">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Fri, 21 Aug 2009, Mike Wilson wrote:
+&gt;<i>
+</I>&gt;<i> I'm currently wrapping my head around the notion of &quot;first script&quot; in 
+</I>&gt;<i> the spec [1]. It's description is a bit terse and the subject seems 
+</I>&gt;<i> non-trivial, so maybe the text could be fleshed out some?
+</I>&gt;<i> 
+</I>&gt;<i> Section 6.1.5 &quot;Groupings of browsing contexts&quot; says:
+</I>&gt;<i> | Each unit of related similar-origin browsing 
+</I>&gt;<i> | contexts can have a first script which is used to 
+</I>&gt;<i> | obtain, amongst other things, the script's base 
+</I>&gt;<i> | URL to resolve relative URLs used in scripts 
+</I>&gt;<i> | running in that unit of related similar-origin 
+</I>&gt;<i> | browsing contexts. Initially, there is no first 
+</I>&gt;<i> | script.
+</I>&gt;<i> 
+</I>&gt;<i> Ok, so a *unit of related similar-origin browsing contexts* has one 
+</I>&gt;<i> shared first script.
+</I>&gt;<i> 
+</I>&gt;<i> Does this implicitly say that this set of browsing contexts should never 
+</I>&gt;<i> execute script in parallel? (= mutually exclusive code execution, so one 
+</I>&gt;<i> hang will hang them all)
+</I>
+No, that is implied by the event loop mechanism.
+
+   <A HREF="http://www.whatwg.org/specs/web-apps/current-work/#event-loops">http://www.whatwg.org/specs/web-apps/current-work/#event-loops</A>
+
+
+&gt;<i> Section 6.5.3.2 &quot;Calling scripts&quot; says:
+</I>&gt;<i> | When a user agent is to jump to a code entry-point 
+</I>&gt;<i> | for a script, for example to invoke an event 
+</I>&gt;<i> | listener defined in that script, the user agent 
+</I>&gt;<i> | must run the following steps:
+</I>&gt;<i> | [...]
+</I>&gt;<i> | 2. Set the first script to be the script being 
+</I>&gt;<i> |    invoked. 
+</I>&gt;<i> 
+</I>&gt;<i> Example:
+</I>&gt;<i> 
+</I>&gt;<i>   /pages/page1.html:
+</I>&gt;<i>     &lt;script src=&quot;/scripts/script1.js&quot;&gt;
+</I>&gt;<i> *1  &lt;button onclick=&quot;func1();&quot;&gt;
+</I>&gt;<i> 
+</I>&gt;<i>   /scripts/script1.js:
+</I>&gt;<i>     function func1() { ... }
+</I>&gt;<i> *2  func1();
+</I>&gt;<i> 
+</I>&gt;<i> What is regarded as *first script* in these two 
+</I>&gt;<i> calls to func1() ?
+</I>&gt;<i> *1: the implicitly generated event handler wrapper 
+</I>&gt;<i>     in /pages/page1.html ?
+</I>&gt;<i> *2: /scripts/script1.js
+</I>
+Yes.
+
+
+&gt;<i> Section 6.10.2 &quot;The History interface&quot; says:
+</I>&gt;<i> | [...]
+</I>&gt;<i> | pushState(data, title, url)
+</I>&gt;<i> | [...]
+</I>&gt;<i> | 2.1 Resolve the value of the third argument, 
+</I>&gt;<i> |     relative to the first script's base URL.
+</I>&gt;<i> | [...]
+</I>&gt;<i> | 5   If the third argument is present, set the 
+</I>&gt;<i> |     document's current address to the absolute URL 
+</I>&gt;<i> |     that was found earlier in this algorithm.
+</I>&gt;<i> 
+</I>&gt;<i> Ok, by calling pushState() with an URL I can make 
+</I>&gt;<i> the address bar show another URL than my document is
+</I>&gt;<i> loaded from.
+</I>&gt;<i> 
+</I>&gt;<i> Imagine that I want my loaded page:
+</I>&gt;<i>   /pages/section1/thing1
+</I>&gt;<i> be able to impersonate:
+</I>&gt;<i>   /pages/section2/thing2
+</I>&gt;<i> how do you envision this to be structured? 
+</I>&gt;<i> 
+</I>&gt;<i> Something like this? :
+</I>&gt;<i> 
+</I>&gt;<i>   /pages/section1/thing1:
+</I>&gt;<i>     &lt;script src=&quot;/pages/script.js&quot;&gt;
+</I>&gt;<i>     &lt;button onclick=&quot;impersonate();&quot;&gt;
+</I>&gt;<i> 
+</I>&gt;<i>   /pages/script.js:
+</I>&gt;<i>     function impersonate() {
+</I>&gt;<i>       ...pushState(..., &quot;/pages/section2/thing2&quot;);
+</I>&gt;<i>     }
+</I>
+That would do it, yes.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="064460.html">[whatwg] &quot;first script&quot; and impersonating other pages -	pushState(url)
+</A></li>
+	<LI>Next message: <A HREF="064776.html">[whatwg] &quot;first script&quot; and impersonating other pages -	pushState(url)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#64747">[ date ]</a>
+              <a href="thread.html#64747">[ thread ]</a>
+              <a href="subject.html#64747">[ subject ]</a>
+              <a href="author.html#64747">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

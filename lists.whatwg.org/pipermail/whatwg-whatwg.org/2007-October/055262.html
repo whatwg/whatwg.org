@@ -1,0 +1,169 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] SQL API complex for simple cases
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20SQL%20API%20complex%20for%20simple%20cases&In-Reply-To=%3CPine.LNX.4.62.0710312351500.27205%40hixie.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="055261.html">
+   <LINK REL="Next"  HREF="055263.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] SQL API complex for simple cases</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20SQL%20API%20complex%20for%20simple%20cases&In-Reply-To=%3CPine.LNX.4.62.0710312351500.27205%40hixie.dreamhostps.com%3E"
+       TITLE="[whatwg] SQL API complex for simple cases">ian at hixie.ch
+       </A><BR>
+    <I>Wed Oct 31 16:56:53 PDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="055261.html">[whatwg] SQL API complex for simple cases
+</A></li>
+        <LI>Next message: <A HREF="055263.html">[whatwg] SQL API complex for simple cases
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#55262">[ date ]</a>
+              <a href="thread.html#55262">[ thread ]</a>
+              <a href="subject.html#55262">[ subject ]</a>
+              <a href="author.html#55262">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Wed, 31 Oct 2007, Brady Eidson wrote:
+&gt;<i> 
+</I>&gt;<i> I don't know that the goal is to adopt a &quot;non-transactioned&quot; API, but 
+</I>&gt;<i> rather to present the transactioned API in a manner that is also easy to 
+</I>&gt;<i> use for &quot;fire off one sql query and forget it&quot; purposes.
+</I>
+The fear is that people would do:
+
+   db.executeSql('...', [], function(...) {
+     db.executeSql('...', []); // depends on the first call
+   });
+
+...without a transaction.
+
+
+&gt;<i> database.transaction().executeSql(...) is both &quot;transactioned,&quot; fitting 
+</I>&gt;<i> into the current API, and &quot;fire it and forget it,&quot; which is very easy 
+</I>&gt;<i> for simple developer use.
+</I>
+Sure, you can do that now (well, using callbacks instead of chaining).
+
+
+&gt;<i> &gt; &gt; The other problem I see that makes the current spec more complex is 
+</I>&gt;<i> &gt; &gt; the transaction callback. I think a better API would be:
+</I>&gt;<i> &gt; &gt; 
+</I>&gt;<i> &gt; &gt; SQLTransaction transaction();
+</I>&gt;<i> &gt; &gt; SQLTransaction transaction(in SQLTransactionErrorCallback errorCallback);
+</I>&gt;<i> &gt; &gt; 
+</I>&gt;<i> &gt; &gt; Then you can call executeSql on the transaction object without 
+</I>&gt;<i> &gt; &gt; having to wait for the callback. Sure, closures in JavaScript make 
+</I>&gt;<i> &gt; &gt; this somewhat less painful, but closures are usually expensive and 
+</I>&gt;<i> &gt; &gt; add additional complexity.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; The problem with returning the object is that then we have no scope to 
+</I>&gt;<i> &gt; know when the transaction should close.
+</I>&gt;<i> 
+</I>&gt;<i> Currently, the actual transaction to the database is opened in 
+</I>&gt;<i> transaction steps 1 and 2.
+</I>&gt;<i> 
+</I>&gt;<i> If we adopt this model, we'd have a SQLTransaction object, but the 
+</I>&gt;<i> transaction steps themselves won't have started.  The first call to 
+</I>&gt;<i> executeSql() could &quot;set the transaction into motion&quot;, as it were - 
+</I>&gt;<i> starting with steps 1 and 2 where the transaction is opened.
+</I>&gt;<i> 
+</I>&gt;<i> Adopting this model is quite compatible with the current transaction 
+</I>&gt;<i> steps with only small modifications, imho.
+</I>
+   var transaction = db.transaction();
+   transaction.executeSql(...);
+   transaction.executeSql(...);
+
+How do you know when the transaction is ended? You have no scoping.
+
+
+&gt;<i> &gt; On Wed, 31 Oct 2007, Brady Eidson wrote:
+</I>&gt;<i> &gt; &gt; 
+</I>&gt;<i> &gt; &gt; My understanding with this design is that you would get this 
+</I>&gt;<i> &gt; &gt; SQLTransaction object back and it would just sit around, not doing 
+</I>&gt;<i> &gt; &gt; anything.  When you first call executeSql on it, you kick off the 
+</I>&gt;<i> &gt; &gt; transaction steps as they already exist.  Until you call 
+</I>&gt;<i> &gt; &gt; executeSql(), it's just a dummy object that doesn't interfere with 
+</I>&gt;<i> &gt; &gt; the database at all.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; What if there's a problem with opening the transaction itself? You 
+</I>&gt;<i> &gt; don't want to run all the code for preparing the statement only to 
+</I>&gt;<i> &gt; find you didn't have a chance for the statement to run in the first 
+</I>&gt;<i> &gt; place.
+</I>&gt;<i> 
+</I>&gt;<i> While the spec *does* currently enforce preparing the statement at the 
+</I>&gt;<i> time of calling executeSql() just to mark the statement bogus, &quot;marking 
+</I>&gt;<i> the statement bogus&quot; is only a flag that takes effect later during the 
+</I>&gt;<i> transaction effects.
+</I>&gt;<i> 
+</I>&gt;<i> Therefore, why is it so necessary to prepare the statement before the 
+</I>&gt;<i> transaction is opened?  Why don't we parse and validate the statement in 
+</I>&gt;<i> the transaction steps themselves?
+</I>&gt;<i>
+</I>&gt;<i> If we adopted both of these models (Tims idea and allowing the statement 
+</I>&gt;<i> to be parsed in the transaction steps) and there was a problem with 
+</I>&gt;<i> opening the transaction itself, you'd get the 
+</I>&gt;<i> SQLTransactionErrorCallback and the statement would never even be 
+</I>&gt;<i> touched at all.
+</I>
+I'm talking about:
+
+   var transaction = db.transaction(errorCallback);
+   // the transaction has failed at this point
+   // but we have no way to stop the next few lines from running:
+   ...do lots of work to get the data to put into the transaction...
+   transaction.executeSql('...', [expensiveData], ...);
+
+vs:
+
+   db.transaction(function (transaction) {
+     // this never gets called, since the transaction failed
+     ...do lots of work to get the data to put into the transaction...
+     transaction.executeSql('...', [expensiveData], ...);
+   }, errorCallback);
+
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="055261.html">[whatwg] SQL API complex for simple cases
+</A></li>
+	<LI>Next message: <A HREF="055263.html">[whatwg] SQL API complex for simple cases
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#55262">[ date ]</a>
+              <a href="thread.html#55262">[ thread ]</a>
+              <a href="subject.html#55262">[ subject ]</a>
+              <a href="author.html#55262">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

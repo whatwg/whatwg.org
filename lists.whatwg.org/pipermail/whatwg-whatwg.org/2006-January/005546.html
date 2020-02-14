@@ -1,0 +1,132 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] comment parsing
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20comment%20parsing&In-Reply-To=%3CPine.LNX.4.62.0601230215400.9516%40dhalsim.dreamhost.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="005528.html">
+   <LINK REL="Next"  HREF="005545.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] comment parsing</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20comment%20parsing&In-Reply-To=%3CPine.LNX.4.62.0601230215400.9516%40dhalsim.dreamhost.com%3E"
+       TITLE="[whatwg] comment parsing">ian at hixie.ch
+       </A><BR>
+    <I>Sun Jan 22 18:33:05 PST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="005528.html">[whatwg] comment parsing
+</A></li>
+        <LI>Next message: <A HREF="005545.html">[whatwg] comment parsing
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5546">[ date ]</a>
+              <a href="thread.html#5546">[ thread ]</a>
+              <a href="subject.html#5546">[ subject ]</a>
+              <a href="author.html#5546">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Sat, 21 Jan 2006, Anne van Kesteren wrote:
+&gt;<i>
+</I>&gt;<i> Quoting Anne van Kesteren &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">fora at annevankesteren.nl</A>&gt;:
+</I>&gt;<i> &gt; However, from the specification it is not entirely clear what should happen
+</I>&gt;<i> &gt; with &lt;!--&gt;&lt;/p&gt;.
+</I>&gt;<i> 
+</I>&gt;<i> The specification also does not match what is widely implemented for cases
+</I>&gt;<i> like:
+</I>&gt;<i> 
+</I>&gt;<i> # &lt;p&gt;&lt;!-- --FAIL&gt;&lt;/p&gt;
+</I>&gt;<i> 
+</I>&gt;<i> Here is how they are parsed more or less (without EOF and error handling):
+</I>&gt;<i> 
+</I>&gt;<i> zcorpan says:
+</I>&gt;<i> ok, so it is parsed like this...
+</I>&gt;<i> &lt;! marked section open state
+</I>&gt;<i> -- comment open state
+</I>&gt;<i> anything except --: stay in comment open state
+</I>&gt;<i> -- comment end state
+</I>&gt;<i> anything except &gt;: stay in comment end state
+</I>&gt;<i> &gt; close comment
+</I>
+In my testing, I found that browsers were less than consistent about this. 
+For example, this:
+
+   &lt;!-- a &gt; -- b &gt; c --&gt; EOF
+
+...in Mozilla in quirks mode, is treated as one long comment, but this:
+
+   &lt;!-- a &gt; -- b &gt; c EOF
+
+...is treated as if the comment ended after the &quot;a&quot;. Given the security 
+concerns raised by reparsing (see my last e-mail), we don't want to do 
+this. Safari quirks mode looked like it might be implementing your 
+described behaviour. I couldn't test Opera, it raises exceptions on my 
+test script when I use it to test unexpected EOF situations.
+
+IE6 (in both standards mode and quirks mode) has this interesting 
+behaviour:
+
+   SOURCE                      DOM
+   &lt;!-- a &gt; EOF                Empty comment.
+   &lt;!-- a &gt; - EOF              Text node &quot;&lt;!-- a &gt; -&quot;.
+   &lt;!-- a &gt; -- EOF             Text node &quot;&lt;!-- a &gt; --&quot;.
+   &lt;!-- a &gt; --&gt; EOF            Comment &quot; a &gt; &quot;.
+   &lt;!-- a &gt; -- &gt; EOF           Empty comment, text node &quot; -- &gt;&quot;.
+   &lt;!-- a &gt; -- b &gt; EOF         Empty comment, text node &quot; -- b &gt;&quot;.
+   &lt;!-- a &gt; -- b &gt; c - EOF     Text node &quot; a &gt; -- b &gt; c -&quot;.
+   &lt;!-- a &gt; -- b &gt; c -- EOF    Text node &quot; a &gt; -- b &gt; c --&quot;.
+   &lt;!-- a &gt; -- b &gt; c --&gt; EOF   Comment &quot; a &gt; -- b &gt; c&quot;.
+
+
+Per the HTML5 spec now, it should be:
+
+   SOURCE                      DOM
+   &lt;!-- a &gt; EOF                Comment &quot; a &gt;&quot;.
+   &lt;!-- a &gt; - EOF              Comment &quot; a &gt; -&quot;.
+   &lt;!-- a &gt; -- EOF             Comment &quot; a &gt; --&quot;.
+   &lt;!-- a &gt; --&gt; EOF            Comment &quot; a &gt; &quot;.
+   &lt;!-- a &gt; -- &gt; EOF           Comment &quot; a &gt; -- &gt;&quot;.
+   &lt;!-- a &gt; -- b &gt; EOF         Comment &quot; a &gt; -- b &gt;&quot;.
+   &lt;!-- a &gt; -- b &gt; c - EOF     Comment &quot; a &gt; -- b &gt; c -&quot;.
+   &lt;!-- a &gt; -- b &gt; c -- EOF    Comment &quot; a &gt; -- b &gt; c --&quot;.
+   &lt;!-- a &gt; -- b &gt; c --&gt; EOF   Comment &quot; a &gt; -- b &gt; c &quot;.
+
+This seems like the most logical lowest-common-denominator way of 
+describing this.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="005528.html">[whatwg] comment parsing
+</A></li>
+	<LI>Next message: <A HREF="005545.html">[whatwg] comment parsing
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5546">[ date ]</a>
+              <a href="thread.html#5546">[ thread ]</a>
+              <a href="subject.html#5546">[ subject ]</a>
+              <a href="author.html#5546">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

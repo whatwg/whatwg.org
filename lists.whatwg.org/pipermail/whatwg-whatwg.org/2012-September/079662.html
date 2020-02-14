@@ -1,0 +1,198 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] New URL Standard
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20New%20URL%20Standard&In-Reply-To=%3C506068D6.4090507%40mit.edu%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="079653.html">
+   <LINK REL="Next"  HREF="079636.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] New URL Standard</H1>
+<!--htdig_noindex-->
+    <B>Boris Zbarsky</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20New%20URL%20Standard&In-Reply-To=%3C506068D6.4090507%40mit.edu%3E"
+       TITLE="[whatwg] New URL Standard">bzbarsky at MIT.EDU
+       </A><BR>
+    <I>Mon Sep 24 07:06:14 PDT 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="079653.html">[whatwg] New URL Standard
+</A></li>
+        <LI>Next message: <A HREF="079636.html">[whatwg] New URL Standard
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#79662">[ date ]</a>
+              <a href="thread.html#79662">[ thread ]</a>
+              <a href="subject.html#79662">[ subject ]</a>
+              <a href="author.html#79662">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On 9/24/12 4:58 AM, Anne van Kesteren wrote:
+&gt;<i> Say you have &lt;a href=&quot;data:test&quot;/&gt;; the concern is what e.g.
+</I>&gt;<i> a.protocol and a.pathname would return here. For invalid URLs they
+</I>&gt;<i> would return &quot;:&quot; and &quot;&quot; respectively. If we treat this as a valid URL
+</I>&gt;<i> you would get &quot;data:&quot; and &quot;test&quot;. In Gecko I get &quot;http:&quot; and &quot;&quot;. If I
+</I>&gt;<i> make that &lt;a href=&quot;data:text/html,test&quot;/&gt; Gecko will give meaningful
+</I>&gt;<i> answers (well pathname is still &quot;&quot;, maybe that is okay and pathname
+</I>&gt;<i> should only work for hierarchical URLs).
+</I>
+Ah, I see.
+
+So what happens here is that Gecko treats this as an invalid URL (more 
+precisely, it cannot create an internal &quot;URI&quot; object from this string). 
+  I guess that's what you were getting at: that data: URLs actually have 
+a concept of &quot;invalid&quot; in Gecko.  This is actually true for all schemes 
+Gecko supports, in general.  For example, &quot;<A HREF="http://something">http://something</A> or other&quot; 
+(with the spaces) will do the same thing.
+
+For an invalid URI, .protocol currently returns &quot;http:&quot; in Gecko.  I 
+have no idea why, offhand.  It could just as easily return &quot;:&quot;.
+
+As far as .pathname, what Gecko does is exactly what you say: .pathname 
+only works on hierarchical schemes.
+
+&gt;<i> More general, what I want is that for *any* given input in &lt;a
+</I>&gt;<i> href=&quot;...&quot;/&gt;, xhr.open(&quot;GET&quot;, ...), new URL(...), etc. I want to be
+</I>&gt;<i> able to tell what the various URL components are going to be. The kind
+</I>&gt;<i> of predictability we have for the HTML parser, I want to have for the
+</I>&gt;<i> URL parser as well.
+</I>
+Yes, absolutely agreed.
+
+&gt;<i> (If that means handling data URLs at the layer of the URL parser
+</I>&gt;<i> rather than a separate parser that goes over the path, as Gecko
+</I>&gt;<i> appears to be doing, so be it.)
+</I>
+We could change Gecko's handling here, for what it's worth.  One reason 
+for the current handling is that right now we don't even make &lt;a&gt; into a 
+link unless its href is a valid URI as far as Gecko is concerned.  But 
+I'm considering changing that anyway, since no one else bothers with 
+such niceties and they complicate implementation a bit...
+
+&gt;&gt;<i> If you want constructive advice, it would be interesting to get a full list
+</I>&gt;&gt;<i> of all the weird stuff that UAs do here so we can evaluate which parts of it
+</I>&gt;&gt;<i> are needed and why.  I can try to produce such a list for Gecko, if there
+</I>&gt;&gt;<i> seems to be motion on the general idea.
+</I>&gt;<i>
+</I>&gt;<i> I think that would be a great start. I'm happy to start out with
+</I>&gt;<i> Gecko's behavior and iterate over time as feedback comes in from other
+</I>&gt;<i> browsers.
+</I>
+Hmm.  So here goes at least a partial list:
+
+1)  On Windows and OS/2, Gecko replaces '\\' with '/' in <A HREF="file://">file://</A> URI 
+strings before doing anything else with the string when parsing a new 
+URL.  That includes relative URI strings being resolved against a 
+<A HREF="file://">file://</A> base.
+
+2)  <A HREF="file://">file://</A> URIs are parsed as a &quot;no authority&quot; URL in Gecko.  Quoting 
+the IDL comment:
+
+35     /**
+36      * blah:foo/bar    =&gt; <A HREF="blah:///foo/bar">blah:///foo/bar</A>
+37      * blah:/foo/bar   =&gt; <A HREF="blah:///foo/bar">blah:///foo/bar</A>
+38      * <A HREF="blah://foo/bar">blah://foo/bar</A>  =&gt; <A HREF="blah://foo/bar">blah://foo/bar</A>
+39      * <A HREF="blah:///foo/bar">blah:///foo/bar</A> =&gt; <A HREF="blah:///foo/bar">blah:///foo/bar</A>
+40      */
+
+where the thing on the left is the input string and the thing on the 
+right is the normalized form that the parser produces from it.  Note 
+that this is different from how HTTP URIs are parsed, for all except the 
+item on line number 38 there.
+
+3)  Gecko does not allow setting a username, password, hostname, port on 
+an existing &quot;no authority&quot; URL object, including <A HREF="file://.">file://.</A>  Attempts to 
+do that throw internally; I believe for web stuff it just becomes a no-op.
+
+4)  For &quot;no authority&quot; URLs, including <A HREF="file://,">file://,</A> on Windows and OS/2 
+only, if what looks like authority section looks like a drive letter, 
+it's treated as part of the path.  For example, &quot;<A HREF="file://c:/">file://c:/</A>&quot; is treated 
+as the filename &quot;c:\&quot;.  &quot;Looks like a drive letter&quot; is defined as &quot;ASCII 
+letter (any case), followed by a ':' or '|' and then followed by end of 
+string or '/' or '\\'&quot;.  I'm not sure why this is checking for '\\' 
+again, honestly.  ;)
+
+5)  When parsing a &quot;no authority&quot; URL (including <A HREF="file://">file://</A>), and when item 
+4 above does not apply, it looks like Gecko skips everything after 
+&quot;<A HREF="file://">file://</A>&quot; up until the next '/', '?', or '#' char before parsing path stuff.
+
+6)  On Windows and OS/2, when dynamically parsing a path for a &quot;no 
+authority&quot; URL (not sure whether this is actually web-exposed, fwiw...) 
+Gecko will do something involving looking for a path that's only an 
+ASCII letter followed by ':' or '|' followed by end of string.  I'm not 
+quite sure what that part is about...  It might have to do with the fact 
+that URI objects in Gecko can have concepts of &quot;directory&quot;, &quot;filename&quot;, 
+&quot;extension&quot; or something like that.
+
+7)  When doing URI equality comparisons, if two <A HREF="file://">file://</A> URIs only differ 
+in their directory/filename/extension (so the actual file path), then an 
+equality comparison is done on the underlying file path objects.  What 
+this means depends on the OS.  On &quot;Unix&quot; this is just a straight-up byte 
+by byte compare of file paths.  I think OS X now follows the &quot;Unix&quot; code 
+path as do most other supported platforms.  But note that &quot;file path&quot; in 
+this case is normalized in various ways.  Specifically: trailing '/' are 
+stripped and some sort of normalization of HFS paths (possibly with a 
+volume name) to POSIX paths is done on OSX.  One result of the latter is 
+that <A HREF="file:///Users%2fbzbarsky">file:///Users%2fbzbarsky</A> ends up seeing my home directory, which is 
+... slightly surprising.  On &quot;Unix&quot;, the path bytes are treated as UTF-8 
+if they're valid UTF-8, else treated as whatever the current locale 
+charset is, I think.  Oh, and there is some sort of escaping going on 
+for directory names, filenames, extensions.  Not sure what that's about, 
+if anything.  The URI-escaping code is black magic, but I'm happy to run 
+some black-box tests on it if someone wants to provide test strings.
+
+The things that don't go through the &quot;Unix&quot; code for this stuff are 
+Windows and OS/2.  I'm not going to dig through the OS/2 stuff, but on 
+Windows if the filename contains a nonempty directory name and the 
+second char is '|' that's converted to a ':'.  Again, escaping for 
+directory names and file names and extensions.  Again, things that look 
+like UTF-8 are treated thus and other stuff uses the current codepage. 
+After all that, the actual equality comparison is done via _wcsicmp on 
+the return value of GetShortPathNameW.  So whatever things that 
+combination considers equal are equal.
+
+8)  When actually resolving a <A HREF="file://">file://</A> URL, the underlying file path 
+object as described above is used to get the data.  Plus there's a bit 
+of weirdness about symlinks, I think...  Mostly affects what's shown in 
+the url bar when pointing the browser to a symlink.
+
+That's what I can spot offhand.  I won't guarantee there is nothing 
+else.  :(
+
+-Boris
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="079653.html">[whatwg] New URL Standard
+</A></li>
+	<LI>Next message: <A HREF="079636.html">[whatwg] New URL Standard
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#79662">[ date ]</a>
+              <a href="thread.html#79662">[ thread ]</a>
+              <a href="subject.html#79662">[ subject ]</a>
+              <a href="author.html#79662">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

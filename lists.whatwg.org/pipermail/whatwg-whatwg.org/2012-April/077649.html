@@ -1,0 +1,189 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Fixing two security vulnerabilities in	registerProtocolHandler
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Fixing%20two%20security%20vulnerabilities%20in%0A%09registerProtocolHandler&In-Reply-To=%3CCAKvcKK%3DSYmLoKRJD9b0aC0_JCaWK3rm20DGL7hFWKqJTypeXHw%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="077578.html">
+   <LINK REL="Next"  HREF="077650.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Fixing two security vulnerabilities in	registerProtocolHandler</H1>
+<!--htdig_noindex-->
+    <B>Tyler Close</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Fixing%20two%20security%20vulnerabilities%20in%0A%09registerProtocolHandler&In-Reply-To=%3CCAKvcKK%3DSYmLoKRJD9b0aC0_JCaWK3rm20DGL7hFWKqJTypeXHw%40mail.gmail.com%3E"
+       TITLE="[whatwg] Fixing two security vulnerabilities in	registerProtocolHandler">tyler.close at gmail.com
+       </A><BR>
+    <I>Fri Apr  6 14:19:50 PDT 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="077578.html">[whatwg] Fixing two security vulnerabilities in	registerProtocolHandler
+</A></li>
+        <LI>Next message: <A HREF="077650.html">[whatwg] Fixing two security vulnerabilities in	registerProtocolHandler
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#77649">[ date ]</a>
+              <a href="thread.html#77649">[ thread ]</a>
+              <a href="subject.html#77649">[ subject ]</a>
+              <a href="author.html#77649">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Mon, Apr 2, 2012 at 4:39 PM, Ian Hickson &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">ian at hixie.ch</A>&gt; wrote:
+&gt;<i> On Mon, 26 Sep 2011, Tyler Close wrote:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> I was recently experimenting with the registerProtocolHandler (RPH) API
+</I>&gt;&gt;<i> and came across a couple of security gotchas that make it hard to safely
+</I>&gt;&gt;<i> use the API. One of these is already known, but AFAICT, hasn't been
+</I>&gt;&gt;<i> fixed yet. I haven't seen the other discussed yet.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> The Mozilla blog post that introduces the registerProtocolHandler API
+</I>&gt;&gt;<i> makes use of window.parent.postMessage to send a response from the RPH
+</I>&gt;&gt;<i> handler back to the client page.
+</I>&gt;<i>
+</I>&gt;<i> I presume it uses this in conjunction with an &lt;a href=&quot;&quot;&gt; link with a
+</I>&gt;<i> target=&quot;&quot; attribute to load the handler in an iframe.
+</I>
+The client page loads the handler page using an iframe or a
+window.open(). Either can work.
+
+&gt;&gt;<i> In the example code, the targetOrigin for this postMessage invocation is
+</I>&gt;&gt;<i> '*', while also noting that this is not secure. AFAICT, there is no API
+</I>&gt;&gt;<i> that the intent handler can reliably use to determine the correct
+</I>&gt;&gt;<i> targetOrigin for this postMessage invocation.
+</I>&gt;<i>
+</I>&gt;<i> How can the origin be anything other than the origin of the page that
+</I>&gt;<i> triggered the link?
+</I>
+Exactly, but we need a way for the handler page to find out what that origin is.
+
+A client page on origin A causes a navigation to a RPH URL (iframe or
+window.open). The browser loads the user chosen RPH handler, which is
+another web page from origin B. After the handler page loads, it wants
+to send a return value back to the client page. How does the handler
+page know the client page's origin is A? It needs to know this origin
+string so that it can securely use postMessage to send the return
+value back. AFAICT, there is no existing API in the browser that lets
+the handler page determine the client page's origin.
+
+&gt;&gt;<i> I suggest fixing this problem by adding a new readonly DOMString that
+</I>&gt;&gt;<i> contains the correct origin for the postMessage invocation; perhaps
+</I>&gt;&gt;<i> document.origin. So the response invocation would then be coded as:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> &#160; window.parent.postMessage('my response data', document.origin);
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Perhaps a different name or location is better for this field, so I'll
+</I>&gt;&gt;<i> defer to the editor's judgment.
+</I>&gt;<i>
+</I>&gt;<i> You can work out your own origin from window.location's members, but I
+</I>&gt;<i> don't see how this helps you determine the origin of your parent. There's
+</I>&gt;<i> a separate thread about adding a way to obtain your parent's origin, but
+</I>&gt;<i> again, I don't see why you would need it in this case. Can you elaborate
+</I>&gt;<i> on what the attack scenario you are envisaging is?
+</I>
+Currently, the handler page can only specify &quot;*&quot; in the postMessage
+invocation that sends the return value. If the client page is
+navigated by an attacker, before the postMessage is done, the attacker
+can intercept the return value. It's the same rationale used every
+time we advise programmers against using '*' as the targetOrigin for a
+postMessage() invocation.
+
+&gt;&gt;<i> The second problem with RPH is that the handler page doesn't have a
+</I>&gt;&gt;<i> way of reliably getting the URL of the content to be handled from the
+</I>&gt;&gt;<i> browser. In order to work in offline scenarios, the RPH handler must
+</I>&gt;&gt;<i> put the %s placeholder in the fragment of its handler's URL.
+</I>&gt;<i>
+</I>&gt;<i> It's not clear to me that it makes sense to have an offline protocol
+</I>&gt;<i> handler. What kind of protocol do you have in mind?
+</I>
+For example, consider an offline web mail program. I click on a
+mailto: link and want to compose a message in my web mail editor,
+queuing it to be sent next time I'm online.
+
+RPH is a way for a web page to send data to a user determined
+application. There will surely be many scenarios where offline
+functionality is desirable.
+
+&gt;&gt;<i> Unfortunately, this means that other content in the browser could
+</I>&gt;&gt;<i> modify the content URL before the handler reads it.
+</I>&gt;<i>
+</I>&gt;<i> Well, any content can load any URL, so it doesn't matter whether the URL
+</I>&gt;<i> is in the fragment identifier or the path or anything else, surely.
+</I>
+It matters if the handler page assumes that the URL came from its
+parent or opener. The parent and opener then engage in a postMessage
+conversation where the parent knows it said one thing, but the handler
+heard it saying something different, something chosen by the attacker.
+
+&gt;&gt;<i> For example, an attacker could open a window on a victim web page. The
+</I>&gt;&gt;<i> victim web page then opens an &lt;iframe&gt; on a content URL that triggers
+</I>&gt;&gt;<i> RPH. The attacker then navigates the &lt;iframe&gt; so that its
+</I>&gt;&gt;<i> window.location contains a different content URL.
+</I>&gt;<i>
+</I>&gt;<i> How can the attacker navigate that iframe? Surely it would not be allowed
+</I>&gt;<i> to navigate it, per the &quot;allowed to navigate&quot; definition in HTML.
+</I>
+Boris already answered this.
+
+&gt;&gt;<i> The intent handler sees a request coming from the victim page, but with
+</I>&gt;&gt;<i> a content URL specified by the attacker. A related problem is that the
+</I>&gt;&gt;<i> intent handler has no way to distinguish whether its URL was loaded via
+</I>&gt;&gt;<i> the browser's RPH handling, or whether the client page directly
+</I>&gt;&gt;<i> navigated to the intent handler's URL. Both of these problems could be
+</I>&gt;&gt;<i> fixed by adding another readonly DOMString to the API that contains the
+</I>&gt;&gt;<i> %s data for the RPH invocation.
+</I>&gt;<i>
+</I>&gt;<i> I don't understand why it matters how the URL was invoked.
+</I>
+If the URL was invoked via RPH, then the handler page knows that the
+user selected it for this action. The handler page also knows that any
+arguments in the handler's URL (not in the RPH URL), were set by the
+handler's origin and were not tampered with by the client page.
+
+For example, a web mail program might have two registered RPH handlers
+for mailto: &quot;<A HREF="https://example.org/?from=me@company&amp;q=%s">https://example.org/?from=me@company&amp;q=%s</A>&quot; and
+&quot;<A HREF="https://example.org/?from=me@personal&amp;q=%s">https://example.org/?from=me@personal&amp;q=%s</A>&quot;. The user has configured
+their browser to send mailto links to their personal email editor. A
+malicious client page could directly open the URL for the company
+email editor. The web mail editor needs a way to detect when a client
+page is trying to subvert the user's chosen preferences. So, an RPH
+handler needs a way to know that it was loaded via the RPH dispatch.
+Once it knows this, it can also trust that the arguments in the URL,
+such as &quot;from&quot; in this case, were not tampered with by the client
+page.
+
+--Tyler
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="077578.html">[whatwg] Fixing two security vulnerabilities in	registerProtocolHandler
+</A></li>
+	<LI>Next message: <A HREF="077650.html">[whatwg] Fixing two security vulnerabilities in	registerProtocolHandler
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#77649">[ date ]</a>
+              <a href="thread.html#77649">[ thread ]</a>
+              <a href="subject.html#77649">[ subject ]</a>
+              <a href="author.html#77649">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

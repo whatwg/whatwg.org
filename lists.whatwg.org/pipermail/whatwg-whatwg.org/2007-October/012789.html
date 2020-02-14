@@ -1,0 +1,342 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] SQL API error handling
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20SQL%20API%20error%20handling&In-Reply-To=%3CPine.LNX.4.62.0710180131110.19595%40hixie.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="012745.html">
+   <LINK REL="Next"  HREF="012790.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] SQL API error handling</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20SQL%20API%20error%20handling&In-Reply-To=%3CPine.LNX.4.62.0710180131110.19595%40hixie.dreamhostps.com%3E"
+       TITLE="[whatwg] SQL API error handling">ian at hixie.ch
+       </A><BR>
+    <I>Wed Oct 17 18:58:21 PDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="012745.html">[whatwg] SQL API error handling
+</A></li>
+        <LI>Next message: <A HREF="012790.html">[whatwg] SQL API error handling
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#12789">[ date ]</a>
+              <a href="thread.html#12789">[ thread ]</a>
+              <a href="subject.html#12789">[ subject ]</a>
+              <a href="author.html#12789">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Mon, 15 Oct 2007, Brady Eidson wrote:
+&gt;<i>
+</I>&gt;<i> In some embedded (and client-server) database implementations - 
+</I>&gt;<i> including SQLite - continuing to operate on a database that is known to 
+</I>&gt;<i> be corrupt can lead to the process crashing.  Unlike the &quot;CPU core just 
+</I>&gt;<i> overheated&quot; case, it is a dangerous state software can help avoid.
+</I>
+Ok... but why can't the software simply avoid corrupting the database in 
+the first place?
+
+We don't have error codes for &quot;the DOM has become corrupted&quot; or for &quot;the 
+Window object's properties have become corrupted&quot;, why do we need one for 
+&quot;the Database's contents are corrupted&quot;? Why can't the database contents 
+simply not be corrupted in the first place?
+
+As I see it there are two ways the database could get corrupted -- 
+software error (bugs, spec-wise illegal behavious) and uncontrollable 
+external factors (cosmic rays, hardware failure, overheating, the user 
+hexediting the database file...).
+
+The uncontrollable external factors can affect _anything_. The DOM could 
+get corrupted in RAM by cosmic rays while the browser is running. A chip 
+could overheat and return bogus data randomly for a canvas getPixelData() 
+call. The drive could intermittently fail, preventing the cookies from 
+being read completely. We don't have any sort of handling for _any_ of 
+these problems right now, and I don't see why the database would be a 
+special case. If we want to handle these problems, we should find a 
+generic solution, IMHO (though it might involve errorCode values for the 
+Database object as well).
+
+So this leaves the software error case. Specifying what should happen in 
+the case of a software error seems to be about as pointless as regulating 
+how outlaws should behave. By definition, the rules aren't being followed 
+-- how can we provide rules to decide how things work?
+
+
+&gt;<i> How the user agent handles the problem long term (ask the user what to 
+</I>&gt;<i> do, silently delete and recreate it, let the database continue to be 
+</I>&gt;<i> corrupt, etc) may not need to be specified, but perhaps it would be 
+</I>&gt;<i> prudent to change the spec to at least suggest that if a database 
+</I>&gt;<i> becomes &quot;known to be corrupt,&quot; operations on all open handles to that 
+</I>&gt;<i> database should start throwing INVALID_STATE_ERR exceptions.
+</I>
+I think it would be reasonable for the UA to start raising UA-specific 
+exceptions in this case, but I don't see why it's any different than the 
+UA detecting that the network stack is corrupted and raising exceptions 
+on calls to XMLHttpRequest.
+
+
+On Tue, 16 Oct 2007, Brady Eidson wrote:
+&gt;<i> 
+</I>&gt;<i> Say corruption is detected and we present this error to the script 
+</I>&gt;<i> somehow - an exception for example.  Then we nuke the database and 
+</I>&gt;<i> recreate it from scratch.  Unless the error we presented to the script 
+</I>&gt;<i> was explicit about the condition, the script might not know that we just 
+</I>&gt;<i> deleted the entire database and it is now empty.  They might execute 
+</I>&gt;<i> some query that will succeed on the new, fresh database and they didn't 
+</I>&gt;<i> even realize we reset the database behind their back.  They might think 
+</I>&gt;<i> that some cached data they have in memory is still persistent in the 
+</I>&gt;<i> database, instead of knowing they could recover a little by writing it 
+</I>&gt;<i> back out.
+</I>&gt;<i>
+</I>&gt;<i> It would be nice to have a way to indicate to the script &quot;There was a 
+</I>&gt;<i> catastrophic event and we reset your database, assume you're starting 
+</I>&gt;<i> over from scratch.&quot;
+</I>
+But what if the catastrophic failure was that the Window object's 
+properties got wiped? Should we fire an event for that case and let the 
+script repopulate the Window object from the database?
+
+I guess I just don't understand the expected scenarios where failure is to 
+occur in such a localised case as to make this useful.
+
+
+On Tue, 16 Oct 2007, Brady Eidson wrote:
+&gt;<i> 
+</I>&gt;<i> You are (rightly) reading very specifically into what I am saying, 
+</I>&gt;<i> whereas what I'm trying to get at is still vague and general.
+</I>
+I'm also trying to read very specifically into what you're saying, since I 
+have to write very specifically into the spec. :-)
+
+
+&gt;<i> Let me take a step back and try to frame it at a higher level
+</I>&gt;<i> 
+</I>&gt;<i> - A page opens a valid database handle.
+</I>&gt;<i> - Some script uses that database handle - successfully
+</I>&gt;<i> - Some external event happens on the client machine - database corruption, the
+</I>&gt;<i> user deletes the database from the user agent's &quot;database management mode&quot;,
+</I>&gt;<i> gamma rays corrupt a single bit on the disk, or whatever.  This event renders
+</I>&gt;<i> the database unusable.
+</I>&gt;<i> - Some action is taken to reset the database so that it is usable - lets
+</I>&gt;<i> pretend the resolution is always recreating an empty database from scratch
+</I>&gt;<i> - The script knows something wrong happened - it has a completely 100% generic
+</I>&gt;<i> error on its query.  But it is unaware of the nature of this event and its
+</I>&gt;<i> resolution.  It decides to execute a new sql statement, and the value of this
+</I>&gt;<i> statement (from the script's perspective) is reliant on previously established
+</I>&gt;<i> values in the database.  The statement coincidentally succeeds even with the
+</I>&gt;<i> new empty database.
+</I>&gt;<i> 
+</I>&gt;<i> For further argument, lets pretend the script is in an onunload handler and
+</I>&gt;<i> its writing some small piece of data out to the database before the user
+</I>&gt;<i> &quot;quits&quot;.  It has a lot of other data in memory client-side that it *thinks* is
+</I>&gt;<i> in the database, but really isn't anymore.  It *could* write this data out,
+</I>&gt;<i> preserving a lot of important user state.  But it doesn't know to do so.
+</I>
+Are we seriously expecting authors to check for the extremely unlikely 
+case of the database getting corrupted during their onunload, just so that 
+they can try the long shot of writing everything back to the database 
+again and hope it works?
+
+
+&gt;<i> One can certainly make the argument that if this were a native application
+</I>&gt;<i> saving data to disk, it would be prudent to verify its data on disk.
+</I>
+Would it? I would imagine an application doing this would really just be 
+checking the contents of the disk cache (and probably at the OS level, 
+not even the disk's own internal cache).
+
+I would imagine the same applies here, actually.
+
+
+&gt;<i> But I think &quot;raw filesystem&quot; and &quot;database&quot; are different paradigms with 
+</I>&gt;<i> different usage expectations.
+</I>&gt;<i>
+</I>&gt;<i> An error code along the lines of &quot;your database was just reset&quot; might 
+</I>&gt;<i> fit the bill.  This could be because of corruption, because the user 
+</I>&gt;<i> agent database management was invoked and the database cleared, or a 
+</I>&gt;<i> number of other reasons.
+</I>&gt;<i> 
+</I>&gt;<i> This is a requested split from code 1 - &quot;The statement failed for 
+</I>&gt;<i> reasons not covered by any other code.&quot;
+</I>
+I think this would be an event, not an error code.
+
+
+On Wed, 17 Oct 2007, timeless wrote:
+&gt;<i> &gt;
+</I>&gt;<i> &gt; Let me take a step back and try to frame it at a higher level
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; - A page opens a valid database handle.
+</I>&gt;<i> &gt; - Some script uses that database handle - successfully
+</I>&gt;<i> &gt; - Some external event happens on the client machine - database
+</I>&gt;<i> &gt; corruption, the user deletes the database from the user agent's
+</I>&gt;<i> &gt; &quot;database management mode&quot;, gamma rays corrupt a single bit on the
+</I>&gt;<i> &gt; disk, or whatever.  This event renders the database unusable.
+</I>&gt;<i> 
+</I>&gt;<i> I'd like to somehow request that this point be stressed in the specification.
+</I>
+Which point?
+
+
+&gt;<i> I haven't spoken often, but I'm working on a browser for the Nokia 770 
+</I>&gt;<i> and Nokia N800. The 770 has very little local storage, but most likely 
+</I>&gt;<i> there will be a version of the browser we're producing that will include 
+</I>&gt;<i> this SQL API. I haven't done the math, but I think it amounts to 
+</I>&gt;<i> something like room for not more than 5 website databases with 5mb each 
+</I>&gt;<i> and a chance of failing to commit a changeset fairly often.
+</I>&gt;<i> 
+</I>&gt;<i> A couple of questions along these lines:
+</I>&gt;<i> 1. user launches browser
+</I>&gt;<i> 2. user visits Gmail
+</I>&gt;<i> 3. Gmail sets up a database
+</I>&gt;<i> 4. network goes out of range (transition to offline)
+</I>&gt;<i> 5. user composes and saves a message as a draft
+</I>&gt;<i> 6. user quits browser
+</I>&gt;<i> 7. browser saves database to disk
+</I>&gt;<i> 8. user launches browser
+</I>&gt;<i> 9. user visits Gmail
+</I>&gt;<i> 10. user sends the message
+</I>&gt;<i> 11. user connects to network (transition to online)
+</I>&gt;<i> 12. Gmail sends message
+</I>&gt;<i> 13. Gmail performs SQL operation to remove unsent message from in
+</I>&gt;<i> memory database
+</I>&gt;<i> 14. SQL API reports that this transaction has successfully completed -
+</I>&gt;<i> against an in memory database.
+</I>&gt;<i> 15. network goes out of range (transition to offline)
+</I>&gt;<i> 16. Device reboots (buggy wireless driver, effectively, the Browser
+</I>&gt;<i> has crashed without saving updated database to disk, last save was at
+</I>&gt;<i> point 7).
+</I>&gt;<i> 17. User launches browser
+</I>&gt;<i> 18. User visits Gmail
+</I>&gt;<i> 19. User opens the draft
+</I>&gt;<i> 20. User changes the draft
+</I>&gt;<i> 21. User saves the message
+</I>&gt;<i> 22. user connects to network (transition to online)
+</I>&gt;<i> 
+</I>&gt;<i> At which points in these steps should something interesting happen that 
+</I>&gt;<i> I haven't documented?
+</I>
+What do you mean by &quot;interesting&quot;?
+
+
+&gt;<i> version two.
+</I>&gt;<i> 
+</I>&gt;<i> A couple of questions along these lines:
+</I>&gt;<i> 1. user launches browser
+</I>&gt;<i> 2. user visits Gmail
+</I>&gt;<i> 3. Gmail sets up a database
+</I>&gt;<i> 4. network goes out of range (transition to offline)
+</I>&gt;<i> 5. user composes and sends a message
+</I>&gt;<i> 6. user quits browser
+</I>&gt;<i> 7. browser saves database to disk
+</I>&gt;<i> 
+</I>&gt;<i> 8. user launches browser
+</I>&gt;<i> 
+</I>&gt;<i> user visits 4 other web based applications that successfully create databases.
+</I>&gt;<i> 
+</I>&gt;<i> 9. user quits browser
+</I>&gt;<i> 10. browser saves databases (5) to disk
+</I>&gt;<i> 
+</I>&gt;<i> 11. user launches browser
+</I>&gt;<i> 12. user visits some other web application
+</I>&gt;<i> 13. web application tries to create a database.
+</I>&gt;<i> 14. browser panics (defined below)
+</I>&gt;<i> 
+</I>&gt;<i> User is given a dialog that lists what?
+</I>&gt;<i> At best, what information is available to the user?
+</I>&gt;<i> A. The name of each web application that has a database
+</I>&gt;<i> B. The name of the database
+</I>&gt;<i> C. The date/time at which it was last used
+</I>&gt;<i> D. The date/time the application was last used with a network connection
+</I>&gt;<i>  ** The browser is probably unlikely to be able to distinguish a
+</I>&gt;<i> walled garden (technically term, definable on demand) network from a
+</I>&gt;<i> proper network (with internet/intranet access to the application)
+</I>&gt;<i> unless someone defines an API for a web application to be able to tell
+</I>&gt;<i> the web browser &quot;Sorry, this network doesn't work for me&quot;.
+</I>&gt;<i> E. Size of the database (which will make virtually no sense to the user)
+</I>&gt;<i> F. Number of write transactions made against the database since the
+</I>&gt;<i> last online state (this will be useless because an application could
+</I>&gt;<i> either write often in small increments or rarely in a large chunk)
+</I>&gt;<i> 
+</I>&gt;<i> What options does the user have? Here are the ones I can think of:
+</I>&gt;<i> A. Delete a database
+</I>&gt;<i> B. Refuse to allow this new application database access
+</I>&gt;<i> Bi. Remember this decision
+</I>&gt;<i> Bii. Perhaps my browser should always ask the user about database
+</I>&gt;<i> access, as it might be better for an application not to offer the
+</I>&gt;<i> feature if the user is likely to need it for other things, even before
+</I>&gt;<i> the user reaches full state, otherwise they might accidentally delete
+</I>&gt;<i> something important.
+</I>&gt;<i> C. Try to backup a database to the external RS-MMC
+</I>&gt;<i> Ci. Is this backup or atomic export. I believe it should be atomic export.
+</I>&gt;<i> D. Import a database from a file (i.e., RS-MMC) - currently disabled,
+</I>&gt;<i> limit reached.
+</I>&gt;<i> 
+</I>&gt;<i> For fun, MMCs can easily be corrupted. So, in case people need a
+</I>&gt;<i> reminder about this....
+</I>&gt;<i> 
+</I>&gt;<i> E. Create database on current external RS-MMC (again, use case is 770
+</I>&gt;<i> which only supports RS, the n800 supports more flavors). Corrupting a
+</I>&gt;<i> removal RS-MMC is trivial, just remove it during a write :) -- note,
+</I>&gt;<i> this is corrupting the file system, I understand that a database
+</I>&gt;<i> engine can claim that its writes will never create a corrupt database.
+</I>&gt;<i> F. Let the user try to open one of these web applications and give the
+</I>&gt;<i> application an event &quot;database is being deleted, please generate a
+</I>&gt;<i> serialized export&quot;. The web application could then generate a query,
+</I>&gt;<i> construct the actual useful part and trigger a file download that the
+</I>&gt;<i> user can then save. Or the application could inform the user that it's
+</I>&gt;<i> safe to delete the database, or give the user a list of relevant items
+</I>&gt;<i> that will be lost.
+</I>
+I can't really advise you from a UI point of view. I'm not sure what your 
+questions imply regarding the spec, though.
+
+
+On Tue, 16 Oct 2007, Scott Hess wrote:
+&gt;<i> 
+</I>&gt;<i> I think that if the user agent did detect corruption and nuke the 
+</I>&gt;<i> database from orbit, then it would be reasonable for the user agent to 
+</I>&gt;<i> invalidate all outstanding database handles.  But that kind of thing 
+</I>&gt;<i> would seem to be something really beyond the spec to deal with.  It 
+</I>&gt;<i> seems like at that point the most appropriate action to take would be to 
+</I>&gt;<i> refresh the page and start from scratch, rather than expecting the app 
+</I>&gt;<i> to somehow handle the problem.
+</I>
+I agree.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="012745.html">[whatwg] SQL API error handling
+</A></li>
+	<LI>Next message: <A HREF="012790.html">[whatwg] SQL API error handling
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#12789">[ date ]</a>
+              <a href="thread.html#12789">[ thread ]</a>
+              <a href="subject.html#12789">[ subject ]</a>
+              <a href="author.html#12789">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

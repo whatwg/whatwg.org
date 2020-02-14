@@ -1,0 +1,217 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Offline Web Apps
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Offline%20Web%20Apps&In-Reply-To=%3CPine.LNX.4.64.0709070019000.16196%40dhalsim.dreamhost.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="054734.html">
+   <LINK REL="Next"  HREF="054736.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Offline Web Apps</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Offline%20Web%20Apps&In-Reply-To=%3CPine.LNX.4.64.0709070019000.16196%40dhalsim.dreamhost.com%3E"
+       TITLE="[whatwg] Offline Web Apps">ian at hixie.ch
+       </A><BR>
+    <I>Thu Sep  6 17:46:33 PDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="054734.html">[whatwg] The issue of interoperability of the &lt;video&gt; element
+</A></li>
+        <LI>Next message: <A HREF="054736.html">[whatwg] Offline Web Apps
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#54735">[ date ]</a>
+              <a href="thread.html#54735">[ thread ]</a>
+              <a href="subject.html#54735">[ subject ]</a>
+              <a href="author.html#54735">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Fri, 24 Aug 2007, Maciej Stachowiak wrote:
+&gt;<i> 
+</I>&gt;<i> I think it's easy to extend Ian's idea in a way that keeps it really 
+</I>&gt;<i> simple for the simple case, but that works better for the multi-page 
+</I>&gt;<i> case or other complex cases where pages load some resources dynamically.
+</I>&gt;<i> 
+</I>&gt;<i> &lt;html application=&quot;manifest-file&quot;&gt;
+</I>&gt;<i> 
+</I>&gt;<i> The manifest file would indicate all resources used by the web app, 
+</I>&gt;<i> including other pages, and other resources that may be loaded by the 
+</I>&gt;<i> current page but normally would not be at startup (another problem with 
+</I>&gt;<i> Ian's proposal IMO). Multiple pages that refer to the same manifest are 
+</I>&gt;<i> considered part of the same web app and share the same cache. If you 
+</I>&gt;<i> give an empty value for the application attribute, then the implicit 
+</I>&gt;<i> thing that Ian describes happens - the resources that the page actually 
+</I>&gt;<i> loads are the ones cached.
+</I>
+Ok, new proposal:
+
+There's a concept of an application cache. An application cache is a group 
+of resources, the group being identified by a URI (which typically happens 
+to resolve to a manifest). Resources in a cache are either top-level or 
+not; top-level resources are those that are HTML or XML and when parsed 
+with scripting disabled have &lt;html application=&quot;...&quot;&gt; with the value of 
+the attribute pointing to the same URI as identifies the cache.
+
+When you visit a page you first check to see if you have that page in a 
+cache as a known top-level page.
+
+If you do, skip the next two paragraphs; the 'new cache' flag is set to 
+false.
+
+If you don't, you fetch the URL. If it has no application=&quot;&quot; attribute, 
+then do whatever the normal thing to do is. Ignore the rest of this.
+
+The presence of the attribute indicates that it's expecting an application 
+cache to apply. The presence is detected at parse time, and must be 
+present on the first &lt;html&gt; start tag before any other start tags. Check 
+that the attribute's value is same-origin safe. If it isn't, pretend the 
+attribute wasn't there (and ignore the rest of this). Otherwise, check to 
+see if you already have a cache for the given URI. If you don't, create a 
+new cache identified by the given URI. In any case, save this resource to 
+the identified cache, as a known top-level page for that cache. Then, act 
+as if you had known about the cache when you started (next step), except 
+with the 'new cache' flag set to true.
+
+Load the page from the cache and display it. Any resources that the page 
+tries to fetch using GETs that aren't XMLHttpRequest'ed must be taken from 
+the cache, if available. When they aren't, the resources must be fetched 
+then stored in the cache.
+
+Once the UA is ready to do so the UA must go on to the next steps. UAs may 
+do this immediately, or may wait for the original page load to complete, 
+or may delay it up to a UA-defined minimum delay.
+
+If 'new cache' is true, and the cache identifier URI is the same as the 
+URI that was just downloaded and put in the cache: Do nothing.
+
+If 'new cache' is true, and the cache identifier URI is different from the 
+URI that was just downloaded: Fetch the resource identified by that URI. 
+Store it in the cache. If it's a manifest and it parses correctly, 
+download all the URIs given in that manifest and add them to the cache. If 
+any are HTML files which, when parsed with scripting disabled, trigger the 
+application=&quot;&quot; handling and have a value that points to the same URI as 
+the one identifying this application cache, then mark them as known 
+top-levels for this cache.
+
+If 'new cache' is false: Create a new cache. Fetch the resource with the 
+URI of the cache identifier. If it's a manifest, and it has changed from 
+what's in the last cache, and it parses correctly, download all the URIs 
+in that manifest and add them to the new cache. If the manifest has an 
+upgrader entry, use that as the upgrader as described below. Otherwise, if 
+it's not a manifest but an HTML/XML file, and it has changed from what's 
+in the last cache, use that as the upgrader as described below. If it's a 
+manifest that misparsed, or if it's another kind of file, then act as if 
+it the URI just pointed to the top level page being loaded (and use that 
+as the upgrader as described below). If the newly updated cache doesn't 
+contain the current top-level page, then fetch that too.
+
+When a file is fetched by the main page loading in a background browsing 
+context, the loads are conditional loads, so that files that haven't 
+changed since the previous update are directly copied from the old cache.
+
+If the newly update cache's copy of the top level page being shown is no 
+longer categorised as a &quot;known top-level&quot; for this cache (e.g. because it 
+doesn't have an &lt;html application&gt; attribute any more) then inform the 
+user, e.g. an infobar saying something like &quot;This application may no 
+longer be available. (( View new page in a new window )) (( Delete 
+application from cache )) (( Keep application in cache and check for 
+updates later )) [x]&quot;. The first of these buttons would just show the 
+background browsing context in the foreground. The second would delete the 
+webapp cache and reload the page from the normal cache, and the third 
+would just not do anything special. Don't run the upgrader in this case.
+
+If any of the files being updated in the new cache are 4xx or 5xx, or fail 
+for some other reason (e.g. DNS errors, user went offline), then the UA 
+should alert the user to this fact somehow (infobar maybe) -- &quot;An error 
+occurred while updating the application. (( View details )) [x]&quot; -- and 
+then wait a few minutes (or longer if it can tell it'll fail again) before 
+trying again.
+
+Upgrader:
+ Create a hidden browsing context.
+ Load the upgrader in it.
+ Just before onload, fire an 'upgrading' event to every instance of a 
+  top-level page using a cache with the same identifier.
+ The event has a handle to the Window object of the hidden browsing 
+  context.
+ After every 'upgrading' event has been fired, the 'load' event must be 
+  fired on the upgrader.
+ After that happens, if any of the aforementioned instances are still 
+  using old versions of the cache, then the user agent may inform user 
+  they can reload to update.
+
+The Upgrader can do such things as updating the database schema between 
+versions, and when there are multiple instances running, it allows them to 
+negotiate who will do that work instead of it happening several times.
+
+Modal alerts (window.alert, .prompt, etc) in the background page can 
+either raise an exception, be ignored, drop a message to a console, or 
+possibly display a message over the top of the foreground app's browsing 
+context.
+
+The manifest format has:
+ a list of URIs.
+ optionally a place to have an opaque string which can be changed 
+  arbitrarily (this gives authors a way to change the manifest when they 
+  want things to be refetched).
+ optionally a URI for an upgrader (HTML file).
+
+We provide an API that can add files to the cache, and that can be queried 
+to determine if we are in upgrader mode or not, and that can swap in a 
+new cache without reloading the page, during the 'upgrading' event.
+
+(If a particular URI is in an application cache as a known top-level, but 
+later is fetched and found to be a known top-level for another 
+application, e.g. because two other pages both fetch that page in their 
+manifest and the server returns pages with different application=&quot;&quot; links 
+for those two apps, then if the page is visited directly, it uses the app 
+cache of the last cache to have found it as a top-level. This causes 
+problems if visiting the page directly would return yet another cache 
+identifier, as then you could only see that page if you'd never seen the 
+others. I'm not clear about what to do about that.)
+
+Maybe we should check for updates more often than just when the top-level 
+page is loaded. e.g. we could do it on a timer, or on every cache hit when 
+online.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="054734.html">[whatwg] The issue of interoperability of the &lt;video&gt; element
+</A></li>
+	<LI>Next message: <A HREF="054736.html">[whatwg] Offline Web Apps
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#54735">[ date ]</a>
+              <a href="thread.html#54735">[ thread ]</a>
+              <a href="subject.html#54735">[ subject ]</a>
+              <a href="author.html#54735">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

@@ -1,0 +1,338 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] RFC: Alternatives to storage mutex for cookies and	localStorage
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20RFC%3A%20Alternatives%20to%20storage%20mutex%20for%20cookies%20and%0A%09localStorage&In-Reply-To=%3C5dd9e5c50909040032i55f965b2jd437fe0e4128aace%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="022672.html">
+   <LINK REL="Next"  HREF="022684.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] RFC: Alternatives to storage mutex for cookies and	localStorage</H1>
+<!--htdig_noindex-->
+    <B>Jeremy Orlow</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20RFC%3A%20Alternatives%20to%20storage%20mutex%20for%20cookies%20and%0A%09localStorage&In-Reply-To=%3C5dd9e5c50909040032i55f965b2jd437fe0e4128aace%40mail.gmail.com%3E"
+       TITLE="[whatwg] RFC: Alternatives to storage mutex for cookies and	localStorage">jorlow at chromium.org
+       </A><BR>
+    <I>Fri Sep  4 00:32:19 PDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="022672.html">[whatwg] RFC: Alternatives to storage mutex for cookies and	localStorage
+</A></li>
+        <LI>Next message: <A HREF="022684.html">[whatwg] RFC: Alternatives to storage mutex for cookies and	localStorage
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22673">[ date ]</a>
+              <a href="thread.html#22673">[ thread ]</a>
+              <a href="subject.html#22673">[ subject ]</a>
+              <a href="author.html#22673">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Fri, Sep 4, 2009 at 4:02 PM, Chris Jones &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">cjones at mozilla.com</A>&gt; wrote:
+
+&gt;<i> I'd like to propose that HTML5 specify different schemes than a conceptual
+</I>&gt;<i> global storage mutex to provide consistency guarantees for localStorage and
+</I>&gt;<i> cookies.
+</I>&gt;<i>
+</I>&gt;<i> Cookies would be protected according to Benjamin Smedberg's post in the
+</I>&gt;<i> &quot;[whatwg] Storage mutex and cookies can lead to browser deadlock&quot; thread.
+</I>&gt;<i>  Roughly, this proposal would give scripts a consistent view of
+</I>&gt;<i> document.cookie until they completed.  AIUI this is stronger consistency
+</I>&gt;<i> than Google Chrome provides today, and anecdotal evidence suggests even
+</I>&gt;<i> their weaker consistency hasn't &quot;broken the web.&quot;
+</I>&gt;<i>
+</I>
+To be fair, IE is in the same boat...which makes this argument even
+stronger, I think.
+
+
+&gt;<i> localStorage would be changed in a non-backwards-compatible way.  I believe
+</I>&gt;<i> that web apps can be partitioned into two classes: those that have planned
+</I>&gt;<i> for running concurrently (single-event-loop or not) in multiple &quot;browsing
+</I>&gt;<i> contexts&quot;, and those that haven't.  I further posit that the second class
+</I>&gt;<i> would break when run concurrently in multiple contexts regardless of
+</I>&gt;<i> multiple event loops, and thus regardless of the storage mutex.  Even in the
+</I>&gt;<i> single-event-loop world, sites not prepared to be loaded in multiple tabs
+</I>&gt;<i> can stomp each other's data even though script execution is atomic.  (I
+</I>&gt;<i> wouldn't dare use my bank's website in two tabs at the same time in a
+</I>&gt;<i> single-event-loop browser.)  In other words, storage mutex can't help the
+</I>&gt;<i> second class of sites.
+</I>&gt;<i>
+</I>&gt;<i> (I also believe that there's a very large, third class of pages that work
+</I>&gt;<i> &quot;accidentally&quot; when run concurrently in multiple contexts, even though they
+</I>&gt;<i> don't plan for that.  This is likely because they don't keep
+</I>&gt;<i> quasi-persistent data on the client side.)
+</I>&gt;<i>
+</I>&gt;<i> Based on that, I believe localStorage should be designed with the first
+</I>&gt;<i> class of web apps (those that have considered data consistency across
+</I>&gt;<i> multiple concurrent contexts) in mind, rather than the second class.  Is a
+</I>&gt;<i> conceptual global storage mutex the best way for, say, gmail to guarantee
+</I>&gt;<i> consistency of its e-mail/contacts database?  I don't believe so: I think
+</I>&gt;<i> that a transactional localStorage is preferable. Transactional localStorage
+</I>&gt;<i> is easier for browser vendors to implement and should result in better
+</I>&gt;<i> performance for web apps in multi-process UAs.  It's more of a burden on web
+</I>&gt;<i> app authors than the hidden storage mutex, but I think the benefits outweigh
+</I>&gt;<i> the cost.
+</I>&gt;<i>
+</I>&gt;<i> I propose adding the functions
+</I>&gt;<i>
+</I>&gt;<i>  window.localStorage.beginTransaction()
+</I>&gt;<i>  window.localStorage.commitTransaction()
+</I>&gt;<i> or
+</I>&gt;<i>  window.beginTransaction()
+</I>&gt;<i>  window.commitTransaction()
+</I>&gt;<i>
+</I>&gt;<i> (The latter might be preferable if we later decide to add more resources
+</I>&gt;<i> with transactional semantics.)
+</I>&gt;<i>
+</I>&gt;<i> localStorage.getItem(),. setItem(), .removeItem(), and .clear() would
+</I>&gt;<i> remain specified as they are today.  beginTransaction() would do just that,
+</I>&gt;<i> open a transaction.  Calling localStorage.*() outside of an open transaction
+</I>&gt;<i> would cause a script exception to be thrown; this would unfortunately break
+</I>&gt;<i> all current clients of localStorage.  There might be cleverer ways to
+</I>&gt;<i> mitigate this breakage by a UA pretending not to support localStorage until
+</I>&gt;<i> a script called beginTransaction().
+</I>&gt;<i>
+</I>&gt;<i> yieldForStorageUpdates() would no longer be meaningful and should be
+</I>&gt;<i> removed.
+</I>&gt;<i>
+</I>&gt;<i> A transaction would successfully &quot;commit&quot;, atomically applying its
+</I>&gt;<i> modifications to localStorage, if localStorage was not modified between
+</I>&gt;<i> beginTransaction() and commitTransaction().  Note that a transaction
+</I>&gt;<i> consisting entirely of getItem() could fail just as those actually modifying
+</I>&gt;<i> localStorage.  If a transaction failed, the UA would throw a
+</I>&gt;<i> TransactionFailed exception to script.  The UA would be allowed to throw
+</I>&gt;<i> this exception at any time between beginTransaction() and
+</I>&gt;<i> commitTransaction().
+</I>&gt;<i>
+</I>&gt;<i> There are numerous ways to implement transactional semantics.
+</I>&gt;<i> Single-event-loop UAs could implement beginTransaction() and
+</I>&gt;<i> commitTransaction() as no-ops.  Multi-event-loop UAs could reuse the global
+</I>&gt;<i> storage mutex if they had already implemented that (beginTransaction() ==
+</I>&gt;<i> lock, commitTransaction() == unlock).
+</I>&gt;<i>
+</I>&gt;<i> Some edge cases:
+</I>&gt;<i>
+</I>&gt;<i>  * calling commitTransaction() without beginTransaction() would throw an
+</I>&gt;<i> exception
+</I>&gt;<i>
+</I>&gt;<i>  * transactions would not be allowed to be nested, even on different
+</I>&gt;<i> localStorage DBs.  E.g. if site A's script begins a transaction on
+</I>&gt;<i> A.localStorage, and calls into site B's script embedded in an iframe which
+</I>&gt;<i> begins a transaction on B.localStorage, an exception would be thrown.
+</I>&gt;<i>
+</I>&gt;<i>  * transactions *could* be spread across script executions, alert()
+</I>&gt;<i> dialogs, sync XHR, or anywhere else the current HTML5 spec requires the
+</I>&gt;<i> storage mutex be released.  Note that UAs wishing to forbid that behavior
+</I>&gt;<i> could simply throw a TransactionFailed exception where the storage mutex
+</I>&gt;<i> would have been released in the current spec.  Or this could be made illegal
+</I>&gt;<i> by the spec.
+</I>&gt;<i>
+</I>&gt;<i>  * it's not clear to me how to handle async XHRs and Worker messages sent
+</I>&gt;<i> from within a failed transaction.  They could be specified to be sent or not
+</I>&gt;<i> and either behavior implemented easily.  My gut tells me that they *should*
+</I>&gt;<i> be sent regardless.
+</I>&gt;<i>
+</I>&gt;<i> Feedback very much desired.
+</I>&gt;<i>
+</I>&gt;<i> Cheers,
+</I>&gt;<i> Chris
+</I>&gt;<i>
+</I>&gt;<i> Addendum: I think that a past argument against a transactional approach was
+</I>&gt;<i> that scripts can cause side effects during transactions that can't be
+</I>&gt;<i> (easily, performantly) rolled back.  This is true, and troubling in that it
+</I>&gt;<i> deviates from SQL semantics, but because this proposal is designed for the
+</I>&gt;<i> first class of web apps I don't believe it's a compelling argument.
+</I>&gt;<i>  Further, a script can only corrupt its browsing-context-local state by
+</I>&gt;<i> mishandling failed transactions.  Using gmail as a convenient example, if a
+</I>&gt;<i> transaction failed but gmail wasn't prepared to handle the failure, that
+</I>&gt;<i> particular gmail instance would just break.  No e-mails or contacts would be
+</I>&gt;<i> corrupted, and the user could reload gmail and regain full functionality.
+</I>&gt;<i>  Servers should already be prepared to deal with clients behaving
+</I>&gt;<i> unpredictably.
+</I>&gt;<i>
+</I>
+Very interesting.  Some of the details I'm not sure about, but I think this
+is much better than what already exists.  Enough better that I think it's
+worth breaking backwards compatibility.
+
+I mostly agree with your assertions about the type of developer who's using
+localStorage.  It sure would be nice if we could give developers powerful
+APIs and keep them simple and make it possible to implement them in a
+performant manner.  Unfortunately, I think the current design cannot be
+changed to meet &quot;possible to implement in a performant manner&quot; without
+breaking backwards compatibility.
+
+Part of me thinks that this API should match the WebDatabase API more.  For
+example, you'd call a function with a callback.  That callback would be
+given the localStorage object which it'd use to do manipulations.  Etc.  But
+part of me like what you're suggesting here.  I actually think the idea of
+throwing an exception whenever there's a serialization problem could be very
+compelling, and could keep the door wide open for future performance
+enhancements.  It's even possible that javascript engines could embed
+elements of software transactional memory in the future to eliminate the
+need to make such calls.  That seems really exciting.
+
+It might also be possible to combine the 2 ideas: you call a function with
+your callback and the callback is given a localStorage object which is only
+valid within the callback, but an exception can be thrown when there's a
+problem with the transaction.  Of course, the benefit to explicitly starting
+and ending a transaction is that it can span setTimeouts, event handlers,
+etc.  On the other hand, I wonder if the cases where an app would do this
+and still be able to recover from a transaction failure would be limited.
+
+Another thing we might want to consider is making transactions optional.
+ This would satisfy group 1 and 2, but would put the group 3 you mentioned
+at more risk.  In other words, not calling beginTransaction would not be
+fatal.  It would just mean localStorage works as currently spec'ed.  But,
+doing it within a transaction (be it a callback or within ___Transaction
+calls) would give you additional guarantees.
+
+Note that if we do decide to break backwards compatibility, there are some
+other things we should consider...but I won't bring those up unless we do
+decide to move in this direction.
+
+Btw, I want to make it clear that I take the idea of
+breaking compatibility VERY seriously.  I know LocalStorage is fairly well
+adopted and that changing this would be pretty major.  But having a
+cross-event-loop, synchronous API is really a terrible idea.  And changing
+it now will be easier than changing it later.
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: &lt;<A HREF="http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20090904/c8459f7e/attachment-0001.htm">http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20090904/c8459f7e/attachment-0001.htm</A>&gt;
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="022672.html">[whatwg] RFC: Alternatives to storage mutex for cookies and	localStorage
+</A></li>
+	<LI>Next message: <A HREF="022684.html">[whatwg] RFC: Alternatives to storage mutex for cookies and	localStorage
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22673">[ date ]</a>
+              <a href="thread.html#22673">[ thread ]</a>
+              <a href="subject.html#22673">[ subject ]</a>
+              <a href="author.html#22673">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

@@ -1,0 +1,147 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] proposed canvas 2d API additions
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20proposed%20canvas%202d%20API%20additions&In-Reply-To=%3C9540d010604241517y3d10239bi98f5e320c9c1e104%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="048544.html">
+   <LINK REL="Next"  HREF="048564.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] proposed canvas 2d API additions</H1>
+<!--htdig_noindex-->
+    <B>Vladimir Vukicevic</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20proposed%20canvas%202d%20API%20additions&In-Reply-To=%3C9540d010604241517y3d10239bi98f5e320c9c1e104%40mail.gmail.com%3E"
+       TITLE="[whatwg] proposed canvas 2d API additions">vladimirv at gmail.com
+       </A><BR>
+    <I>Mon Apr 24 15:17:36 PDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="048544.html">[whatwg] proposed canvas 2d API additions
+</A></li>
+        <LI>Next message: <A HREF="048564.html">[whatwg] proposed canvas 2d API additions
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#48552">[ date ]</a>
+              <a href="thread.html#48552">[ thread ]</a>
+              <a href="subject.html#48552">[ subject ]</a>
+              <a href="author.html#48552">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Arve's example is how I imagined putPixels working -- basically as a
+potential optimization over a bunch of fillRect calls.  Even in the
+presence of a higher resolution backing store, this can provide for an
+optimization -- load the putPixels data into a bitmap image that's
+width*height pixels and draw it to the canvas backing store with the
+appropriate resolution scaling.
+
+The use case that I'm thinking of is essentially:
+
+pixels = c.getPixels(x, y, width, height);
+/* manipulate pixels here */
+c.putPixels(pixels, x, y, width, height);
+
+That is, direct pixel manipulation, for performing some operation that
+can't be done using the context API.  An example might be to perform a
+desaturate on a region of the canvas to obtain a grayscale region from
+a color one.  Any image-type operations (copying a region from one
+place to another) should be done using the existing drawImage or other
+APIs, with temporary canvases as needed.
+
+Because of this, putPixels will end up losing quality in a
+getPixels/putPixels round-trip if the backing store is higher
+resolution.  I'm not sure what to do about that; one solution might be
+that we specify that a pixel in the canvas backing store must map to
+exactly one pixel in canvas-space; that is, that there's always a
+cluster of NxN device pixels that correspond to 1 canvas pixel.  We
+can then have getPixels return the actual device-resolution pixel
+data, along with a resolution multiplier or somesuch.  I don't really
+like that, though; I'd much rather leave putPixels as the
+fillRect-type optimization, and have getPixels return a simple average
+of the color of all the device pixels that compose a single target
+pixel.  (Again, as with the putPixels case, this can be optimized by
+simply doing a downscaling of the appropriate region of the
+higher-resolution backing store into a width*height pixel buffer).
+
+    - Vlad
+
+On 4/24/06, Arve Bersvendsen &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">arveb at opera.com</A>&gt; wrote:
+&gt;<i> [ Ian Hickson ]
+</I>&gt;<i> &gt;&gt; I don't understand how these are supposed to work when the underlying
+</I>&gt;<i> &gt;&gt; bitmap's device pixel space does not map 1:1 to the coordinate space.
+</I>&gt;<i>
+</I>&gt;<i> [ Vladimir Vukicevic ]
+</I>&gt;<i> &gt; I'm not sure what you mean -- the coordinates here are explicit canvas
+</I>&gt;<i> &gt; pixels, and they specifically ignore the current canvas transform.
+</I>&gt;<i> &gt; So, given
+</I>&gt;<i> &gt;  &lt;canvas width=&quot;100&quot; height=&quot;200&quot;&gt;&lt;/canvas&gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; the coordinates would be 0..99, 0..199.
+</I>&gt;<i>
+</I>&gt;<i> Without expressing any other opinion at the moment, I'd just like to
+</I>&gt;<i> clarify how Opera's implementation of getPixel/setPixel currently follows
+</I>&gt;<i> the coordinate space, as Vlad is suggesting here, disregarding any
+</I>&gt;<i> translation and rotation. Given the following script snippet:
+</I>&gt;<i>
+</I>&gt;<i>    gc =
+</I>&gt;<i> document.getElementsByTagName('canvas')[0].getContext('opera-2dgame');
+</I>&gt;<i>    for ( var y = 50; y &lt; 100; y++){
+</I>&gt;<i>      for (var x = 50; x &lt; 100; x++){
+</I>&gt;<i>        gc.setPixel(x,y,&quot;blue&quot;);
+</I>&gt;<i>      }
+</I>&gt;<i>    }
+</I>&gt;<i>
+</I>&gt;<i> ... with this CSS:
+</I>&gt;<i>
+</I>&gt;<i>    canvas  {
+</I>&gt;<i>      width: 200px;
+</I>&gt;<i>      height: 200px;
+</I>&gt;<i>      border: 1px solid black;
+</I>&gt;<i>    }
+</I>&gt;<i>
+</I>&gt;<i> and the following markup:
+</I>&gt;<i>
+</I>&gt;<i>    &lt;canvas width=&quot;100&quot; height=&quot;100&quot;&gt;
+</I>&gt;<i>
+</I>&gt;<i> we fill the bottom-right quadrant of the canvas, with a rectangle that is
+</I>&gt;<i> comprised of 100x100 CSS pixels.
+</I>&gt;<i>
+</I>&gt;<i> --
+</I>&gt;<i> Arve Bersvendsen, Opera Software ASA
+</I>&gt;<i>
+</I>&gt;<i>
+</I>
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="048544.html">[whatwg] proposed canvas 2d API additions
+</A></li>
+	<LI>Next message: <A HREF="048564.html">[whatwg] proposed canvas 2d API additions
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#48552">[ date ]</a>
+              <a href="thread.html#48552">[ thread ]</a>
+              <a href="subject.html#48552">[ subject ]</a>
+              <a href="author.html#48552">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

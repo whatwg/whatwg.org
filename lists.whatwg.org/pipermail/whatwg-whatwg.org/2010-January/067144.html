@@ -1,0 +1,147 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] history.back()
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20history.back%28%29&In-Reply-To=%3CPine.LNX.4.64.1001282224180.22027%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="067141.html">
+   <LINK REL="Next"  HREF="067155.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] history.back()</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20history.back%28%29&In-Reply-To=%3CPine.LNX.4.64.1001282224180.22027%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg] history.back()">ian at hixie.ch
+       </A><BR>
+    <I>Thu Jan 28 17:32:20 PST 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="067141.html">[whatwg] history.back()
+</A></li>
+        <LI>Next message: <A HREF="067155.html">[whatwg] history.back()
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#67144">[ date ]</a>
+              <a href="thread.html#67144">[ thread ]</a>
+              <a href="subject.html#67144">[ subject ]</a>
+              <a href="author.html#67144">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Wed, 27 Jan 2010, Darin Fisher wrote:
+&gt;<i> 
+</I>&gt;<i> I think that location.hash = 'a' should synchronously add &quot;#a&quot; to the 
+</I>&gt;<i> session history, or at least it should appear to the web page that it 
+</I>&gt;<i> was added synchronously.
+</I>&gt;<i> 
+</I>&gt;<i> [...]
+</I>&gt;<i>
+</I>&gt;<i> That said, I think it would be good for location.hash = 'a' to interrupt 
+</I>&gt;<i> the history.back() request.  The net result being that &quot;#a&quot; is appended 
+</I>&gt;<i> to session history, and the history.back() request is discarded.
+</I>&gt;<i>
+</I>&gt;<i> [...]
+</I>&gt;<i> 
+</I>&gt;<i> I'm trying to treat history,{back,forward,go} as a UI command to the 
+</I>&gt;<i> navigator.  Synthesize the user clicking on the corresponding 
+</I>&gt;<i> back/forward buttons.  UI actions typically do not get dispatched during 
+</I>&gt;<i> JS execution (ignoring window.showModalDialog of course).
+</I>&gt;<i>
+</I>&gt;<i> [...]
+</I>&gt;<i> 
+</I>&gt;<i> I agree that we should not change the location without traversing 
+</I>&gt;<i> history.
+</I>&gt;<i> 
+</I>&gt;<i> I'm arguing for making history.{back,forward,go} start out by 
+</I>&gt;<i> dispatching a task to then run the history traversal algorithm.  So, 
+</I>&gt;<i> history.back() would never change the location synchronously.
+</I>
+I've tried to spec this. There is a high risk of compatibility issues, so 
+I would very much welcome feedback from implementors who try to implement 
+this.
+
+The main goal of the change here is to make it possible to implement this 
+(if not completely sanely, but it's the Web, there's only so much I can 
+do) in a situation with each browsing context having its own process, as 
+seen to some extent in IE and Chrome, and as is being examined by other 
+browser vendors also.
+
+
+While I was at it I made 'hashchange' and 'popstate' fire completely 
+async, and gave 'hashchange' context information to get around the problem 
+with it firing async (where it could e.g. fire twice for the same URL, 
+because the navigations get processed before it fires).
+
+
+On Thu, 28 Jan 2010, Olli Pettay wrote:
+&gt;<i> On 1/28/10 7:15 AM, Darin Fisher wrote:
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; That said, I think it would be good for location.hash = 'a' to 
+</I>&gt;<i> &gt; interrupt the history.back() request.  The net result being that &quot;#a&quot; 
+</I>&gt;<i> &gt; is appended to session history, and the history.back() request is 
+</I>&gt;<i> &gt; discarded.
+</I>&gt;<i> 
+</I>&gt;<i> Really? What if iframe has been navigated lately and something calls 
+</I>&gt;<i> history.back() (to load previous page in iframe), but right after that 
+</I>&gt;<i> top level page calls location.hash = &quot;foo&quot;;
+</I>
+Per spec now, any code along the lines of:
+
+   history.back();
+   location.hash = &quot;foo&quot;;
+
+...will cause the back() to be a no-op. This is definitely incompatible 
+with legacy implementations; the question is whether there are pages 
+depending on it.
+
+If we can't do this asynchronously, it's going to really suck for 
+multiprocess UAs, so I think it's worth trying to find a solution here, 
+even if there is a back-compat risk. In practice I don't think the risk 
+is as high as it could be, because interop is pretty poor in this area 
+already; in particular, Chrome does things that are quite drastic when 
+given code like the above, and Chrome developers aren't aware of having 
+received bugs about it.
+
+Again, please send feedback on this. The diff is:
+
+   <A HREF="http://html5.org/tools/web-apps-tracker?from=4631&amp;to=4632">http://html5.org/tools/web-apps-tracker?from=4631&amp;to=4632</A>
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="067141.html">[whatwg] history.back()
+</A></li>
+	<LI>Next message: <A HREF="067155.html">[whatwg] history.back()
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#67144">[ date ]</a>
+              <a href="thread.html#67144">[ thread ]</a>
+              <a href="subject.html#67144">[ subject ]</a>
+              <a href="author.html#67144">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

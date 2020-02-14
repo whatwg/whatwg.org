@@ -1,0 +1,183 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Thoughts on the media stream bootstrap mechanism
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Thoughts%20on%20the%20media%20stream%20bootstrap%20mechanism&In-Reply-To=%3C4D80EC1A.1070308%40lachy.id.au%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="030901.html">
+   <LINK REL="Next"  HREF="073282.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Thoughts on the media stream bootstrap mechanism</H1>
+<!--htdig_noindex-->
+    <B>Lachlan Hunt</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Thoughts%20on%20the%20media%20stream%20bootstrap%20mechanism&In-Reply-To=%3C4D80EC1A.1070308%40lachy.id.au%3E"
+       TITLE="[whatwg] Thoughts on the media stream bootstrap mechanism">lachlan.hunt at lachy.id.au
+       </A><BR>
+    <I>Wed Mar 16 09:58:02 PDT 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="030901.html">[whatwg] Thoughts on the media stream bootstrap mechanism
+</A></li>
+        <LI>Next message: <A HREF="073282.html">[whatwg] Thoughts on the media stream bootstrap mechanism
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#73190">[ date ]</a>
+              <a href="thread.html#73190">[ thread ]</a>
+              <a href="subject.html#73190">[ subject ]</a>
+              <a href="author.html#73190">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On 2011-03-15 16:24, Rich Tibbett wrote:
+&gt;<i> We want to replace the success callback with a 'connect' event and the
+</I>&gt;<i> error callback with an 'error' event. We would also like to introduce
+</I>&gt;<i> a 'disconnect' event as mentioned in point 3) above.
+</I>&gt;<i>
+</I>&gt;<i> The IDL is as follows:
+</I>&gt;<i>
+</I>&gt;<i> [NoInterfaceObject]
+</I>&gt;<i> interface Device {
+</I>&gt;<i>    const unsigned short WAITING = 0;
+</I>&gt;<i>    const unsigned short CONNECTED = 1;
+</I>&gt;<i>    const unsigned short DISCONNECTED = 2;
+</I>&gt;<i>    const unsigned short ERROR = 3;
+</I>&gt;<i>    readonly attribute unsigned short readyState;
+</I>&gt;<i>
+</I>&gt;<i>    // event handler attributes
+</I>&gt;<i>             attribute Function onconnect;
+</I>&gt;<i>             attribute Function ondisconnect;
+</I>&gt;<i>             attribute Function onerror;
+</I>&gt;<i>
+</I>&gt;<i>    readonly attribute any data;
+</I>&gt;<i>
+</I>&gt;<i>    void disconnect();
+</I>&gt;<i> }
+</I>&gt;<i>
+</I>&gt;<i> // Specific Device Classes with independent constructors
+</I>&gt;<i>
+</I>&gt;<i> [Constructor(in DOMString options)]
+</I>&gt;<i> interface UserMedia : Device {}
+</I>
+For me, this event model approach seems more natural and fits with 
+pre-existing design patterns used for other APIs, better than the 
+callback approach does.  But even so, I thought I'd do a side by side 
+comparison of the code to accomplish a simple tasks.
+
+In both cases, this variable is declared:
+
+var v = document.querySelector(&quot;video&quot;);
+
+---
+
+/* Callback model: */
+
+var s; // For keeping a reference to the stream available for later use.
+
+navigator.getUserMedia(&quot;audio,video&quot;, success, error);
+
+function success(stream) {
+   s = stream; // Store it for later use
+   v.src = s;
+
+   s.onplay  = play; // Assume these functions are defined somewhere
+   s.onpause = pause;
+   s.onended = ended;
+}
+
+function error(e) {
+   // Permission denied...
+}
+
+---
+
+/* Event model: */
+
+var m = new UserMedia(&quot;audio,video&quot;);
+
+m.onconnect = function(evt) {
+   v.src = this.data;
+
+   this.onplay  = play; // Assume these functions are defined somewhere
+   this.onpause = pause;
+   this.onended = ended;
+}
+
+m.onerror = function(evt) {
+   // Permission denied
+}
+
+---
+
+Based on this simple comparison, it's clear that the neither model 
+requires significantly more verbose code than the other model, no there 
+doesn't seem to be any real disadvantage from an authoring perspective.
+
+The event model has the advantage of being able to scale up to handle 
+more events in the future, such as handling disconnections or the user 
+switching cameras or microphones.  (e.g. The user want switches from 
+their computer's built in microphone to a USB headset.)  For the 
+callback model to handle that, it would require adding more callback 
+functions.
+
+One problem with both models is that they don't easily distinguish 
+between different input devices, which is a problem because both the 
+proposed Device interface and the Stream/GeneratedStream interfaces can 
+potentially represent multiple Devices/Streams (this is the case when 
+&quot;audio,video&quot; is passed as the type).
+
+This creates a problem when a user, for example, unplugs or revokes 
+permission for one of the devices or streams but not the other, 
+triggering either an error or disconnect event, it's not clear how the 
+script can identify which specific device was disconnected.  Both 
+interfaces also use a single readyState variable to represent the state 
+of potentially multiple devices/streams, which seems problematic for the 
+same reason.
+
+Finally, the object passed to the error callback/event currently only 
+has a PERMISSION_DENIED error code. It might be worth investigating the 
+need for other codes like PERMISSION_REVOKED, DEVICE_REMOVED, etc. as 
+well, to handle the case where permission was granted, but then the user 
+later changed their mind or unplugged the device.  (It's possible that 
+the proposed ondisconnect event in the event model could be handled as 
+an error event with an appropriate code, though I'm not sure if that's 
+better or worse than separate event.)
+
+-- 
+Lachlan Hunt - Opera Software
+<A HREF="http://lachy.id.au/">http://lachy.id.au/</A>
+<A HREF="http://www.opera.com/">http://www.opera.com/</A>
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="030901.html">[whatwg] Thoughts on the media stream bootstrap mechanism
+</A></li>
+	<LI>Next message: <A HREF="073282.html">[whatwg] Thoughts on the media stream bootstrap mechanism
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#73190">[ date ]</a>
+              <a href="thread.html#73190">[ thread ]</a>
+              <a href="subject.html#73190">[ subject ]</a>
+              <a href="author.html#73190">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

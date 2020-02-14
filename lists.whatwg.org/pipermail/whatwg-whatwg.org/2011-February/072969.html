@@ -1,0 +1,149 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Intent of the FileSystem API
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Intent%20of%20the%20FileSystem%20API&In-Reply-To=%3CAANLkTi%3De7MOZHnOUbfHx%3Dj9GG%2BKmfuBDGH0ubryE8PtZ%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="072967.html">
+   <LINK REL="Next"  HREF="072970.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Intent of the FileSystem API</H1>
+<!--htdig_noindex-->
+    <B>Eric Uhrhane</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Intent%20of%20the%20FileSystem%20API&In-Reply-To=%3CAANLkTi%3De7MOZHnOUbfHx%3Dj9GG%2BKmfuBDGH0ubryE8PtZ%40mail.gmail.com%3E"
+       TITLE="[whatwg] Intent of the FileSystem API">ericu at google.com
+       </A><BR>
+    <I>Mon Feb 28 16:10:55 PST 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="072967.html">[whatwg] Intent of the FileSystem API
+</A></li>
+        <LI>Next message: <A HREF="072970.html">[whatwg] Intent of the FileSystem API
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#72969">[ date ]</a>
+              <a href="thread.html#72969">[ thread ]</a>
+              <a href="subject.html#72969">[ subject ]</a>
+              <a href="author.html#72969">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Mon, Feb 28, 2011 at 2:54 PM, Charles Pritchard &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">chuck at jumis.com</A>&gt; wrote:
+&gt;<i> I'd like some clarification on the intent of the FileSystem API:
+</I>&gt;<i> requestFileSystem permanent, getDirectory and getFile.
+</I>
+The FileSystem API has several goals.  Some of them are targeted by
+the current spec, and some have been discussed, but put off until
+later.  We didn't want to take on too much in a single pass [hence the
+three layers of file-related specs so far].
+
+&gt;<i> Are they intended to directly pass through to the host operating system, or
+</I>&gt;<i> are they just programming constructs?
+</I>
+The intent for the local sandbox described in the current FileSystem
+spec was that that would be up to the implementer.  If a UA implements
+it as a passthrough, the files could then be accessible to client-side
+apps as well as the web.  That's reason for the restrictions in the
+&quot;uniformity of interface&quot; section--if you're going to expose the true
+local filesystem, you run into different restrictions on names and
+paths on each platform, and we want code that uses this API to run
+everywhere.  However, we've been running into some issues in this area
+with our implementation--more on that below.
+
+&gt;<i> They're not particularly easy to use, compared to the IndexedDB data store,
+</I>
+I find files to be easier to use than databases, but I'm clearly
+biased ;'&gt;.  However, that's not really the point.  Files and
+databases serve different needs, and various use cases are better
+served by each than the other.  If you want transactions or indexing,
+you want IDB.  If you want fast, mutable binary blobs with persistent
+URLs, you want FileSystem.
+
+&gt;<i> but if they are OS level commands,
+</I>&gt;<i> then they do help with usability of a web app with the rest of the OS: with
+</I>&gt;<i> managing files directly from the OS file manager.
+</I>&gt;<i>
+</I>&gt;<i> Is the FileSystem API intended to expose a folder on the host operating
+</I>&gt;<i> system, or is it just an abstraction
+</I>&gt;<i> which can be bolted onto any data system (such as, using SQLite as a
+</I>&gt;<i> backend, as appCache and IndexedDB do) &#160;?
+</I>
+While the current API could in theory be implemented either way, there
+have been many requests for expansions to the API that would allow for
+access to directories outside the sandbox, e.g. giving Flickr access
+to &quot;My Photos&quot;.  While that's not yet been specced, that would clearly
+require real pass-through access and real file names.  The rest of the
+API could of course be identical, and I hope that eventually it will
+serve both use cases.
+
+&gt;<i> Are there any plans of reviewing/visiting efficient File/Blob support in
+</I>&gt;<i> indexeddb?
+</I>
+I can't speak for the indexedDB developers, but the last I heard
+on-list, they were at least hoping to support immutable Blobs, but not
+soon.
+
+More on those portability issues:
+
+We've been implementing the current FileSystem API spec in Chrome, and
+had planned that our implementation of the sandbox would be just a
+passthrough to a directory under the user's profile.  We've been
+testing that out, currently only allowing access to extensions and
+apps, but we've gotten feedback that long profile paths are causing a
+problem on Windows.
+
+Our current implementation on Windows uses the standard API calls that
+limit paths to 256 characters long.  If your profile directory is
+deeply nested [e.g. because you have a really long username], code
+that works for your friend might not work for you.  We thought we'd
+fix that by using the long-path APIs that allow creation of paths up
+to ~32k chars long.  However, it seems that, even though Windows has
+these APIs, most programs don't use them.  In particular, Windows
+Explorer doesn't, so it chokes on them and can't delete files in
+directories with long names.  We think it would be really awkward if
+Chrome were creating directories under its profile directory that
+couldn't easily be deleted, so we're going to start virtualizing our
+filesystem implementation.  We'll still have real native files for
+speed of access and ease of modification, but we'll be storing the
+paths in an internal database.
+
+This then brings up the question of whether one can specify a uniform,
+useful interface for the API that *doesn't* require virtualization of
+the filesystem, but I'll be bringing that up in another thread.
+
+     Eric
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="072967.html">[whatwg] Intent of the FileSystem API
+</A></li>
+	<LI>Next message: <A HREF="072970.html">[whatwg] Intent of the FileSystem API
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#72969">[ date ]</a>
+              <a href="thread.html#72969">[ thread ]</a>
+              <a href="subject.html#72969">[ subject ]</a>
+              <a href="author.html#72969">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

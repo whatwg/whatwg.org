@@ -1,0 +1,182 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Web application issues (localization, session handling)
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Web%20application%20issues%20%28localization%2C%20session%20handling%29&In-Reply-To=%3C40D07610.1030802%40cc.jyu.fi%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="042674.html">
+   <LINK REL="Next"  HREF="042578.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Web application issues (localization, session handling)</H1>
+<!--htdig_noindex-->
+    <B>Mikko Rantalainen</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Web%20application%20issues%20%28localization%2C%20session%20handling%29&In-Reply-To=%3C40D07610.1030802%40cc.jyu.fi%3E"
+       TITLE="[whatwg] Web application issues (localization, session handling)">mira at cc.jyu.fi
+       </A><BR>
+    <I>Wed Jun 16 09:32:16 PDT 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="042674.html">[whatwg] plaintext submission
+</A></li>
+        <LI>Next message: <A HREF="042578.html">[whatwg] Web application issues (localization, session handling)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#42561">[ date ]</a>
+              <a href="thread.html#42561">[ thread ]</a>
+              <a href="subject.html#42561">[ subject ]</a>
+              <a href="author.html#42561">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>There has been a lot of discussion about different controls web 
+applications need but I would want to raise discussion on a few 
+other issues with developing web applications.
+
+First of all, I'll declare that I consider a &quot;web application&quot; to be 
+an application that has front end or user interface as much similar 
+to a static web page as possible. This is because the user is 
+(hopefully) already familiar how to navigate static web pages so why 
+not build on that knowledge?
+
+As I've tried to build such applications (and without JavaScript so 
+the application would be accessible with older and special utility 
+user agents such as mobile devices and braille displays, hopefully 
+with aural user agents too), I've hit a couple of hard problems. All 
+of these deal more or less with session handling.
+
+1) Allow controls that look like links and still use POST
+2) Submit button localization
+3) The Back button
+4) Duplicate window
+5) Open link in new window
+
+Detailed description of every issue follows:
+
+1) OK, I can almost &quot;solve&quot; this one with CSS but still, why not add 
+new attribute &quot;method&quot; for every link that could have values &quot;get&quot;, 
+&quot;post&quot;, &quot;delete&quot; etc. That way I could, for example, add tree links, 
+that look like normal links, after a discussion forum message. Those 
+could have labels such as &quot;Show parent&quot;, &quot;Reply&quot; and &quot;Remove&quot;. The 
+user agent would be aware that the first link just displays data 
+(and could be prefetched), second modifies data and the last one 
+destroys data. UA could even default to different cursors or 
+whatever to differentiate between different types. In addition to 
+this, we could have &quot;get-with-form-data&quot;, &quot;post-with-form-data&quot; (as 
+usual) and &quot;delete-with-form-data&quot; and the UA would send all 
+successful form controls upon link activation which would save 
+repeating some session book-keeping data in every link (usually 
+every link must have at least some session data; more about this later).
+
+2) I don't know who was the genius behind the decision to use 
+&quot;value&quot; attribute as the label of the button but that decision 
+forces me to do actions according to control names. If I have 
+buttons &quot;add&quot; and &quot;rm&quot; and those are localized in Finnish as &quot;Lis&#228;&#228;&quot; 
+and &quot;Poista&quot;, I don't have any other way to decide which one was 
+pressed but check if form control &quot;add&quot; was set. (I cannot easily 
+check for &quot;Lis&#228;&#228;&quot; and &quot;Poista&quot;, because environment language could 
+have been changed by another user / via another window while this 
+dialog was open.) This causes needless extra book-keeping to make 
+sure that I never use name &quot;add&quot; for any other element, like for 
+example for a text input because it would be always successful! How 
+about &quot;label&quot; attribute so that &quot;value&quot; can be what it was supposed 
+to be? As a workaround I can name all such controls as 
+&quot;action_something&quot; and look through controls that match regexp 
+&quot;action_.*&quot; only... Namespace collisions of different controls get 
+harder to avoid when I need to keep very much of session data in 
+addition to user input and the whole page is generated on the fly.
+
+3) As per HTTP protocol, a compliant UA should NOT send any data to 
+server when user activates history action. So, I have to keep all 
+session related data on the form so that UA can keep track which 
+data belongs to which dialog. If my application stored any live 
+session data (instead of just user settings and other more or less 
+static things) on server end a single press of the back button would 
+cause the server and client to go out of sync and the whole logic 
+would collapse. Currently all links are problem because if I have 30 
+links on a generated page, I have to repeat session data 30 times 
+(once for each link so that no data is lost once a link is 
+activated). I cannot use cookies because I want to support running 
+multiple user accounts in multiple UA instances (user1 in window1 
+and user2 in window2). Cookies cannot fork either, see below.
+
+4) and 5) The issue here is really a forking problem. Say, we have a 
+dialog A, which has possible actions 01, 02 and 03. 01 leads to 
+dialog B, 02 leads to dialog C and 03 leads to dialog D. User first 
+activates 02 with &quot;Open in a new window&quot; and server returns B. Then 
+the user select action 03 on the dialog B that leads to dialog E. 
+Then the user changes to previous window and select 03 which should 
+lead to dialog D (because the other window had dialog A open). Throw 
+a couple of Back-buttons in the mix and you begin to see the 
+issue... Clearly the user wanted to use multiple windows and 
+back-button presses to do the actions, so the issue isn't how to 
+prevent opening new windows or disabling back-button. The issue is, 
+how to still keep the session handling sane while using logically 
+connectionless protocol such as HTTP? My current answer to this is 
+to keep as much data about the session embedded in the page as 
+possible. If the UA is able to duplicate windows or display 
+historical pages, it will use the embedded data in that copy, too.
+
+
+For the 3), 4) and 5) I'd propose adding two magical hidden field 
+names: &quot;_frame_id_&quot; and &quot;_document_id_&quot;. Both would be always 
+successful and their values would be set automatically. The 
+_frame_id_ would be unique for the current set of page instances (in 
+practice, an unique identifier for all the windows and frames) and 
+_document_id_ would be unique for all documents (pages) the UA 
+handles, including past, current and future. _frame_id_ could be 
+implemented as a serial number that has been attached to every 
+window or frame and every time a new window or frame were created, 
+the serial number would be increased by one. The _document_id_ would 
+be similar, but it would be increased every time any document had 
+been loaded in any frame. This would include going back and forward 
+in the history. The server end could then use these two values to 
+figure out which dialog sent out the event. [1]
+
+
+Thanks for reading this far, hopefully you could decipher my 
+ramblings. Any thoughts?
+
+-- 
+Mikko
+
+[1] As I think it further, I think _document_id_ is worthless 
+because even the server could generate an unique identifier for 
+every page (like getCurrentTime() for example). However, being able 
+to differentiate between two similar calls that come from two 
+identical windows could be beneficial in some cases. I left the idea 
+floating still - perhaps somebody comes up with something better...
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="042674.html">[whatwg] plaintext submission
+</A></li>
+	<LI>Next message: <A HREF="042578.html">[whatwg] Web application issues (localization, session handling)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#42561">[ date ]</a>
+              <a href="thread.html#42561">[ thread ]</a>
+              <a href="subject.html#42561">[ subject ]</a>
+              <a href="author.html#42561">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

@@ -1,0 +1,192 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Flow Control on Websockets
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Flow%20Control%20on%20Websockets&In-Reply-To=%3CCAA4WUYjhQHgrCE39Q%3DiQ8WThPPEoAH4BWkXek8oPHfRbU38Htg%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="083427.html">
+   <LINK REL="Next"  HREF="083466.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Flow Control on Websockets</H1>
+<!--htdig_noindex-->
+    <B>William Chan (&#38472;&#26234;&#26124;)</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Flow%20Control%20on%20Websockets&In-Reply-To=%3CCAA4WUYjhQHgrCE39Q%3DiQ8WThPPEoAH4BWkXek8oPHfRbU38Htg%40mail.gmail.com%3E"
+       TITLE="[whatwg] Flow Control on Websockets">willchan at chromium.org
+       </A><BR>
+    <I>Thu Oct 17 18:36:48 PDT 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="083427.html">[whatwg] Flow Control on Websockets
+</A></li>
+        <LI>Next message: <A HREF="083466.html">[whatwg] Flow Control on Websockets
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#83449">[ date ]</a>
+              <a href="thread.html#83449">[ thread ]</a>
+              <a href="subject.html#83449">[ subject ]</a>
+              <a href="author.html#83449">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Hi, Chromium network dev here. I'm not an expert on the WebSocket API.
+Pardon any stupid comments :)
+
+On Thu, Oct 17, 2013 at 9:56 AM, Nicholas Wilson &lt;
+<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">nicholas at nicholaswilson.me.uk</A>&gt; wrote:
+
+&gt;<i> Hello Michael,
+</I>&gt;<i>
+</I>&gt;<i> If you're at all interested in the freshness of the data, you don't
+</I>&gt;<i> want to use TCP as your sole flowcontrol mechanism. It's fine for bulk
+</I>&gt;<i> file transfers, but think how many megabytes of buffering there can be
+</I>&gt;<i> - the sum of all the send buffers of all the intermediaries along the
+</I>&gt;<i> chain. On a low-loss network, the TCP window size will become very
+</I>&gt;<i> large. You quickly get to a point where the server's filled up all the
+</I>&gt;<i> buffers along the way, fine for file transfer, but potentially
+</I>&gt;<i> seconds'-worth of latency.
+</I>&gt;<i>
+</I>
+While what you say is true about bufferbloat and low latency interactivity,
+I generally consider that as orthogonal to flow control. As per
+<A HREF="http://en.wikipedia.org/wiki/Transmission_Control_Protocol#Flow_control,">http://en.wikipedia.org/wiki/Transmission_Control_Protocol#Flow_control,</A> I
+think of flow control as preventing the sender from sending so much data
+that the receiver cannot process it quickly enough. The receiver side
+solution is to buffer, but since buffers are a finite resource, you can't
+buffer forever. Minimizing queueing delays as a result of bufferbloat is
+not something that flow control is intended to solve.
+
+
+&gt;<i>
+</I>&gt;<i> So, you always need an application-level windowing setup for
+</I>&gt;<i> interactive flows. Just sending until the socket blocks will cause a
+</I>&gt;<i> backlog to build up.
+</I>&gt;<i>
+</I>
+I don't know if I agree with this. Web browsing over HTTP/1.X doesn't use
+application layer flow control, browsers rely on TCP for this. I consider
+web browsing interactive. If your point is that bufferbloat is widespread
+and applications should be careful about self-inducing queueing delays,
+then I agree.
+
+
+&gt;<i> Your second question is whether it's possible to stop the browser
+</I>&gt;<i> reading from the socket. Yes, just don't return from your onmessage
+</I>&gt;<i> handler until you've actually finished handling the message. If you
+</I>&gt;<i> fire up a new worker then tell the browser you're done, you're seeing
+</I>&gt;<i> the inevitable result of that. You have to wait on the worker - or, if
+</I>&gt;<i> you want to process say four messages in parallel, wait on the worker
+</I>&gt;<i> pool until it's dropped below four active before returning.
+</I>&gt;<i>
+</I>
+Pardon the ignorance, but doesn't the onmessage handler run on the main
+thread? If you don't return from it, then doesn't that block the main
+thread? If so, then I think that's a bad solution. Blocking the main thread
+is generally terrible IMO and should be avoided.
+
+
+&gt;<i>
+</I>&gt;<i> Implementing some flow control messages is not a bad thing at all. TCP
+</I>&gt;<i> is there to prevent traffic disaster, not to guarantee success.
+</I>&gt;<i>
+</I>
+Since TCP already provides flow control, I would think that for most
+developers, it'd be fairly convenient to leverage that. Although perhaps if
+you're at the point that you actually care about flow control and OOM, you
+might be close to the point that you want an application layer flow control
+mechanism.
+
+
+&gt;<i>
+</I>&gt;<i> Nick
+</I>&gt;<i>
+</I>&gt;<i> -----
+</I>&gt;<i> Nicholas Wilson: <A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">nicholas at nicholaswilson.me.uk</A>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> On 17 October 2013 17:29, Michael Meier &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">mm at sigsegv.ch</A>&gt; wrote:
+</I>&gt;<i> &gt; Hey
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; This message is going to be a slight rewording and generalization of a
+</I>&gt;<i> &gt; question I asked yesterday on Stack Overflow. The SO question is here:
+</I>&gt;<i> &gt;
+</I>&gt;<i> <A HREF="http://stackoverflow.com/questions/19414277/can-i-have-flow-control-on-my-websockets">http://stackoverflow.com/questions/19414277/can-i-have-flow-control-on-my-websockets</A>
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Suppose I have a Websocket server and a WS client connected to it. The
+</I>&gt;<i> &gt; client is a JS script in a browser offering the standard WS API. The
+</I>&gt;<i> server
+</I>&gt;<i> &gt; produces data at a rate r1 and sends it to the client, which is able to
+</I>&gt;<i> &gt; meaningfully process data at a rate of r2, where r1 &gt; r2.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; The JS script registers an onmessage handler and is called every time the
+</I>&gt;<i> &gt; browser receives a message from the WS. Even if the JS script is still
+</I>&gt;<i> busy
+</I>&gt;<i> &gt; processing the received message, say over a chain of asynchronous calls,
+</I>&gt;<i> the
+</I>&gt;<i> &gt; browser might receive the next message and call onmessage again. For the
+</I>&gt;<i> &gt; script, there are two options to proceed. The first option is to drop
+</I>&gt;<i> data.
+</I>&gt;<i> &gt; This might not be possible in all applications and is also a shame, since
+</I>&gt;<i> &gt; the data has already been transported over the network. The second
+</I>&gt;<i> option is
+</I>&gt;<i> &gt; to buffer the data. This is not a real option, though, since it will
+</I>&gt;<i> buffer
+</I>&gt;<i> &gt; an ever increasing amount of data because r1 &gt; r2.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; If the JS script had a mechanism to tell the browser not to read further
+</I>&gt;<i> &gt; data from the TCP socket underlying the WS, TCP backpressure would
+</I>&gt;<i> naturally
+</I>&gt;<i> &gt; build up to the server.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; On the sending side of the browser, flow control seems to be possible by
+</I>&gt;<i> &gt; using the bufferedAmount attribute to decide when to pause and resume
+</I>&gt;<i> &gt; sending of data.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Why is there such an assymetry between sending an receiving? Is it
+</I>&gt;<i> possible
+</I>&gt;<i> &gt; to have flow control on the receiving side without resorting to
+</I>&gt;<i> application
+</I>&gt;<i> &gt; level handshakes?*
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Cheers,
+</I>&gt;<i> &gt; Michael
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; * Which would reimplement large parts of TCP. Which is a shame to do when
+</I>&gt;<i> &gt; already running on a TCP connection and also a Bad Idea(TM).
+</I>&gt;<i>
+</I>
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="083427.html">[whatwg] Flow Control on Websockets
+</A></li>
+	<LI>Next message: <A HREF="083466.html">[whatwg] Flow Control on Websockets
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#83449">[ date ]</a>
+              <a href="thread.html#83449">[ thread ]</a>
+              <a href="subject.html#83449">[ subject ]</a>
+              <a href="author.html#83449">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

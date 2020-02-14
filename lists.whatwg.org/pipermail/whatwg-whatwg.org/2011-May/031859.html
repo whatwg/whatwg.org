@@ -1,0 +1,117 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Pressing Enter in contenteditable: &lt;p&gt; or &lt;br&gt; or	&lt;div&gt;?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Pressing%20Enter%20in%20contenteditable%3A%20%3Cp%3E%20or%20%3Cbr%3E%20or%0A%09%3Cdiv%3E%3F&In-Reply-To=%3CBANLkTimnzVgiy%2BhR-5J%3DaHYDXZ%2B2RKNa9w%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="031658.html">
+   <LINK REL="Next"  HREF="031578.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Pressing Enter in contenteditable: &lt;p&gt; or &lt;br&gt; or	&lt;div&gt;?</H1>
+<!--htdig_noindex-->
+    <B>Aryeh Gregor</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Pressing%20Enter%20in%20contenteditable%3A%20%3Cp%3E%20or%20%3Cbr%3E%20or%0A%09%3Cdiv%3E%3F&In-Reply-To=%3CBANLkTimnzVgiy%2BhR-5J%3DaHYDXZ%2B2RKNa9w%40mail.gmail.com%3E"
+       TITLE="[whatwg] Pressing Enter in contenteditable: &lt;p&gt; or &lt;br&gt; or	&lt;div&gt;?">Simetrical+w3c at gmail.com
+       </A><BR>
+    <I>Mon May 30 13:16:55 PDT 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="031658.html">[whatwg] Pressing Enter in contenteditable: &lt;p&gt; or &lt;br&gt;	or	&lt;div&gt;?
+</A></li>
+        <LI>Next message: <A HREF="031578.html">[whatwg] Proposing &lt;canvas&gt;.toBlob(contentType)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#31859">[ date ]</a>
+              <a href="thread.html#31859">[ thread ]</a>
+              <a href="subject.html#31859">[ subject ]</a>
+              <a href="author.html#31859">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Thu, May 12, 2011 at 4:28 PM, Aryeh Gregor &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">Simetrical+w3c at gmail.com</A>&gt; wrote:
+&gt;<i> Behavior for Enter in contenteditable in current browsers seems to be
+</I>&gt;<i> as follows:
+</I>&gt;<i>
+</I>&gt;<i> * IE9 wraps all lines in &lt;p&gt; (including if you start typing in an
+</I>&gt;<i> empty text box). &#160;If you hit Enter multiple times, it inserts empty
+</I>&gt;<i> &lt;p&gt;s. &#160;Shift-Enter inserts &lt;br&gt;.
+</I>&gt;<i> * Firefox 4.0 just uses &lt;br _moz_dirty=&quot;&quot;&gt; for Enter and Shift-Enter,
+</I>&gt;<i> always. &#160;(What's _moz_dirty for?)
+</I>&gt;<i> * Chrome 12 dev doesn't wrap a line when you start typing, but when
+</I>&gt;<i> you hit Enter it wraps the new line in a &lt;div&gt;. &#160;Hitting Enter
+</I>&gt;<i> multiple times outputs &lt;div&gt;&lt;br&gt;&lt;/div&gt;, and Shift-Enter always inserts
+</I>&gt;<i> &lt;br&gt;.
+</I>&gt;<i> * Opera 11.10 wraps in &lt;p&gt; like IE, but for blank lines it uses
+</I>&gt;<i> &lt;p&gt;&lt;br&gt;&lt;/p&gt; instead of just &lt;p&gt;&lt;/p&gt; (they render the same).
+</I>&gt;<i>
+</I>&gt;<i> What behavior do we want?
+</I>
+I ended up going with the general approach of IE/Opera:
+
+<A HREF="http://aryeh.name/spec/editcommands/editcommands.html#additional-requirements">http://aryeh.name/spec/editcommands/editcommands.html#additional-requirements</A>
+
+It turns out WebKit and Opera make the insertParagraph command behave
+essentially like hitting Enter, so I actually wrote all the
+requirements there (IE's and Firefox's behavior for insertParagraph
+was very different and didn't seem useful):
+
+<A HREF="http://aryeh.name/spec/editcommands/editcommands.html#the-insertparagraph-command">http://aryeh.name/spec/editcommands/editcommands.html#the-insertparagraph-command</A>
+
+The basic idea is that if the cursor isn't wrapped in a single-line
+container (address, dd, div, dt, h*, li, p, pre) then the current line
+gets wrapped in a &lt;p&gt;.  Then the current single-line container is
+split in two, mostly.  Exceptions are roughly:
+
+* For pre and address, insert a &lt;br&gt; instead of splitting the element.
+ (This matches Firefox for pre and address, and Opera for pre but not
+address.  IE/Chrome make multiple pres/addresses.)
+* For an empty li/dt/dd, destroy it and break out of its container, so
+hitting Enter twice in a list breaks out of the list.  (Everyone does
+this for li, only Firefox does for dt/dd.)
+* If the cursor is at the end of an h* element, make the new element a
+&lt;p&gt; instead of a header.  (Everyone does this.)
+* If the cursor is at the end of a dd/dt element, it switches to dt/dd
+respectively.  (Only Firefox does this, but it makes sense.)
+
+Like the rest of the spec, this is still a rough draft and I haven't
+tried to pin corner cases down yet, so it's probably not advisable to
+try implementing it yet as written.  As always, you can see how the
+spec implementation behaves for various input by looking at
+autoimplementation.html:
+
+<A HREF="http://aryeh.name/spec/editcommands/autoimplementation.html#insertparagraph">http://aryeh.name/spec/editcommands/autoimplementation.html#insertparagraph</A>
+</PRE>
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="031658.html">[whatwg] Pressing Enter in contenteditable: &lt;p&gt; or &lt;br&gt;	or	&lt;div&gt;?
+</A></li>
+	<LI>Next message: <A HREF="031578.html">[whatwg] Proposing &lt;canvas&gt;.toBlob(contentType)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#31859">[ date ]</a>
+              <a href="thread.html#31859">[ thread ]</a>
+              <a href="subject.html#31859">[ subject ]</a>
+              <a href="author.html#31859">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

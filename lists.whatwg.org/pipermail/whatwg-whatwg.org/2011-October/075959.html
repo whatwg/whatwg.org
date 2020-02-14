@@ -1,0 +1,159 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Feedback on UndoManager spec
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Feedback%20on%20UndoManager%20spec&In-Reply-To=%3CCABNRm62gTrmfRVqX_fPfhUDWjEkDzF9WwdH0Q%2BW27fFrMvzunQ%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="075956.html">
+   <LINK REL="Next"  HREF="075960.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Feedback on UndoManager spec</H1>
+<!--htdig_noindex-->
+    <B>Ryosuke Niwa</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Feedback%20on%20UndoManager%20spec&In-Reply-To=%3CCABNRm62gTrmfRVqX_fPfhUDWjEkDzF9WwdH0Q%2BW27fFrMvzunQ%40mail.gmail.com%3E"
+       TITLE="[whatwg] Feedback on UndoManager spec">rniwa at webkit.org
+       </A><BR>
+    <I>Fri Oct 28 09:59:49 PDT 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="075956.html">[whatwg] Feedback on UndoManager spec
+</A></li>
+        <LI>Next message: <A HREF="075960.html">[whatwg] Feedback on UndoManager spec
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#75959">[ date ]</a>
+              <a href="thread.html#75959">[ thread ]</a>
+              <a href="subject.html#75959">[ subject ]</a>
+              <a href="author.html#75959">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Fri, Oct 28, 2011 at 9:37 AM, Aryeh Gregor &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">ayg at aryeh.name</A>&gt; wrote:
+&gt;<i>
+</I>&gt;<i> Would everyone be happy if there were no reapply() function, and
+</I>&gt;<i> apply() took a string argument that would be either &quot;apply&quot; or
+</I>&gt;<i> &quot;reapply&quot;?  If the functions are similar, it will be like the status
+</I>&gt;<i> quo except without a hard-to-remember boolean parameter and without
+</I>&gt;<i> the temptation to copy-paste code to separate functions.  If the
+</I>&gt;<i> functions are totally different, it's just an extra if/else.  Does
+</I>&gt;<i> that sound good to everyone?
+</I>&gt;<i>
+</I>
+I don't want string because then I'd have to do:
+if (mode == 'reapply')
+instead of
+if (isReapply)
+and the former is much more verbose.
+
+On Thu, Oct 27, 2011 at 7:04 PM, Ryosuke Niwa &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">rniwa at webkit.org</A>&gt; wrote:
+&gt;<i> &gt; Right. If authors decide to mess with DOM state of the highest node
+</I>&gt;<i> affected
+</I>&gt;<i> &gt; by an automatic transaction, user agents can't do anything to fix that.
+</I>&gt;<i>
+</I>&gt;<i> It might cause compat issues if UAs don't handle such error cases
+</I>&gt;<i> interoperably, though.
+</I>&gt;<i>
+</I>
+Sure, but I don't think I can force UAs to implement unapply &amp; reapply in
+one way or another. There are too many cases to be considered (e.g. after
+every DOM mutation, scripts inside mutation event listeners may have teared
+down the DOM). I might say UAs may print a warning in console when DOM
+states are inconsistent.
+
+Ah, of course: you might want undo/redo to handle state other than
+&gt;<i> just the DOM.  But why do we force the author to manage DOM state
+</I>&gt;<i> themselves just because they want to manage some non-DOM state?  Why
+</I>&gt;<i> don't we have the UA always manage the state of the DOM within the
+</I>&gt;<i> undoscope, but call any unapply/reapply functions in addition to that?
+</I>&gt;<i>
+</I>
+That won't work for a collaborative editor because undo/redo may need to
+make DOM changes other than just restoring DOM states. For example, changes
+made by other users can't be undone/redone by the local user, and those
+changes may also have mutated the highest node affected by automatic
+transactions. And authors still want to be able to sync the list of
+undo/redo items with UAs (e.g. to enable &quot;undo&quot; item in &quot;Edit&quot; menu).
+
+So how about this: get rid of the manual/automatic distinction
+&gt;<i> entirely.  Just have one type of transaction, with the following
+</I>&gt;<i> behavior.  (I assume we have apply()/unapply()/reapply() with no
+</I>&gt;<i> parameters for any of them, for simplicity, but the same idea would
+</I>&gt;<i> work if we pass a parameter to apply().)
+</I>&gt;<i>
+</I>&gt;<i> * When the transaction is applied, call the apply() function, if any.
+</I>&gt;<i> Record all DOM changes within the undo scope.
+</I>&gt;<i> * When the transaction is unapplied, call the unapply() function, if
+</I>&gt;<i> any.  Then undo any DOM changes that unapply() caused that were within
+</I>&gt;<i> the undo scope.  Then undo the changes that were recorded from the
+</I>&gt;<i> original apply().
+</I>&gt;<i> * When the transaction is reapplied, call the reapply() function, if
+</I>&gt;<i> any.  Then undo any DOM changes that reapply() caused that were within
+</I>&gt;<i> the undo scope.  Then redo the changes that were recorded from the
+</I>&gt;<i> original apply().
+</I>&gt;<i>
+</I>
+For the said reason, this won't address all use cases for manual
+transaction. But I've started to think that maybe calling unapply and
+reapply after undo/redo is a good thing even for automatic
+transactions. That'll let authors fix toolbar/widget status and maybe fix up
+selection (to match Opera/WebKit on Mac).
+
+The only limitation is that unapplying
+&gt;<i> or reapplying a transaction can never affect the DOM within the undo
+</I>&gt;<i> scope except to undo or redo the original changes, but this seems like
+</I>&gt;<i> a good thing.  Authors will be able to make state changes in things
+</I>&gt;<i> like canvas or JS variables, and can change DOM state outside the undo
+</I>&gt;<i> scope however they want, but can't incorrectly change things in the
+</I>&gt;<i> undo scope.
+</I>&gt;<i>
+</I>
+Again, this won't work for a collaborative editor.
+
+Is there any disadvantage to this compared to the current spec?  I
+&gt;<i> really doubt authors will be able to get manual transactions right --
+</I>&gt;<i> it's just too easy for some complicated function to make some
+</I>&gt;<i> unexpected changes to the DOM for some reason.  The UA should silently
+</I>&gt;<i> fix these, not just let the DOM become inconsistent with the undo
+</I>&gt;<i> history.  Also, this means we don't have to leave behavior undefined
+</I>&gt;<i> for fixing up manual transactions that don't undo themselves properly.
+</I>&gt;<i>
+</I>
+But that's the whole point of manual transactions. It is there to let
+authors make arbitrary changes in undo and redo.
+
+- Ryosuke
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="075956.html">[whatwg] Feedback on UndoManager spec
+</A></li>
+	<LI>Next message: <A HREF="075960.html">[whatwg] Feedback on UndoManager spec
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#75959">[ date ]</a>
+              <a href="thread.html#75959">[ thread ]</a>
+              <a href="subject.html#75959">[ subject ]</a>
+              <a href="author.html#75959">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

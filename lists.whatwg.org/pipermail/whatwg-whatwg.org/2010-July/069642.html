@@ -1,0 +1,145 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] location.reload() on document.open()ed documents
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20location.reload%28%29%20on%20document.open%28%29ed%20documents&In-Reply-To=%3C4C4F3D41.6030802%40mit.edu%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="069638.html">
+   <LINK REL="Next"  HREF="069643.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] location.reload() on document.open()ed documents</H1>
+<!--htdig_noindex-->
+    <B>Boris Zbarsky</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20location.reload%28%29%20on%20document.open%28%29ed%20documents&In-Reply-To=%3C4C4F3D41.6030802%40mit.edu%3E"
+       TITLE="[whatwg] location.reload() on document.open()ed documents">bzbarsky at MIT.EDU
+       </A><BR>
+    <I>Tue Jul 27 13:10:41 PDT 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="069638.html">[whatwg] location.reload() on document.open()ed documents
+</A></li>
+        <LI>Next message: <A HREF="069643.html">[whatwg] location.reload() on document.open()ed documents
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#69642">[ date ]</a>
+              <a href="thread.html#69642">[ thread ]</a>
+              <a href="subject.html#69642">[ subject ]</a>
+              <a href="author.html#69642">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On 7/27/10 3:00 PM, Ian Hickson wrote:
+&gt;&gt;<i> On each document.write() on a document.open()ed document, Gecko appends
+</I>&gt;&gt;<i> the written string to a cache entry (at the method call time--not at the
+</I>&gt;&gt;<i> tokenization time--which makes a difference of the document loads
+</I>&gt;&gt;<i> external scripts that also call document.write()!). Upon reload, Gecko
+</I>&gt;&gt;<i> parses the contents of the cache entry. This produces interesting
+</I>&gt;&gt;<i> results if the document.open()ed document itself calls document.write():
+</I>&gt;&gt;<i> <A HREF="http://software.hixie.ch/utilities/js/live-dom-viewer/saved/430">http://software.hixie.ch/utilities/js/live-dom-viewer/saved/430</A>
+</I>&gt;<i>
+</I>&gt;<i> Does that mean that location.reload() will never reload from the network?
+</I>
+For a document that was created via document.open(), this is correct. 
+Note that &quot;from the network&quot; makes no sense in this context.
+
+&gt;<i> What if the cache entry has been expired?
+</I>
+It doesn't get expired; it's pinned in the cache while the document is live.
+
+&gt;<i> Does document.open() clear the cache entry?
+</I>
+It creates a new one and unpins the old one.
+
+&gt;<i> What if there are multiple windows all with the same original
+</I>&gt;<i> page, and they each document.write() something different?
+</I>
+They get different cache entries.  In particular, the cache entries are 
+addressed by the URI of the page originating the write and a unique 
+(well, until you make 2^32 open() calls) sequence number.
+
+Note that this is just the description of the Gecko implementation; all 
+the cache stuff is implementation details that are irrelevant to the 
+resulting behavior, which is that if you have a subframe and your page 
+opens it and writes to it and you hit reload the subframe is reloaded 
+with whatever was written to it.
+
+&gt;&gt;<i> Loading demo 429 in WebKit or Presto reloads the top-level document in
+</I>&gt;&gt;<i> the iframe causing the alert to run again and again and again.
+</I>&gt;<i>
+</I>&gt;<i> Because it ends up with an infinite regression of iframes; the reload is
+</I>&gt;<i> just making the page load the page instead of about:blank, since calling
+</I>&gt;<i> document.open() changes the document's address to the caller's address.
+</I>
+Right.  This infinite regression is not a desirable consequence; the 
+spec requiring this behavior seems like a bad idea.
+
+&gt;<i> On Tue, 30 Mar 2010, Maciej Stachowiak wrote:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> I could not find any bugs in <A HREF="http://bugs.webkit.org/">http://bugs.webkit.org/</A> that were
+</I>&gt;&gt;<i> identifiably about this issue. Nor in Radar (Apple's internal bug
+</I>&gt;&gt;<i> tracker). Though I have not done thorough testing, I do not believe it
+</I>&gt;&gt;<i> is a compatibility issue.
+</I>
+I should note that in the past we _have_ had reports of compatibility 
+issues around this behavior, iirc.  I'm not sure we could reasonably 
+change it without breaking pages.
+
+ &gt; I haven't changed the spec, mostly because trying to define mutating
+ &gt; cache entries is frightening
+
+Again, those are an implementation detail.  The upshot is that each 
+document created via document.open() has a nonce identifier that points 
+to the data that was written; this data is used when the document needs 
+to be reloaded for whatever reason (history navigation, reload button, 
+location.reload(), etc).  The data goes away once it can no longer be 
+reached/used.
+
+&gt;&gt;<i> I do feel pretty strongly that reload() doing something different from
+</I>&gt;&gt;<i> the browser's reload UI is ... very odd.
+</I>&gt;<i>
+</I>&gt;<i> Agreed. Opera seems to get away with having them be consistent. WebKit
+</I>&gt;<i> browsers should probably change to match (or disable the 'reload' button,
+</I>&gt;<i> but that doesn't seem necessary here).
+</I>
+Well, we have no data that Opera hasn't received any complaints and 
+hasn't had any compatibility issues... we only know that webkit, with 
+behavior differing between the reload button and location.reload, 
+hasn't.  And that Gecko, which doesn't have such a difference, has in 
+the past when the reload behavior deviated from what it is now.
+
+-Boris
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="069638.html">[whatwg] location.reload() on document.open()ed documents
+</A></li>
+	<LI>Next message: <A HREF="069643.html">[whatwg] location.reload() on document.open()ed documents
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#69642">[ date ]</a>
+              <a href="thread.html#69642">[ thread ]</a>
+              <a href="subject.html#69642">[ subject ]</a>
+              <a href="author.html#69642">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

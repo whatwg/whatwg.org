@@ -1,0 +1,217 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Installed Apps
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Installed%20Apps&In-Reply-To=%3Cf965ae410907271630v40b4e77ap86b4eb45ce0ca56e%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="063694.html">
+   <LINK REL="Next"  HREF="063721.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Installed Apps</H1>
+<!--htdig_noindex-->
+    <B>Drew Wilson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Installed%20Apps&In-Reply-To=%3Cf965ae410907271630v40b4e77ap86b4eb45ce0ca56e%40mail.gmail.com%3E"
+       TITLE="[whatwg] Installed Apps">atwilson at google.com
+       </A><BR>
+    <I>Mon Jul 27 16:30:17 PDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="063694.html">[whatwg] Installed Apps
+</A></li>
+        <LI>Next message: <A HREF="063721.html">[whatwg] Installed Apps
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#63714">[ date ]</a>
+              <a href="thread.html#63714">[ thread ]</a>
+              <a href="subject.html#63714">[ subject ]</a>
+              <a href="author.html#63714">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>This sounds really powerful, and seems like a natural evolution of some of
+the stuff we've discussed previously for persistent workers. A few
+comments/notes:
+1) It sounds like this background page would act like any other web page
+with respect to its processing model (i.e. like other pages, script running
+in this page would be limited as to how long it can run, as opposed to
+workers which can run for any arbitrary length of time). This seems
+reasonable, especially since this page could assumedly still create workers
+if it need to do true background processing. It's really more of a &quot;hidden&quot;
+page than a &quot;background page&quot;?
+
+2) For multi-process browsers like Chrome, there seem to be limitations as
+to what can actually be accessed between processes (direct DOM access across
+process boundaries seems problematic for example). Do you have ideas about
+how to address this, since assumedly the page calling getInstalledApp()
+could be running under some arbitrary process?
+
+3) This approach has another advantage over something like workers in that a
+hidden page can do cross-domain access/sharing via iframes, whereas workers
+don't really have any facility for cross-domain access.
+
+4) I had a quick question/clarification about the motivation behind this -
+aside from the advantages described above, it sounds like the specific
+problem you are solving by a hidden page is a) you don't have to load
+javascript in a new page (which I'm assuming must be slow), and b) you don't
+have to load client state in the new page.
+
+For a) - Having some way to load large amounts of cached javascript quickly
+in a new page seems like an issue that would be nice to address in general,
+not just for pages that install hidden pages. Are there other approaches
+worth trying here?
+
+For b) - How much client state are we talking about? If you were to pursue
+this approach using workers to maintain client state, how much data would
+you expect to be transferred to the client app on startup? We're seeing
+fairly low latency for client&lt;-&gt;worker communication, so in theory it
+shouldn't be a huge source of slowdown.
+
+I agree that the programming model of the hidden page is much cleaner/more
+familiar than rewriting applications to use asynchronous messaging, so that
+may be sufficient motivation for this.
+
+-atw
+
+On Mon, Jul 27, 2009 at 11:50 AM, Michael Davidson &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">mpd at google.com</A>&gt; wrote:
+
+&gt;<i> Hello folks -
+</I>&gt;<i>
+</I>&gt;<i> I'm an engineer on the Gmail team. We've been working on a prototype
+</I>&gt;<i> with the Chrome team to make the Gmail experience better. We thought
+</I>&gt;<i> we'd throw out our ideas to the list to get some feedback.
+</I>&gt;<i>
+</I>&gt;<i> THE PROBLEM
+</I>&gt;<i>
+</I>&gt;<i> We would like to enable rich internet applications to achieve feature
+</I>&gt;<i> parity with desktop applications. I will use Gmail and Outlook as
+</I>&gt;<i> examples for stating the problems we hope to solve.
+</I>&gt;<i>
+</I>&gt;<i> -- Slow startup: When a user navigates to mail.google.com, multiple
+</I>&gt;<i> server requests are required to render the page. The Javascript is
+</I>&gt;<i> cacheable, but personal data (e.g. the list of emails to show) is not.
+</I>&gt;<i> New releases of Gmail that require JS downloads are even slower to
+</I>&gt;<i> load.
+</I>&gt;<i> -- Native apps like Outlook can (and do) run background processes on
+</I>&gt;<i> the user's machine to make sure that data is always up-to-date.
+</I>&gt;<i> -- Notifications: Likewise, Outlook can notify users (via a background
+</I>&gt;<i> process) when new mail comes in even if it's not running.
+</I>&gt;<i>
+</I>&gt;<i> A SOLUTION
+</I>&gt;<i>
+</I>&gt;<i> Our proposed solution has two parts. The first, which should be
+</I>&gt;<i> generally useful, is the ability to have a hidden HTML/JS page running
+</I>&gt;<i> in the background that can access the DOM of visible windows. This
+</I>&gt;<i> page should be accessible from windows that the user navigates to. We
+</I>&gt;<i> call this background Javascript window a &quot;shared context&quot; or a
+</I>&gt;<i> &quot;background page&quot;. This will enable multiple instances of a web app
+</I>&gt;<i> (e.g. tearoff windows in Gmail) to cleanly access the same user state
+</I>&gt;<i> no matter which windows are open.
+</I>&gt;<i>
+</I>&gt;<i> Additionally, we'd like this background page to continue to run after
+</I>&gt;<i> the user has navigated away from the site, and preferably after the
+</I>&gt;<i> user has closed the browser. This will enable us to keep client-side
+</I>&gt;<i> data up-to-date on the user's machine. It will also enable us to
+</I>&gt;<i> download JS in advance. When the user navigates to a web app, all the
+</I>&gt;<i> background page has to do is draw the DOM in the visible window. This
+</I>&gt;<i> should significantly speed up app startup. Additionally, when
+</I>&gt;<i> something happens that requires notification, the background page can
+</I>&gt;<i> launch a visible page with a notification (or use other rich APIs for
+</I>&gt;<i> showing notifications).
+</I>&gt;<i>
+</I>&gt;<i> WHY NOT SHARED WORKERS
+</I>&gt;<i>
+</I>&gt;<i> Shared workers and persistent workers are designed to solve similar
+</I>&gt;<i> problems, but don't meet our needs. The key difference between what
+</I>&gt;<i> we're proposing and earlier proposals for persistent workers is that
+</I>&gt;<i> background pages would be able to launch visible windows and have full
+</I>&gt;<i> DOM access.  This is different from the model of workers where all
+</I>&gt;<i> interaction with the DOM has to be done through asynchronous message
+</I>&gt;<i> passing. We would like background pages to be able to drive UI in a
+</I>&gt;<i> visible window using the techniques (DOM manipulation, innerHTML) that
+</I>&gt;<i> are common today. We believe that more apps would be able to take
+</I>&gt;<i> advantage of a background page if they didn't require rewriting the
+</I>&gt;<i> app in the asynchronous, message-passing style required by workers.
+</I>&gt;<i> Allowing the background page to drive the UI by doing direct DOM
+</I>&gt;<i> manipulation is a more common programming style. For apps that don't
+</I>&gt;<i> need the benefits of multiple threads provided by shared workers, this
+</I>&gt;<i> will give the benefits of fast startup and the benefits of running in
+</I>&gt;<i> the background (like showing notifications) without the downside of
+</I>&gt;<i> the worker programming model.
+</I>&gt;<i>
+</I>&gt;<i> The concepts here are similar to permanent workers, but with a
+</I>&gt;<i> different programming model.
+</I>&gt;<i>
+</I>&gt;<i> IMPLEMENTATION AVENUES
+</I>&gt;<i>
+</I>&gt;<i> For now, we have a simple API in Chrome. This is meant as a prototype
+</I>&gt;<i> of the concepts, not as a final API.
+</I>&gt;<i>
+</I>&gt;<i> -- installApp(uri, name) Fetches the HTML page at uri, and runs it as
+</I>&gt;<i> a hidden window. Currently this window is loaded when the machine
+</I>&gt;<i> starts. This should eventually involve permissioning UI, but this is
+</I>&gt;<i> not implemented. name is a name that can be used to get access to the
+</I>&gt;<i> hidden window.
+</I>&gt;<i> -- getInstalledApp(name) Returns a reference to the background page,
+</I>&gt;<i> or null if the app is not installed.
+</I>&gt;<i> -- removeInstalledApp(name) The moral equivalent of window.close() for
+</I>&gt;<i> a background page.
+</I>&gt;<i>
+</I>&gt;<i> We might migrate to a model where webapps can be installed as Chrome
+</I>&gt;<i> extensions instead of using a Javascript call to install the app.
+</I>&gt;<i>
+</I>&gt;<i> Another alternative we've discussed is allowing authors to specify in
+</I>&gt;<i> their AppCache manifest that a given page should be an always-loaded
+</I>&gt;<i> background page. This seems like a natural fit since the AppCache
+</I>&gt;<i> manifest is where authors describe the attributes of various parts of
+</I>&gt;<i> their app.
+</I>&gt;<i>
+</I>&gt;<i> KNOWN ISSUES
+</I>&gt;<i>
+</I>&gt;<i> As mentioned in earlier discussions about persistent workers,
+</I>&gt;<i> permissioning UI is a major issue.
+</I>&gt;<i>
+</I>&gt;<i> FEEDBACK
+</I>&gt;<i>
+</I>&gt;<i> We would like to know if others would find this functionality useful.
+</I>&gt;<i> Does anyone have an idea for a better API?
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> Michael
+</I>&gt;<i>
+</I>-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: &lt;<A HREF="http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20090727/d71e3bd7/attachment-0002.htm">http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20090727/d71e3bd7/attachment-0002.htm</A>&gt;
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="063694.html">[whatwg] Installed Apps
+</A></li>
+	<LI>Next message: <A HREF="063721.html">[whatwg] Installed Apps
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#63714">[ date ]</a>
+              <a href="thread.html#63714">[ thread ]</a>
+              <a href="subject.html#63714">[ subject ]</a>
+              <a href="author.html#63714">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

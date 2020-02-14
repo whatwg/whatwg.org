@@ -1,0 +1,227 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] SQL API error handling
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20SQL%20API%20error%20handling&In-Reply-To=%3C26b395e60710170057p77c7bdc5n8ccc06523f968502%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="012751.html">
+   <LINK REL="Next"  HREF="012752.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] SQL API error handling</H1>
+<!--htdig_noindex-->
+    <B>timeless</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20SQL%20API%20error%20handling&In-Reply-To=%3C26b395e60710170057p77c7bdc5n8ccc06523f968502%40mail.gmail.com%3E"
+       TITLE="[whatwg] SQL API error handling">timeless at gmail.com
+       </A><BR>
+    <I>Wed Oct 17 00:57:53 PDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="012751.html">[whatwg] SQL API error handling
+</A></li>
+        <LI>Next message: <A HREF="012752.html">[whatwg] SQL API error handling
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#12759">[ date ]</a>
+              <a href="thread.html#12759">[ thread ]</a>
+              <a href="subject.html#12759">[ subject ]</a>
+              <a href="author.html#12759">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On 10/17/07, Brady Eidson &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">beidson at apple.com</A>&gt; wrote:
+&gt;<i> Let me take a step back and try to frame it at a higher level
+</I>&gt;<i>
+</I>&gt;<i> - A page opens a valid database handle.
+</I>&gt;<i> - Some script uses that database handle - successfully
+</I>&gt;<i> - Some external event happens on the client machine - database
+</I>&gt;<i> corruption, the user deletes the database from the user agent's
+</I>&gt;<i> &quot;database management mode&quot;, gamma rays corrupt a single bit on the
+</I>&gt;<i> disk, or whatever.  This event renders the database unusable.
+</I>
+I'd like to somehow request that this point be stressed in the specification.
+
+I haven't spoken often, but I'm working on a browser for the Nokia 770
+and Nokia N800. The 770 has very little local storage, but most likely
+there will be a version of the browser we're producing that will
+include this SQL API. I haven't done the math, but I think it amounts
+to something like room for not more than 5 website databases with 5mb
+each and a chance of failing to commit a changeset fairly often.
+
+A couple of questions along these lines:
+1. user launches browser
+2. user visits Gmail
+3. Gmail sets up a database
+4. network goes out of range (transition to offline)
+5. user composes and saves a message as a draft
+6. user quits browser
+7. browser saves database to disk
+8. user launches browser
+9. user visits Gmail
+10. user sends the message
+11. user connects to network (transition to online)
+12. Gmail sends message
+13. Gmail performs SQL operation to remove unsent message from in
+memory database
+14. SQL API reports that this transaction has successfully completed -
+against an in memory database.
+15. network goes out of range (transition to offline)
+16. Device reboots (buggy wireless driver, effectively, the Browser
+has crashed without saving updated database to disk, last save was at
+point 7).
+17. User launches browser
+18. User visits Gmail
+19. User opens the draft
+20. User changes the draft
+21. User saves the message
+22. user connects to network (transition to online)
+
+At which points in these steps should something interesting happen
+that I haven't documented?
+
+Note: the file system for internal storage is Flash, we have been
+given explicit orders not to write to it frequently, as such Disk
+Cache is disabled in our browser, because otherwise we'd be writing to
+it frequently. From experience with a device with syslog, it turns out
+that the results of constantly writing to the device are fairly bad
+(10% used internal storage, device takes well over a minute to boot,
+normal boot time is much faster).
+
+That's the first use case, it's actually not the one I was planning to
+write, but hey.
+
+&lt;clicks save now&gt;
+
+version two.
+
+A couple of questions along these lines:
+1. user launches browser
+2. user visits Gmail
+3. Gmail sets up a database
+4. network goes out of range (transition to offline)
+5. user composes and sends a message
+6. user quits browser
+7. browser saves database to disk
+
+8. user launches browser
+
+user visits 4 other web based applications that successfully create databases.
+
+9. user quits browser
+10. browser saves databases (5) to disk
+
+11. user launches browser
+12. user visits some other web application
+13. web application tries to create a database.
+14. browser panics (defined below)
+
+User is given a dialog that lists what?
+At best, what information is available to the user?
+A. The name of each web application that has a database
+B. The name of the database
+C. The date/time at which it was last used
+D. The date/time the application was last used with a network connection
+ ** The browser is probably unlikely to be able to distinguish a
+walled garden (technically term, definable on demand) network from a
+proper network (with internet/intranet access to the application)
+unless someone defines an API for a web application to be able to tell
+the web browser &quot;Sorry, this network doesn't work for me&quot;.
+E. Size of the database (which will make virtually no sense to the user)
+F. Number of write transactions made against the database since the
+last online state (this will be useless because an application could
+either write often in small increments or rarely in a large chunk)
+
+What options does the user have? Here are the ones I can think of:
+A. Delete a database
+B. Refuse to allow this new application database access
+Bi. Remember this decision
+Bii. Perhaps my browser should always ask the user about database
+access, as it might be better for an application not to offer the
+feature if the user is likely to need it for other things, even before
+the user reaches full state, otherwise they might accidentally delete
+something important.
+C. Try to backup a database to the external RS-MMC
+Ci. Is this backup or atomic export. I believe it should be atomic export.
+D. Import a database from a file (i.e., RS-MMC) - currently disabled,
+limit reached.
+
+For fun, MMCs can easily be corrupted. So, in case people need a
+reminder about this....
+
+E. Create database on current external RS-MMC (again, use case is 770
+which only supports RS, the n800 supports more flavors). Corrupting a
+removal RS-MMC is trivial, just remove it during a write :) -- note,
+this is corrupting the file system, I understand that a database
+engine can claim that its writes will never create a corrupt database.
+F. Let the user try to open one of these web applications and give the
+application an event &quot;database is being deleted, please generate a
+serialized export&quot;. The web application could then generate a query,
+construct the actual useful part and trigger a file download that the
+user can then save. Or the application could inform the user that it's
+safe to delete the database, or give the user a list of relevant items
+that will be lost.
+
+&gt;<i> - Some action is taken to reset the database so that it is usable -
+</I>&gt;<i> lets pretend the resolution is always recreating an empty database
+</I>&gt;<i> from scratch
+</I>&gt;<i> - The script knows something wrong happened - it has a completely 100%
+</I>&gt;<i> generic error on its query.
+</I>
+Supposing at my second set, step 14, Gmail was open and the user chose
+to delete the database, would it be convenient to send an event to
+Gmail saying that the database has been deleted?
+
+&gt;<i> But it is unaware of the nature of this
+</I>&gt;<i> event and its resolution.  It decides to execute a new sql statement,
+</I>&gt;<i> and the value of this statement (from the script's perspective) is
+</I>&gt;<i> reliant on previously established values in the database.  The
+</I>&gt;<i> statement coincidentally succeeds even with the new empty database.
+</I>&gt;<i>
+</I>&gt;<i> For further argument, lets pretend the script is in an onunload
+</I>&gt;<i> handler and its writing some small piece of data out to the database
+</I>&gt;<i> before the user &quot;quits&quot;.  It has a lot of other data in memory client-
+</I>&gt;<i> side that it *thinks* is in the database, but really isn't anymore.
+</I>&gt;<i> It *could* write this data out, preserving a lot of important user
+</I>&gt;<i> state.  But it doesn't know to do so.
+</I>&gt;<i>
+</I>&gt;<i> One can certainly make the argument that if this were a native
+</I>&gt;<i> application saving data to disk, it would be prudent to verify its
+</I>&gt;<i> data on disk.
+</I>&gt;<i> But I think &quot;raw filesystem&quot; and &quot;database&quot; are different paradigms
+</I>&gt;<i> with different usage expectations.
+</I>&gt;<i> An error code along the lines of &quot;your database was just reset&quot; might
+</I>&gt;<i> fit the bill.  This could be because of corruption, because the user
+</I>&gt;<i> agent database management was invoked and the database cleared, or a
+</I>&gt;<i> number of other reasons.
+</I>&gt;<i>
+</I>&gt;<i> This is a requested split from code 1 - &quot;The statement failed for
+</I>&gt;<i> reasons not covered by any other code.&quot;
+</I>
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="012751.html">[whatwg] SQL API error handling
+</A></li>
+	<LI>Next message: <A HREF="012752.html">[whatwg] SQL API error handling
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#12759">[ date ]</a>
+              <a href="thread.html#12759">[ thread ]</a>
+              <a href="subject.html#12759">[ subject ]</a>
+              <a href="author.html#12759">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

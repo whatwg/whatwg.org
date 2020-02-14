@@ -1,0 +1,229 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] some thoughts on sandboxed IFRAMEs
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20some%20thoughts%20on%20sandboxed%20IFRAMEs&In-Reply-To=%3C448e9a321001251151p7408b3begfcdf3a2df2082d4e%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="024834.html">
+   <LINK REL="Next"  HREF="024836.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] some thoughts on sandboxed IFRAMEs</H1>
+<!--htdig_noindex-->
+    <B>Michal Zalewski</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20some%20thoughts%20on%20sandboxed%20IFRAMEs&In-Reply-To=%3C448e9a321001251151p7408b3begfcdf3a2df2082d4e%40mail.gmail.com%3E"
+       TITLE="[whatwg] some thoughts on sandboxed IFRAMEs">lcamtuf at coredump.cx
+       </A><BR>
+    <I>Mon Jan 25 11:51:33 PST 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="024834.html">[whatwg] some thoughts on sandboxed IFRAMEs
+</A></li>
+        <LI>Next message: <A HREF="024836.html">[whatwg] some thoughts on sandboxed IFRAMEs
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24835">[ date ]</a>
+              <a href="thread.html#24835">[ thread ]</a>
+              <a href="subject.html#24835">[ subject ]</a>
+              <a href="author.html#24835">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>&gt;<i> I've introduced srcdoc=&quot;&quot; to largely handle this. There is an example in
+</I>&gt;<i> the spec showing how it can be used.
+</I>
+Yup, sounds good.
+
+&gt;<i> This has been proposed before. The concern is that many authors would be
+</I>&gt;<i> likely to make mistakes in their selection of &quot;random&quot; tokens that would
+</I>&gt;<i> lead to significant flaws in the deployment of the feature.
+</I>&gt;<i>
+</I>&gt;<i> srcdoc=&quot;&quot; is less prone to errors. Only &quot; and &amp; characters need to be
+</I>&gt;<i> escaped. If the &quot; character is not escaped, then a single &quot; character in
+</I>&gt;<i> the input will cause the comment to break.
+</I>
+My counterargument, as stated later in the thread, is quite simple:
+the former *forces* you to implement a security mechanism, else the
+functionality will break. You can still use a bad token, but you are
+required to make the effort.
+
+In that regard, the comparison to XSRF is probably not valid; a vast
+majority of XSRF bugs occurs not because people pick poor tokens (in
+fact, that's really a majority), but because they don't use them at
+all. From that perspectiv, srcdoc=&quot;...&quot; is very similar to XSRF -
+people will mess it up simply by not thinking about the correct
+escaping.
+
+That said, I am not really arguing against srcdoc=&quot;...&quot;; I think it's
+an OK feature. My point is simply that I would love to see less
+fragmentation when it comes to XSS defenses and the granularity of
+security controls. The initial proposal of &lt;iframe&gt; sandboxes solved a
+very narrow use case, and other, unrelated designs started to spring
+up elsewhere. This wouldn't be bad by itself, but while the security
+controls on &lt;iframes&gt; were pretty great (with some tweaks, such as
+text/html-sandboxed), they would not be reflected in other APIs, which
+I thought is unfortunate.
+
+If we extend sandboxed iframes with srcdoc, seamless frames,
+text/html-sandboxed, and &lt;iframe&gt; rendering performance improvements,
+it actually becomes close to a comprehensive solution, and I am happy
+with this (other than a vague feeling that we just repurposed &lt;iframe&gt;
+to be some sort of a &lt;span&gt; ;-).
+
+&gt;<i> I've introduced text/html-sandboxed for this purpose.
+</I>
+Yup, I noticed. Looks great. It does make me wonder about two things, though:
+
+1) Some other security mechanisms (CORS, anti-clickjacking controls,
+XSS filter controls) rely on separate HTTP headers instead. Is there a
+compelling reason not to follow that lead - or better yet, to unify
+all security headers to conserve space?
+
+2) People may conceivably want to sandbox other document types (e.g.,
+SVG, RSS, or other XML-based formats rendered natively, and offering
+scripting capabilities). Do we want to create &quot;-sandboxed&quot; MIME types
+for each? The header approach would fix this, too.
+
+&gt;&gt;<i> 2.1) The ability to disable loading of external resources (images,
+</I>&gt;&gt;<i> scripts, etc) in the sandboxed document. The common usage scenario is
+</I>&gt;&gt;<i> when you do not want the displayed document to &quot;phone home&quot; for privacy
+</I>&gt;&gt;<i> reasons, for example in a web mail system.
+</I>&gt;<i>
+</I>&gt;<i> Good point. Should we make sandbox=&quot;&quot; disable off-origin network requests?
+</I>
+That would be great. I think Adam proposed we have a separate
+sandbox=&quot;...&quot; toggle for this. Whether it's on or off by default
+probably doesn't matter much.
+
+&gt;&gt;<i> 2.2) The ability to disable HTML parsing. On IFRAMEs, this can actually
+</I>&gt;&gt;<i> be approximated with the excommunicated &lt;plaintext&gt; tag, or with
+</I>&gt;&gt;<i> Content-Type: text/plain / data:text/plain,. On token-guarded SPANs or
+</I>&gt;&gt;<i> DIVs, however, it would be pretty damn useful for displaying text
+</I>&gt;&gt;<i> content without the need to escape &amp;, &lt;, &gt;, etc. &quot;Pure&quot; security benefit
+</I>&gt;&gt;<i> is limited, but as a phishing prevention and display correctness
+</I>&gt;&gt;<i> measure, it makes sense.
+</I>&gt;<i>
+</I>&gt;<i> I don't really understand the use case here; could you elaborate?
+</I>
+One use case is a web forum or a web mail interface where you want to
+display a message, but specifically don't want HTML formatting. Or,
+performance permitting, the same could be used for any text-only entry
+fields displayed on a page. These are common XSS vectors, and they are
+not readily addressed by sandboxed &lt;iframe&gt; + srcdoc=&quot;...&quot;, because
+this will not render as expected:
+
+User's favorite smiley face is: &lt;iframe srcdoc=&quot;&amp;lt;O&amp;gt;_&amp;lt;O&amp;gt;&quot;&gt;&lt;/iframe&gt;
+
+Having a drop-in solution for this would be pretty nice, and very easy
+to implement, too: just force text/plain, do not sniff.
+
+&gt;<i> Do people get CSRF right more often than simply escaping characters? It
+</I>&gt;<i> seems implausible that authors get complex cryptographic properties right
+</I>&gt;<i> more often than a simple set of substitutions, but I suppose stranger
+</I>&gt;<i> things are true on the Web.
+</I>
+Keep in mind that pretty much every web application already needs to
+safely generate unique, unpredictable tokens - for session identifiers
+that guard authenticated sessions. If they can't get it right, they
+are hosed anyway - but problems here are not horribly common, in my
+experience at least, and web app frameworks do a decent job of helping
+developers by providing token-generating facilities.
+
+As noted earlier, the vast majority of issues with XSS and XSRF
+defenses is that you explicitly need to think about them, and a
+failure to do so has no obvious side effects. From that perspective,
+any solution that requires a security mechanism to be used is far
+better.
+
+&gt;&gt;<i> Also, a single token on a returned page, as long as it's unpredictable
+</I>&gt;&gt;<i> across user sessions, should not be a significant issue.
+</I>&gt;<i> I'm just worried that some people would just a constant string.
+</I>
+Sure; but there's a difference between the near certainty of
+forgetting to escape something, somewhere, in a complex web app (in
+fact, I did so on several occasions in my code, despite making a
+living by pointing these issues to others on a daily basis) - and
+willingly sabotaging your app. Browser vendors / standards bodies are
+partly at fault for the former, but have no obligation to prevent the
+latter.
+
+&gt;&gt;<i> I was merely suggesting that we *expand* the same logic, and the same
+</I>&gt;&gt;<i> excellent security control granularity, to span and div; this seems like
+</I>&gt;&gt;<i> it would not increase the implementation complexity in any significant
+</I>&gt;&gt;<i> way.
+</I>&gt;<i>
+</I>&gt;<i> I don't understand the proposal then. What is the problem it is solving,
+</I>&gt;<i> and how does it solve it?
+</I>
+It makes it possible to conveniently sandbox small, inline snippets of
+user input on HTML pages, without a significant performance penalty.
+As noted, if &lt;iframe&gt; rendering speed is improved instead, and srcdoc
+and seamless rendering is implemented, the two proposals become
+roughly equivalent, though (spare for the argument over srcdoc=&quot;...&quot;
+versus guard tokens). It does feel a bit odd to turn an &lt;iframe&gt; into
+something that looks like &lt;span&gt;, swims like &lt;span&gt;, and quacks like
+&lt;span&gt; - but that's mostly an aesthetic objection that shouldn't
+matter much (a labored argument could be made that it will not be
+obvious you can and should use &lt;iframe&gt; this way, so some people may
+not fully utilize the security benefits it offers - but...)
+
+&gt;<i> I don't understand what you mean by &quot;does not enforce a security control&quot;,
+</I>&gt;<i> or how a guarded closing tag does &quot;enforce a security control&quot;.
+</I>
+If you have the intent to display user-controlled input, you have three options:
+
+&lt;span&gt;[server-sanitized string]&lt;/span&gt;
+&lt;iframe srcdoc=&quot;[server-escaped string]&quot;&gt;&lt;/iframe&gt;
+&lt;span guard=[token]&gt;[any string]&lt;/span guard=[token]&gt;
+
+The first two options will not immediately fail if you forget about or
+mess up escaping or sanitization - and people to, all the time. The
+last option just works, unless you purposefully sabotage your code by
+using &quot;1234&quot;, or can't generate a random number / session token on
+server side (in which case, you are hosed already - session cookies
+can be guessed, too). The last option strikes me as a bit less
+error-prone.
+
+/mz
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="024834.html">[whatwg] some thoughts on sandboxed IFRAMEs
+</A></li>
+	<LI>Next message: <A HREF="024836.html">[whatwg] some thoughts on sandboxed IFRAMEs
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24835">[ date ]</a>
+              <a href="thread.html#24835">[ thread ]</a>
+              <a href="subject.html#24835">[ subject ]</a>
+              <a href="author.html#24835">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

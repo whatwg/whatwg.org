@@ -1,0 +1,146 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Comments on updated SQL API
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Comments%20on%20updated%20SQL%20API&In-Reply-To=%3CPine.LNX.4.62.0710170611330.19595%40hixie.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="012629.html">
+   <LINK REL="Next"  HREF="012758.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Comments on updated SQL API</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Comments%20on%20updated%20SQL%20API&In-Reply-To=%3CPine.LNX.4.62.0710170611330.19595%40hixie.dreamhostps.com%3E"
+       TITLE="[whatwg] Comments on updated SQL API">ian at hixie.ch
+       </A><BR>
+    <I>Tue Oct 16 23:18:38 PDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="012629.html">[whatwg] Comments on updated SQL API
+</A></li>
+        <LI>Next message: <A HREF="012758.html">[whatwg] Comments on updated SQL API
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#12753">[ date ]</a>
+              <a href="thread.html#12753">[ thread ]</a>
+              <a href="subject.html#12753">[ subject ]</a>
+              <a href="author.html#12753">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Fri, 5 Oct 2007, Scott Hess wrote:
+&gt;<i> &gt;
+</I>&gt;<i> &gt; There isn't really a thread-global transaction, the transactions are 
+</I>&gt;<i> &gt; per-sequence-of-executeSql-calls, as in:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;    executeSql('sql1', function (result) {
+</I>&gt;<i> &gt;      executeSql('sql2', function (result) {
+</I>&gt;<i> &gt;        executeSql('sql3', function (result) {
+</I>&gt;<i> &gt;          // this is all in one transaction
+</I>&gt;<i> &gt;        });
+</I>&gt;<i> &gt;      });
+</I>&gt;<i> &gt;    });
+</I>&gt;<i> &gt;    executeSql('sql4', function (result) {
+</I>&gt;<i> &gt;      executeSql('sql5', function (result) {
+</I>&gt;<i> &gt;        executeSql('sql6', function (result) {
+</I>&gt;<i> &gt;          // this is all in another transaction
+</I>&gt;<i> &gt;        });
+</I>&gt;<i> &gt;      });
+</I>&gt;<i> &gt;    });
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; ...where the likely order of execution is sql1 and sql4 at the same 
+</I>&gt;<i> &gt; time, then sql2 and sql5, then sql3 and sql6, assuming all the 
+</I>&gt;<i> &gt; statements take the same amount of time.
+</I>&gt;<i> 
+</I>&gt;<i> At least for SQLite, the implicit transaction, as I understand it, would 
+</I>&gt;<i> result in sql1/2/3 executing in a transaction, and the transaction for 
+</I>&gt;<i> sql4/5/6 either waiting for the sql1/2/3 transaction to complete, or 
+</I>&gt;<i> failing due to locking errors.  I don't think they can interleave if 
+</I>&gt;<i> either of them opens a transaction, because SQLite locks at the database 
+</I>&gt;<i> level.
+</I>
+Indeed, that's also possible.
+
+
+&gt;<i> In general, I am of the opinion that you should either have no 
+</I>&gt;<i> transactions, or explicit transactions, but never implicit transactions.  
+</I>&gt;<i> This is a little different from a case like mysql, where you might make 
+</I>&gt;<i> an explicit decision to do things without transactions in the interest 
+</I>&gt;<i> of scalability, with the associated need to be very careful in how your 
+</I>&gt;<i> system orders your execution.  At least for SQLite, having a transaction 
+</I>&gt;<i> for multiple statements is more efficient than not, and scalability 
+</I>&gt;<i> isn't a huge issue.  Even so, I think that implicit transactions are 
+</I>&gt;<i> making a decision on behalf of the developer which the developer should 
+</I>&gt;<i> be explicit about.
+</I>
+What are the disadvantages of implicit transactions?
+
+What do other people think?
+
+
+&gt;<i> I wasn't clear from the spec, but I think it would be possible to do the 
+</I>&gt;<i> sequence-of-statements case like:
+</I>&gt;<i> 
+</I>&gt;<i>   executeSql('sql1', function (result) {
+</I>&gt;<i>     closeTransaction();
+</I>&gt;<i>     executeSql('sql2', function (result) {
+</I>&gt;<i>       closeTransaction();
+</I>&gt;<i>       executeSql('sql3', function (result) {
+</I>&gt;<i>       });
+</I>&gt;<i>     });
+</I>&gt;<i>   });
+</I>&gt;<i> 
+</I>&gt;<i> If not, then I think this would be a useful addition (if implicit 
+</I>&gt;<i> transactions are retained).
+</I>
+Yes, that's possible. Let me know if the spec is still unclear on this; I 
+tried to clarify it. (I'll be adding examples in due course, by the way.)
+
+
+&gt;<i> Explicit transactions could be as easy as:
+</I>&gt;<i> 
+</I>&gt;<i>   executeSql('sql1', function (result) {
+</I>&gt;<i>     executeSqlInTransaction('sql2', function (result) {
+</I>&gt;<i>       // Everything in here is in a transaction.
+</I>&gt;<i>       executeSql('sql3', function (result) {
+</I>&gt;<i>       });
+</I>&gt;<i>     });
+</I>&gt;<i>   });
+</I>
+That's a possibility, though we're trying to keep the API as thin as 
+possible.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="012629.html">[whatwg] Comments on updated SQL API
+</A></li>
+	<LI>Next message: <A HREF="012758.html">[whatwg] Comments on updated SQL API
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#12753">[ date ]</a>
+              <a href="thread.html#12753">[ thread ]</a>
+              <a href="subject.html#12753">[ subject ]</a>
+              <a href="author.html#12753">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

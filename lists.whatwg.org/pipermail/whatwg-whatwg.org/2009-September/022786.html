@@ -1,0 +1,222 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] RFC: Alternatives to storage mutex for cookies and	localStorage
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20RFC%3A%20Alternatives%20to%20storage%20mutex%20for%20cookies%20and%0A%09localStorage&In-Reply-To=%3C278fd46c0909081514g6842e5ci7b6cce7093f0baf8%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="022778.html">
+   <LINK REL="Next"  HREF="022787.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] RFC: Alternatives to storage mutex for cookies and	localStorage</H1>
+<!--htdig_noindex-->
+    <B>Aaron Boodman</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20RFC%3A%20Alternatives%20to%20storage%20mutex%20for%20cookies%20and%0A%09localStorage&In-Reply-To=%3C278fd46c0909081514g6842e5ci7b6cce7093f0baf8%40mail.gmail.com%3E"
+       TITLE="[whatwg] RFC: Alternatives to storage mutex for cookies and	localStorage">aa at google.com
+       </A><BR>
+    <I>Tue Sep  8 15:14:25 PDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="022778.html">[whatwg] RFC: Alternatives to storage mutex for cookies and localStorage
+</A></li>
+        <LI>Next message: <A HREF="022787.html">[whatwg] RFC: Alternatives to storage mutex for cookies and	localStorage
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22786">[ date ]</a>
+              <a href="thread.html#22786">[ thread ]</a>
+              <a href="subject.html#22786">[ subject ]</a>
+              <a href="author.html#22786">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Tue, Sep 8, 2009 at 12:02 PM, Jonas Sicking&lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">jonas at sicking.cc</A>&gt; wrote:
+&gt;<i> On Tue, Sep 8, 2009 at 11:53 AM, Aaron Boodman&lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">aa at google.com</A>&gt; wrote:
+</I>&gt;&gt;<i> On Tue, Sep 8, 2009 at 11:23 AM, Chris Jones&lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">cjones at mozilla.com</A>&gt; wrote:
+</I>&gt;&gt;&gt;<i> In general, I agree with Rob about this proposal.  What problem with storage
+</I>&gt;&gt;&gt;<i> mutex as spec'd today does your proposal solve?
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> The spec requires a single storage mutex for the entire UA. Therefore
+</I>&gt;&gt;<i> in a MELUA a web page can become unresponsive while waiting for some
+</I>&gt;&gt;<i> other page to give up the lock. This is not good and something we have
+</I>&gt;&gt;<i> tried to avoid everywhere else in the spec.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Attempts to address this by doing per-origin locks wind up with
+</I>&gt;&gt;<i> deadlocks being possible.
+</I>&gt;<i>
+</I>&gt;<i> How could this happen. It certainly does sound scary to have a bunch
+</I>&gt;<i> of locks that can be grabbed in arbitrary order, but I can't off the
+</I>&gt;<i> top of my head think of any ways where deadlocks can happen.
+</I>
+&gt;<i>From a Hixie mail way back in March:
+</I><A HREF="http://lists.whatwg.org/htdig.cgi/whatwg-whatwg.org/2009-March/018991.html">http://lists.whatwg.org/htdig.cgi/whatwg-whatwg.org/2009-March/018991.html</A>
+
+&lt;snip&gt;
+If it can be shown that it is not ever possible for script in one origin
+to synchronously invoke script in another origin, then I guess we could
+have per-origin locks instead of a single lock.
+&lt;/snip&gt;
+
+Here are two cases I know of where it is possible to have synchronous
+script execution across origins:
+
+* Plugins. It is possible for script to invoke a plugin function in
+one frame, and for the plugin to synchronously execute script in
+another frame. We have addressed this in the spec by saying that
+invoking a plugin releases the storage mutex, but that doesn't really
+solve the problem. We are exchanging violation of run-to-completion
+for deadlock. I guess it is an improvement, but it is still a bug.
+
+* In WebKit, onresize is invoked synchronously. You can cause
+cross-origin synchronous script execution by resizing an iframe.
+AFAIK, the spec does not disallow this event from being synchronous.
+
+I found the second case after only a few minutes of thinking about it.
+I suspect there are more since it was never a design goal to prevent
+synchronous script execution across origins.
+
+We could patch each case like this by releasing the mutex, but each
+time we do that, we poke another hole in run to completion.
+
+I also suspect such patches will be difficult to maintain. Even if we
+update implementations to invoke onresize asynchronously, how
+confident can we be in interactions between such unrelated components
+as event dispatch and storage continuing to work correctly?
+
+Finally, even with these hacks, we have problems. In a MELUA (I love
+that acronym!), with per-origin local storage mutexes, we still can
+end up with unresponsive UI because it is possible to have the same
+origin running on different event loops.
+
+Adding an asynchronous step to acquire the mutex neatly solves all
+these problems. We get run-to-completion, and we never block an event
+loop on waiting for a mutex.
+
+On Tue, Sep 8, 2009 at 12:39 PM, Chris Jones&lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">cjones at mozilla.com</A>&gt; wrote:
+&gt;<i> I think we all agree that a script may fail to modify localStorage in some
+</I>&gt;<i> situations (irrespective of global mutex vs. per-domain mutex). One camp,
+</I>&gt;<i> wanting &quot;mutex&quot; semantics, would prefer to pretend that the failures never
+</I>&gt;<i> happen and let scripts clean up the mess (partially-applied changes) if they
+</I>&gt;<i> do occur. &#160;This is semantically broken, IMHO.
+</I>&gt;<i>
+</I>&gt;<i> The second camp, wanting &quot;transaction&quot; semantics, explicitly acknowledge to
+</I>&gt;<i> web authors that localStorage is fallible, guarantee that modifications to
+</I>&gt;<i> localStorage are atomic, and notify scripts when modifications can't be made
+</I>&gt;<i> atomically. &#160;This is the same approach taken by Web Database. &#160;IMHO, this is
+</I>&gt;<i> much better semantically because (i) it gives web apps stronger guarantees;
+</I>&gt;<i> and (ii) it makes the discussion about global mutex/per-domain
+</I>&gt;<i> mutex/non-blocking an implementation issue rather semantic issue, as it
+</I>&gt;<i> should be.
+</I>&gt;<i>
+</I>&gt;<i> Can those in the first camp explain why &quot;mutex&quot; semantics is better than
+</I>&gt;<i> &quot;transaction&quot; semantics? &#160;And why it's desirable to have one DB spec specify
+</I>&gt;<i> &quot;transaction&quot; semantics (Web Database) and a second specify &quot;mutex&quot;
+</I>&gt;<i> semantics (localStorage)?
+</I>
+Ok, I don't have a strong preference on this. Transaction semantics
+seem better to me, but only marginally so.
+
+- a
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="022778.html">[whatwg] RFC: Alternatives to storage mutex for cookies and localStorage
+</A></li>
+	<LI>Next message: <A HREF="022787.html">[whatwg] RFC: Alternatives to storage mutex for cookies and	localStorage
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22786">[ date ]</a>
+              <a href="thread.html#22786">[ thread ]</a>
+              <a href="subject.html#22786">[ subject ]</a>
+              <a href="author.html#22786">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

@@ -1,0 +1,158 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Need to define same-origin policy for WebIDL operations/getters/setters
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Need%20to%20define%20same-origin%20policy%20for%20WebIDL%0A%20operations/getters/setters&In-Reply-To=%3CPine.LNX.4.64.1301080405370.12992%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="080811.html">
+   <LINK REL="Next"  HREF="080816.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Need to define same-origin policy for WebIDL operations/getters/setters</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Need%20to%20define%20same-origin%20policy%20for%20WebIDL%0A%20operations/getters/setters&In-Reply-To=%3CPine.LNX.4.64.1301080405370.12992%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg] Need to define same-origin policy for WebIDL operations/getters/setters">ian at hixie.ch
+       </A><BR>
+    <I>Mon Jan  7 20:28:21 PST 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="080811.html">[whatwg] Need to define same-origin policy for WebIDL	operations/getters/setters
+</A></li>
+        <LI>Next message: <A HREF="080816.html">[whatwg] Need to define same-origin policy for WebIDL	operations/getters/setters
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#80815">[ date ]</a>
+              <a href="thread.html#80815">[ thread ]</a>
+              <a href="subject.html#80815">[ subject ]</a>
+              <a href="author.html#80815">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Mon, 7 Jan 2013, Boris Zbarsky wrote:
+&gt;<i> On 1/7/13 6:41 PM, Ian Hickson wrote:
+</I>&gt;<i> &gt; Most things don't have an origin.
+</I>&gt;<i> 
+</I>&gt;<i> Pretty much everything has an origin in practice: it's associated with 
+</I>&gt;<i> some Window, hence can be treated as having the same origin as that 
+</I>&gt;<i> Window.
+</I>
+Per spec, even Windows actually don't have an origin. Things that have 
+origins are URLs, Documents, images, audio and video elements, fonts, and 
+scripts. Many of those things can have origins that are not that of the 
+most obvious related (or in some cases any) Document.
+
+
+&gt;<i> &gt; Origin checks are only done in some very specific places where you try 
+</I>&gt;<i> &gt; to get an object's properties; what we're saying here is that for 
+</I>&gt;<i> &gt; those properties, you also need to do the check when you run the code 
+</I>&gt;<i> &gt; behind those properties (e.g. call a method), against the &quot;this&quot;.
+</I>&gt;<i> 
+</I>&gt;<i> I'm not quite sure we're talking about the same thing here.  Can you 
+</I>&gt;<i> give an example of what you're thinking?
+</I>
+Suppose you try to get the property from a Document whose origin doesn't 
+match your script's origin.
+
+Right now, this throws a SecurityError, because of:
+
+# User agents must throw a SecurityError exception whenever any properties 
+# of a Document object are accessed by scripts whose effective script 
+# origin is not the same as the Document's effective script origin.
+ -- <A HREF="http://www.whatwg.org/specs/web-apps/current-work/#security-document">http://www.whatwg.org/specs/web-apps/current-work/#security-document</A>
+
+The check we need to add is for when you actually invoke the properties, 
+in case you got the property from another Document and then apply it to 
+this one. The check is the same -- if the Document that is the &quot;this&quot; to 
+which the property is being applied doesn't match the origin of the script 
+that is doing the applying, throw SecurityError.
+
+
+&gt;<i> What _I'm_ thinking is that there needs to be a security check when 
+</I>&gt;<i> someone does 
+</I>&gt;<i> Document.prototype.getElementsByTagName.call(subframe.contentDocument). 
+</I>&gt;<i> This is not the same security check as the one performed by 
+</I>&gt;<i> subframe.contentDocument.getElementsByTagName (note lack of call; it 
+</I>&gt;<i> never gets that far in the cross-origin case).  This is independent of 
+</I>&gt;<i> whether we're doing security checks on all property access or on some of 
+</I>&gt;<i> them.
+</I>
+Right. Specifically, the new security check (for compat we still need the 
+old one too, though I guess in many cases it's now redundant) needs to be 
+in getElementsByTagName()'s definition or in call()'s definition. (If the 
+latter, we also need to put it in a number of other places, like the stuff 
+that interacts with getters/setters.)
+
+So e.g. we could put it in &quot;call()&quot; and define it as checking whether you 
+can obtain the property on the target object before actually executing 
+any code.
+
+I don't want us to literally put the checks (in the spec) in each method / 
+property of the four objects with these checks (Document, Window, 
+Location, Storage), since that's a _lot_ of places to put these checks. We 
+could put them in prose in the same places that have the &quot;access&quot; checks 
+now. Or we could put them elsewhere. Where the current checks are makes 
+the most sense to me, but I'm not sure exactly how to phrase them.
+
+
+&gt;<i> Implementing different security models on the IDL level is a footgun of 
+</I>&gt;<i> enormous size.  We should simply have IDL methods throw if called with 
+</I>&gt;<i> not-same-origin &quot;this&quot; or arguments, except for a whitelist.
+</I>
+Except for having to define the origin of things for this purpose, yes, 
+that's what I'm essentially saying.
+
+
+&gt;<i> Not that we can have the argument about which interfaces are subject to 
+</I>&gt;<i> this security check if you want to only limit it to some objects; or 
+</I>&gt;<i> example you could argue that this is only needed on Window, EventTarget, 
+</I>&gt;<i> Document, Node, and a few others.  That's a separate argument from 
+</I>&gt;<i> whether the security checks for those interfaces should be opt-in or 
+</I>&gt;<i> opt-out.
+</I>
+I don't see why EventTarget would be subject to this (it's implemented by 
+things that need checking, but presumably everything that's implemented in 
+that way should just be handled by that host interface the same way as 
+everything on that host interface that isn't white listed). The only 
+interfaces that are of interest here (that need them and their inherited 
+and implemented interfaces checked) are Document, Window, Location, and 
+Storage. At least, in the HTML spec, as far as I can tell.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="080811.html">[whatwg] Need to define same-origin policy for WebIDL	operations/getters/setters
+</A></li>
+	<LI>Next message: <A HREF="080816.html">[whatwg] Need to define same-origin policy for WebIDL	operations/getters/setters
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#80815">[ date ]</a>
+              <a href="thread.html#80815">[ thread ]</a>
+              <a href="subject.html#80815">[ subject ]</a>
+              <a href="author.html#80815">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

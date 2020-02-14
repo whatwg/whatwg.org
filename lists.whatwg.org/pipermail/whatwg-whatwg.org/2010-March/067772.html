@@ -1,0 +1,157 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] XSS safe templating
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20XSS%20safe%20templating&In-Reply-To=%3C178b8d441003111018v41be88e3qd280a299a8b1683e%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="067760.html">
+   <LINK REL="Next"  HREF="067786.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] XSS safe templating</H1>
+<!--htdig_noindex-->
+    <B>Mike Samuel</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20XSS%20safe%20templating&In-Reply-To=%3C178b8d441003111018v41be88e3qd280a299a8b1683e%40mail.gmail.com%3E"
+       TITLE="[whatwg] XSS safe templating">mikesamuel at gmail.com
+       </A><BR>
+    <I>Thu Mar 11 10:18:15 PST 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="067760.html">[whatwg] XSS safe templating
+</A></li>
+        <LI>Next message: <A HREF="067786.html">[whatwg] XSS safe templating
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#67772">[ date ]</a>
+              <a href="thread.html#67772">[ thread ]</a>
+              <a href="subject.html#67772">[ subject ]</a>
+              <a href="author.html#67772">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>2010/3/11 Maciej Stachowiak &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">mjs at apple.com</A>&gt;:
+&gt;<i>
+</I>&gt;<i> On Mar 10, 2010, at 10:15 AM, Mike Samuel wrote:
+</I>&gt;<i>
+</I>&gt;&gt;<i> Hmm. &#160;It occurs to me that many libraries -- at least jQuery and
+</I>&gt;&gt;<i> prototype have their own layers in between their users and the DOM.
+</I>&gt;&gt;<i> When I cooked up this scheme, I didn't know how likely proxies and
+</I>&gt;&gt;<i> ephemeron tables were to make it into ES Harmony, but I think Andreas
+</I>&gt;&gt;<i> Gal just implemented (both? or just ephemerons) in a tracemonkey
+</I>&gt;&gt;<i> nightly. &#160;Those are all you need to do a really efficient
+</I>&gt;&gt;<i> interposition layer, so libraries are probably not going to stop doing
+</I>&gt;&gt;<i> that.
+</I>&gt;&gt;<i> So I think the non-document.write portion can be implemented entirely
+</I>&gt;&gt;<i> in the library interposition layer.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> document.write can be wrapped. &#160;But the wrapper would still need to
+</I>&gt;&gt;<i> know the insertion-mode.
+</I>&gt;&gt;<i> If the insertion mode were exposed, or at least some context were
+</I>&gt;&gt;<i> given -- enough to know whether the next char if not something that
+</I>&gt;&gt;<i> changed the current token, would be interpreted as
+</I>&gt;&gt;<i> &#160;* inside a tag
+</I>&gt;&gt;<i> &#160;* outside a tag in a comment / application instruction / doctype
+</I>&gt;&gt;<i> &#160;* outside a tag in a PCDATA/RCDATA/CDATA context and ideally in what
+</I>&gt;&gt;<i> kind of containing tag
+</I>&gt;&gt;<i> &#160;* outside a tag in a CDATA section.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> So maybe some kind of
+</I>&gt;&gt;<i> &#160;(DOMString|null) document.getInsertionMode().
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> Thoughts:
+</I>&gt;<i>
+</I>&gt;<i> 1) I'm not enthusiastic about exposing internal details of the HTML parser
+</I>&gt;<i> to script.
+</I>&gt;<i>
+</I>&gt;<i> 2) Given the way document.write works, the information you ask for may not
+</I>&gt;<i> even be available at the time of the document.write call. There may be
+</I>&gt;<i> considerable other parsing and/or script execution to do before the parser
+</I>&gt;<i> reaches the insertion point. Consider the following example:
+</I>&gt;<i>
+</I>&gt;<i> &lt;div&gt;
+</I>&gt;<i> &lt;script&gt;
+</I>&gt;<i> document.write(&quot;&lt;script src='external.js'&gt;&lt;/scr&quot; + &quot;ipt&gt;&quot;);
+</I>&gt;<i> document.write(untrustedString);
+</I>&gt;<i> &lt;/script&gt;
+</I>&gt;<i> &lt;/div&gt;
+</I>
+Ah, thanks for the excellent example.
+
+&gt;<i> At the time of the second document.write, the *current* insertion mode is
+</I>&gt;<i> outside a tag in normal text content, but it's impossible to tell what it
+</I>&gt;<i> will be by the time untrustedString actually gets parsed. (In case it's not
+</I>&gt;<i> clear why: untrustedString is inserted into the character stream after the
+</I>&gt;<i> &lt;script&gt; tag loading external.js, but external.js is not executed until
+</I>&gt;<i> after the inline script completes. So it's not just inconvenient but
+</I>&gt;<i> impossible even in principle to determine what the parsing mode will be.)
+</I>&gt;<i> This is one of the many reasons document.write is a terrible API.
+</I>&gt;<i>
+</I>&gt;<i> 3) document.write and innerHTML are pretty hacky interfaces. Rather than
+</I>&gt;<i> trying to shore them up, we should instead recommend JavaScript libraries
+</I>&gt;<i> that work at a higher level and end up using DOM APIs. That's likely to be a
+</I>&gt;<i> lot sounder.
+</I>
+I agree that document.write{,ln} is a bad interface.
+I'm trying to come up with ways to let developers migrate piecemeal to
+APIs that are at least as performant where bugs don't have horrible
+security consequences.
+
+Fair enough.  I suppose if a system wants to preserve the security property that
+
+    literal portions in structured interpolations passed to
+document.{write,writeln}
+    are always interpreted as they would be if all substitutions contained only
+    whitesace.
+
+then I can preserve that by wrapping document.write{,ln} to throw an
+Error if passed something that ends inside a tag, comment, or ends
+with an HTML special character, or that contains a CDATA or RCDATA
+element that is not closed in the same chunk.
+
+That is failsafe preserving, and the grammar I would need to check
+should be regular as long as I can strip out noscript and friends,
+NULs, and other questionable bits, since CDATA and RCDATA elements
+don't nest.
+
+Thanks for answering all the questions.  I think I can probably do
+without new HTML5 stuff.
+
+&gt;<i> Regards,
+</I>&gt;<i> Maciej
+</I>&gt;<i>
+</I>&gt;<i>
+</I>
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="067760.html">[whatwg] XSS safe templating
+</A></li>
+	<LI>Next message: <A HREF="067786.html">[whatwg] XSS safe templating
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#67772">[ date ]</a>
+              <a href="thread.html#67772">[ thread ]</a>
+              <a href="subject.html#67772">[ subject ]</a>
+              <a href="author.html#67772">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

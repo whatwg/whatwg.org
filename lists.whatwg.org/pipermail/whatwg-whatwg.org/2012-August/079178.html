@@ -1,0 +1,214 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] StringEncoding open issues
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20StringEncoding%20open%20issues&In-Reply-To=%3CCAD649j78tX0kCUNE9yiuuzNP3w-yis-KBq3hUyDskhdiAPdmaw%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="079094.html">
+   <LINK REL="Next"  HREF="079197.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] StringEncoding open issues</H1>
+<!--htdig_noindex-->
+    <B>Joshua Bell</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20StringEncoding%20open%20issues&In-Reply-To=%3CCAD649j78tX0kCUNE9yiuuzNP3w-yis-KBq3hUyDskhdiAPdmaw%40mail.gmail.com%3E"
+       TITLE="[whatwg] StringEncoding open issues">jsbell at chromium.org
+       </A><BR>
+    <I>Tue Aug 14 10:34:51 PDT 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="079094.html">[whatwg] StringEncoding open issues
+</A></li>
+        <LI>Next message: <A HREF="079197.html">[whatwg] StringEncoding open issues
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#79178">[ date ]</a>
+              <a href="thread.html#79178">[ thread ]</a>
+              <a href="subject.html#79178">[ subject ]</a>
+              <a href="author.html#79178">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Mon, Aug 6, 2012 at 5:06 PM, Glenn Maynard &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">glenn at zewt.org</A>&gt; wrote:
+
+&gt;<i> I agree with Jonas that encoding should just use a replacement character
+</I>&gt;<i> (U+FFFD for Unicode encodings, '?' otherwise), and that we should put off
+</I>&gt;<i> other modes (eg. exceptions and user-specified replacement characters)
+</I>&gt;<i> until there's a clear need.
+</I>&gt;<i>
+</I>&gt;<i> My intuition is that encoding DOMString to UTF-16 should never have errors;
+</I>&gt;<i> if there are dangling surrogates, pass them through unchanged.  There's no
+</I>&gt;<i> point in using a placeholder that says &quot;an error occured here&quot;, when the
+</I>&gt;<i> error can be passed through in exactly the same form (not possible with eg.
+</I>&gt;<i> DOMString-&gt;SJIS).  I don't feel strongly about this only because outputting
+</I>&gt;<i> UTF-16 is so rare to begin with.
+</I>&gt;<i>
+</I>&gt;<i> On Mon, Aug 6, 2012 at 1:29 PM, Joshua Bell &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">jsbell at chromium.org</A>&gt; wrote:
+</I>&gt;<i>
+</I>&gt;<i> &gt; - if the document is encoded in UTF-8, UTF-16LE or UTF-16BE and includes
+</I>&gt;<i> &gt; the byte order mark (the encoding-specific serialization of U+FEFF).
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> This rarely detects the wrong type, but that doesn't mean it's not the
+</I>&gt;<i> wrong answer.  If my input is meant to be UTF-8, and someone hands me
+</I>&gt;<i> BOM-marked UTF-16, I want it to fail in the same way it would if someone
+</I>&gt;<i> passed in SJIS.  I don't want it silently translated.
+</I>&gt;<i>
+</I>&gt;<i> On the other hand, it probably does make sense for UTF-16 to switch to
+</I>&gt;<i> UTF-16BE, since that's by definition the original purpose of the BOM.
+</I>&gt;<i>
+</I>&gt;<i> The convention iconv uses, which I think is a useful one, is decoding from
+</I>&gt;<i> &quot;UTF-16&quot; means &quot;try to figure out the encoding from the BOM, if any&quot;, and
+</I>&gt;<i> &quot;UTF-16LE&quot; and &quot;UTF-16BE&quot; mean &quot;always use this exact encoding&quot;.
+</I>
+
+Let me take a crack at making this into an algorithm:
+
+In the TextDecoder constructor:
+
+   - If encoding is not specified, set an internal useBOM flag
+   - If encoding is specified and is a case insensitive match for &quot;utf-16&quot;
+   set an internal useBOM flag.
+
+NOTE: This means if &quot;utf-8&quot;, &quot;utf-16le&quot; or &quot;utf-16be&quot; is explicitly
+specified the flag is not set.
+
+When decode() is called
+
+   - If useBOM is set and the stream offset is 0, then
+      - If there are not enough bytes to test for a BOM then return without
+      emitting anything (NOTE: if not streaming an EOF byte would be present in
+      the stream which would be a negative match for a BOM)
+      - If encoding is &quot;utf-16&quot; and the first bytes match 0xFF 0xFE or 0xFE
+      0xFF then set current encoding to &quot;utf-16&quot; or &quot;utf-16be&quot; respectively and
+      advance the stream past the BOM. The current encoding is used until the
+      stream is reset.
+      - Otherwise, if the first bytes match 0xFF 0xFE, 0xFE 0xFF, or 0xEF
+      0xBB 0xBF then set current encoding to &quot;utf-16&quot;, &quot;utf-16be&quot; or &quot;utf-8&quot;
+      respectively and advance the stream past the BOM. The current encoding is
+      used until the stream is reset.
+   - Otherwise, if useBOM is not set and the steam offset is 0, then if the
+   encoding is &quot;utf-8&quot;, &quot;utf-16&quot; or &quot;utf-16be&quot;
+      - If the first bytes match 0xFF 0xFE, 0xFE 0xFF, or 0xEF 0xBB 0xBF
+      then let detected encoding be &quot;utf-16&quot;, &quot;utf-16be&quot; or &quot;utf-8&quot;
+respectively.
+      If the detected encoding matches the object's encoding, advance
+the stream
+      past the BOM. Otherwise, if the fatal flag is set then throw a
+      &quot;EncodingError&quot; DOMException. Otherwise, the decoding algorithm proceeds.
+      - If there are not enough bytes to test for a BOM then return without
+      emitting anything (NOTE: if not streaming an EOF byte would be inserted
+      which would be a negative match for a BOM)
+
+Working the &quot;current encoding&quot; switcheroo into the spec will require some
+refactoring, so trying to get consensus here first.
+
+In English:
+
+   - Create an encoder with TextDecoder() and if present a BOM will be
+   respected (and consumed) otherwise default to UTF-8
+   - Create an encoder with TextDecoder(&quot;utf-16&quot;) and either UTF-16LE or
+   UTF-16BE BOM will be respected (and consumed) otherwise default to UTF-16LE
+   (which may decode garbage if UTF-8 BOM or other non-UTF-16 data is present)
+   - Create an encoder with TextDecoder(&quot;utf-8&quot;,
+   {fatal:true}), TextDecoder(&quot;utf-16le&quot;, {fatal:true}),
+   TextDecoder(&quot;utf-16be&quot;, {fatal:true}) and a matching BOM will be consumed,
+   a mismatching BOM will throw an EncodingError
+   - Create an encoder with TextDecoder(&quot;utf-8&quot;), TextDecoder(&quot;utf-16le&quot;),
+   TextDecoder(&quot;utf-16be&quot;) and a matching BOM will be consumed, a mismatching
+   BOM will be blithely decoded (probably giving you replacement characters),
+   but not throwing.
+
+ * If one of the UTF encodings is specified AND the BOM matches then the
+&gt;<i> &gt; leading BOM character (U+FEFF) MUST NOT be emitted in the output
+</I>&gt;<i> character
+</I>&gt;<i> &gt; sequence (i.e. it is silently consumed)
+</I>&gt;<i> &gt;
+</I>&gt;<i>
+</I>&gt;<i> It's a little weird that
+</I>&gt;<i>
+</I>&gt;<i> data = readFile(&quot;user-supplied-file.txt&quot;); // shortcutting for brevity
+</I>&gt;<i> var s = new TextDecoder(&quot;utf-16&quot;).decode(data); // or utf-8
+</I>&gt;<i> s = s.replace(&quot;a&quot;, &quot;b&quot;);
+</I>&gt;<i> var data2 = new TextEncoder(&quot;utf-16&quot;).encode(s);
+</I>&gt;<i> writeFile(&quot;user-supplied-file.txt&quot;, data2);
+</I>&gt;<i>
+</I>&gt;<i> causes the BOM to be quietly stripped away.  Normally if you're modifying a
+</I>&gt;<i> file, you want to pass through the BOM (or lack thereof) untouched.
+</I>&gt;<i>
+</I>&gt;<i> One way to deal with this could be:
+</I>&gt;<i>
+</I>&gt;<i> var decoder = new TextDecoder(&quot;utf-16&quot;);
+</I>&gt;<i> var s = decoder.decode(data);
+</I>&gt;<i> s = s.replace(&quot;a&quot;, &quot;b&quot;);
+</I>&gt;<i> var data2 = new TextEncoder(decoder.encoding).encode(s);
+</I>&gt;<i>
+</I>&gt;<i> where decoder.encoding is eg. &quot;UTF-16LE-BOM&quot; if a BOM was present, thus
+</I>&gt;<i> preserving both the BOM and (for UTF-16) endianness.  I don't actually like
+</I>&gt;<i> this, though, because I don't like the idea of decoder.encoding changing
+</I>&gt;<i> after the decoder has already been constructed.
+</I>&gt;<i>
+</I>&gt;<i> I think I agree with just stripping it, and people who want to preserve
+</I>&gt;<i> BOMs on write-through can jump the hoops manually (which aren't terribly
+</I>&gt;<i> hard).
+</I>&gt;<i>
+</I>
+This gets easier if we restrict to encoding UTF-8 which typically doesn't
+include BOMs. But it's looking like there's enough desire to keep UTF-16
+encoding at the moment. Agree with just stripping it for now.
+
+
+&gt;<i> Another issue is &quot;new TextDecoder('ascii').encoding&quot; (and ISO-8859-1)
+</I>&gt;<i> giving .encoding = &quot;windows-1252&quot;.  That's strange, even when you know why
+</I>&gt;<i> it's happening.
+</I>&gt;<i>
+</I>&gt;<i> Is there any reason to expose the actual &quot;primary&quot; names?  It's not clear
+</I>&gt;<i> that the &quot;name&quot; column in the Encoding spec is even intended to be exposed
+</I>&gt;<i> to APIs; they look more like labels for specs to refer to internally.
+</I>&gt;<i> (Anne?)  If there's no pressing reason to expose this, I'd suggest that the
+</I>&gt;<i> .encoding attribute simply return the name that was passed to the
+</I>&gt;<i> constructor.
+</I>&gt;<i>
+</I>&gt;<i> It's still not ideal (it's weird that asking for ASCII gives you something
+</I>&gt;<i> other than ASCII in the first place), but it at least seems a bit less
+</I>&gt;<i> strange.  The &quot;nice&quot; fix would be to implement actual ASCII, ISO-8859-1,
+</I>&gt;<i> ISO-8859-9, etc. charsets, but that just means extra implementation work
+</I>&gt;<i> (and some charset proliferation) without use cases.
+</I>&gt;<i>
+</I>
+Leaning towards simply dropping the attribute. Does anyone advocate for
+keeping it?
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="079094.html">[whatwg] StringEncoding open issues
+</A></li>
+	<LI>Next message: <A HREF="079197.html">[whatwg] StringEncoding open issues
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#79178">[ date ]</a>
+              <a href="thread.html#79178">[ thread ]</a>
+              <a href="subject.html#79178">[ subject ]</a>
+              <a href="author.html#79178">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

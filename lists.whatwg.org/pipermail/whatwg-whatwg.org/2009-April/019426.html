@@ -1,0 +1,171 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Script/parser interaction bug?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Script/parser%20interaction%20bug%3F&In-Reply-To=%3CPine.LNX.4.62.0904270339250.10370%40hixie.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="019425.html">
+   <LINK REL="Next"  HREF="019431.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Script/parser interaction bug?</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Script/parser%20interaction%20bug%3F&In-Reply-To=%3CPine.LNX.4.62.0904270339250.10370%40hixie.dreamhostps.com%3E"
+       TITLE="[whatwg] Script/parser interaction bug?">ian at hixie.ch
+       </A><BR>
+    <I>Sun Apr 26 21:01:12 PDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="019425.html">[whatwg] False orthogonal nature :read-only and :disabled in WF2
+</A></li>
+        <LI>Next message: <A HREF="019431.html">[whatwg] Script/parser interaction bug?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19426">[ date ]</a>
+              <a href="thread.html#19426">[ thread ]</a>
+              <a href="subject.html#19426">[ subject ]</a>
+              <a href="author.html#19426">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Thu, 12 Feb 2009, Kartikaya Gupta wrote:
+&gt;<i>
+</I>&gt;<i> Below is an updated annotation including all the script nesting level 
+</I>&gt;<i> and parser pause flag changes.
+</I>&gt;<i>
+</I>&gt;<i> - initially, script nesting level is zero, parser pause flag is false
+</I>&gt;<i> - tokenize/treebuild ext7.html until the first closing script tag is found (for the 7a.js script)
+</I>
+<A HREF="http://stakface.com/pub/mango/ext7.html:">http://stakface.com/pub/mango/ext7.html:</A>
+&lt;script src=&quot;ext7a.js&quot;&gt;&lt;/script&gt;
+
+&gt;<i> - increment the script nesting level to 1
+</I>&gt;<i> - the 7a.js script tag has a src attribute, so it gets set as the pending external script
+</I>&gt;<i> - decrement the script nesting level to zero
+</I>&gt;<i> - since the script nesting level is zero, set the parser pause flag to false (it was already false)
+</I>&gt;<i> - execute the pending external script (7a.js) (this clears the pending external script pointer)
+</I>
+<A HREF="http://stakface.com/pub/mango/ext7a.js:">http://stakface.com/pub/mango/ext7a.js:</A>
+document.write('&lt;script src=ext7b.js&gt;&lt;/script&gt;');
+document.write('&lt;script type=text/javascript&gt;document.write(&quot;&lt;div 
+id=r&gt;FAIL&lt;/div&gt;&quot;);');
+document.write('document.getElementById(&quot;r&quot;).firstChild.data=&quot;PASS&quot;;');
+var r = document.getElementById('r');
+if (r != null) {
+    r.parentNode.removeChild(r);
+}
+document.write('&lt;/script&gt;');
+
+&gt;<i> --- insert &quot;&lt;script src=ext7b.js&gt;&lt;/script&gt;&quot; into the input stream
+</I>&gt;<i> --- tokenize/treebuild the 7b.js script tag until the &lt;/script&gt; for 7b.js is found
+</I>&gt;<i> --- increment the script nesting level to 1
+</I>&gt;<i> --- the 7b.js script tag has a src attribute, so it gets set as the pending external script
+</I>&gt;<i> --- decrement the script nesting level to zero
+</I>&gt;<i> --- since the script nesting level is zero, set the parser pause flag to false (it was already false)
+</I>&gt;<i> --- there is a pending external script (7b.js) but the tree construction stage is re-entrant, so set parser pause flag to true and return
+</I>&gt;<i> --- insert remaining document.write content from 7a.js into the input stream. since there is a pending external script, none of it gets tokenized/treebuilt
+</I>&gt;<i> - 7a.js finishes executing. at this point the script nesting level is zero and the parser pause flag is true
+</I>&gt;<i> - check again for a pending external script. there is one, 7b.js
+</I>&gt;<i> - execute the pending external script (7b.js) (this clears the pending external script pointer)
+</I>
+<A HREF="http://stakface.com/pub/mango/ext7b.js:">http://stakface.com/pub/mango/ext7b.js:</A>
+throw 'ignore this exception; it is supposed to be thrown';
+
+&gt;<i> --- throws
+</I>&gt;<i> - 7b.js finishes executing. at this point the script nesting level is zero and the parser pause flag is true
+</I>&gt;<i> - continue processing the input stream (this now has the contents of the document.write calls from 7a.js, line 2 onwards)
+</I>&gt;<i> - tokenize/treebuild the input stream until the &lt;/script&gt; at the bottom of 7a.js is encountered
+</I>&gt;<i> - increment the script nesting level to 1
+</I>&gt;<i> - the script tag does not have a src attribute, so it gets executed
+</I>&gt;<i> --- insert the div into the input stream
+</I>&gt;<i> --- since the parser pause flag is true the div does NOT get tokenized/treebuilt
+</I>&gt;<i> --- run the line that sets .firstChild.data to PASS. since the div isn't in the DOM yet, this throws
+</I>&gt;<i> - the script written from 7a.js finishes executing. at this point the script nesting level is 1 and the parser pause flag is true
+</I>&gt;<i> - decrement the script nesting level to zero
+</I>&gt;<i> - since the script nesting level is zero, set the parser pause flag to false
+</I>&gt;<i> - continue processing the input stream (this now contains just the div tag with FAIL inside)
+</I>&gt;<i> - tokenize/treebuild the input stream, which adds the FAIL div to the DOM
+</I>&gt;<i> - done
+</I>
+Well, on the positive side, I agree with your interpretation of the spec.
+
+It seems the problem is that when the pending external script is executed, 
+the pause flag isn't set to false afterwards. I've put the 
+increment/decrement steps around that too, so that the flag becomes false 
+earlier. This seems to fix the testcase here. Does that work for you?
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="019425.html">[whatwg] False orthogonal nature :read-only and :disabled in WF2
+</A></li>
+	<LI>Next message: <A HREF="019431.html">[whatwg] Script/parser interaction bug?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19426">[ date ]</a>
+              <a href="thread.html#19426">[ thread ]</a>
+              <a href="subject.html#19426">[ subject ]</a>
+              <a href="author.html#19426">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

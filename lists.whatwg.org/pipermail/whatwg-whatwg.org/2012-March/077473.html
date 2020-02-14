@@ -1,0 +1,154 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] API for encoding/decoding ArrayBuffers into text
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20API%20for%20encoding/decoding%20ArrayBuffers%20into%20text&In-Reply-To=%3CCABirCh_Htpx9hfmkMH%2BodX0dP1wZwUAX_OKg%3DtS1qFi%3DW%3DtJvw%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="077471.html">
+   <LINK REL="Next"  HREF="077479.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] API for encoding/decoding ArrayBuffers into text</H1>
+<!--htdig_noindex-->
+    <B>Glenn Maynard</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20API%20for%20encoding/decoding%20ArrayBuffers%20into%20text&In-Reply-To=%3CCABirCh_Htpx9hfmkMH%2BodX0dP1wZwUAX_OKg%3DtS1qFi%3DW%3DtJvw%40mail.gmail.com%3E"
+       TITLE="[whatwg] API for encoding/decoding ArrayBuffers into text">glenn at zewt.org
+       </A><BR>
+    <I>Tue Mar 27 16:45:57 PDT 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="077471.html">[whatwg] API for encoding/decoding ArrayBuffers into text
+</A></li>
+        <LI>Next message: <A HREF="077479.html">[whatwg] API for encoding/decoding ArrayBuffers into text
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#77473">[ date ]</a>
+              <a href="thread.html#77473">[ thread ]</a>
+              <a href="subject.html#77473">[ subject ]</a>
+              <a href="author.html#77473">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Tue, Mar 27, 2012 at 12:41 AM, Jonas Sicking &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">jonas at sicking.cc</A>&gt; wrote:
+
+&gt;<i> The memchr is purely overhead, I.e. we are comparing memchr+decoding
+</I>&gt;<i> to decoding. So I don't see what's backing up the &quot;probably the
+</I>&gt;<i> fastest thing&quot; claim.
+</I>&gt;<i>
+</I>
+If you don't do it as an initial pass, then you have to embed null checks
+into the inner loop of your decoding algorithm.  For example, an ASCII
+decoder may look like:
+
+// char *input = input buffer
+// char *input_end = one past last byte of input buffer
+// wchar_t *output = output buffer
+input_end = memchr(input, 0, input_end - input);
+while(input &lt; input_end)
+{
+    if(*input &gt;= 0x80)
+        *output++ = 0xFFFD;
+    else
+        *output++ = *input;
+    ++input;
+}
+
+If you don't do the initial search, then it becomes:
+
+while(input &lt; input_end &amp;&amp; *input != 0)
+{
+    if(*input &gt;= 0x80)
+        *output++ = 0xFFFD;
+    else
+        *output++ = *input;
+    ++input;
+}
+
+which means that you have an additional branch each time through the loop
+to check for the null terminator.  That's likely to be slower than just
+doing another pass.
+
+But anyway, please either make a benchmark or two to show the differences
+we're talking about, or drop &quot;performance&quot; as an argument.  This is all
+just a distraction otherwise.  I don't think the speed of conversion is
+even a serious issue, much less the microseconds taken by memchr.
+
+I admit I missed the previous discussion which led to the agreement to
+&gt;<i> keep the length measuring outside, so I don't know what arguments were
+</I>&gt;<i> presented. Any pointers would be appreciated.
+</I>&gt;<i>
+</I>
+You've already mentioned one of them: being able to tell how many bytes
+were consumed.  Having a view.indexOf function is also obviously generally
+useful, and it simplifies the API.
+
+Beyond that, having a feature--whether a wrapper or a flag to the actual
+decoder/encoder--that's just a shortcut for all of four or five liens of
+code is just a minor convenience.  I don't think it's something so common
+that we need to save people a few lines of trivial wrapper code that they
+can write themselves.
+
+ &gt; It doesn't seem materially harder (a little more code, yes, but that's
+&gt;<i> not
+</I>&gt;<i> &gt; the same thing), and it's more general-purpose.
+</I>&gt;<i>
+</I>&gt;<i> I agree it doesn't seem materially harder. I also agree that I don't
+</I>&gt;<i> have data to show that it's materially slower. But it sounds like
+</I>&gt;<i> we're in agreement that keeping the logic outside is both harder and
+</I>&gt;<i> slower which honestly doesn't speak strongly in its favor.
+</I>&gt;<i>
+</I>
+Sorry, I'm confused--you're saying that it isn't harder, but we're in
+agreement that it's harder.  Please clarify what you mean.
+
+I don't believe it's meaningfully slower or harder.
+
+I don't understand the argument that the alternative is more
+&gt;<i> &quot;general-purpose&quot;. The API is already generic in that you can use
+</I>&gt;<i> whatever delimiter you want since you pass in a view. The only
+</I>&gt;<i> functionality which is not available is finding a null-terminator in
+</I>&gt;<i> an arraybuffer which you are arguing below shouldn't be part of the
+</I>&gt;<i> decoder (which I agree with).
+</I>&gt;<i>
+</I>
+I'm confused.  What are you arguing?  &quot;The alternative&quot;--taking the null
+terminator search out of the decoder--you seem to argue against (first
+sentence), then to agree with (last sentence).  Can you back up and restate
+what you're saying from scratch?
+
+-- 
+Glenn Maynard
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="077471.html">[whatwg] API for encoding/decoding ArrayBuffers into text
+</A></li>
+	<LI>Next message: <A HREF="077479.html">[whatwg] API for encoding/decoding ArrayBuffers into text
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#77473">[ date ]</a>
+              <a href="thread.html#77473">[ thread ]</a>
+              <a href="subject.html#77473">[ subject ]</a>
+              <a href="author.html#77473">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

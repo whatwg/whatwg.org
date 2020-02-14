@@ -1,0 +1,235 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Notifications UI for Persistent Workers
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Notifications%20UI%20for%20Persistent%20Workers&In-Reply-To=%3C5ce7a0db0903311848j36f8d6beu8f5387c893b76101%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="061384.html">
+   
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Notifications UI for Persistent Workers</H1>
+<!--htdig_noindex-->
+    <B>John Gregg</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Notifications%20UI%20for%20Persistent%20Workers&In-Reply-To=%3C5ce7a0db0903311848j36f8d6beu8f5387c893b76101%40mail.gmail.com%3E"
+       TITLE="[whatwg] Notifications UI for Persistent Workers">johnnyg at google.com
+       </A><BR>
+    <I>Tue Mar 31 18:48:22 PDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="061384.html">[whatwg] Input type for phone numbers
+</A></li>
+        
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#61386">[ date ]</a>
+              <a href="thread.html#61386">[ thread ]</a>
+              <a href="subject.html#61386">[ subject ]</a>
+              <a href="author.html#61386">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Hi WHATWG,
+
+There have been discussions in the past about building notifications
+(&quot;toasts&quot;) as a way for workers, especially persistent workers, to have a
+form of UI.  It's not spec'd in HTML5 at the moment, but I'm currently
+working on an implementation in Chromium and wanted to get broader feedback
+on the design we're working from.  Here's our design doc.  Thoughts?
+
+Thanks,
+  -John
+
+
+*Notifications for Persistent Workers*
+
+*Background*
+
+Persistent workers run scripts in the background, potentially in the absence
+of open tabs connected to that worker script.  This document describes a way
+for these scripts to interact with the user through notifications: &quot;toasts&quot;
+which appear on the user's desktop, outside of any tab.
+
+QUESTION: Dedicated and shared workers, though able to interact with the
+user through open tabs, also have compelling use cases where desktop UI
+serves better than in-tab UI (e.g., Calendar alerts and &quot;New Email&quot;
+notifications). Should this be extended to all such contexts?  There are
+implementation benefits to limiting notifications to shared workers
+(avoiding duplication of notifications, etc.), but this may present a burden
+to developers who wish to incorporate notifications in a webapp with minimal
+effort.  This document will limit itself to the application in shared &amp;
+persistent workers.
+
+*Capabilities*
+
+User-agents may implement desktop notifications in different ways.  The
+strongest form provides full HTML display, where a URL is loaded and
+presented in a small desktop balloon. In some environments structured
+notifications (icon, title, text) are more canonical, e.g., Ubuntu's
+libnotify and Growl.
+
+In addition, HTML5 browsers which do not have a &quot;desktop&quot; in the traditional
+sense, such as those on a mobile device, may wish to implement notifications
+using text-only, text-plus-icon, or other structured notifications.  For
+example, Palm OS offers structured notifications on mobile devices, but not
+full HTML.  For greatest compatibility, the spec should provide alternatives
+for these different environments.
+
+When HTML notifications are used, they should act like normal browser
+windows, including stylesheets and script functionality, with the exception
+that links causing a location change should always open in a new tab.
+
+*Proposed Specification*
+
+SharedWorkerGlobalScope {
+ ...
+ readonly attribute Notifications notifications;
+};
+
+interface Notifications {
+ NotificationObject createHTMLNotification(URL url);
+ NotificationObject createNotification(StructuredNotification n);
+
+ /* see &quot;Permissions&quot; below */
+ readonly attribute boolean trusted;
+ void requestTrust();
+};
+
+In the Notifications interface, user agents may leave undefined
+createHTMLNotification() if they do not support HTML notifications.
+
+[nointerface] interface StructuredNotification {
+ DOMString title;
+ DOMString /* URL */ icon;
+ DOMString body;
+ /* ... perhaps other fields can be optional ... */
+};
+
+interface NotificationObject {
+ boolean show();  /* show (queue for display) the notification. throws on
+repeat calls. */
+ boolean cancel();  /* close the notification if displayed; cancel it if not
+yet */
+ attribute boolean sticky;
+
+ attribute EventListener ondisplay;
+ attribute EventListener onerror;
+ attribute EventListener onclose;
+ /* ... perhaps other events ... */
+}
+
+Applications' worker scripts can use standard normal capabilities-checking
+techniques to choose which function to call, HTML or structured.
+
+Notifications may be 'sticky', meaning the toast is shown until dismissed by
+the user, but by default they are not sticky, and will be removed after a
+period of time which is controlled by the user-agent and underlying desktop
+based on its own display properties.  A worker script may attempt to change
+the stickiness before showing, although this change may not be successful if
+not allowed by the environment (e.g., Ubuntu's libnotify does not support
+sticky notifications at all).
+
+Before showing a notification, the worker script can register for event
+callbacks defined above. All callbacks are asynchronous.
+
+   - &quot;ondisplay&quot;: when the notification is actually shown to the user.  If
+   it is queued for UI space limitations, this may be deferred.  This event
+   allows scripts to control notification display intervals more precisely if
+   desired.
+   - &quot;onerror&quot;: if the notification cannot be shown for some reason, for
+   example if the URL provided generates an error response.
+   - &quot;onclose&quot;: when the notification is closed by the user or by the
+   notification provider.  Non-sticky notifications may close themselves
+   automatically, thus the 'onclose' event should include an &quot;explicit&quot;
+   attribute which indicates if the user took an action to dismiss the
+   notification.
+
+
+*Example*
+
+if (notifications) {
+  var n;
+  if (typeof(notifications.createHTMLNotification) != &quot;undefined&quot;) {
+    n =
+notifications.createHTMLNotification(&quot;/ui/event_starting?id=31415&amp;title=Team+Meeting&amp;location=Room+1200&amp;time=1700&quot;);
+  } else {
+    n = notifications.createNotification({icon: &quot;/images/event.png&quot;, title:
+&quot;Team Meeting&quot;, body : &quot;Room 1200, 5:00pm&quot;});
+  }
+  n.sticky = true;
+  n.onclose = function(e) { if (e.explicit) { /* ping server, mark event
+acknowledged */ } };
+  n.show();
+}
+
+*Permissions*
+
+As with any UI elements, the potential exists to annoy users by misuse of
+the feature. If notifications are available to non-persistent workers or
+pages, it can be mitigated by separating applications into trust zones
+defined by the user-agent, where trust is granted by the user. Since
+persistent workers require installation permission, user agents might
+combine notification permission with install permission.
+
+Desktop placement is limited to trusted origins; untrusted origins'
+notifications can be shown within a browser tab rather than on the desktop
+(like a non-modal alert dialog, with the queueing benefits of the
+notifications system).
+
+Scripts can determine if they are trusted by checking the
+notifications.trusted attribute and can use notifications.requestTrust() to
+request permission from the user to become trusted, through an info-bar or
+other conventional permissions flow at the discretion of the user agent.
+
+*Security/Phishing*
+
+When the notification bubbles are shown outside the browser window, and
+contain fully interactive HTML, there is a potential concern that a
+compromised or misbehaving worker script might create a phishing opportunity
+by requesting user input in a notification bubble.
+
+It is recommended that HTML notification bubbles always contain a
+recognizable browser frame, which displays the origin source of the bubble
+and identifies HTTPS and other security elements in a standard way.
+*
+Offline Use/Application Cache*
+
+Some notifications have a strong offline use case, such as calendar
+reminders.  To make the necessary icon images and HTML notification
+templates available offline, HTML notification windows should have access to
+the same application cache as the worker which created them, if present, or
+follow the normal application cache selection algorithm for new windows.
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: &lt;<A HREF="http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20090331/75b7d199/attachment-0002.htm">http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20090331/75b7d199/attachment-0002.htm</A>&gt;
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="061384.html">[whatwg] Input type for phone numbers
+</A></li>
+	
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#61386">[ date ]</a>
+              <a href="thread.html#61386">[ thread ]</a>
+              <a href="subject.html#61386">[ subject ]</a>
+              <a href="author.html#61386">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

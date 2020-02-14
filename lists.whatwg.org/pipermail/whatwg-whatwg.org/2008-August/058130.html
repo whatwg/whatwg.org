@@ -1,0 +1,169 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Workers proposal
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Workers%20proposal&In-Reply-To=%3C48ACFDE2.1000800%40sicking.cc%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="058128.html">
+   <LINK REL="Next"  HREF="058132.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Workers proposal</H1>
+<!--htdig_noindex-->
+    <B>Jonas Sicking</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Workers%20proposal&In-Reply-To=%3C48ACFDE2.1000800%40sicking.cc%3E"
+       TITLE="[whatwg] Workers proposal">jonas at sicking.cc
+       </A><BR>
+    <I>Wed Aug 20 22:32:18 PDT 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="058128.html">[whatwg] Workers proposal
+</A></li>
+        <LI>Next message: <A HREF="058132.html">[whatwg] Workers proposal
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#58130">[ date ]</a>
+              <a href="thread.html#58130">[ thread ]</a>
+              <a href="subject.html#58130">[ subject ]</a>
+              <a href="author.html#58130">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>This is looking great. A few comments though (of course :) )
+
+Do we really need the SharedWorker interface. I.e. couldn't we just 
+return a MessagePort? This would probably require that we use a factory 
+function rather than a constructor, like &quot;getPortForSharedWorker&quot; or 
+some such. In other words, do we really need onclose and onerror for 
+shared workers (onerror seems to make some sense, onclose i'm less sure 
+about).
+
+I think startConversation makes as much sense on shared workers as 
+dedicated ones, so moving that API up to Worker/WorkerGlobalScope seems 
+like a good idea.
+
+If we keep the constructors (see first paragraph), I would prefer the 
+syntax &quot;new Worker&quot; over &quot;new DedicatedWorker&quot;.
+
+/ Jonas
+
+Ian Hickson wrote:
+&gt;<i> I've received feedback from a number of people requesting a rethink to the 
+</I>&gt;<i> API for creating and communicating with workers.
+</I>&gt;<i> 
+</I>&gt;<i> Here is a skeleton of a new proposal. It makes the following changes:
+</I>&gt;<i> 
+</I>&gt;<i>  * Shared workers and dedicated workers get their own interfaces, 
+</I>&gt;<i>    inheriting from a common base interface, both for the global scope 
+</I>&gt;<i>    objects and for the objects returned when they are created.
+</I>&gt;<i> 
+</I>&gt;<i>  * Shared workers get a port per connection. Dedicated workers don't get a 
+</I>&gt;<i>    port, but they have a convenience method on the worker and on the 
+</I>&gt;<i>    worker's global object that allows for easy creation of ports to send 
+</I>&gt;<i>    threaded messages (direct replies).
+</I>&gt;<i> 
+</I>&gt;<i>  * Uses constructors instead of factory methods to create workers.
+</I>&gt;<i> 
+</I>&gt;<i>  * Removes 'onload' from the Worker objects.
+</I>&gt;<i> 
+</I>&gt;<i>  * Renamed &quot;onunload&quot; to &quot;onclose&quot; throughout.
+</I>&gt;<i> 
+</I>&gt;<i>  * Removes the &quot;closing&quot; boolean.
+</I>&gt;<i> 
+</I>&gt;<i>  * Adds a way to kill a dedicated worker.
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> OUTSIDE
+</I>&gt;<i> 
+</I>&gt;<i> // (abstract, never instantiated)
+</I>&gt;<i> [NoInterfaceObject] interface Worker {
+</I>&gt;<i>   attribute EventListener onerror; // invoked if the worker fails to start
+</I>&gt;<i>   attribute EventListener onclose; // invoked if the worker closes
+</I>&gt;<i> };
+</I>&gt;<i> 
+</I>&gt;<i> interface DedicatedWorker : Worker {
+</I>&gt;<i>   void close(); // kills the worker immediately, without cleanup
+</I>&gt;<i> 
+</I>&gt;<i>   // these all work the same as on MessagePorts:
+</I>&gt;<i>   attribute EventListener onmessage; // receives messages from the worker
+</I>&gt;<i>   boolean postMessage(in DOMString message);
+</I>&gt;<i>   boolean postMessage(in DOMString message, in MessagePort, port);
+</I>&gt;<i>   MessagePort startConversation(in DOMString message);
+</I>&gt;<i> };
+</I>&gt;<i> 
+</I>&gt;<i> interface SharedWorker : Worker {
+</I>&gt;<i>   readonly attribute MessagePort port; // local end of channel to worker
+</I>&gt;<i> };
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> INSIDE
+</I>&gt;<i> 
+</I>&gt;<i> // (abstract, never instantiated)
+</I>&gt;<i> [NoInterfaceObject] interface WorkerGlobalScope {
+</I>&gt;<i>   void close();
+</I>&gt;<i>   attribute EventListener onclose;
+</I>&gt;<i> 
+</I>&gt;<i>   readonly attribute WorkerGlobalScope self;
+</I>&gt;<i>   readonly attribute WorkerLocation location;
+</I>&gt;<i>   // also implements everything on WorkerUtils
+</I>&gt;<i> };
+</I>&gt;<i> 
+</I>&gt;<i> [NoInterfaceObject] interface DedicatedWorkerGlobalScope : WorkerGlobalScope {
+</I>&gt;<i>   // these all work the same as on MessagePorts:
+</I>&gt;<i>   attribute EventListener onmessage; // receives messages from the owner
+</I>&gt;<i>   boolean postMessage(in DOMString message);
+</I>&gt;<i>   boolean postMessage(in DOMString message, in MessagePort, port);
+</I>&gt;<i>   MessagePort startConversation(in DOMString message);
+</I>&gt;<i> };
+</I>&gt;<i> 
+</I>&gt;<i> [NoInterfaceObject] interface DedicatedWorkerGlobalScope : WorkerGlobalScope {
+</I>&gt;<i>   attribute EventListener onconnect; // called by createSharedWorker()
+</I>&gt;<i>   readonly attribute DOMString name;
+</I>&gt;<i> };
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> CREATING WORKERS
+</I>&gt;<i> 
+</I>&gt;<i> To created workes, use constructors:
+</I>&gt;<i> 
+</I>&gt;<i>    var worker = new DedicatedWorker(url);
+</I>&gt;<i>    var service = new SharedWorker(name, url);
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> Comments?
+</I>&gt;<i> 
+</I>
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="058128.html">[whatwg] Workers proposal
+</A></li>
+	<LI>Next message: <A HREF="058132.html">[whatwg] Workers proposal
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#58130">[ date ]</a>
+              <a href="thread.html#58130">[ thread ]</a>
+              <a href="subject.html#58130">[ subject ]</a>
+              <a href="author.html#58130">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

@@ -1,0 +1,149 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] DOM Range: redefining behavior under DOM mutation
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20DOM%20Range%3A%20redefining%20behavior%20under%20DOM%20mutation&In-Reply-To=%3CAANLkTik83MrFZNn%2B1fZC7FkrtCr7GdJ_W7OoBuhUzZ5R%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="031056.html">
+   <LINK REL="Next"  HREF="031074.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] DOM Range: redefining behavior under DOM mutation</H1>
+<!--htdig_noindex-->
+    <B>Aryeh Gregor</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20DOM%20Range%3A%20redefining%20behavior%20under%20DOM%20mutation&In-Reply-To=%3CAANLkTik83MrFZNn%2B1fZC7FkrtCr7GdJ_W7OoBuhUzZ5R%40mail.gmail.com%3E"
+       TITLE="[whatwg] DOM Range: redefining behavior under DOM mutation">Simetrical+w3c at gmail.com
+       </A><BR>
+    <I>Tue Mar 29 11:19:34 PDT 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="031056.html">[whatwg] DOM Range: redefining behavior under DOM mutation
+</A></li>
+        <LI>Next message: <A HREF="031074.html">[whatwg] DOM Range: redefining behavior under DOM mutation
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#31072">[ date ]</a>
+              <a href="thread.html#31072">[ thread ]</a>
+              <a href="subject.html#31072">[ subject ]</a>
+              <a href="author.html#31072">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Mon, Mar 28, 2011 at 8:05 PM, Boris Zbarsky &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">bzbarsky at mit.edu</A>&gt; wrote:
+&gt;<i> One problem here is that there is not a concept of &quot;moved&quot; in the DOM.
+</I>&gt;<i> There's just removed and inserted. &#160;Trying to insert something that already
+</I>&gt;<i> has a parent will remove it and then do the insert. &#160;Thanks to the wonders
+</I>&gt;<i> of mutation events and userdata, script can execute in state when the node
+</I>&gt;<i> being moved is not in the DOM, which means that ranges need to update
+</I>&gt;<i> separately for the removal and insertion because the state of the range in
+</I>&gt;<i> the intermediate state with the node outside the DOM needs to be
+</I>&gt;<i> well-defined.
+</I>
+Hmm, I see.  I was assuming that insertBefore() would just atomically
+change the parent from the new one to the old one.  Looking more
+closely at DOM Core, I see it's specced the way you describe it
+(although nothing says when the mutation events fire).  That's
+certainly a problem for my plan.  It would be possible to work around
+it by requiring that insertBefore() and similar methods do special
+magic for Ranges independent of the actual DOM mutations done,
+however.  That already has to happen for
+insertData()/deleteData()/appendData(), right?  All browsers treat
+those differently from just setting the data to the equivalent string.
+
+&gt;<i> Now if we dropped support for mutation events and userdata handlers
+</I>&gt;<i> first.....
+</I>
+Is that feasible?  I get the impression implementers would all love
+it, but somehow they haven't done it yet.
+
+&gt;<i> Gecko's implementation of A.insertBefore(B, C), in pseudocode and ignoring
+</I>&gt;<i> all the sanity-checking and for cases when B is not a document fragment is:
+</I>&gt;<i>
+</I>&gt;<i> &#160;if (B.ownerDocument != A.ownerDocument) {
+</I>&gt;<i> &#160; &#160;A.ownerDocument.adoptNode(B); &#160;// This can run arbitrary script
+</I>&gt;<i> &#160;}
+</I>&gt;<i>
+</I>&gt;<i> &#160;if (B.parentNode) {
+</I>&gt;<i> &#160; &#160;B.parentNode.removeChild(B); &#160; // This can run arbitrary script
+</I>&gt;<i> &#160;}
+</I>&gt;<i>
+</I>&gt;<i> &#160;// Mutate the child storage of A to put B in the child list; notify
+</I>&gt;<i> &#160;// observers
+</I>&gt;<i>
+</I>&gt;<i> Both the removeChild call and the mutation of A's child list notify mutation
+</I>&gt;<i> observers. &#160;Ranges are mutation observers, and use the notifications to
+</I>&gt;<i> update themselves. &#160;So from the point of view of a range, the removal and
+</I>&gt;<i> insertion are two distinct events.
+</I>&gt;<i>
+</I>&gt;<i> -Boris
+</I>&gt;<i>
+</I>&gt;<i> P.S. &#160;I suspect that actual interoperability for the edge cases of this
+</I>&gt;<i> stuff is poor: nothing defines whether the adopt happens before the
+</I>&gt;<i> removeChild above, nothing defines what happens if user data handlers or
+</I>&gt;<i> mutation events mutate the DOM, etc.
+</I>
+DOM Core says it's supposed to be basically
+
+    if (B.ownerDocument != A.ownerDocument) {
+        A.ownerDocument.adoptNode(B);
+    }
+
+    // Insert into the children
+&lt;<A HREF="http://dvcs.w3.org/hg/domcore/raw-file/tip/Overview.html#dom-node-insertbefore">http://dvcs.w3.org/hg/domcore/raw-file/tip/Overview.html#dom-node-insertbefore</A>&gt;
+
+where adoptNode() removes the node from its parent before changing the
+ownerDocument.  This seems to be how both IE, Gecko and Opera actually
+behave -- moving a node from one document to another has the
+ownerDocument equal to the old document on DOMNodeRemoved, and the new
+document on DOMNodeInserted.  (WebKit throws if you do insertBefore()
+cross-document, and I can't get it to fire any DOM mutation events
+even if it's same-document.)  When I thoughtlessly mutated the DOM
+from the event handler, though, I definitely hit a lack of interop.
+
+
+Anyway, then what does Gecko do for execCommand()?  Does that just
+have special-case logic to adjust the selection to fit the new DOM?
+It would be nice if we could eliminate that in a clean way, from both
+the specs and implementations.
+</PRE>
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="031056.html">[whatwg] DOM Range: redefining behavior under DOM mutation
+</A></li>
+	<LI>Next message: <A HREF="031074.html">[whatwg] DOM Range: redefining behavior under DOM mutation
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#31072">[ date ]</a>
+              <a href="thread.html#31072">[ thread ]</a>
+              <a href="subject.html#31072">[ subject ]</a>
+              <a href="author.html#31072">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

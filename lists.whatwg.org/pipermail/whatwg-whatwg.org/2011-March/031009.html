@@ -1,0 +1,163 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Thoughts on the media stream bootstrap mechanism
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Thoughts%20on%20the%20media%20stream%20bootstrap%20mechanism&In-Reply-To=%3CE65AB61D-A361-45F0-8741-EFD5AD9B48A4%40berjon.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="030917.html">
+   <LINK REL="Next"  HREF="030905.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Thoughts on the media stream bootstrap mechanism</H1>
+<!--htdig_noindex-->
+    <B>Robin Berjon</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Thoughts%20on%20the%20media%20stream%20bootstrap%20mechanism&In-Reply-To=%3CE65AB61D-A361-45F0-8741-EFD5AD9B48A4%40berjon.com%3E"
+       TITLE="[whatwg] Thoughts on the media stream bootstrap mechanism">robin at berjon.com
+       </A><BR>
+    <I>Thu Mar 24 09:03:53 PDT 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="030917.html">[whatwg] Thoughts on the media stream bootstrap mechanism
+</A></li>
+        <LI>Next message: <A HREF="030905.html">[whatwg] Interpretation issue: can &lt;section&gt; be used for	&quot;extended
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#31009">[ date ]</a>
+              <a href="thread.html#31009">[ thread ]</a>
+              <a href="subject.html#31009">[ subject ]</a>
+              <a href="author.html#31009">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Hi Rich,
+
+On Mar 15, 2011, at 16:24 , Rich Tibbett wrote:
+&gt;<i> Secondly, getUserMedia is restricted to only handle audio/video
+</I>&gt;<i> streams. In the original proposal there was potential for us to
+</I>&gt;<i> connect and disconnect other device classes, such as USB or RS232
+</I>&gt;<i> device types.
+</I>
+I'm mostly interested in audio/video, but even considering only those I've been thinking along similar lines that the current API lacks sufficient hooks for extensibility. Most notably, some devices might expose ways of controlling them and exposing those on a GeneratedStream seems clunky.
+
+&gt;<i> The IDL is as follows:
+</I>&gt;<i> 
+</I>&gt;<i> [NoInterfaceObject]
+</I>&gt;<i> interface Device {
+</I>&gt;<i>   const unsigned short WAITING = 0;
+</I>&gt;<i>   const unsigned short CONNECTED = 1;
+</I>&gt;<i>   const unsigned short DISCONNECTED = 2;
+</I>&gt;<i>   const unsigned short ERROR = 3;
+</I>&gt;<i>   readonly attribute unsigned short readyState;
+</I>&gt;<i> 
+</I>&gt;<i>   // event handler attributes
+</I>&gt;<i>            attribute Function onconnect;
+</I>&gt;<i>            attribute Function ondisconnect;
+</I>&gt;<i>            attribute Function onerror;
+</I>&gt;<i> 
+</I>&gt;<i>   readonly attribute any data;
+</I>&gt;<i> 
+</I>&gt;<i>   void disconnect();
+</I>&gt;<i> }
+</I>&gt;<i> 
+</I>&gt;<i> // Specific Device Classes with independent constructors
+</I>&gt;<i> 
+</I>&gt;<i> [Constructor(in DOMString options)]
+</I>&gt;<i> interface UserMedia : Device {}
+</I>&gt;<i> 
+</I>&gt;<i> Here's a quick example for obtaining user media:
+</I>&gt;<i> 
+</I>&gt;<i> var m = new UserMedia('audio, video');
+</I>&gt;<i> m.onconnect = function( evt ) {
+</I>&gt;<i>   var ... = evt.target.data; // ... is a GeneratedStream object in a
+</I>&gt;<i> UserMedia context
+</I>&gt;<i> }
+</I>
+In the examples below I'll stick to the callback-based method of obtaining the object since that minimises the delta with what's currently in the spec, but I don't have a strong opinion between that and your proposal. So for clarity, here's how you get a Device object:
+
+var device;
+navigator.getUserMedia(&quot;whatever&quot;, function (d) { device = d; });
+
+Once you have it, there are a couple improvements that can be made over GeneratedStream.
+
+&#8226; It's an EventTarget. This is primarily for the purpose of listening to devicemotion and deviceorientation events (they currently only target window, but that's not a big deal to change). This could work with GeneratedStream, but it seems more logical to have events for &quot;I moved the camera&quot; (and possibly others such as &quot;I changed the focal length&quot; or &quot;autofocus acquired at 2.77m&quot;) and for &quot;stream paused&quot; on different objects.
+
+device.addEventListener(&quot;deviceorientation&quot;, function (ev) {
+  // ... move that AR code around
+}, true);
+
+
+&#8226; It provides an extension point for device control. Say you're streaming from a camera and you want to take a picture. The chances are high that the camera can take a much better picture than the frame you can grab off its view-finding video stream.
+
+// device is a CameraDevice
+device.captureStill(function (file) {
+  // ... got my picture
+});
+
+We might not be there yet and would probably want to wait a little, but there's plenty more that can be added there.
+
+// silly examples
+device.zoom = 2;
+device.flash = true;
+
+Again, these could go on GeneratedStream but it seems too conflated. Given that a device exposes a stream, the coding cost is a minimal switch to:
+
+video.src = device.stream;
+
+Additionally, I wonder if it wouldn't be useful to make it possible for the getUserMedia callback to return an array of devices in one go. If you're making a 3D movie (or just 3D videoconferencing) you probably want multiple cameras returned at once (alternatively, it could be a single device exposing two streams). Likewise if you have a sound setup more advanced than just the one mike. Of course, the user could effect multiple requests and grant access to each device one by one, but UI-wise, it's probably a lot simpler to allow her to do it all at once. Especially considering the following:
+
+  1. User wants to add a camera, clicks a button that calls getUserMedia()
+  2. Infobar of some kind shows, user picks camera source, checks [always allow]
+  3. User wants to add second camera, clicks the same button: same camera is picked
+  4. Failure
+
+Multiple simultaneous inputs isn't science fiction nor is it limited to professional contexts. I could easily want to use both back and front cameras on my phone, one with which to film what's going on around me in a documentary, the other to insert a small view of myself as I comment on what I'm seeing. 3D home videos are probably not that far around the corner (yes, it scares me too). It's likely that laptops will ship with arrays of mikes in order to better figure out where you're talking from (spatially) and eliminate all other sources &#8212; accessing would be sweet.
+
+I don't much care about the syntax, but I guess we could be looking at something like
+
+navigator.getUserMedia(&quot;video multiple&quot;, function (devices) {
+  // ... show each different view
+});
+
+And I guess that's enough braindump for today :)
+
+-- 
+Robin Berjon - <A HREF="http://berjon.com/">http://berjon.com/</A>
+
+
+
+</PRE>
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="030917.html">[whatwg] Thoughts on the media stream bootstrap mechanism
+</A></li>
+	<LI>Next message: <A HREF="030905.html">[whatwg] Interpretation issue: can &lt;section&gt; be used for	&quot;extended
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#31009">[ date ]</a>
+              <a href="thread.html#31009">[ thread ]</a>
+              <a href="subject.html#31009">[ subject ]</a>
+              <a href="author.html#31009">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

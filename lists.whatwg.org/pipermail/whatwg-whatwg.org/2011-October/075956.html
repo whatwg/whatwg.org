@@ -1,0 +1,166 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Feedback on UndoManager spec
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Feedback%20on%20UndoManager%20spec&In-Reply-To=%3CCAKA%2BAxmcJ_24mPpuEbpE6kgA6p98majs-Xwg7iH_kV3cSL-x5Q%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="075944.html">
+   <LINK REL="Next"  HREF="075959.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Feedback on UndoManager spec</H1>
+<!--htdig_noindex-->
+    <B>Aryeh Gregor</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Feedback%20on%20UndoManager%20spec&In-Reply-To=%3CCAKA%2BAxmcJ_24mPpuEbpE6kgA6p98majs-Xwg7iH_kV3cSL-x5Q%40mail.gmail.com%3E"
+       TITLE="[whatwg] Feedback on UndoManager spec">ayg at aryeh.name
+       </A><BR>
+    <I>Fri Oct 28 09:37:15 PDT 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="075944.html">[whatwg] Feedback on UndoManager spec
+</A></li>
+        <LI>Next message: <A HREF="075959.html">[whatwg] Feedback on UndoManager spec
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#75956">[ date ]</a>
+              <a href="thread.html#75956">[ thread ]</a>
+              <a href="subject.html#75956">[ subject ]</a>
+              <a href="author.html#75956">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Thu, Oct 27, 2011 at 6:10 PM, Jonas Sicking &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">jonas at sicking.cc</A>&gt; wrote:
+&gt;<i> Why is it harder to remember one function name and one attribute name,
+</I>&gt;<i> than to remember to function names?
+</I>
+Because the function names in this case must be in your code and they
+must be correct, or they won't work.  That means that when you
+copy-paste code from another site, the name is guaranteed to be
+correct and descriptive.  The name of a boolean parameter is only in
+the spec, and authors don't read specs, so they're unlikely to ever
+know the name in the first place.  They won't have a chance to
+remember it.
+
+This would be solved if the parameter weren't boolean -- it could be a
+string that's equal to either &quot;apply&quot; or &quot;reapply&quot;, for instance.
+Boolean parameters are evil in general, as I've said before.  I also
+don't like the second parameter of transact().
+
+Would everyone be happy if there were no reapply() function, and
+apply() took a string argument that would be either &quot;apply&quot; or
+&quot;reapply&quot;?  If the functions are similar, it will be like the status
+quo except without a hard-to-remember boolean parameter and without
+the temptation to copy-paste code to separate functions.  If the
+functions are totally different, it's just an extra if/else.  Does
+that sound good to everyone?
+
+On Thu, Oct 27, 2011 at 7:04 PM, Ryosuke Niwa &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">rniwa at webkit.org</A>&gt; wrote:
+&gt;<i> Right. If authors decide to mess with DOM state of the highest node affected
+</I>&gt;<i> by an automatic transaction, user agents can't do anything to fix that.
+</I>
+It might cause compat issues if UAs don't handle such error cases
+interoperably, though.
+
+&gt;<i> To be able to mix automatic transactions and manual transactions. Consider
+</I>&gt;<i> an application that lets you edit both text and drawing on canvas. Such an
+</I>&gt;<i> app may implement drawing action on canvas as a manual transaction while
+</I>&gt;<i> adding some extra editing commands as automatic transactions and manage them
+</I>&gt;<i> all in the same undo manager.
+</I>
+Ah, of course: you might want undo/redo to handle state other than
+just the DOM.  But why do we force the author to manage DOM state
+themselves just because they want to manage some non-DOM state?  Why
+don't we have the UA always manage the state of the DOM within the
+undoscope, but call any unapply/reapply functions in addition to that?
+
+So how about this: get rid of the manual/automatic distinction
+entirely.  Just have one type of transaction, with the following
+behavior.  (I assume we have apply()/unapply()/reapply() with no
+parameters for any of them, for simplicity, but the same idea would
+work if we pass a parameter to apply().)
+
+* When the transaction is applied, call the apply() function, if any.
+Record all DOM changes within the undo scope.
+* When the transaction is unapplied, call the unapply() function, if
+any.  Then undo any DOM changes that unapply() caused that were within
+the undo scope.  Then undo the changes that were recorded from the
+original apply().
+* When the transaction is reapplied, call the reapply() function, if
+any.  Then undo any DOM changes that reapply() caused that were within
+the undo scope.  Then redo the changes that were recorded from the
+original apply().
+
+To get the equivalent of an automatic transaction, just don't specify
+unapply/reapply functions.  To get the equivalent of a manual
+transaction, do specify them.  The only limitation is that unapplying
+or reapplying a transaction can never affect the DOM within the undo
+scope except to undo or redo the original changes, but this seems like
+a good thing.  Authors will be able to make state changes in things
+like canvas or JS variables, and can change DOM state outside the undo
+scope however they want, but can't incorrectly change things in the
+undo scope.
+
+Is there any disadvantage to this compared to the current spec?  I
+really doubt authors will be able to get manual transactions right --
+it's just too easy for some complicated function to make some
+unexpected changes to the DOM for some reason.  The UA should silently
+fix these, not just let the DOM become inconsistent with the undo
+history.  Also, this means we don't have to leave behavior undefined
+for fixing up manual transactions that don't undo themselves properly.
+
+On Thu, Oct 27, 2011 at 7:10 PM, Ryosuke Niwa &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">rniwa at webkit.org</A>&gt; wrote:
+&gt;<i> On my second thought, I'd rather not duplicate information already present
+</I>&gt;<i> on the DOM level 3 spec. Authors, implementors, and developers have spent a
+</I>&gt;<i> lot of time solidifying DOM level 3, and I'd rather defer the definition of
+</I>&gt;<i> what it means to mutuate DOM there.
+</I>
+Perhaps we should define this in DOM4 instead of your spec, but I
+don't think your current definition is good enough.  It requires every
+implementer or author to go through DOM 3 and make inferences.  It's
+easy to make mistakes, or there might be things that are ambiguous.
+It's much better for a specification to state things exactly, so that
+it's as easy as possible to check that it's correct.  Defining things
+imprecisely or indirectly shifts work from spec writers to spec
+readers, which is a bad thing.  You should have a clear definition
+that aims to exactly match DOM 3, and if it doesn't, that should be
+treated as a spec bug and fixed.
+
+&gt;<i> It seems like just referring to your spec solves the problem because the
+</I>&gt;<i> editing host is null if a node is not editable, in which case, we'll default
+</I>&gt;<i> to the the lowest common ancestor of nodes.
+</I>
+Yes, that's what I was thinking.
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="075944.html">[whatwg] Feedback on UndoManager spec
+</A></li>
+	<LI>Next message: <A HREF="075959.html">[whatwg] Feedback on UndoManager spec
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#75956">[ date ]</a>
+              <a href="thread.html#75956">[ thread ]</a>
+              <a href="subject.html#75956">[ subject ]</a>
+              <a href="author.html#75956">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

@@ -1,0 +1,120 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Invalid SQL statements and SYNTAX_ERR
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Invalid%20SQL%20statements%20and%20SYNTAX_ERR&In-Reply-To=%3C73A40C46-B1CA-47CB-9224-948AB75EF6C2%40apple.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="012869.html">
+   <LINK REL="Next"  HREF="012866.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Invalid SQL statements and SYNTAX_ERR</H1>
+<!--htdig_noindex-->
+    <B>Timothy Hatcher</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Invalid%20SQL%20statements%20and%20SYNTAX_ERR&In-Reply-To=%3C73A40C46-B1CA-47CB-9224-948AB75EF6C2%40apple.com%3E"
+       TITLE="[whatwg] Invalid SQL statements and SYNTAX_ERR">timothy at apple.com
+       </A><BR>
+    <I>Fri Oct 19 22:58:35 PDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="012869.html">[whatwg] SQL API + access to tables
+</A></li>
+        <LI>Next message: <A HREF="012866.html">[whatwg] Gigantoredesignorrific changes to the Database API
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#12840">[ date ]</a>
+              <a href="thread.html#12840">[ thread ]</a>
+              <a href="subject.html#12840">[ subject ]</a>
+              <a href="author.html#12840">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>&gt;<i> 4.11.3. Executing SQL statements
+</I>&gt;<i>
+</I>&gt;<i> [&#8230;]
+</I>&gt;<i>
+</I>&gt;<i> 1. If the syntax of sqlStatement is not valid (except for the use  
+</I>&gt;<i> of ? characters in the place of literals), or the statement uses  
+</I>&gt;<i> features that are not supported (e.g. due to security reasons), then  
+</I>&gt;<i> the the method must raise a SYNTAX_ERR exception and abort these  
+</I>&gt;<i> steps.
+</I>
+I think step one needs more clarification on what an invalid statement  
+is. In the current WebKit implementation a SYNTAX_ERR is being thrown  
+for all queries that sqlite3_prepare doesn't return SQLITE_OK. This  
+means queries against tables that don't exist will throw a SYNTAX_ERR,  
+among other things that are perfectly well-formed statements.
+
+Take this example and assume WebKitNotes doesn't exist:
+
+db.executeSql(&quot;CREATE TABLE WebKitNotes (note TEXT, timestamp REAL)&quot;,  
+[], function(result) {});
+db.executeSql(&quot;INSERT INTO WebKitNotes VALUES (?, ?)&quot;, [note,  
+timestamp], function(result) {});
+
+The first query will be queued for execution. It is a valid statement.  
+The second query can come in before the first has been executed. Since  
+the table hasn't been created yet, executeSql will throw a SYNTAX_ERR  
+because sqlite3_prepare fails to find the table.
+
+Now, run the code again and the create table will throw SYNTAX_ERR  
+because the table already exists. Users could use CREATE TABLE IF NOT  
+EXISTS, but SQLite has not always had this (for instance, the version  
+shipped on Mac OS 10.4.)
+
+So a developer needs to write their code like this:
+
+try {
+	db.executeSql(&quot;CREATE TABLE WebKitNotes (note TEXT, timestamp REAL)&quot;,  
+[], function(result) {
+		db.executeSql(&quot;INSERT INTO WebKitNotes VALUES (?, ?)&quot;, [note,  
+timestamp], function(result) {});
+	});
+} catch(e) {
+	db.executeSql(&quot;INSERT INTO WebKitNotes VALUES (?, ?)&quot;, [note,  
+timestamp], function(result) {});
+}
+
+I think SYNTAX_ERR should only be thrown for non well-formed queries  
+(missing quotes, clauses, etc.), and if a table doesn't exist it  
+should not throw. Once the whole queue is executed, that table might  
+exist. If the table still doesn't exist the developer will have an  
+errorCode and a meaningful error string instead of a generic  
+SYNTAX_ERR with no context.
+
+&gt;<i>
+</I>
+&#8212; Timothy Hatcher
+
+
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: &lt;<A HREF="http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20071019/d65cf961/attachment.htm">http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20071019/d65cf961/attachment.htm</A>&gt;
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="012869.html">[whatwg] SQL API + access to tables
+</A></li>
+	<LI>Next message: <A HREF="012866.html">[whatwg] Gigantoredesignorrific changes to the Database API
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#12840">[ date ]</a>
+              <a href="thread.html#12840">[ thread ]</a>
+              <a href="subject.html#12840">[ subject ]</a>
+              <a href="author.html#12840">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

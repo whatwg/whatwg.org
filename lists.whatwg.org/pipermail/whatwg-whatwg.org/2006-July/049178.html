@@ -1,0 +1,198 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] [wa1] Status of tree construction section
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20%5Bwa1%5D%20Status%20of%20tree%20construction%20section&In-Reply-To=%3C1a425eb11b67140f68aa5a6fa22eb56e28d7a219%40localhost%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="049174.html">
+   <LINK REL="Next"  HREF="049186.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] [wa1] Status of tree construction section</H1>
+<!--htdig_noindex-->
+    <B>Stewart Brodie</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20%5Bwa1%5D%20Status%20of%20tree%20construction%20section&In-Reply-To=%3C1a425eb11b67140f68aa5a6fa22eb56e28d7a219%40localhost%3E"
+       TITLE="[whatwg] [wa1] Status of tree construction section">stewart.brodie at antplc.com
+       </A><BR>
+    <I>Mon Jul 10 09:19:14 PDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="049174.html">[whatwg] [wa1] Status of tree construction section and SVN	interface
+</A></li>
+        <LI>Next message: <A HREF="049186.html">[whatwg] [wa1] Status of tree construction section
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#49178">[ date ]</a>
+              <a href="thread.html#49178">[ thread ]</a>
+              <a href="subject.html#49178">[ subject ]</a>
+              <a href="author.html#49178">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>&quot;Ian Hickson&quot; &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">ian at hixie.ch</A>&gt; wrote:
+
+&gt;<i> On 7/7/06, Stewart Brodie &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">stewart.brodie at antplc.com</A>&gt; wrote:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; I thought I'd have a go at implementing the parsing algorithms,
+</I>&gt;<i> &gt; specifically the tree construction algorithms, to see what effect it had
+</I>&gt;<i> &gt; on the DOM trees that our parser creates.  Has anybody else here
+</I>&gt;<i> &gt; actually implemented this tree construction algorithm?  I'm finding one
+</I>&gt;<i> &gt; or two issues that I think may be (minor) mistakes, and I'd like to
+</I>&gt;<i> &gt; compare notes to see whether I've just misunderstood it or whether it is
+</I>&gt;<i> &gt; a mistake.
+</I>&gt;<i> 
+</I>&gt;<i> I've been implementing it (to test the spec); I'd be quite happy to
+</I>&gt;<i> compare notes (either on this list or off-list, as you wish).
+</I>&gt;<i> Note that I'd definitely not consider that part of the spec &quot;done&quot; yet.
+</I>
+I'm happy to post to the list.  The first few issues are quite trivial, I
+think:
+
+In the main phase, section 'If the insertion mode is &quot;in row&quot;', the last
+option for 'anything else' says &quot;process ... as if ... in table&quot;.  I think
+that should say &quot;as if ... in table body&quot; instead.  That case will re-throw
+the token out to &quot;in table&quot; in any case if it doesn't handle it.
+
+The case immediately above that &quot;An end tag whose tag name is one of: body,
+caption, col, colgroup, html, td, th, tr&quot;.  The /tr case is already handled
+by the second case.  Remove 'tr' from the list here.
+
+In 'If the insertion mode is &quot;in cell&quot;', the absence of a case for an end
+tag for CAPTION looks odd.  All the other table-related tags are handled
+here explicitly, so why is CAPTION so different (that it should be handled
+in the 'treat it as &quot;in body&quot;' way)?
+
+I've come to the conclusion that you need pictures to accompany the
+&quot;adoption agency algorithm&quot;.  However, I'm not an artist.  Indeed, I'm so
+bad at drawing pictures, that in the past, users often sent me replacement
+bitmap graphics for my programs because they found my attempts so
+distressing :-)
+
+With reference to that algorithm, I think that the text in point 1 should be
+re-organised somewhat after the second paragraph to make it a little
+clearer.  I've re-organised it and I think it says exactly the same now, but
+simpler and with less potential for misunderstanding:
+
+  &quot;If there is a _formatting element_; proceed immediately to step 2
+
+  Otherwise, there is no _formatting element_.  If there is an element in
+  the _list of active formatting elements_ that:
+
+  o  [same three steps, but with &quot;, and&quot; appended to the top one]
+
+  then remove the last such element from the _list of active formatting
+  elements_.
+
+  In any case, abort these steps.&quot;
+
+
+In the various places where a given operation has to be described multiple
+times, you've macroed it (e.g. &quot;insert an HTML element&quot;, &quot;clear the list of
+active formatting elements up to the last marker&quot;).  I suggest adding
+another this one that can be used during the Adoption Agency algorithm (I'm
+sure that I found I needed to perform this search in other places too -
+hence defining it separately - although I can't quite recall exactly where
+for the time being, ho hum):
+
+  &quot;The _list of active formatting elements_ is said to *have an element in
+   active formatting scope* when the following algorithm terminates in a
+   match state:
+
+  1. If the _list of active formatting elements_ is empty, terminate in a
+     failure state.
+
+  2. Initialise _entry_ to be the last (most recently added) entry in the
+     _list of active formatting elements_.
+
+  3. If _entry_ is a marker, terminate in a failure state.
+
+  4. If _entry_ is an element with a tag name matching the target element
+     name, terminate in a match state.
+
+  5. If there are further elements in the _list of active formatting
+     elements_, set _entry_ to the previous entry and return to step 3.
+
+  6. Terminate in a failure state (there are no more entries)&quot;
+
+
+Step 6 in the original 14-step algorithm: &quot;relative position of the
+formatting element&quot;.  Relative to what?
+
+The &quot;parsing quirks&quot; box lists several issues that I think are important.
+The &lt;script&gt; one in particular is so very common.  Unfortunately, I had to
+cave in eventually and support that because it broke some customers' own
+sites.  I have come across never-opened &lt;/br&gt; and &lt;/p&gt; too.  I've never
+heard of &lt;% ... %&gt; before.  Sometimes, it's really quite depressing the
+rubbish that people (and programs!) write out.
+
+I spent a long time trying to work out what I needed to store for each entry
+on both the stack of open elements and the list of active formatting
+elements.  I think it should be stated up front because this is often an
+area of confusion, in my experience.  I frequently get upset with co-workers
+over misuse of the terms &quot;element&quot;, &quot;tag&quot; and &quot;node&quot;, for example :-)
+
+Finally (for now ;-), right at the beginning of the tree construction
+section, it says that DOM Mutation events must not fire for changes caused
+by the UA parsing the document.  I cannot decide whether or not I agree with
+that statement.  My experimentation appears to show that this is indeed what
+happens in Firefox, at least. I put a script in the head of my document that
+attaches a listener for DOMNodeInserted on the document.documentElement node
+(i.e. the HTML element) and it never gets called due to nodes being added by
+the parser.  Internally, for me, it's a PITA though, because my node tree
+construction code and DOM implementation code use the same internal APIs -
+and these automatically trigger the DOM events, which, in turn, get
+dispatched to the various internal default event handlers to deal with the
+special types of node that require additional behaviour (like IMG, LINK,
+META etc.).
+
+
+
+&gt;<i> &gt; [<A HREF="http://svn.whatwg.org">http://svn.whatwg.org</A>]  Neither web browsers nor svn itself can talk to
+</I>&gt;<i> &gt; that URI.  Am I doing something wrong or is it broken?
+</I>&gt;<i> 
+</I>&gt;<i> Subversion should be able to talk to that URI... It's the URI I use to
+</I>&gt;<i> check in! :-)
+</I>
+I have now tracked this down to an over-zealous company firewall!  I have
+been able to use command-line svn on an external machine to check things out
+and get diffs and histories for the time being.
+
+
+-- 
+Stewart Brodie
+Software Engineer
+ANT Software Limited
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="049174.html">[whatwg] [wa1] Status of tree construction section and SVN	interface
+</A></li>
+	<LI>Next message: <A HREF="049186.html">[whatwg] [wa1] Status of tree construction section
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#49178">[ date ]</a>
+              <a href="thread.html#49178">[ thread ]</a>
+              <a href="subject.html#49178">[ subject ]</a>
+              <a href="author.html#49178">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

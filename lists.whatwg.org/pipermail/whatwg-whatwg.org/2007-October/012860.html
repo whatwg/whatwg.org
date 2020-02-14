@@ -1,0 +1,144 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] cue points in media elements
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20cue%20points%20in%20media%20elements&In-Reply-To=%3Cp06240825c343da7058eb%40%5B17.84.23.140%5D%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="012859.html">
+   <LINK REL="Next"  HREF="012917.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] cue points in media elements</H1>
+<!--htdig_noindex-->
+    <B>Dave Singer</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20cue%20points%20in%20media%20elements&In-Reply-To=%3Cp06240825c343da7058eb%40%5B17.84.23.140%5D%3E"
+       TITLE="[whatwg] cue points in media elements">singer at apple.com
+       </A><BR>
+    <I>Tue Oct 23 10:10:35 PDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="012859.html">[whatwg] SQL API error handling
+</A></li>
+        <LI>Next message: <A HREF="012917.html">[whatwg] cue points in media elements
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#12860">[ date ]</a>
+              <a href="thread.html#12860">[ thread ]</a>
+              <a href="subject.html#12860">[ subject ]</a>
+              <a href="author.html#12860">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Caution:  cross-posted to whatwg and htmlwg;  be careful with follow-ups!
+
+* * * * *
+
+
+We've been looking into both semantic and implementation 
+considerations of cue points.  We wonder whether cue ranges might not 
+make more sense.
+
+Cues might often be used to establish appropriate parallel state. 
+For example, cues could be used to show 'chapter names', or to 
+provide commentary in an HTML pane on the display.  Under these 
+circumstances, the question arises as to what the right behavior is 
+when seeking.  Should any of the cue-points preceding the seek point 
+be activated (in order to establish the right context), and if so, 
+how many?  Should any of the cue-points after the previous play point 
+be activated to tear-down any state at that point?
+
+There is also an implementation question.  What should happen if 
+cue-points are more dense than the playback software can process in 
+real-time?  In video, this would cause catch-up techniques (e.g. 
+frame-dropping).  But dropping cue-points is problematic.  If it's 
+permitted, any cue-points that depend on previous ones having also 
+fired (when playing linearly) cannot assume that they have, in fact, 
+fired.  They have to re-establish state without any regard for 
+context, which may complicate them.  (Though it's true that to an 
+extent they have to do this anyway, if seeking can happen).  Worse, 
+if the event to set a parallel state (e.g. a parental warning on a 
+blue passage) is executed, and the event to remove it is not, the 
+resulting display may be misleading or semantically incorrect or 
+inconsistent.
+
+These questions seem to resolve much better with cue ranges.  For a 
+cue range, events are executed on either both entry and exit, or 
+neither, much in the way that mouse events are generated for cursor 
+movement, giving either both mouseEnter and mouseExit or neither. 
+Similarly, fast mouse movements might tunnel right across a region 
+with neither an entry nor exit event.  Formally, the logical 
+definition of a cue range event would be that the time is 
+periodically sampled (as densely as possible).  At each sampling 
+instant, a cue event is dispatched:
+  * for every range for which the previous sampling instant was in 
+that range, and the current sampling instant is not;
+  * for every range for which the previous sampling instant was not in 
+that range, and the current sampling instant is.
+
+Note that
+* this formal definition is amenable to optimization, by looking 
+ahead to the 'next interesting time' when a cue rang starts or ends, 
+when playing.
+* for any range for which you get an entry, you are assured you will 
+get an exit eventually.
+* you are not guaranteed to get the events *at* their defined times; 
+they might be 'late', though the system should be implemented in such 
+a way as to minimize lateness.
+* short ranges might experience no sampling instant within them, and 
+might be skipped, posting no events, though this also should be 
+avoided if possible by implementations.
+* on a seek, you will get exit events for the time seeked from, if 
+appropriate, as well as entry events for the time seeked to.
+
+I would suggest that the cue-range interval includes its start time 
+but excludes its end-time.  Therefore seeking to the exact start time 
+of a cue-range, even before playback is started, fires its entry 
+event (if we were previously outside the range), whereas seeking to 
+the end-time of a range, even before playback started, fires its exit 
+event (if we were previously inside it).
+
+If reverse playback is started after such seeks, then you get 
+immediately another event (exit or entry), but I think that's OK as 
+reverse playback is unusual.  I guess the algorithm could be 
+sensitive to the sign of the default playback rate, but that seems 
+both excessively complicated, and also raises questions of what 
+happens if the sign is changed while paused.
+
+If a cue-range end time is the same as its start time, one merely 
+gets two events (enter and exit) dispatched at the same time, or 
+nothing at all (if it gets 'tunneled over').
+
+Does this ease both the semantic and implementation considerations?
+
+-- 
+David Singer
+Apple/QuickTime
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="012859.html">[whatwg] SQL API error handling
+</A></li>
+	<LI>Next message: <A HREF="012917.html">[whatwg] cue points in media elements
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#12860">[ date ]</a>
+              <a href="thread.html#12860">[ thread ]</a>
+              <a href="subject.html#12860">[ subject ]</a>
+              <a href="author.html#12860">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

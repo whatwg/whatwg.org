@@ -1,0 +1,120 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] seamless iframes and event propagation
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20seamless%20iframes%20and%20event%20propagation&In-Reply-To=%3CCADh5Ky3t70g9PC-iUJqLEBBUOm4CHtOWaMY%3DM4zrgLbmhXtEjQ%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="038350.html">
+   <LINK REL="Next"  HREF="038398.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] seamless iframes and event propagation</H1>
+<!--htdig_noindex-->
+    <B>Dimitri Glazkov</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20seamless%20iframes%20and%20event%20propagation&In-Reply-To=%3CCADh5Ky3t70g9PC-iUJqLEBBUOm4CHtOWaMY%3DM4zrgLbmhXtEjQ%40mail.gmail.com%3E"
+       TITLE="[whatwg] seamless iframes and event propagation">dglazkov at chromium.org
+       </A><BR>
+    <I>Mon Dec 17 13:48:19 PST 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="038350.html">[whatwg] seamless iframes and event propagation
+</A></li>
+        <LI>Next message: <A HREF="038398.html">[whatwg] seamless iframes and event propagation
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#38375">[ date ]</a>
+              <a href="thread.html#38375">[ thread ]</a>
+              <a href="subject.html#38375">[ subject ]</a>
+              <a href="author.html#38375">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Fri, Dec 14, 2012 at 12:18 PM, Anne van Kesteren &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">annevk at annevk.nl</A>&gt;wrote:
+
+What would help me is to better understand the requirements of the
+&gt;<i> shadow DOM with respect to event dispatch. To calculate the dispatch
+</I>&gt;<i> tree, you're using the event type, right? Then at certain points
+</I>&gt;<i> you're also making modifications to the Event object being dispatched,
+</I>&gt;<i> correct? Is there anything else? I'd like to expose those as hooks
+</I>&gt;<i> from the dispatch algorithm, but I'd like to make sure I'm not missing
+</I>&gt;<i> anything.
+</I>&gt;<i>
+</I>
+Okay. Here is all the shadow DOM-related monkeypatching:
+
+1) When dispatching events (<A HREF="http://dom.spec.whatwg.org/#dispatching-events">http://dom.spec.whatwg.org/#dispatching-events</A>),
+on step 4, the *event path* is built using
+<A HREF="http://dvcs.w3.org/hg/webcomponents/raw-file/tip/spec/shadow/index.html#dfn-retargeting-algorithm,">http://dvcs.w3.org/hg/webcomponents/raw-file/tip/spec/shadow/index.html#dfn-retargeting-algorithm,</A>
+and is actually a list of tuples, storing a *relative target* in addition
+to *ancestor*.
+
+2) When invoking event listeners (
+<A HREF="http://dom.spec.whatwg.org/#concept-event-listener-invoke">http://dom.spec.whatwg.org/#concept-event-listener-invoke</A>), on step 3, we
+initialize event's *currentTarget* and *target* attributes to the *relative
+target* for the *ancestor* on which the listeners are invoked (consulting
+the list of tuples computed in item 1).
+
+3) Also when invoking event listeners (
+<A HREF="http://dom.spec.whatwg.org/#concept-event-listener-invoke">http://dom.spec.whatwg.org/#concept-event-listener-invoke</A>), between steps 3
+and 4, we have to:
+
+a) if the type of event is *MouseEvent*, adjust offsetX and offsetY
+relative to *relative target*.
+
+b) If the type of event has a *relatedTarget* attribute (*MouseEvent*, *
+FocusEvent*), adjust it using
+<A HREF="http://dvcs.w3.org/hg/webcomponents/raw-file/tip/spec/shadow/index.html#dfn-related-target-algorithm">http://dvcs.w3.org/hg/webcomponents/raw-file/tip/spec/shadow/index.html#dfn-related-target-algorithm</A>
+.
+
+4) The step 7 of
+<A HREF="http://dom.spec.whatwg.org/#concept-event-listener-invokemay">http://dom.spec.whatwg.org/#concept-event-listener-invokemay</A> actually
+happen more than once, since
+*relative target* and *ancestor* always equal each other whenever the node
+is a shadow host.
+
+5) Finally, whenever adjusted *relatedTarget* and *target* are the same,
+skip step 9.3 of <A HREF="http://dom.spec.whatwg.org/#concept-event-listener-invoke.">http://dom.spec.whatwg.org/#concept-event-listener-invoke.</A>
+The intent here is to not invoke event listeners on nodes where adjusting
+both relatedTarget and target resulted on them being the same node -- to
+prevent widgets sending out useless mouseovers/outs when the user is
+hovering inside of it.
+
+I think that's it :)
+
+:<i>DG&lt;
+</I></PRE>
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="038350.html">[whatwg] seamless iframes and event propagation
+</A></li>
+	<LI>Next message: <A HREF="038398.html">[whatwg] seamless iframes and event propagation
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#38375">[ date ]</a>
+              <a href="thread.html#38375">[ thread ]</a>
+              <a href="subject.html#38375">[ subject ]</a>
+              <a href="author.html#38375">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

@@ -1,0 +1,163 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Simplified WebSockets
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Simplified%20WebSockets&In-Reply-To=%3C48E1DD95.6060405%40arc.net.au%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="016437.html">
+   <LINK REL="Next"  HREF="016392.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Simplified WebSockets</H1>
+<!--htdig_noindex-->
+    <B>Shannon</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Simplified%20WebSockets&In-Reply-To=%3C48E1DD95.6060405%40arc.net.au%3E"
+       TITLE="[whatwg] Simplified WebSockets">shannon at arc.net.au
+       </A><BR>
+    <I>Tue Sep 30 01:04:37 PDT 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="016437.html">[whatwg] Placeholder option for text input boxes
+</A></li>
+        <LI>Next message: <A HREF="016392.html">[whatwg] Safari-compatible &lt;input type=&quot;search&quot;&gt;
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16381">[ date ]</a>
+              <a href="thread.html#16381">[ thread ]</a>
+              <a href="subject.html#16381">[ subject ]</a>
+              <a href="author.html#16381">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>It occurred to me the other day when musing on WebSockets that the 
+handshake is more complicated than required to achieve its purpose and 
+still allows potential exploits. I'm going to assume for now the purpose 
+of the handshake is to:
+
+* Prevent unsafe communication with a non-websocket service.
+* Provide just enough HTTP compatibility to allow proxying and virtual 
+hosting.
+
+I think the case has been successfully put that DDOS or command 
+injection are possible using IMG tags or existing javascript methods - 
+however the counter-argument has been made that the presence of legacy 
+issues is not an argument for creating new ones. So with that in mind we 
+should implement WebSockets as robustly as we can.
+
+Since we don't at first know what the service is we really need to 
+assume that:
+
+* Long strings or certain characters may crash the service.
+* The service may not be line orientated.
+* The service may use binary data for communications, rather than text.
+* Characters outside the ASCII printable range may have special meaning 
+(ie, 'bell' or control characters).
+* No string is safe, since the service may use string commands and 
+non-whitespace separators.
+
+For the sake of argument we'll assume the existence of a service that 
+accepts commands as follows (we'll also assume the service ignores bad 
+commands and continues processing):
+
+AUTHENTICATE(user,password);GRANT(user,ALL);DELETE(/some/record);LOGOUT;
+
+To feed this command set to the service via WebSockets we use:
+
+var ws = new 
+WebSocket(&quot;<A HREF="http://server:1024/?;AUTHENTICATE(user,password">http://server:1024/?;AUTHENTICATE(user,password</A>);GRANT(user,ALL);DELETE(/some/record);LOGOUT;&quot;)
+
+I have already verified that none of these characters require escaping 
+in URLs. The current proposal is fairly strict about allowed URIs but in 
+my opinion it is not strict enough. We really need to verify we are 
+talking to a WebSocket service before we start sending anything under 
+the control of a malicious author.
+
+Now given the huge variety of non-HTTP sub-systems we'll be talking to I 
+don't think a full URL or path is actually a useful part of the 
+handshake. What does path mean to a mail server for instance?
+
+
+Here is my proposal:
+
+C = client
+S = service
+
+# First we talk to our proxy, if configured. We know we're talking to a 
+proxy because it's set on the client.
+
+C&gt; CONNECT server.example.com:1024 HTTP/1.1
+C&gt; Host: server.example.com:1024
+C&gt; Proxy-Connection: Keep-Alive
+C&gt; Upgrade: WebSocket/1.0
+
+# Without a proxy we send
+
+C&gt; HEAD server.example.com:1024 HTTP/1.1
+C&gt; Host: server.example.com:1024
+C&gt; Connection: Keep-Alive
+C&gt; Upgrade: WebSocket/1.0
+
+# If all goes well the service will respond with:
+
+S&gt; HTTP/1.1 200 OK
+S&gt; Upgrade: WebSocket/1.0
+or
+S&gt; Some other HTTP response (but no Upgrade header)
+or
+S&gt; Other non-HTTP response
+or
+No response.
+
+# If we get a 200 response with Upgrade: WebSocket we *know* we have a 
+WebSocket. Any other response and the client can throw a 'Connection 
+failed' or 'Timeout' exception.
+
+The client and server can now exchange any authentication tokens, access 
+conditions, cookies, etc according to service requirements. eg:
+
+ws.Send( 'referrer=' + window.location + '\r\n' );
+ws.Send( 'channel=' + 'customers' + '\r\n' );
+ws.Send( CookiesToServerSyntax() );
+
+The key advantages of this method are:
+
+* Simplicity (less handshaking, less parsing, fewer requirements)
+* Security (No page author control over initial handshake beyond the 
+server name or IP. Removes the risk of command injection via URI.)
+* Compatibility (HTTP compatible. Proxy and Virtual Hosting compatible. 
+Allows a CGI script to emulate a WebSocket)
+
+I'm not saying the current proposal doesn't provide some of these 
+things, just that I believe this proposal does it better.
+
+Shannon
+
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="016437.html">[whatwg] Placeholder option for text input boxes
+</A></li>
+	<LI>Next message: <A HREF="016392.html">[whatwg] Safari-compatible &lt;input type=&quot;search&quot;&gt;
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16381">[ date ]</a>
+              <a href="thread.html#16381">[ thread ]</a>
+              <a href="subject.html#16381">[ subject ]</a>
+              <a href="author.html#16381">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

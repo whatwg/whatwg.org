@@ -1,0 +1,138 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Limitations of IP addresses into the origin tuple
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Limitations%20of%20IP%20addresses%20into%20the%20origin%20tuple&In-Reply-To=%3CC421DF88-092B-4D45-AF51-1868494264ED%40apple.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="055861.html">
+   <LINK REL="Next"  HREF="055855.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Limitations of IP addresses into the origin tuple</H1>
+<!--htdig_noindex-->
+    <B>Maciej Stachowiak</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Limitations%20of%20IP%20addresses%20into%20the%20origin%20tuple&In-Reply-To=%3CC421DF88-092B-4D45-AF51-1868494264ED%40apple.com%3E"
+       TITLE="[whatwg] Limitations of IP addresses into the origin tuple">mjs at apple.com
+       </A><BR>
+    <I>Thu Jan 10 18:29:15 PST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="055861.html">[whatwg] Limitations of IP addresses into the origin tuple
+</A></li>
+        <LI>Next message: <A HREF="055855.html">[whatwg] [WF2] form.submit() should not throw if form is invalid
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#55864">[ date ]</a>
+              <a href="thread.html#55864">[ thread ]</a>
+              <a href="subject.html#55864">[ subject ]</a>
+              <a href="author.html#55864">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>
+On Jan 10, 2008, at 1:21 PM, Ian Hickson wrote:
+
+&gt;<i> On Thu, 10 Jan 2008, Collin Jackson wrote:
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> As I understand it, that kind of attack would be mitigated by the
+</I>&gt;&gt;&gt;<i> browser not doing a DNS query for the second one -- it's the reason
+</I>&gt;&gt;&gt;<i> browsers tend to have built-in DNS caches (with TTLs in the order  
+</I>&gt;&gt;&gt;<i> of a
+</I>&gt;&gt;&gt;<i> minute).
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> The problem is that browser caches can have TTLs on the order of  
+</I>&gt;&gt;<i> hours
+</I>&gt;&gt;<i> or days, while it is not realistic to cache DNS entries for that  
+</I>&gt;&gt;<i> long.
+</I>&gt;&gt;<i> This leads to the following attack:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> 1) <A HREF="http://www.attacker.com/foo/attack.html">http://www.attacker.com/foo/attack.html</A> is served from attacker,
+</I>&gt;&gt;<i> includes lib.js
+</I>&gt;&gt;<i> 2) <A HREF="http://www.attacker.com/foo/lib.js">http://www.attacker.com/foo/lib.js</A> is served from attacker with an
+</I>&gt;&gt;<i> &quot;Expires&quot; header 24 hours in the future
+</I>&gt;&gt;<i> 3) Attacker waits for browser DNS cache to expire.
+</I>&gt;&gt;<i> 4) User is redirected to <A HREF="http://www.attacker.com/foo/baz.html,">http://www.attacker.com/foo/baz.html,</A> which
+</I>&gt;&gt;<i> is served from target
+</I>&gt;&gt;<i> 5) <A HREF="http://www.attacker.com/foo/lib.js">http://www.attacker.com/foo/lib.js</A> is served from the browser's
+</I>&gt;&gt;<i> cache and is now in the target's origin
+</I>&gt;<i>
+</I>&gt;<i> Yeah, I don't know of a good solution to that when the victim site  
+</I>&gt;<i> uses
+</I>&gt;<i> HTTP/1.0. (With 1.1, you can mitigate it by checking Host headers.)
+</I>
+Actually, checking that the &quot;Host&quot; header value is as expected is  
+pretty much a complete server-side defense to DNS rebinding. (HTTP 1.0  
+requests don't matter since user agents in common use don't send  
+them.) Sites on the public internet are generally not vulnerable,  
+since the only vulnerability created by DNS rebinding is access to  
+resources where position on the network is the sole authentication  
+credential (i.e. intranet sites). And intranet sites rarely use  
+virtual hosting, so there's only one correct Host value.
+
+A form of client-side mitigation that would be highly effective would  
+be to pin hostname to IP mappings so long as any resource from a  
+hostname is live in any cache (including disk caches). But this would  
+prevent DNS-based load balancers from doing their job and would create  
+problems if a site changes its IP address permanently but previously  
+handed out resources with long expiration dates (very common for  
+scripts).
+
+
+&gt;&gt;&gt;<i> The idea with origins containing IP addresses is to avoid attacks  
+</I>&gt;&gt;&gt;<i> like
+</I>&gt;&gt;&gt;<i> where a page on attacker.com does a window.open() to another page on
+</I>&gt;&gt;&gt;<i> attacker.com where the second page is served from the victim IP, and
+</I>&gt;&gt;&gt;<i> scripts in the first page then do cross-window manipulation.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> After using the technique above, the attacker can window.open to  
+</I>&gt;&gt;<i> another
+</I>&gt;&gt;<i> page on attacker.com and do cross-window manipulation.
+</I>&gt;<i>
+</I>&gt;<i> After using the technique above, the attacker doesn't need to use
+</I>&gt;<i> window.open(). The technique above boils down to arbitrary content
+</I>&gt;<i> injection, at which point the victim has lost and the game is over.
+</I>
+It's not exactly content injection, since the browser thinks the  
+security origin is attacker.com, not victim.com. So for example  
+there's no way to get victim.com cookies, stored http or form  
+passwords, or resources protected by such. All you can do is access  
+content from the victim.com IP address that the user agent has access  
+to but your server doesn't.
+
+Regards,
+Maciej
+
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="055861.html">[whatwg] Limitations of IP addresses into the origin tuple
+</A></li>
+	<LI>Next message: <A HREF="055855.html">[whatwg] [WF2] form.submit() should not throw if form is invalid
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#55864">[ date ]</a>
+              <a href="thread.html#55864">[ thread ]</a>
+              <a href="subject.html#55864">[ subject ]</a>
+              <a href="author.html#55864">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

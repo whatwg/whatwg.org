@@ -1,0 +1,174 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Window and WindowProxy
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Window%20and%20WindowProxy&In-Reply-To=%3Calpine.DEB.2.00.1308082052130.27623%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="082704.html">
+   <LINK REL="Next"  HREF="082707.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Window and WindowProxy</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Window%20and%20WindowProxy&In-Reply-To=%3Calpine.DEB.2.00.1308082052130.27623%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg] Window and WindowProxy">ian at hixie.ch
+       </A><BR>
+    <I>Thu Aug  8 14:05:27 PDT 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="082704.html">[whatwg] Window and WindowProxy
+</A></li>
+        <LI>Next message: <A HREF="082707.html">[whatwg] Window and WindowProxy
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#82705">[ date ]</a>
+              <a href="thread.html#82705">[ thread ]</a>
+              <a href="subject.html#82705">[ subject ]</a>
+              <a href="author.html#82705">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Thu, 8 Aug 2013, Boris Zbarsky wrote:
+&gt;<i>
+</I>&gt;<i> (again, in ES6 terms)
+</I>
+I think the problem is that I have no idea what these ES6 terms are or 
+what they mean.
+
+Was all this a problem in previous revisions of JavaScript? Or is it some 
+new problem caused by some new JavaScript feature?
+
+
+&gt;<i> &gt; &gt; &quot;var&quot; needs to be able to define non-configurable properties.  
+</I>&gt;<i> &gt; &gt; Proxies don't necessarily offer useful guarantees about being able 
+</I>&gt;<i> &gt; &gt; to define such properties on them, and in particular the behavior 
+</I>&gt;<i> &gt; &gt; for index/named getters in WebIDL precludes definition of 
+</I>&gt;<i> &gt; &gt; non-configurable properties of the corresponding kind on the 
+</I>&gt;<i> &gt; &gt; relevant object.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; I don't understand what this means, sorry.
+</I>&gt;<i> 
+</I>&gt;<i> Hmm.  Which part is unclear?
+</I>
+I have basically no idea what any of it means. I understand all the 
+individual words of that paragraph, but I've no idea what they mean when 
+put next to each other in that order. :-) A property is just an entry in 
+the bag that is a JS object, what does it mean for it to be or not be 
+configurable? A proxy is something that passes incoming requests from one 
+object to another object, and passes the responses back; what does it mean 
+for a proxy to have a property? Etc.
+
+
+&gt;<i> &gt; &gt; Because getOwnPropertyNames should return the own properties of the 
+</I>&gt;<i> &gt; &gt; object, but doing that on a WindowProxy for a cross-origin window 
+</I>&gt;<i> &gt; &gt; should not in fact return the Window's own properties.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; Yes, it should. At least, IMHO.
+</I>&gt;<i> 
+</I>&gt;<i> Er... That's a cross-site information leak.
+</I>
+How so? The names of the IDL attributes and methods on Window objects are 
+the same on all Window objects (WindowModal notwithstanding), and the 
+non-IDL properties aren't enumerable cross-origin.
+
+
+&gt;<i> &gt; WindowProxy should be _completely indistinguishable_ from the Window 
+</I>&gt;<i> &gt; it currently points to, except for the way it can be distinguished 
+</I>&gt;<i> &gt; when what it points to changes.
+</I>&gt;<i> 
+</I>&gt;<i> OK, so in this view there are multiple (one per origin, roughly) Window 
+</I>&gt;<i> objects in JS all representing the same underlying browser object?
+</I>
+&quot;For members that return objects (including function objects), each 
+distinct effective script origin that is not the same as the Window 
+object's Document's effective script origin must be provided with a 
+separate set of objects. These objects must have the prototype chain 
+appropriate for the script for which the objects are created (not those 
+that would be appropriate for scripts whose script's global object is the 
+Window object in question).&quot;
+
+
+&gt;<i> I don't understand how this can work with document.domain, where things that
+</I>&gt;<i> used to not be same-origin suddenly become same-origin
+</I>
+(same effective origin) 
+
+&gt;<i> in that situation two different origins become the same origin and the 
+</I>&gt;<i> fact that they have different Window objects for the same current window 
+</I>&gt;<i> ends up observable.
+</I>
+Well, what the spec says now is that when the script changes effective 
+origin, it also changes its prototypes and so forth, essentially. This 
+isn't very explicit, though. I don't really have a strong opinion on what 
+this should do (I'm all for dropping document.domain wherever we can).
+
+
+&gt;<i> &gt; &gt; Or another similar issue: getting a property descriptor from a 
+</I>&gt;<i> &gt; &gt; WindowProxy (for a same-origin window) should probably never claim 
+</I>&gt;<i> &gt; &gt; to have a non-configurable property, because on navigation the 
+</I>&gt;<i> &gt; &gt; property will in fact disappear and non-configurable properties are 
+</I>&gt;<i> &gt; &gt; not allowed to do that in ES.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; IMHO, yes, it should.
+</I>&gt;<i> 
+</I>&gt;<i> That's not allowed in ES.  Do see the thread I linked to.
+</I>
+We (the Web community) can change what's allowed and what isn't allowed. 
+We do so all the time.
+
+
+&gt;<i> &gt; Conceptually, it's just that the pointers to Window objects get 
+</I>&gt;<i> &gt; redirected to point to a different Window object when the browsing 
+</I>&gt;<i> &gt; context navigates.
+</I>&gt;<i> 
+</I>&gt;<i> Let me try to make this clearer.
+</I>&gt;<i> 
+</I>&gt;<i> If an object (in this case a WindowProxy, since that's what the script 
+</I>&gt;<i> is working with) ever claims that it has a non-configurable property for 
+</I>&gt;<i> some property name, ES requires that it _always_ do that from that point 
+</I>&gt;<i> on.
+</I>
+That's fine. The Window will keep having that property. The WindowProxy 
+object's own properties can't be examined, because it just proxies (not in 
+the ES6 meaning, whatever that is, but in the English meaning) everything 
+to the underlying Window object.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="082704.html">[whatwg] Window and WindowProxy
+</A></li>
+	<LI>Next message: <A HREF="082707.html">[whatwg] Window and WindowProxy
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#82705">[ date ]</a>
+              <a href="thread.html#82705">[ thread ]</a>
+              <a href="subject.html#82705">[ subject ]</a>
+              <a href="author.html#82705">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

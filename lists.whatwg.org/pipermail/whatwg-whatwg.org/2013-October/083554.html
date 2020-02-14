@@ -1,0 +1,422 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Avoiding synchronous iframe load
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Avoiding%20synchronous%20iframe%20load&In-Reply-To=%3Calpine.DEB.2.00.1310251433030.1896%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="083451.html">
+   <LINK REL="Next"  HREF="083555.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Avoiding synchronous iframe load</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Avoiding%20synchronous%20iframe%20load&In-Reply-To=%3Calpine.DEB.2.00.1310251433030.1896%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg] Avoiding synchronous iframe load">ian at hixie.ch
+       </A><BR>
+    <I>Fri Oct 25 11:42:31 PDT 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="083451.html">[whatwg] Avoiding synchronous iframe load
+</A></li>
+        <LI>Next message: <A HREF="083555.html">[whatwg] Avoiding synchronous iframe load
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#83554">[ date ]</a>
+              <a href="thread.html#83554">[ thread ]</a>
+              <a href="subject.html#83554">[ subject ]</a>
+              <a href="author.html#83554">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Tue, 15 Oct 2013, Ryosuke Niwa wrote:
+&gt;<i> 
+</I>&gt;<i> I'm trying to make page loads on iframe always asynchronous in WebKit.  
+</I>&gt;<i> However, the current specification appears to indicate that the 
+</I>&gt;<i> navigation happens synchronously.
+</I>
+Fundamentally, navigation can't be synchronous, since the script that 
+started it gets to run to completion even if it's in the iframe, the data 
+usually has to come off the network, etc. So we need to be more precise in 
+defining what we mean here than just &quot;synchronous&quot; or &quot;asynchronous&quot;.
+
+
+&gt;<i> Namely, in the following example, the first alert should be &quot;true&quot; as 
+</I>&gt;<i> far as I read the specification.
+</I>&gt;<i> 
+</I>&gt;<i> &lt;script&gt; var a = false; &lt;/script&gt;
+</I>&gt;<i> &lt;iframe src=&quot;javascript:a=true&quot; onload=&quot;a = true&quot;&gt;&lt;/iframe&gt;
+</I>&gt;<i> &lt;script&gt; alert(a); /* or even setTimeout(function(){alert(a);},0); */ setTimeout(function(){alert(a);},10) &lt;/script&gt;
+</I>
+Well, javascript: is a bit of a weird case. In fact I'm planning on 
+revamping how that's specced shortly:
+
+   <A HREF="https://www.w3.org/bugzilla_public/show_bug.cgi?id=13720">https://www.w3.org/bugzilla_public/show_bug.cgi?id=13720</A>
+
+But right now, the above should alert false. Let me walk through why.
+
+First, we start in the event loop, with one thread running. It picks up a 
+parser task, the parser inserts the &lt;iframe&gt; with its attributes set, and 
+that leads us to:
+
+# When an iframe element is inserted into a document, the user agent must 
+# create a nested browsing context, and then process the iframe attributes 
+# for the first time
+ -- <A HREF="http://www.whatwg.org/specs/web-apps/current-work/#the-iframe-element">http://www.whatwg.org/specs/web-apps/current-work/#the-iframe-element</A>
+
+So, first we create the nested browsing context:
+
+# When a browsing context is first created, it must be created with a 
+# single Document in its session history, whose address is about:blank,
+# [...]
+ -- <A HREF="http://www.whatwg.org/specs/web-apps/current-work/#browsing-context">http://www.whatwg.org/specs/web-apps/current-work/#browsing-context</A>
+
+...and then process the iframe attributes. This is still running 
+synchronously as part of the parser task that is on the event loop.
+
+# 3. Navigate the element's child browsing context to url.
+ -- <A HREF="http://www.whatwg.org/specs/web-apps/current-work/#process-the-iframe-attributes">http://www.whatwg.org/specs/web-apps/current-work/#process-the-iframe-attributes</A>
+
+Ok, so then we navigate to the URL (which is a javascript: URL). Nothing 
+interesting happens until step 14, which is still synchronous:
+
+# 14. [...] Otherwise, fetch the new resource, with the manual redirect 
+# flag set.
+ -- <A HREF="http://www.whatwg.org/specs/web-apps/current-work/#navigate">http://www.whatwg.org/specs/web-apps/current-work/#navigate</A>
+
+So, we run the fetch algorithm. It does a bunch of irrelevant setup, then 
+we get to step 9 (still running synchronously):
+
+# 9. If the algorithm was not invoked with the synchronous flag, perform 
+# the remaining steps asynchronously.
+ -- <A HREF="http://www.whatwg.org/specs/web-apps/current-work/#fetch">http://www.whatwg.org/specs/web-apps/current-work/#fetch</A>
+
+That's us. So the &quot;navigate&quot; algorithm is no longer blocked by the &quot;fetch&quot; 
+algorithm. We now have two threads, &quot;navigate&quot; (which is running 
+synchronously from the parser task in the event loop) and &quot;fetch&quot;.
+
+Let's follow the navigate thread first. Next step is step 15:
+
+# 15. If gone async is false, return to whatever algorithm invoked the 
+# navigation steps and continue running these steps asynchronously.
+
+That's us again. So now the &quot;process the iframe attributes&quot; algorithm is 
+no longer blocked by the &quot;navigate&quot; algorithm. We now have three threads: 
+the event loop thread, the &quot;navigate&quot; thread, and the &quot;fetch&quot; thread.
+
+The &quot;process the iframe attributes&quot; has nothing more for us to do, so it 
+returns, and eventually gets back to the parser, which eventually returns 
+to the event loop, and starts processing tasks.
+
+Everything past this point, therefore, happens &quot;asynchronously&quot;.
+
+Now, one of the things that could happen is going back to the parser and 
+eventually running the script. If it is, then it'll alert false, since we 
+haven't run any other scripts yet. If the script is replaced with one that 
+uses setTimeout(), then it'll queue a task, and then which happens first 
+is undefined, since it depends on how long the asynchronous threads take 
+to run.
+
+
+Let's look at those threads.
+
+The &quot;fetch&quot; one first.
+
+The next interesting step for &quot;fetch&quot; is step 11:
+
+# 11. [...] Otherwise, at a time convenient to the user and the user 
+# agent, download (or otherwise obtain) the resource, applying the 
+# semantics of the relevant specifications (e.g. [...] dereferencing 
+# javascript: URLs, etc).
+
+The &quot;dereferenced&quot; algorithm for javascript does various things, including 
+running the script. Unfortunately, as specced today, the script runs in an 
+asynchronous fashion, which is completely bogus. This is what needs to be 
+respecced (see bug above). My guess is that what we'll do is have the 
+script run synchronously form &quot;navigate&quot; where the navigation currently 
+calls &quot;fetch&quot;, instead of going through the &quot;fetch&quot; algorithm. The only 
+impact this would have on this analysis is when the script sets the inner 
+frame's window.a property, but it's not tested by the script, so doesn't 
+matter for our purposes.
+
+Ignoring that, it goes on to say:
+
+# 3. [...] the URL must be treated in a manner equivalent to an HTTP 
+# resource with a 200 OK response whose Content-Type metadata is text/html 
+# and whose response body is the return value converted to a string value
+ -- <A HREF="http://www.whatwg.org/specs/web-apps/current-work/#concept-js-deref">http://www.whatwg.org/specs/web-apps/current-work/#concept-js-deref</A>
+
+The execution of the script returns the string 'true'. (Note: Chrome seems 
+to have a bug here. It treats it as void for some reason.)
+
+This in particular is relevant for the &quot;fetch&quot; algorithm, which, in step 
+14, uses this data:
+
+# 14. [...] When the resource is available, or if there is an error of 
+# some description, queue a task that uses the resource as appropriate
+
+That ends &quot;fetch&quot;'s thread.
+
+
+So, now let's look at the &quot;navigate&quot; thread. The next interesting step is 
+step 18:
+
+# 18. Wait for one or more bytes to be available or for the user agent to 
+# establish that the resource in question is empty.
+
+This waits until the &quot;fetch&quot; thread does something. We've already gone 
+through that, so we can continue here.
+
+So, we get to step 23, where we treat the resource as text/html. This has 
+us queue a task:
+
+# the user agent must queue a task to create a Document object [...] 
+# create an HTML parser, and associate it with the document [...] Each 
+# task that the networking task source places on the task queue while the 
+# fetching algorithm runs must then fill the parser's input byte stream 
+# with the fetched bytes and cause the HTML parser to perform the 
+# appropriate processing of the input stream [...]
+ -- <A HREF="http://www.whatwg.org/specs/web-apps/current-work/#read-html">http://www.whatwg.org/specs/web-apps/current-work/#read-html</A>
+
+And so the threads have now finished, but we have some tasks queued up: 
+one for creating a Document and so on, and one for handling the output 
+from the javascript: script. The latter gets fed to the parser, which 
+eventually runs the &quot;the end&quot; algorithm, which eventually reaches the 
+final step which is:
+
+# 12. Queue a task to mark the Document as completely loaded.
+ -- <A HREF="http://www.whatwg.org/specs/web-apps/current-work/#the-end">http://www.whatwg.org/specs/web-apps/current-work/#the-end</A>
+
+That tasks then eventually runs, and when that runs, this text in the 
+iframe section gets triggered:
+
+# When a Document in an iframe is marked as completely loaded, the user 
+# agent must synchronously run the iframe load event steps.
+ -- <A HREF="http://www.whatwg.org/specs/web-apps/current-work/#the-iframe-element">http://www.whatwg.org/specs/web-apps/current-work/#the-iframe-element</A>
+
+...and finally, there we are, with the load event running and setting &quot;a&quot; 
+to &quot;true&quot; in the outer Window.
+
+
+This is assuming the script returns &quot;true&quot;. If the script were to return 
+void, then in step 21 of the &quot;navigate&quot; algorithm we'd be faced with:
+
+# 21. If the resource's out-of-band metadata [...] requires some sort of 
+# processing that will not affect the browsing context, then perform
+# that processing and abort these steps.
+
+That's what would apply if the script had returned void, since in that 
+case, the deref steps say:
+
+# If the result of executing the script is void (there is no return 
+# value), then the URL must be treated in a manner equivalent to an HTTP 
+# resource with an HTTP 204 No Content response.
+
+In that _specific_ case, per spec, no 'load' event would ever actually 
+fire, since the Document would never change and so its &quot;completely loaded&quot; 
+state never gets set. (Shockingly, this appears to actually be 
+interoperably implemented. Gotta love the Web.)
+
+
+&gt;<i> Am I reading the specification wrong/missing something?  If not, could 
+</I>&gt;<i> you amend the specification to make page loads on an iframe always 
+</I>&gt;<i> asynchronous?
+</I>
+It's always asynchronous, for some definition of asynchronous which is 
+most concisely yet precisely explained by the long explanation above.
+
+
+On Thu, 17 Oct 2013, Elliott Sprehn wrote:
+&gt;<i>
+</I>&gt;<i> Note that loads can never be fully async, you'd break tons of content. 
+</I>&gt;<i> Navigating to about:blank is synchronous.
+</I>&gt;<i>
+</I>&gt;<i> frame = document.createElement('iframe');
+</I>&gt;<i> document.body.appendChild(frame);
+</I>&gt;<i> frame.contentDocument; // synchronously available
+</I>
+That's not a navigation. When an &lt;iframe&gt; is created, it gets prefilled 
+with a magic about:blank document that is just synchronously there without 
+the navigation algorithm being invoked.
+
+
+On Thu, 17 Oct 2013, Boris Zbarsky wrote:
+&gt;<i> &gt; 
+</I>&gt;<i> &gt; frame = document.createElement('iframe');
+</I>&gt;<i> &gt; frame.src = 'javascript:alert(1);'
+</I>&gt;<i> &gt; document.body.appendChild(frame);
+</I>&gt;<i> &gt; alert(2);
+</I>&gt;<i> 
+</I>&gt;<i> [...] it alerts 2 and then 1.
+</I>
+Per spec also.
+
+
+&gt;<i> What the _user_ sees is the &quot;1&quot; and then the &quot;2&quot; because the newer alert 
+</I>&gt;<i> goes on top of the older one in the UI, then reveals the older one when 
+</I>&gt;<i> it's dismissed.
+</I>
+Per spec, the alert blocks the event loop, FWIW.
+
+
+On Thu, 17 Oct 2013, Ryosuke Niwa wrote:
+&gt;<i> 
+</I>&gt;<i> I'm still somewhat puzzled by the fact processing the iframe attributes 
+</I>&gt;<i> synchronously navigates to a new url (which itself could be async?) 
+</I>&gt;<i> whereas following a hyperlink simply queues a task to navigate: 
+</I>&gt;<i> <A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/links.html#following-hyperlinks">http://www.whatwg.org/specs/web-apps/current-work/multipage/links.html#following-hyperlinks</A>
+</I>
+Turns out that click on a link is &quot;more&quot; async than populating an iframe. 
+The link behaviour is definitely required for Web compat. (See in 
+particular how it interacts with form submission, which has yet a third 
+even weirder way of answering the question &quot;sync or async&quot;.)
+
+
+On Fri, 18 Oct 2013, Boris Zbarsky wrote:
+&gt;<i> 
+</I>&gt;<i> This algorithm then synchronously performs certain steps.  
+</I>&gt;<i> Specifically, checking for scroll-to-anchor and doing the scroll.  At 
+</I>&gt;<i> least as far as I can tell.  I don't know why it keeps checking the 
+</I>&gt;<i> &quot;gone async&quot; value in steps 11, 12, 15, since nothing in the algorithm 
+</I>&gt;<i> sets it to true until step 16 as far as I can tell.  Is &quot;gone async&quot; 
+</I>&gt;<i> some sort of persistent state attached to the navigation, as opposed to 
+</I>&gt;<i> the local variable it seems to be at step 7?
+</I>
+Step 17 (after going async) can jump back to step 8.
+
+
+&gt;<i> &gt; Perhaps step 15 on 
+</I>&gt;<i> &gt; <A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/history.html#navigate">http://www.whatwg.org/specs/web-apps/current-work/multipage/history.html#navigate</A> 
+</I>&gt;<i> &gt; indicates the specification already mandates it to be asynchronous.
+</I>&gt;<i> 
+</I>&gt;<i> I can't tell what this specification is actually saying here, 
+</I>&gt;<i> unfortunately. Too much indirection.  :(
+</I>
+If you have any suggestions on making this clearer, please let me know. 
+This is probably the most complicated part of the Web platform and I've no 
+idea how to make it any clearer.
+
+
+&gt;<i> The main hard design constraint I know of here is that navigating frames 
+</I>&gt;<i> to about:blank via appending them to the DOM should ideally not change 
+</I>&gt;<i> which document scripts see in the frame (though it does in Gecko right 
+</I>&gt;<i> now; as I said we consider that a bug).
+</I>
+Not sure exactly what case you mean here. Do you mean:
+
+   &lt;iframe&gt;&lt;/iframe&gt;
+
+...or:
+
+   &lt;iframe src=&quot;about:blank&quot;&gt;&lt;/iframe&gt;
+
+...or:
+
+   &lt;iframe src=&quot;about:blank?&quot;&gt;&lt;/iframe&gt;
+
+...?
+
+Right now, this reports true per spec:
+
+   &lt;iframe&gt;&lt;/iframe&gt;
+   &lt;script&gt;
+    var d1 = frames[0].document;
+    setTimeout(function () { var d2 = frames[0].document; w(d1===d2) }, 100);
+   &lt;/script&gt;
+
+...but this reports false:
+
+   &lt;iframe src=&quot;about:blank&quot;&gt;&lt;/iframe&gt;
+   &lt;script&gt;
+    var d1 = frames[0].document;
+    setTimeout(function () { var d2 = frames[0].document; w(d1===d2) }, 100);
+   &lt;/script&gt;
+
+In Firefox, they both report false. In Safari and Chrome, they both report 
+true. I don't really understand what Safari are Chrome are doing, given 
+their behaviour with other values like &quot;bogus:&quot; which also returns true. 
+Maybe &quot;about:blank&quot; is being treated like a bogus URL?
+
+
+&gt;<i> Gecko currently has that behavior: iframe @src changes start a 
+</I>&gt;<i> navigation sync, while link clicks (and form submission) just post an 
+</I>&gt;<i> event to start a navigation.  I wonder whether the spec simply specified 
+</I>&gt;<i> that behavior...
+</I>
+Certainly wasn't &quot;simply&quot;.
+
+See: <A HREF="https://www.w3.org/Bugs/Public/show_bug.cgi?id=18854">https://www.w3.org/Bugs/Public/show_bug.cgi?id=18854</A>
+
+You helped me spec this. ;-)
+
+
+On Wed, 23 Oct 2013, Ryosuke Niwa wrote:
+&gt;<i> 
+</I>&gt;<i> My preference is to match Firefox's behavior, and special-case 
+</I>&gt;<i> about:blank to navigate synchronously but fire load event 
+</I>&gt;<i> asynchronously. i.e. what Boris said she wants Firefox to do.
+</I>&gt;<i> 
+</I>&gt;<i> That's probably the most consistent &amp; Web-compatible behavior we can 
+</I>&gt;<i> get.
+</I>
+As far as I can tell, this is exactly what the spec says.
+
+
+On Thu, 17 Oct 2013, Boris Zbarsky wrote:
+&gt;<i> 
+</I>&gt;<i> Yes, but in the case of Firefox we consider that a bug.
+</I>&gt;<i> 
+</I>&gt;<i> In particular, we believe that the behavior web authors expect is for 
+</I>&gt;<i> the document to be created synchronously.  When its onload fires is an 
+</I>&gt;<i> open question; we believe for web compat that should be async.
+</I>
+That's what the spec says.
+
+
+&gt;<i> I strongly believe that async loading of javascript: is desirable (which 
+</I>&gt;<i> is why Gecko switched to it); if the spec requires something else I'm 
+</I>&gt;<i> all in favor of changing the spec.
+</I>
+Right now, the specific case of javascript: loading in the spec is bogus 
+(it's async but in the sense of not even happening during a task, which 
+is just crazy). It's going to be changed to be async on a queued task like 
+&quot;fetch&quot;, once I revamp how it's specced, as per the aforementioned bug.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="083451.html">[whatwg] Avoiding synchronous iframe load
+</A></li>
+	<LI>Next message: <A HREF="083555.html">[whatwg] Avoiding synchronous iframe load
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#83554">[ date ]</a>
+              <a href="thread.html#83554">[ thread ]</a>
+              <a href="subject.html#83554">[ subject ]</a>
+              <a href="author.html#83554">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

@@ -1,0 +1,167 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] More random comments on the putImageData definition
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20More%20random%20comments%20on%20the%20putImageData%20definition&In-Reply-To=%3C053F8FBF-F767-4FD0-B334-FA9245A5A82C%40apple.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="055953.html">
+   <LINK REL="Next"  HREF="055998.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] More random comments on the putImageData definition</H1>
+<!--htdig_noindex-->
+    <B>Oliver Hunt</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20More%20random%20comments%20on%20the%20putImageData%20definition&In-Reply-To=%3C053F8FBF-F767-4FD0-B334-FA9245A5A82C%40apple.com%3E"
+       TITLE="[whatwg] More random comments on the putImageData definition">oliver at apple.com
+       </A><BR>
+    <I>Fri Jan 25 03:56:25 PST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="055953.html">[whatwg] More random comments on the putImageData definition
+</A></li>
+        <LI>Next message: <A HREF="055998.html">[whatwg] More random comments on the putImageData definition
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#55995">[ date ]</a>
+              <a href="thread.html#55995">[ thread ]</a>
+              <a href="subject.html#55995">[ subject ]</a>
+              <a href="author.html#55995">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>So I came across this wonderful piece of javascript:
+<A HREF="http://jsmsxdemo.googlepages.com/jsmsx.html">http://jsmsxdemo.googlepages.com/jsmsx.html</A>
+
+If present it uses putImageData (and getImageData to get the ImageData  
+object, which isn't required by html5 now -- and i think hixie was  
+look at doing some more work with ImageData).
+
+With the current model for putImageData there is no way for them to  
+specify a dirty rect, which means their only option is to update the  
+entire display -- they have to copy the entire buffer.  If  
+putImageData were to take an optional dirty rect parameter we could  
+reduce the amount of work necessary, and still maintain backwards  
+compatibility.  My attention was drawn to this as a brief bit of  
+hackery in webkit showed that the above webapp only updates the  
+necessary dirty parts of a frame and yet Opera and Firefox both *have*  
+to copy, blit and repaint the entire canvas, ironically because they  
+both provide the faster get/putImageData API's (this is not to suggest  
+either implementation is in any way slow, just that it seems we are  
+missing a perfectly reasonable API to improve performance beyond what  
+has already been achieved).
+
+Anyway, i was thinking we would just need to putDataImage methods:
+void putImageData(in ImageData imagedata, in float dx, in float dy);
+void putImageData(in ImageData imagedata, in float dx, in float dy, in  
+float dirtyX, in float dirtyY, in float dirtyWidth, in float  
+dirtyHeight);
+
+Where the dirtyX and dirtyY are relative to the ImageData's origin.
+
+The repaint region would be (dx+dirtyX, dy+dirtyY),  
+dirtyWidth*dirtyHeight in the canvas domain, and (more importantly)  
+only that subsection of the ImageData would need to be copied, and in  
+the case of those UAs that need it, unpremultiplied.  This could  
+result in significant gains for more complex uses of canvas, like the  
+one above.
+
+Compatibility:
+If the dirty rect is provided to a UA that doesn't support it (eg. new  
+content in old/current Opera, Firefox) the entire ImageData will be  
+blitted as would currently be expected (opera and firefox both ignore  
+extraneous arguments on putImageData, i'm not sure about konqueror/ 
+khtml).
+
+If a dirty rect is not provided (eg. old content in a newer UA) the  
+entire block would be considered dirty, and so repaint as expected.
+
+Any thoughts?
+
+--Oliver
+
+On Jan 23, 2008, at 11:28 AM, Oliver Hunt wrote:
+
+&gt;<i>
+</I>&gt;<i> On 23/01/2008, at 5:44 AM, Philip Taylor wrote:
+</I>&gt;<i>
+</I>&gt;&gt;<i> On 23/01/2008, Oliver Hunt &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">oliver at apple.com</A>&gt; wrote:
+</I>&gt;&gt;&gt;<i> It would be great if putImageData
+</I>&gt;&gt;&gt;<i> could take a source region, in addition to the destination.  One of
+</I>&gt;&gt;&gt;<i> the primary reasons for using get/putImageData is to allow JS to
+</I>&gt;&gt;&gt;<i> rapidly blit data to the screen, however without an ability to blit
+</I>&gt;&gt;&gt;<i> only a subregion of the image data the only available options are to
+</I>&gt;&gt;&gt;<i> either re-blit the entire imagedata region (which can be expensive  
+</I>&gt;&gt;&gt;<i> due
+</I>&gt;&gt;&gt;<i> to the need for [un]premultiplying in some (all?) implementations),
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> ((Opera does non-premultiplied colour internally.))
+</I>&gt;<i> Righto.  There's still the necessary type/range checking involved at  
+</I>&gt;<i> some point.
+</I>&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> or create and populate a new ImageData object which still requires  
+</I>&gt;&gt;&gt;<i> more
+</I>&gt;&gt;&gt;<i> work than would ideally be necessary.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> You can also create a temporary canvas and putImageData once onto
+</I>&gt;&gt;<i> that, and then drawImage sections onto the screen as they are needed.
+</I>&gt;&gt;<i> That lets you draw lots of sections lots of times quickly (since
+</I>&gt;&gt;<i> you're mostly drawing from the optimised canvas surface format, not
+</I>&gt;&gt;<i> from a JS array), which perhaps helps in some (most?) of the cases.
+</I>&gt;&gt;<i> (You still have to do a single putImageData of the whole data to get
+</I>&gt;&gt;<i> it onto the temporary canvas, but if there are parts of the data you
+</I>&gt;&gt;<i> aren't ever using then you just should make the ImageData smaller and
+</I>&gt;&gt;<i> cut out the unused bits.)
+</I>&gt;<i>
+</I>&gt;<i> Yes, there are many ways you can resolve this if you're willing to  
+</I>&gt;<i> copy data
+</I>&gt;<i> around in JS, which is far less efficient than letting you use your  
+</I>&gt;<i> single backing
+</I>&gt;<i> buffer, but only (effectively) repainting part of it.
+</I>&gt;<i>
+</I>&gt;<i> Using a separate canvas also works, but still requires additional  
+</I>&gt;<i> copying, much more memory, and the use of drawImage which doesn't  
+</I>&gt;<i> have the same semantics as putImageData.
+</I>&gt;<i>
+</I>&gt;<i> --Oliver
+</I>&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> -- 
+</I>&gt;&gt;<i> Philip Taylor
+</I>&gt;&gt;<i> <A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">excors at gmail.com</A>
+</I>&gt;<i>
+</I>
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="055953.html">[whatwg] More random comments on the putImageData definition
+</A></li>
+	<LI>Next message: <A HREF="055998.html">[whatwg] More random comments on the putImageData definition
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#55995">[ date ]</a>
+              <a href="thread.html#55995">[ thread ]</a>
+              <a href="subject.html#55995">[ subject ]</a>
+              <a href="author.html#55995">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

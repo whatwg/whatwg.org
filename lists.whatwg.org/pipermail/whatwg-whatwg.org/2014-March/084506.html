@@ -1,0 +1,420 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Canvas hit regions
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Canvas%20hit%20regions&In-Reply-To=%3Calpine.DEB.2.00.1403142051040.32463%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="084461.html">
+   <LINK REL="Next"  HREF="084512.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Canvas hit regions</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Canvas%20hit%20regions&In-Reply-To=%3Calpine.DEB.2.00.1403142051040.32463%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg] Canvas hit regions">ian at hixie.ch
+       </A><BR>
+    <I>Fri Mar 14 16:56:12 PDT 2014</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="084461.html">[whatwg]  hit regions: effect of clearRect
+</A></li>
+        <LI>Next message: <A HREF="084512.html">[whatwg] Canvas hit regions
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#84506">[ date ]</a>
+              <a href="thread.html#84506">[ thread ]</a>
+              <a href="subject.html#84506">[ subject ]</a>
+              <a href="author.html#84506">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>
+I've done some more work on the spec for event rerouting for hit regions, 
+based on the feedback sent to this list.
+
+On Wed, 5 Mar 2014, Robert O'Callahan wrote:
+&gt;<i> On Wed, Mar 5, 2014 at 12:53 PM, Ian Hickson &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">ian at hixie.ch</A>&gt; wrote:
+</I>&gt;<i> &gt; On Fri, 28 Feb 2014, Rik Cabanier wrote:
+</I>&gt;<i> &gt; &gt; For instance, if the fallback is an edit control and the user 
+</I>&gt;<i> &gt; &gt; drag-selects some text on the canvas, is it expected that this text 
+</I>&gt;<i> &gt; &gt; is also selected in the edit control?
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; You can't validly include a text field in canvas fallback precisely 
+</I>&gt;<i> &gt; because of this kind of thing. See:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;    <A HREF="http://whatwg.org/html#best-practices">http://whatwg.org/html#best-practices</A>
+</I>&gt;<i> 
+</I>&gt;<i> The question remains: what should happen in Rik's example?
+</I>
+If the control is a text edit control, the event isn't rerouted. This was 
+always the intention (hit regions couldn't be set for text edit controls), 
+but there was a loophole before, where you could register a hit region for 
+one kind of control and then change that control to be something else. 
+I've adjusted the spec to close that loophole.
+
+Event retargetting now explicitly applies to &quot;the control represented by 
+the region&quot;, which is always null if the given control is now a text 
+field.
+
+
+&gt;<i> More generally, is this event rerouting supposed to be able to trigger 
+</I>&gt;<i> browser default event handling behavior, or only DOM event dispatch?
+</I>
+As it was specified, I don't see how it could trigger default actions of 
+anything other than the canvas and its ancestors. The canvas hook ran in 
+the middle of the &quot;When a pointing device is clicked, the user agent must 
+run these steps&quot; algorithm, which refers to the origin target, not the 
+rerouted target.
+
+I've now changed this so that it does in fact trigger the default action 
+if applicable.
+
+
+On Wed, 5 Mar 2014, Robert O'Callahan wrote:
+&gt;<i> 
+</I>&gt;<i> The problem is that if these retargeted events can trigger default 
+</I>&gt;<i> browser behavior, the browser has to be able to compute the position of 
+</I>&gt;<i> the event relative to the new target DOM node, and it's not clear how to 
+</I>&gt;<i> do that.
+</I>
+I've made it explicit that the elements that can get clicks targetted to 
+them only include elements that don't have subregions. In particular, 
+image maps and image buttons are excluded.
+
+
+On Tue, 4 Mar 2014, Rik Cabanier wrote:
+&gt;<i> On Tue, Mar 4, 2014 at 8:30 PM, Ian Hickson &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">ian at hixie.ch</A>&gt; wrote:
+</I>&gt;<i> &gt; On Tue, 4 Mar 2014, Rik Cabanier wrote:
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; So what would you do in the case where you start two touches on 
+</I>&gt;<i> &gt; &gt; &gt; different regions, then move them at the same time to two other 
+</I>&gt;<i> &gt; &gt; &gt; different regions at the same time? What would you put in the 
+</I>&gt;<i> &gt; &gt; &gt; touchmove event's object?
+</I>&gt;<i>
+</I>&gt;<i> The touches attribute [1] of the touch event would contain 2 touch 
+</I>&gt;<i> elements.
+</I>&gt;<i>
+</I>&gt;<i> Each touch element would have as target the canvas element and contain 
+</I>&gt;<i> the id of the hit region.
+</I>
+Oh so it's not the TouchEvent object you think should be adjusted, but the 
+Touch object itself? (I'm assuming that's what you are referring to when 
+you say &quot;touch element&quot;.)
+
+Presumably we would just set the region at creation time, like the 
+&quot;target&quot; attribute, right?
+
+I've specced this.
+
+
+On Mon, 10 Mar 2014, Rik Cabanier wrote:
+&gt;<i>
+</I>&gt;<i> Currently, the specification states that if you create a region and then 
+</I>&gt;<i> create another region that completely covers region, the first region is 
+</I>&gt;<i> removed from the hit region list [1]
+</I>&gt;<i> 
+</I>&gt;<i> This is a complex operation that involves either drawing the regions to a
+</I>&gt;<i> bitmaps and counting pixels, or path intersection.
+</I>
+There's two trivial ways to implement this, depending on whether the hit 
+regions are backed by a bitmap (the simplest and fastest solution but uses 
+a lot of memory) or a region list (slower, but much more memory 
+efficient). In the case of a bitmap, you just draw on the new region, and 
+the old region is no longer in the bitmap, so it's trivially gone. In the 
+case of a list, you put the new region ahead of the old region so that you 
+never actually get around to checking the old region.
+
+In the latter case you would want to run &quot;compression&quot; algorithms every 
+now and then to filter out old regions that no longer matter (though in 
+most cases that would probably not be an issue since I expect most people 
+will clear the whole canvas every frame, which can be trivially detected 
+and can just cause the whole list to clear).
+
+
+&gt;<i> It is also unintuitive because an author might expect that he could 
+</I>&gt;<i> remove the second region and still have the first region active.
+</I>
+That would be inconsistent with how canvas works. Canvas is an immediate- 
+mode API. If you draw on the canvas, and then clear it, you don't get back 
+what was there before.
+
+
+On Tue, 11 Mar 2014, Rik Cabanier wrote:
+&gt;<i> &gt;
+</I>&gt;<i> &gt; <A HREF="http://lists.whatwg.org/htdig.cgi/whatwg-whatwg.org/2012-July/thread.html#36556">http://lists.whatwg.org/htdig.cgi/whatwg-whatwg.org/2012-July/thread.html#36556</A>
+</I>&gt;<i>
+</I>&gt;<i> It looks like that thread never came to a conclusion.
+</I>
+Is there anything specifically that was raised in that thread that you 
+think hasn't been responded to?
+
+
+&gt;<i> The arguments against using a bitmap presentation still stand:
+</I>&gt;<i> - it will be too expensive to keep an actual copy of the canvas pixels 
+</I>&gt;<i> in memory to do hit testing
+</I>
+It's actually pretty common to do exactly this. Note that you don't 
+necessarily need a bitmap that has the same bit depth or pixel density as 
+the visible bitmap.
+
+
+&gt;<i> - if you have to mimic the behavior with paths, you need access to
+</I>&gt;<i> expensive/difficult path manipulation algorithms
+</I>
+The maths for determining if a region is contained in another region is 
+pretty well understood at this point, as far as I can tell.
+
+
+&gt;<i> Hit regions should be redesigned so they work on the path geometry as 
+</I>&gt;<i> opposed to pixels. We already have the necessary code to do hit testing 
+</I>&gt;<i> on paths (see isPointInPath)
+</I>
+isPointInPath() works on pixels just like hit regions works on pixels.
+
+
+On Wed, 12 Mar 2014, Dirk Schulze wrote:
+&gt;<i> 
+</I>&gt;<i> In SVG we tried to avoid having hit testing based on pixel values 
+</I>&gt;<i> obviously for performance reasons.
+</I>
+SVG is a retained-mode API, so naturally it has a different model.
+
+The whole point of &lt;canvas&gt; is to be an immediate-mode API that 
+complements SVG.
+
+
+On Mon, 10 Mar 2014, Rik Cabanier wrote:
+&gt;<i>
+</I>&gt;<i> clearRect is currently defined as a subtraction mechanism for hit 
+</I>&gt;<i> regions [1].
+</I>&gt;<i>
+</I>&gt;<i> It's unlikely that a UA will implement hit regions using pixels so this 
+</I>&gt;<i> would have to be done using path subtraction which is expensive.
+</I>
+I'm not sure why you think it's expensive. It's trivial to just add a 
+rectangle to the front of the list of regions.
+
+
+&gt;<i> Why was this special behavior added to clearRect?
+</I>
+Because it's the most obvious mechanism for authors. You clear a part of 
+the canvas, naturally that part of the canvas no longer has regions.
+
+
+On Tue, 4 Mar 2014, Rik Cabanier wrote:
+&gt;<i> 
+</I>&gt;<i> The spec implies--
+</I>
+The spec doesn't imply anything. It either requires something, or doesn't. 
+If you ever find yourself reading between the lines, then there is either 
+a spec bug, or you are reading something that the spec doesn't require.
+
+
+On Fri, 21 Feb 2014, Charles McCathie Nevile wrote:
+&gt;<i> On Thu, 20 Feb 2014 22:38:18 +0100, Nils Dagsson Moskopp wrote:
+</I>&gt;<i> &gt; Dominic Mazzoni writes:
+</I>&gt;<i> &gt; &gt; 
+</I>&gt;<i> &gt; &gt; I'm happy to keep chasing after &quot;legitimate&quot; use-cases instead of 
+</I>&gt;<i> &gt; &gt; contrived ones, but just because we can't think of one, doesn't mean 
+</I>&gt;<i> &gt; &gt; it doesn't exist... Maybe the vast majority of web apps that use 
+</I>&gt;<i> &gt; &gt; canvas for a grid, or a slider, or a list box would be better off 
+</I>&gt;<i> &gt; &gt; using standard html5 objects. But what if there's one app that 
+</I>&gt;<i> &gt; &gt; can't, for some reason we haven't anticipated? If we wait until that 
+</I>&gt;<i> &gt; &gt; app appears to allow that control to have a hit region, then it will 
+</I>&gt;<i> &gt; &gt; be months or years before that app can be accessible.
+</I>&gt;<i> 
+</I>&gt;<i> Which is why I think the &quot;but it shouldn't be done that way&quot; argument 
+</I>&gt;<i> needs to be viewed through the prism of the question &quot;but will it&quot;?
+</I>&gt;<i> 
+</I>&gt;<i> History strongly suggests that people will use canvas because it suits 
+</I>&gt;<i> them, whatever &quot;experts&quot; like us say they *should* do.
+</I>
+People often misuse tools, but the correct reaction is to try to reduce 
+the affordances that encourage such misuse, and emphasise the affordances 
+that encourage correct use. This is exactly what we're doing here.
+
+We certainly shouldn't take APIs and make misuse easier. That makes no 
+design sense.
+
+
+&gt;<i> &gt; &gt; &gt; Well for example, is the use case one of the controls on 
+</I>&gt;<i> &gt; &gt; &gt; Bugzilla's advanced search page?:
+</I>&gt;<i> &gt; &gt; &gt; 
+</I>&gt;<i> &gt; &gt; &gt;   <A HREF="https://www.w3.org/Bugs/Public/query.cgi?format=advanced">https://www.w3.org/Bugs/Public/query.cgi?format=advanced</A>
+</I>&gt;<i> &gt; &gt; &gt; 
+</I>&gt;<i> &gt; &gt; &gt; If so, I feel comfortable saying that we don't need to make 
+</I>&gt;<i> &gt; &gt; &gt; &lt;canvas&gt; support that, since that use case is already handled very 
+</I>&gt;<i> &gt; &gt; &gt; well by the &lt;select&gt; element.
+</I>&gt;<i> 
+</I>&gt;<i> It probably is for bugzilla.
+</I>
+Right. That's why it's important to know what the concrete use cases are.
+
+
+&gt;<i> somebody wants a dropdown menu for selecting things, that matches the 
+</I>&gt;<i> particularities of their site design.
+</I>
+That use case sounds like something for CSS and Web Components to handle.
+
+
+&gt;<i> the site is being built by someone who wants to ensure that their CSS 
+</I>&gt;<i> can't be overridden; I don't know why people think this, but many still 
+</I>&gt;<i> do.
+</I>
+Are you arguing that we should support such authors?
+
+I am very comfortable saying we have no need to support authors who are 
+trying to trump users' abilities to control their browsers.
+
+
+&gt;<i> It apparently isn't for search suggestions. Whatever the reason, Yandex 
+</I>&gt;<i> search doesn't use it for their suggestions. While they don't use canvas 
+</I>&gt;<i> either, it seems that select is not sufficient for Yandex. Nor is it 
+</I>&gt;<i> used by Google, Yahoo, Bing or Baidu for the task. And none of them have 
+</I>&gt;<i> a complicated layout to work with. But they all use styled text 
+</I>&gt;<i> elements.
+</I>
+I'm not sure what you're arguing here. (What is &quot;it&quot;?)
+
+
+&gt;<i> &gt; &gt; I'll try, though: what if I had a list of choices displayed as a pie 
+</I>&gt;<i> &gt; &gt; chart? Each slice of the pie is a focusable object that, when you 
+</I>&gt;<i> &gt; &gt; click on it, allows you to take an action on that pie slice.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; What if I look at that page in a textual user agent?
+</I>&gt;<i> 
+</I>&gt;<i> Where the hit regions are based on a list as 'fallback content'? You get 
+</I>&gt;<i> a list. With links that match the actions. If the developer got 
+</I>&gt;<i> accessibility right.
+</I>&gt;<i>
+</I>&gt;<i> But if they would only get it a bit right, it seems stupid to suggest 
+</I>&gt;<i> that we should gratuitously deny them the option - letting perfect be 
+</I>&gt;<i> the enemy of good here is an extremely effective way to reduce 
+</I>&gt;<i> accessibility, which is very rarely done perfectly.
+</I>
+This particular use case is handled by the spec perfectly well already, as 
+far as I can tell.
+
+
+&gt;<i> <A HREF="http://yandex.com/yandsearch?text=pie%20chart%20canvas">http://yandex.com/yandsearch?text=pie%20chart%20canvas</A> suggests that a 
+</I>&gt;<i> lot of people appear to think it is a natural thing to do. I got ~310k 
+</I>&gt;<i> answers, and while not all of them will be about using canvas to make 
+</I>&gt;<i> pie charts the overwhelming majority of the first few pages are.
+</I>
+This line of argument doesn't seem useful. &quot;tables for layout&quot;, which I 
+hope we agree is not something we should be encouraging, gives 12 million 
+hits. &quot;text editor canvas&quot;, the poster-child for misguided use of canvas, 
+gives 2 million.
+
+&quot;http server canvas&quot; gives 1 million.
+
+&quot;going to the gym canvas&quot; also gives 1 million.
+
+&quot;fixing golden gate bridge canvas&quot; gives half a million.
+
+&quot;pie chart canvas with clickable slices&quot; gives 5 thousand.
+
+Should we be adding APIs to make it possible to use &lt;canvas&gt; as an HTTP 
+server? It certainly seems to have more hits than making a pie chart have 
+clickable pie slices...
+
+(That these numbers differ wildly from those on Google or Bing also 
+suggests that this line of reasoning is flawed.)
+
+
+&gt;<i> &gt; May I ask if you have designed human-computer interfaces. If so, may 
+</I>&gt;<i> &gt; you provide examples?
+</I>&gt;<i> 
+</I>&gt;<i> I'm not sure how that is relevant.
+</I>
+It seems at least as relevant as the Yandex numbers...
+
+
+&gt;<i> &gt; &gt; &gt; &gt; What if I do want a &lt;select&gt;, but I just want a canvas to render 
+</I>&gt;<i> &gt; &gt; &gt; &gt; it visually?
+</I>&gt;<i> &gt; &gt; &gt; 
+</I>&gt;<i> &gt; &gt; &gt; Are Web Components and CSS unable to get the effects you need? 
+</I>&gt;<i> &gt; &gt; &gt; Maybe we should be improving those rather than &lt;canvas&gt;. It's hard 
+</I>&gt;<i> &gt; &gt; &gt; to tell without knowing precisely what you want to do.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; This requests reminds me of customers wanting &#8220;page intro in flash.&#8221;.
+</I>&gt;<i> 
+</I>&gt;<i> And the response reminds me of <A HREF="http://xkcd.com/1319/">http://xkcd.com/1319/</A>
+</I>
+I don't understand the relevance of automation to this discussion.
+
+
+&gt;<i> &gt; &gt; &gt; If a region has a car theft problem, you don't solve it by giving 
+</I>&gt;<i> &gt; &gt; &gt; all the thieves the car keys. You solve it by improving the 
+</I>&gt;<i> &gt; &gt; &gt; economy so that thieves have better things to do (like get an 
+</I>&gt;<i> &gt; &gt; &gt; interesting job), and you solve the remainder by improving law 
+</I>&gt;<i> &gt; &gt; &gt; enforcement. The same applies here. We solve it by providing 
+</I>&gt;<i> &gt; &gt; &gt; better tools for custom text editing controls (e.g. better 
+</I>&gt;<i> &gt; &gt; &gt; contenteditable APIs), and by making it non-conforming to abuse 
+</I>&gt;<i> &gt; &gt; &gt; &lt;canvas&gt; for this purpose.
+</I>&gt;<i> 
+</I>&gt;<i> Only if that actually stops people using canvas for this purpose.
+</I>
+What would you propose would stop canvas misuse?
+
+Canvas misuse is not a minor issue. It can have a serious impact on 
+accessibility (both for AT users and other users). We should take our 
+responsibility for discouraging such misuse quite seriously, IMHO.
+
+
+&gt;<i> And while we might disagree about what they *should* do, in practice it 
+</I>&gt;<i> seems that some developers will use canvas for almost any kind of 
+</I>&gt;<i> rendering, probably including things we can't even imagine.
+</I>
+Certainly. But that seems orthogonal to the issue at hand.
+
+
+On Fri, 21 Feb 2014, Nils Dagsson Moskopp wrote:
+&gt;<i> 
+</I>&gt;<i> Maybe you misunderstood me. I consider advocating a specific solution 
+</I>&gt;<i> for a poorly-defined problem a sure way to accumulate technical debt.
+</I>
+That's a very good way of summarising why I try to avoid adding features 
+without a good understanding of the use cases.
+
+
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="084461.html">[whatwg]  hit regions: effect of clearRect
+</A></li>
+	<LI>Next message: <A HREF="084512.html">[whatwg] Canvas hit regions
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#84506">[ date ]</a>
+              <a href="thread.html#84506">[ thread ]</a>
+              <a href="subject.html#84506">[ subject ]</a>
+              <a href="author.html#84506">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

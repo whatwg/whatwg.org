@@ -1,0 +1,114 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Proposal for a MediaSource API that allows sending media data to a HTMLMediaElement
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Proposal%20for%20a%20MediaSource%20API%20that%20allows%20sending%0A%20media%20data%20to%20a%20HTMLMediaElement&In-Reply-To=%3CE4BE9454-9708-4AB7-AE04-0CFF674A2B03%40netflix.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="075207.html">
+   <LINK REL="Next"  HREF="032914.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Proposal for a MediaSource API that allows sending media data to a HTMLMediaElement</H1>
+<!--htdig_noindex-->
+    <B>Mark Watson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Proposal%20for%20a%20MediaSource%20API%20that%20allows%20sending%0A%20media%20data%20to%20a%20HTMLMediaElement&In-Reply-To=%3CE4BE9454-9708-4AB7-AE04-0CFF674A2B03%40netflix.com%3E"
+       TITLE="[whatwg] Proposal for a MediaSource API that allows sending media data to a HTMLMediaElement">watsonm at netflix.com
+       </A><BR>
+    <I>Tue Aug 16 08:03:09 PDT 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="075207.html">[whatwg] Proposal for a MediaSource API that allows sending media data to a HTMLMediaElement
+</A></li>
+        <LI>Next message: <A HREF="032914.html">[whatwg] Component Model Progress
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#75212">[ date ]</a>
+              <a href="thread.html#75212">[ thread ]</a>
+              <a href="subject.html#75212">[ subject ]</a>
+              <a href="author.html#75212">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>
+On Aug 12, 2011, at 10:01 AM, Aaron Colwell wrote:
+
+Hi Mark,
+
+comments inline...
+
+On Thu, Aug 11, 2011 at 9:46 AM, Mark Watson &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">watsonm at netflix.com</A>&lt;mailto:<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">watsonm at netflix.com</A>&gt;&gt; wrote:
+I think it would be good if the API recognized the fact that the media data may becoming from several different original files/streams (e.g. different bitrates) as the player adapts to network or other conditions.
+
+I agree. I intend to document this when I spec out the format of the byte stream that is passed into this API. Initially I'm focusing on WebM which requires this type of functionality if the Vorbis initialization data ever needs to change during playback. My intuition says that Ogg &amp; MP4 will require similar solutions.
+
+
+The different files may have different initialization information (Info and Tracks in WebM, Movie Box in mp4 etc.), which could be provided either in the first append call for each stream or with a separate API call. But subsequently you need to know which initialization information is relevant for each appended block. An integer streamId in the append call would be sufficient - the absolute value has no meaning - it would just associate data from the same stream across calls.
+
+Since I'm using WebM for the byte stream I don't need to add explicit streamIds to the API or data. StreamIDs are already in the byte stream. Ogg bitstream serial numbers, and MP4 track numbers should serve the same purpose.
+
+I may have inadvertently overloaded &quot;stream id&quot;. And I'm assuming that the different bitrates essentially come from different media files. If you use the track id in mp4 (or it's equivalent in WebM) then you require that there is a level of coordination in the creation of the different bitrate files: they must all use distinct track ids. To add a new bitrate you need you need to know what track ids were used in the old ones and pick a distinct one. When people get it wrong you have a difficult-to-detect failure mode.
+
+
+
+The alternatives are:
+(a) to require that all streams have the same or compatible initialization information or
+(b) to pass the initialization information every time you change streams
+
+(a) has the disadvantage of constraining encoding, and making adding new streams more dependent on the details of how the existing streams were encoded/packaged
+(b) is ok, except that it is nice for the player to know &quot;this data is from the same stream you were playing a while ago&quot; - it can re-use some previously established state - rather than every stream change being 'out of the blue'.
+
+I'm leaning toward (b) right now. Any time a change in stream parameters is needed new INFO &amp; TRACKS elements will be appended before the media data from the new source. This is similar to how Ogg chaining works. I don't think we need unique IDs for marking this state. The media engine can look at the new codec config data and see if it matches anything it has seen before. If so then it can simply reuse whatever resources it see fit. Another thing to note is that just because we append this data every time a stream switch occurs, it doesn't mean we have to transfer that data across the network each time. JavaScript can cache this data and simply append it when necessary.
+
+That's fine for me. It needs to be clear in the API that this is the expected mode of operation. We can word this in a way that is independent of media format.
+
+
+
+A separate comment is that practically we have found it very useful for the media player to know the maximum resolution, frame rate and codec level/profile that will be used, which may be different from the resolution and codec/level/profile of the first stream.
+
+
+I agree that this info is useful, but it isn't clear to me that this API needs to support that. Existing APIs like canPlayType()&lt;<A HREF="http://www.w3.org/TR/html5/video.html#dom-navigator-canplaytype">http://www.w3.org/TR/html5/video.html#dom-navigator-canplaytype</A>&gt; could be used to determine whether specific codec parameters are supported. Other DOM APIs could be used to determine max screen size. This could all be used to prune the candidate streams sent to the MediaSource API.
+
+True, but I wasn't thinking so much of determining whether playback is supported, but of warning the media pipeline of what might be coming so that it can dimension various resources appropriately.
+
+This may just be a matter of feeding the header for the highest resolution/profile stream first, even if you don't feed any media data for that stream. It's possible some players will not support switching resolution to a resolution higher than that established at the start of playback (at least we have found that to be the case with some embedded media pipelines today).
+
+...Mark
+
+
+
+Aaron
+
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="075207.html">[whatwg] Proposal for a MediaSource API that allows sending media data to a HTMLMediaElement
+</A></li>
+	<LI>Next message: <A HREF="032914.html">[whatwg] Component Model Progress
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#75212">[ date ]</a>
+              <a href="thread.html#75212">[ thread ]</a>
+              <a href="subject.html#75212">[ subject ]</a>
+              <a href="author.html#75212">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

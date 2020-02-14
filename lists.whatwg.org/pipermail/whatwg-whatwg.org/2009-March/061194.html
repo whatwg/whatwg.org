@@ -1,0 +1,202 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Worker and message port feedback
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Worker%20and%20message%20port%20feedback&In-Reply-To=%3Cf965ae410903201729v3fff6e60m65312a1ee43ae31b%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="061190.html">
+   <LINK REL="Next"  HREF="061206.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Worker and message port feedback</H1>
+<!--htdig_noindex-->
+    <B>Drew Wilson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Worker%20and%20message%20port%20feedback&In-Reply-To=%3Cf965ae410903201729v3fff6e60m65312a1ee43ae31b%40mail.gmail.com%3E"
+       TITLE="[whatwg] Worker and message port feedback">atwilson at google.com
+       </A><BR>
+    <I>Fri Mar 20 17:29:08 PDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="061190.html">[whatwg] Worker and message port feedback
+</A></li>
+        <LI>Next message: <A HREF="061206.html">[whatwg] Worker and message port feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#61194">[ date ]</a>
+              <a href="thread.html#61194">[ thread ]</a>
+              <a href="subject.html#61194">[ subject ]</a>
+              <a href="author.html#61194">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Thanks, Ian - this was great feedback.
+On Fri, Mar 20, 2009 at 3:29 PM, Ian Hickson &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">ian at hixie.ch</A>&gt; wrote:
+
+&gt;<i>
+</I>&gt;<i> It is unclear to me why you would need access to the cookies from script
+</I>&gt;<i> to do cookie-based authentication. Isn't the server the one that sets the
+</I>&gt;<i> cookie and the one that uses it when it is returned?
+</I>&gt;<i>
+</I>&gt;<i> Could you elaborate on how you see the cookie API being used?
+</I>&gt;<i>
+</I>
+Good point. Cookie-based auth is not a great use case, because as you point
+out, you could just do this by passing credentials to the server via an XHR
+request and have it set your cookies. I guess the motivation for allowing
+cookies to be set from workers is the same as the motivation for allowing
+web-page script to set cookies - perhaps this motivation is deprecated now
+that we have localStorage but even localStorage doesn't seem to have the
+nice cross-sub-domain sharing that cookies allow.
+
+
+&gt;<i>
+</I>&gt;<i> (notifications):
+</I>&gt;<i> These seem like good use cases, but it's not clear what the user interface
+</I>&gt;<i> would look like, which is probably the hardest problem here.
+</I>
+
+Agreed. This will be tricky especially given the restrictions on some
+platforms - I'm hoping we can do some experiments and come up with something
+that's compelling.
+
+
+&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> &gt; Gears had an explicit permissions variable applications could check,
+</I>&gt;<i> &gt; which seems valuable - do we do anything similar elsewhere in HTML5 that
+</I>&gt;<i> &gt; we could use as a model here?
+</I>&gt;<i>
+</I>&gt;<i> HTML5 so far has avoided anything that requires explicit permission
+</I>&gt;<i> grants, because they are generally a bad idea from a security perspective
+</I>&gt;<i> (users will grant any permissions the system asks them for).
+</I>&gt;<i>
+</I>
+The Database spec has a strong implication that applications can request a
+larger DB quota, which will result in the user being prompted for permission
+either immediately, or at the point that the default quota is exceeded. So
+it's not without precedent, I think. Or maybe I'm just misreading this:
+
+User agents are expected to use the display name and the estimated database
+size to optimize the user experience. For example, a user agent could use
+the estimated size to suggest an initial quota to the user. This allows a
+site that is aware that it will try to use hundreds of megabytes to declare
+this upfront, instead of the user agent prompting the user for permission to
+increase the quota every five megabytes.
+
+To be clear, are you saying that our philosophy is to leave any permissions
+granting up to the individual user agent (i.e. not described in the spec)?
+Or that we're trying to avoid specifying functionality that might be
+invasive enough to require permissions?
+
+
+&gt;<i>
+</I>&gt;<i> &gt; The namespace for PersistentWorkers are identical to those of
+</I>&gt;<i> &gt; SharedWorkers - for example, if you already have a PersistentWorker
+</I>&gt;<i> &gt; named 'core' under a domain and a window tries to create a SharedWorker
+</I>&gt;<i> &gt; named 'core', a security exception will be thrown, just as if a
+</I>&gt;<i> &gt; different URL had been specified for two identically-named
+</I>&gt;<i> &gt; SharedWorkers.
+</I>&gt;<i>
+</I>&gt;<i> Why would we not want them to use different namespaces?
+</I>&gt;<i>
+</I>&gt;<i>
+</I>I've rethought this, and I actually agree that they should have different
+namespaces.
+
+In fact, I'd go further - I don't think we should even *have* names for
+persistent workers (the use case for having names is &quot;what if I want to run
+the same worker multiple times without having to host multiple scripts&quot;,
+which I don't think really applies to persistent workers). Also, one of the
+things I'd like to experiment with in my implementation is allowing
+cross-domain access to workers (this is required if you want workers to be
+able to communicate/share resources across domains, since workers don't have
+access to any of the cross-domain functionality that window-based script
+has) - getting rid of the &quot;name&quot; and always having persistent workers
+identified by their script url helps enable this, and avoids some security
+issues, such as the ones described in this old Gears proposal I came
+across: <A HREF="http://code.google.com/p/gears/wiki/CrossOriginAPI">http://code.google.com/p/gears/wiki/CrossOriginAPI</A>
+
+
+&gt;<i> I would be very concerned about this getting abused for popups. I don't
+</I>&gt;<i> think we want to allow arbitrary windows to be opened. I could see
+</I>&gt;<i> allowing a kind of simple toast popup that pops up a link which, when
+</I>&gt;<i> clicked, _then_ opens a window; would that work? Something like:
+</I>&gt;<i>
+</I>&gt;<i>   void notify(message, url);
+</I>&gt;<i>
+</I>
+That could definitely work. Agreed that we'd want to force some kind of user
+interaction first to avoid popup spam.
+
+
+&gt;<i> &gt; Additionally, there's no good way for workers under different domains to
+</I>&gt;<i> &gt; talk to one another (a window can use the cross-domain messaging
+</I>&gt;<i> &gt; functionality to talk to other domains, but there's no analog for this
+</I>&gt;<i> &gt; for workers).
+</I>&gt;<i>
+</I>&gt;<i> This has been intentionally delayed while we wait for more implementation
+</I>&gt;<i> experience.
+</I>&gt;<i>
+</I>
+I'm hoping to experiment with this some (per my earlier comment), so
+hopefully I'll be able to report back with some interesting data points (or
+at least my miserable failure will serve as an object lesson for future
+implementors :).
+
+To give people a more concrete example of one of the use cases that is
+driving this: A typical Single-Sign-On implementation has the user log in
+under a single domain (storing auth cookies under that domain) then when the
+user visits an application domain he is redirected back through the
+authenticated domain where he is authenticated based on his auth cookies,
+and some sort of auth token is then returned to the application domain. Web
+page script has lots of ways to achieve this (using plain old HTTP
+redirects, doing x-domain requests to the auth domain via iframes, etc), but
+workers have no way to do this currently short of changing the auth server
+to allow cross domain requests via an Access-Control-* header.
+
+By enabling cross-domain worker access, there could be a worker running
+under the auth domain, and persistent workers running under the application
+domain could authenticate themselves via the auth worker (make a request to
+the auth worker, the auth worker can make an authentication request to the
+server on their behalf under the auth domain and return back an appropriate
+auth token to the app worker).
+
+-atw
+
+&gt;<i>
+</I>-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: &lt;<A HREF="http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20090320/a2fec147/attachment-0002.htm">http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20090320/a2fec147/attachment-0002.htm</A>&gt;
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="061190.html">[whatwg] Worker and message port feedback
+</A></li>
+	<LI>Next message: <A HREF="061206.html">[whatwg] Worker and message port feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#61194">[ date ]</a>
+              <a href="thread.html#61194">[ thread ]</a>
+              <a href="subject.html#61194">[ subject ]</a>
+              <a href="author.html#61194">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

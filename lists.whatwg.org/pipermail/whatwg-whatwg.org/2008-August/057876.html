@@ -1,0 +1,323 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Workers feedback
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Workers%20feedback&In-Reply-To=%3CPine.LNX.4.62.0808052357450.5140%40hixie.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="057867.html">
+   <LINK REL="Next"  HREF="057879.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Workers feedback</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Workers%20feedback&In-Reply-To=%3CPine.LNX.4.62.0808052357450.5140%40hixie.dreamhostps.com%3E"
+       TITLE="[whatwg] Workers feedback">ian at hixie.ch
+       </A><BR>
+    <I>Wed Aug  6 04:24:53 PDT 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="057867.html">[whatwg] Web Workers and MessagePort feedback
+</A></li>
+        <LI>Next message: <A HREF="057879.html">[whatwg] Workers feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#57876">[ date ]</a>
+              <a href="thread.html#57876">[ thread ]</a>
+              <a href="subject.html#57876">[ subject ]</a>
+              <a href="author.html#57876">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>
+Summary:
+
+ * I've written an intro section which shows how the API is expected to be 
+   used. I've tried to illustrate each use case that people raised. I will 
+   add more tomorrow.
+
+ * I've completely decoupled workers and Window objects.
+
+ * I've moved APIs to a &quot;utils&quot; object, so that we rarely, if ever, have 
+   to add members to the global scope (reduces chances of future 
+   collisions).
+
+ * I've simplified the way message channels and ports work.
+
+ * I've replaced the URL string with a Location object.
+
+
+On Mon, 4 Aug 2008, Jonas Sicking wrote:
+&gt;<i> 
+</I>&gt;<i> So the first comment is the 'window' and 'self' properties. I don't see 
+</I>&gt;<i> a reason for these.
+</I>
+We need some self-reference so that people can check for the presence of 
+members on the global scope.
+
+'window' was there to allow library re-use. I've now removed it, leaving 
+only 'self'.
+
+I have also simplified the spec to remove the Window concepts from the 
+workers.
+
+I also removed all the APIs to a &quot;utils&quot; object, leaving the global scope 
+with only:
+
+  self - self reference for checking presence of APIs
+  location - the address of the script
+  name - the name of the worker, if it is shared
+  closing - whether the worker is shutting down
+  close() - to shut the worker down
+  utils - all the APIs
+  onconnect - to receive new connections
+  onunload - to run any shut down code
+  port - the first connection
+
+I can move more of this to 'utils' if people want. Opinions?
+
+
+&gt;<i> The fact that the only way to communicate between workers and the main 
+</I>&gt;<i> browser context is through MessagePorts seems unnecessarily complex as 
+</I>&gt;<i> well as differing from how windows communicates using postMessage.
+</I>
+We can't use the Window object postMessage() communication method, because 
+it relies on the objects being able to have references to each other. 
+
+I've tried to simplify the MessagePort interface as follows:
+
+ * messages are now queued, and won't be delivered until either the 
+   'start()' method on the port is called, or the 'onmessage' attribute is 
+   set to some value.
+
+ * messages are now queued, instead of a port becoming inactive when its 
+   other side is suspended.
+
+ * I've made the worker receive its first port as a property of the global 
+   object (port) instead of having to listen to the 'connect' event 
+   (though the connect event still fires, so you can do shared workers).
+
+
+On Mon, 4 Aug 2008, Aaron Boodman wrote:
+&gt;<i> 
+</I>&gt;<i> So for example, I would be for moving over a subset of the navigator and 
+</I>&gt;<i> location objects as-is (these seem to work well), but against moving 
+</I>&gt;<i> over the document.cookie &quot;interface&quot; (it works poorly).
+</I>
+I agree with porting some subset of 'navigator' over, though since the 
+relevant parts of 'navigator' aren't defined even for HTML5 yet, I haven't 
+yet done this. There's an issue marker in the spec about this. What bits 
+would you like defined?
+
+
+On Tue, 5 Aug 2008, Aaron Boodman wrote:
+&gt;<i> 
+</I>&gt;<i> The protocol, host, hostname, port, pathname, and search properties are 
+</I>&gt;<i> all very useful. An application might want to compare the origin of a 
+</I>&gt;<i> message it receives with it's own host and port, for example.
+</I>
+Ok, I've provided a castrated Location interface.
+
+
+On Tue, 5 Aug 2008, Aaron Boodman wrote:
+&gt;<i> 
+</I>&gt;<i> - It seems like we might want an object that represents workers. This 
+</I>&gt;<i> would allow us put the 'onload' and 'onerror' events from MessagePort 
+</I>&gt;<i> there, instead of on MessagePort, which makes more sense to me (I don't 
+</I>&gt;<i> know what it means for a MessagePort to 'load' or 'error' outside of the 
+</I>&gt;<i> context of a worker).
+</I>
+The main reason for not having a separate Worker object is that I couldn't 
+find anything that would go on it other than the port. You'd still want 
+the unload messages going to whoever &quot;owns&quot; the port, not whoever created 
+the worker, if you passed the port around. Basically, adding a Worker 
+object just seemed like it would double the number of objects, and 
+potentially the complexity if we also allow Worker objects to be sent 
+along channels, without really providing any new features.
+
+
+&gt;<i> MessagePort.onunload could then change to 'onclose' to go with the 
+</I>&gt;<i> close() method.
+</I>
+The main reason I used 'unload' and 'close' is consistency with how the 
+rest of the platform works. (With a Window, you call window.close() to 
+invoke window.onunload.) I can change that if people want, though I do 
+think consistency is worth keeping here.
+
+
+&gt;<i> - It's odd to me that the way to establish a channel to a worker depends 
+</I>&gt;<i> on whether you are the creator of the worker or not. The creator gets a 
+</I>&gt;<i> MessagePort to a new channel back from createWorker(), but any other 
+</I>&gt;<i> function must pass a new MessagePort over the original one, and the 
+</I>&gt;<i> worker must know to use that secondary port to talk back.
+</I>
+In the old mechanism, from the worker's point of view there was only one 
+way to get a new connection, onconnect. The changes to simplify the 
+mechanism actually introduced a new mechanism, so it is true that we now 
+have two mechanisms, one for the initial creation and one for others. Is 
+that a problem?
+
+(I don't think it is, you can use either mechanism, as I will show 
+tomorrow in the shared worker examples.)
+
+
+&gt;<i> I would prefer to see something like:
+</I>&gt;<i> 
+</I>&gt;<i> void Worker.postMessage(DOMString message)
+</I>&gt;<i> void Worker.postMessage(DOMString message, MessagePort port)
+</I>&gt;<i> 
+</I>&gt;<i> That way the way to establish a new channel is the same for all callers. 
+</I>&gt;<i> It also has the advantage of looking similar to a window's postMessage 
+</I>&gt;<i> API.
+</I>
+With the exception of Worker being called MessagePort, that's exactly the 
+API we have now.
+
+
+&gt;<i> Here is how the previous two suggestions would look together:
+</I>&gt;<i> 
+</I>&gt;<i> var worker = new Worker(&quot;foo.js&quot;);
+</I>&gt;<i> worker.onload = function() { ... }
+</I>&gt;<i> worker.onerror = function() { ... }
+</I>&gt;<i> worker.onunload = function() { ... }  // called when the worker shuts down
+</I>&gt;<i> worker.sendMessage(&quot;hello!&quot;);
+</I>&gt;<i> 
+</I>&gt;<i> var channel = new MessageChannel();
+</I>&gt;<i> channel.port1.onmessage = function(e) { ... }
+</I>&gt;<i> worker.sendMessage(&quot;please return my call&quot;, channel.port2);
+</I>&gt;<i>
+</I>&gt;<i> // called when the channel is closed, either because the worker shut down taking
+</I>&gt;<i> // the other end of the port with it, or because the other end of the
+</I>&gt;<i> // port was GC'd, or because the other port was explicitly closed.
+</I>&gt;<i> channel.port1.onclose = function() { ... }
+</I>
+The above would in fact work right now, unchanged.
+
+
+&gt;<i> - The spec says that as soon as a worker is not reachable (determined 
+</I>&gt;<i> via GC) from any MessagePort, it is eligible for shutdown. Shutdown 
+</I>&gt;<i> would attempt to finish all queued messages, but not allow any new ones.
+</I>&gt;<i> 
+</I>&gt;<i> This concerns me because it means that workers will have different 
+</I>&gt;<i> behavior depending on GC timing. If a worker is not referenced from any 
+</I>&gt;<i> port, and it sends an XHR, that XHR may or may not be sent depending on 
+</I>&gt;<i> when GC runs. This is different than how XHR behaves normally. 
+</I>&gt;<i> Typically, XHR objects that have outstanding IO but no referers will not 
+</I>&gt;<i> be GC'd until they complete or fail.
+</I>
+We could say that XHR network I/O must complete, but are you saying you 
+want the callbacks to fire as well? If so, what prevents an evil site from 
+just setting up an infinite sequence of callbacks and having this 
+invisible worker do work forever on the user's machine without the user's 
+knowledge?
+
+Note that I've simplified a lot of the GC-related stuff. I couldn't remove 
+it all, as this does interact with GC to some extent.
+
+
+&gt;<i> Finally this does not allow use cases such as creating a worker to 
+</I>&gt;<i> synchronize a local database with the network without ever sending 
+</I>&gt;<i> notifications back to the parent.
+</I>
+This is addressed now, in that a worker automatically keeps a reference to 
+its original creator (in the 'port' property of the global object), so 
+these won't get GC'ed even if they never communicate, until the creator 
+dies.
+
+
+&gt;<i> Maybe workers should stay alive as long as any of the following are true:
+</I>&gt;<i> 
+</I>&gt;<i> - There is script running in them
+</I>&gt;<i> - There are messages to them queued
+</I>&gt;<i> - There is a messageport alive anywhere that could send messages to them
+</I>&gt;<i> - There are &quot;asynchronous operations&quot; (xhr, timers, database
+</I>&gt;<i> operations) inside them outstanding
+</I>
+The latter is easy to abuse to keep the workers alive hours beyond the 
+point at which the user things they are dead. I think this is a serious 
+problem.
+
+
+&gt;<i> API nitpickery
+</I>&gt;<i> 
+</I>&gt;<i> - Why is there an ownerWindow property on MessagePort? If I understand 
+</I>&gt;<i> correctly, this is just a synonym for the 'window' object of the 
+</I>&gt;<i> currently executing script context.  I think it should go away.
+</I>
+It's gone.
+
+
+&gt;<i> - I'm curious as to why MessagePort and WindowWorker do not implement 
+</I>&gt;<i> EventTarget. It seems like we may as well reuse it. And at least for 
+</I>&gt;<i> WindowWorker, it seems like the same problems of having multiple 
+</I>&gt;<i> functions clobber each other that motivated EventTarget would apply.
+</I>
+They do.
+
+
+&gt;<i> - The purpose of 'import()' on WindowWorker was not immediately obvious 
+</I>&gt;<i> to me from its name. Should it be 'importScript()'? or 'includeScript()' 
+</I>&gt;<i> maybe?
+</I>
+Changed to importScript().
+
+
+&gt;<i> - Should import() accept an array of URLs, so that the UA can fetch them 
+</I>&gt;<i> in parallel if it has the ability to do that?
+</I>
+We could do that if you like. Is it needed?
+
+
+&gt;<i> - The &quot;front-line&quot; nomenclature was a bit weird to me. How about 
+</I>&gt;<i> &quot;top-level&quot;?
+</I>
+I wanted to avoid &quot;top-level&quot; because I used that with browsing contexts. 
+I agree that &quot;front-line&quot; isn't a good term.
+
+
+&gt;<i> - Would it be too weird to have createWorker overloaded to take an 
+</I>&gt;<i> optional name parameter? This would make the behavior similar to 
+</I>&gt;<i> window.open(), which either opens a new window or reuses an existing 
+</I>&gt;<i> window with the same name.
+</I>
+People seem to dislike overloading in general, but I don't mind. Anyone 
+against this?
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="057867.html">[whatwg] Web Workers and MessagePort feedback
+</A></li>
+	<LI>Next message: <A HREF="057879.html">[whatwg] Workers feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#57876">[ date ]</a>
+              <a href="thread.html#57876">[ thread ]</a>
+              <a href="subject.html#57876">[ subject ]</a>
+              <a href="author.html#57876">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

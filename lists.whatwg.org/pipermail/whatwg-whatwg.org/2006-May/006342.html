@@ -1,0 +1,150 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] proposed canvas 2d API additions
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20proposed%20canvas%202d%20API%20additions&In-Reply-To=%3C9540d010605081925q8560a01u2be893be4a39ea41%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="006425.html">
+   <LINK REL="Next"  HREF="006344.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] proposed canvas 2d API additions</H1>
+<!--htdig_noindex-->
+    <B>Vladimir Vukicevic</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20proposed%20canvas%202d%20API%20additions&In-Reply-To=%3C9540d010605081925q8560a01u2be893be4a39ea41%40mail.gmail.com%3E"
+       TITLE="[whatwg] proposed canvas 2d API additions">vladimirv at gmail.com
+       </A><BR>
+    <I>Mon May  8 19:25:19 PDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="006425.html">[whatwg] proposed canvas 2d API additions
+</A></li>
+        <LI>Next message: <A HREF="006344.html">[whatwg] proposed canvas 2d API additions
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#6342">[ date ]</a>
+              <a href="thread.html#6342">[ thread ]</a>
+              <a href="subject.html#6342">[ subject ]</a>
+              <a href="author.html#6342">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On 5/5/06, Ian Hickson &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">ian at hixie.ch</A>&gt; wrote:
+&gt;<i> On Fri, 28 Apr 2006, Vladimir Vukicevic wrote:
+</I>&gt;<i> &gt; ImageData createImageData(in string format, in string width, in string
+</I>&gt;<i> &gt; height, in Array data);
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; for creating &quot;ImageData&quot; out of an arbitrary set of generated data (e.g.
+</I>&gt;<i> &gt; evaluating some function, drawing the results).  This would be
+</I>&gt;<i> &gt; especially needed because you can't assign to data in an ImageData
+</I>&gt;<i> &gt; structure (since you have it readonly); can only change the values of
+</I>&gt;<i> &gt; its members.
+</I>&gt;<i>
+</I>&gt;<i> You could always create an arbitrarily sized ImageData structure by
+</I>&gt;<i> creating a blank &lt;canvas&gt; and using getPixels on that canvas. This would
+</I>&gt;<i> let you initialise the array to white, transparent black, or whatever is
+</I>&gt;<i> necessary.
+</I>
+You could, but that would involve a lot more overhead than you might
+want.  Then again, you could just call getPixels on whatever canvas
+you have and use that structure.  The spec needs to say (if it doesn't
+already, I haven't read what you've added yet) that getPixels returns
+a static snapshot of the canvas contents, and isn't modified by any
+further drawing to the canvas (until getPixels is called again, which
+returns a new structure).
+
+&gt;<i> &gt; &gt;    ImageData getImageData(in float x, in float y, in float w, in float h);
+</I>&gt;<i> &gt; &gt;    void drawImageData(in float x, in float y, in ImageData d);
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; I would keep x/y/w/h as integers, and explicitly specify that they're
+</I>&gt;<i> &gt; not affected by the CTM.  If they are, you can't guarantee a lossless
+</I>&gt;<i> &gt; round-trip (since if you shift over by half a pixel you have to do lots
+</I>&gt;<i> &gt; of resampling, etc.).
+</I>&gt;<i>
+</I>&gt;<i> I agree that they shouldn't be affected by the CTM, but I disagree that
+</I>&gt;<i> they should be integers. e.g. in cases like:
+</I>&gt;<i>
+</I>&gt;<i>    HTML                          CSS
+</I>&gt;<i>    &lt;canvas height=1 width=1&gt;     canvas { height: 100%; width: 100%; }
+</I>&gt;<i>    &lt;/canvas&gt;
+</I>&gt;<i>
+</I>&gt;<i> ...where the JS then uses the coordinate space 0..1,0..1 the author might
+</I>&gt;<i> want to grab the top corner by grabbing the 0,0,0.25,0.25 rect.
+</I>
+So, I really don't like this -- we need to nail down space the
+getPixels/setPixels coordinates should be in.  I still think that they
+should always be in the canvas space, no matter how many pixels they
+refer to in the rendered content or in the device space.  Note that in
+your example, the canvas can still be a 1x1 pixel canvas (and, I
+believe, will be in all current implementations) -- that one pixel
+will just cover the entire page.  There's nothing that says that the
+canvas resolution gets increased by rendering it into a
+bigger-than-1:1-pixel-mapping frame.  Like I said a few messages ago..
+there are three coordinate spaces in play here:
+
+&lt;display space&gt; (CSS, variable) --- &lt;device space&gt; (N pixels per 1
+canvas pixel; canvas backing store) --- &lt;canvas space&gt; (base &quot;1 unit&quot;,
+which is normally a pixel, which is what the canvas 2d context deals
+in)
+
+display space is affected by CSS, and starts out the same size as the
+pixel region covered by the canvas device space.  We should ignore
+display space in all the canvas APIs, and only consider the canvas
+space, and if necessary, the device space.  getPixels/setPixels are
+one place where we need to consider the device space in the returned
+data, but I don't think that the API should operate in device space
+and especially not in display space.  The canvas space is one that the
+author directly knows the bounds of (because they specified it
+explicitly in the canvas width/height attributes), and can therefore
+decide exactly which portion of the canvas to pull out via getPixels. 
+If it was in any other space, you would either have to deal with
+normalized floats (0.0 .. 1.0 range -- which would be somewhat
+imprecise; if I have a 3x3 canvas, how do I pull out the 1x3 region in
+the upper left?), or you'd have to have a way to figure out the
+scaling factor that I mentioned before calling getPixels or
+(setPixels).
+
+&gt;<i> &gt; Also... should the RGBA data be returned with premultiplied alpha or
+</I>&gt;<i> &gt; not?  Premultiplied tends to be better for the math, non-premultiplied
+</I>&gt;<i> &gt; tends to be easier to understand.  (That is, 50% opaque green is
+</I>&gt;<i> &gt; (0,255,0,128) if non-premultiplied, or (0,128,0,128) if premultiplied.)
+</I>&gt;<i>
+</I>&gt;<i> For consistency with the rest of the API I'd say non-premultiplied, but I
+</I>&gt;<i> have no strong opinion on this.
+</I>
+Ok, non-premultiplied it is.  This may cause some potentially
+unexpected data loss -- that is, something that is fully transparent
+will always come back as fully transparent black, because if the
+backing store is premultiplied all the color informaiton is lost --
+but as long as that's mentioned in the spec it should be fine.
+
+    - Vlad
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="006425.html">[whatwg] proposed canvas 2d API additions
+</A></li>
+	<LI>Next message: <A HREF="006344.html">[whatwg] proposed canvas 2d API additions
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#6342">[ date ]</a>
+              <a href="thread.html#6342">[ thread ]</a>
+              <a href="subject.html#6342">[ subject ]</a>
+              <a href="author.html#6342">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

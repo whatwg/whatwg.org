@@ -1,0 +1,214 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Should events be paused on detached iframes?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Should%20events%20be%20paused%20on%20detached%20iframes%3F&In-Reply-To=%3CAANLkTinCrvEZkhvmKiTKnD8Hh2wpUZ%2B3obPPHp-p0ynH%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="070379.html">
+   <LINK REL="Next"  HREF="070385.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Should events be paused on detached iframes?</H1>
+<!--htdig_noindex-->
+    <B>Dmitry Titov</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Should%20events%20be%20paused%20on%20detached%20iframes%3F&In-Reply-To=%3CAANLkTinCrvEZkhvmKiTKnD8Hh2wpUZ%2B3obPPHp-p0ynH%40mail.gmail.com%3E"
+       TITLE="[whatwg] Should events be paused on detached iframes?">dimich at chromium.org
+       </A><BR>
+    <I>Tue Aug 24 15:27:49 PDT 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="070379.html">[whatwg] Should events be paused on detached iframes?
+</A></li>
+        <LI>Next message: <A HREF="070385.html">[whatwg] Should events be paused on detached iframes?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#70382">[ date ]</a>
+              <a href="thread.html#70382">[ thread ]</a>
+              <a href="subject.html#70382">[ subject ]</a>
+              <a href="author.html#70382">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Indeed, in WebKit you normally see #1 (iframe unloads). We have added the
+ability to move 'live' iframe, as Adam mentions, potentially across
+documents, while keeping it completely alive, with XHRs loading, events
+firing etc (aka 'magic iframe' feature). One would need to use adoptNode()
+API to do that, something like:
+
+var iframe = document.getElementById(&quot;test&quot;);
+other_document.adoptNode(iframe);
+other_document.getElementById(&quot;newParent&quot;).attachChild(iframe);
+
+WebKit has a bug (<A HREF="https://bugs.webkit.org/show_bug.cgi?id=13574">https://bugs.webkit.org/show_bug.cgi?id=13574</A>) to enable
+moving iframes w/o reloading. FF has a bug on that as well (
+<A HREF="https://bugzilla.mozilla.org/show_bug.cgi?id=254144">https://bugzilla.mozilla.org/show_bug.cgi?id=254144</A>) but it's hard to say
+when exactly those will be fixed. I hope to fix WebKit issue at some point.
+
+While discussing 'magic iframe', Ian Hickson pointed out that nothing in the
+spec actually mandates discarding the live document inside iframe simply
+because it's iframe element is connected/disconnected to DOM of the parent
+document. Here is a note from the HTML5 spec about that:
+Removing&lt;<A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/infrastructure.html#remove-an-element-from-a-document">http://www.whatwg.org/specs/web-apps/current-work/multipage/infrastructure.html#remove-an-element-from-a-document</A>&gt;
+ an iframe&lt;<A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/the-iframe-element.html#the-iframe-element">http://www.whatwg.org/specs/web-apps/current-work/multipage/the-iframe-element.html#the-iframe-element</A>&gt;
+from
+a Document&lt;<A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/infrastructure.html#document">http://www.whatwg.org/specs/web-apps/current-work/multipage/infrastructure.html#document</A>&gt;
+does
+not cause its browsing
+context&lt;<A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/browsers.html#browsing-context">http://www.whatwg.org/specs/web-apps/current-work/multipage/browsers.html#browsing-context</A>&gt;
+to
+be discarded. Indeed, an
+iframe&lt;<A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/the-iframe-element.html#the-iframe-element">http://www.whatwg.org/specs/web-apps/current-work/multipage/the-iframe-element.html#the-iframe-element</A>&gt;
+'s browsing context&lt;<A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/browsers.html#browsing-context">http://www.whatwg.org/specs/web-apps/current-work/multipage/browsers.html#browsing-context</A>&gt;
+can
+survive its original parent
+Document&lt;<A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/infrastructure.html#document">http://www.whatwg.org/specs/web-apps/current-work/multipage/infrastructure.html#document</A>&gt;
+if
+its iframe&lt;<A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/the-iframe-element.html#the-iframe-element">http://www.whatwg.org/specs/web-apps/current-work/multipage/the-iframe-element.html#the-iframe-element</A>&gt;
+is
+moved to another
+Document&lt;<A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/infrastructure.html#document">http://www.whatwg.org/specs/web-apps/current-work/multipage/infrastructure.html#document</A>&gt;
+.
+
+So it seems the right behavior is to keep the content alive. It's not clear
+why the events would not fire during DOM operations though. Perhaps they
+should, since nothing is changing from the perspective of the document
+loaded into iframe - for example, XHR probably should continue loading
+content if it was doing so before iframe was disconnected from its parent
+node. Doing some suspension (as for example is done when a page goes into
+back-forward cache?) would be way more complex mechanism to have, with
+necessary events on pause/unpause so the live document could re-start async
+operations correctly.
+
+Dmitry
+
+On Tue, Aug 24, 2010 at 1:38 PM, Adam Barth &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">w3c at adambarth.com</A>&gt; wrote:
+
+&gt;<i> This seems related to the &quot;magic iframe&quot; concept that was recently
+</I>&gt;<i> added in WebKit.  Basically, magic iframe lets you move an iframe from
+</I>&gt;<i> one document to another without blowing away the JavaScript/DOM state
+</I>&gt;<i> of the iframe.  The way this works is that the iframe remains &quot;alive&quot;
+</I>&gt;<i> until the browser returns to the main event loop.  If a living iframe
+</I>&gt;<i> gets added to a document, then it keeps all it's state.  This feature
+</I>&gt;<i> is useful for sites like Gmail that have chat windows that can be
+</I>&gt;<i> opened from the main document.  If the user closes the main document,
+</I>&gt;<i> the chat windows can adopt some iframe that keeps the proper state.
+</I>&gt;<i>
+</I>&gt;<i> Adam
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> On Tue, Aug 24, 2010 at 1:30 PM, Ben Lerner &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">blerner at cs.washington.edu</A>&gt;
+</I>&gt;<i> wrote:
+</I>&gt;<i> &gt;  There seems to be a bit of disagreement among browsers about how event
+</I>&gt;<i> &gt; loops and iframes interact when an iframe is removed and then reinserted
+</I>&gt;<i> &gt; into its parent document.  Consider the following two documents: the
+</I>&gt;<i> parent
+</I>&gt;<i> &gt; document has a button that removes or reattaches an iframe to the
+</I>&gt;<i> document,
+</I>&gt;<i> &gt; while the second simply sets an interval to update the page content.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Page1.html:
+</I>&gt;<i> &gt; &lt;!DOCTYPE HTML&gt;
+</I>&gt;<i> &gt; &lt;html&gt;
+</I>&gt;<i> &gt; &lt;body&gt;
+</I>&gt;<i> &gt; &lt;p&gt;&lt;button onclick=&quot;toggleInDoc();&quot;&gt;Show/hide&lt;/button&gt;&lt;/p&gt;
+</I>&gt;<i> &gt; &lt;iframe id=&quot;test&quot; src=&quot;page2.html&quot;&gt;&lt;/iframe&gt;
+</I>&gt;<i> &gt; &lt;script&gt;
+</I>&gt;<i> &gt;    var test = document.getElementById(&quot;test&quot;);
+</I>&gt;<i> &gt;    function toggleInDoc() {
+</I>&gt;<i> &gt;      if (test.parentNode == null)
+</I>&gt;<i> &gt;        document.body.appendChild(test);
+</I>&gt;<i> &gt;      else
+</I>&gt;<i> &gt;        document.body.removeChild(test);
+</I>&gt;<i> &gt;    }
+</I>&gt;<i> &gt; &lt;/script&gt;
+</I>&gt;<i> &gt; &lt;/body&gt;
+</I>&gt;<i> &gt; &lt;/html&gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Page2.html:
+</I>&gt;<i> &gt; &lt;!DOCTYPE HTML&gt;
+</I>&gt;<i> &gt; &lt;html&gt;
+</I>&gt;<i> &gt; &lt;body&gt;
+</I>&gt;<i> &gt; &lt;p id=&quot;test&quot;&gt;&lt;/p&gt;
+</I>&gt;<i> &gt; &lt;script&gt;
+</I>&gt;<i> &gt;    window.setInterval(function() {
+</I>&gt;<i> document.getElementById(&quot;test&quot;).innerHTML
+</I>&gt;<i> &gt; += &quot;.&quot;; }, 500);
+</I>&gt;<i> &gt; &lt;/script&gt;
+</I>&gt;<i> &gt; &lt;/body&gt;
+</I>&gt;<i> &gt; &lt;/html&gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Assume the user waits until the interval has fired several times, then
+</I>&gt;<i> &gt; presses the button, waits a while, and presses it again.  There are three
+</I>&gt;<i> &gt; possible outcomes:
+</I>&gt;<i> &gt; 1. When the iframe is reattached, the inner page reloads.  This seems to
+</I>&gt;<i> go
+</I>&gt;<i> &gt; beyond the wording of the spec, which says only &quot;When an iframe element
+</I>&gt;<i> is
+</I>&gt;<i> &gt; first inserted into a document, the user agent must create a nested
+</I>&gt;<i> browsing
+</I>&gt;<i> &gt; context, and then process the iframe attributes for the first time.&quot;
+</I>&gt;<i>  (This
+</I>&gt;<i> &gt; isn't the first time the iframe is inserted into the document, so we
+</I>&gt;<i> &gt; shouldn't process the iframe attributes again.)
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; 2. The interval (and presumably, all events) in the iframe is paused
+</I>&gt;<i> while
+</I>&gt;<i> &gt; it's been detached (since the document is no longer fully active, but it
+</I>&gt;<i> &gt; also has not been discarded because of the global reference to its
+</I>&gt;<i> container
+</I>&gt;<i> &gt; element).
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; 3. The interval (and presumably, all events) continues to fire while it's
+</I>&gt;<i> &gt; been detached, and the content of page2 will have changed while it's been
+</I>&gt;<i> &gt; detached from page1.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; So far, Chrome 6, Opera 10.6 and Firefox 3.6 follow #1, and IE 8 follows
+</I>&gt;<i> #3.
+</I>&gt;<i> &gt;  My reading of the &quot;fully active&quot; clause of the spec leads me to expect
+</I>&gt;<i> #2.
+</I>&gt;<i> &gt;  Which of these behaviors is the desired one?  And/or, would it be
+</I>&gt;<i> desirable
+</I>&gt;<i> &gt; to permit authors to specify which behavior they intend?
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Thanks,
+</I>&gt;<i> &gt; ~ben
+</I>&gt;<i> &gt;
+</I>&gt;<i>
+</I>-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: &lt;<A HREF="http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20100824/23fd018e/attachment-0002.htm">http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20100824/23fd018e/attachment-0002.htm</A>&gt;
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="070379.html">[whatwg] Should events be paused on detached iframes?
+</A></li>
+	<LI>Next message: <A HREF="070385.html">[whatwg] Should events be paused on detached iframes?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#70382">[ date ]</a>
+              <a href="thread.html#70382">[ thread ]</a>
+              <a href="subject.html#70382">[ subject ]</a>
+              <a href="author.html#70382">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

@@ -1,0 +1,227 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Proposal: Loading and executing script as quickly	as	possible using multipart/mixed
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Proposal%3A%20Loading%20and%20executing%20script%20as%20quickly%0A%09as%09possible%20using%20multipart/mixed&In-Reply-To=%3C2CAACF54-3FE5-4CEE-AF3E-3817B9EBB21A%40apple.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="038307.html">
+   <LINK REL="Next"  HREF="038247.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Proposal: Loading and executing script as quickly	as	possible using multipart/mixed</H1>
+<!--htdig_noindex-->
+    <B>Maciej Stachowiak</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Proposal%3A%20Loading%20and%20executing%20script%20as%20quickly%0A%09as%09possible%20using%20multipart/mixed&In-Reply-To=%3C2CAACF54-3FE5-4CEE-AF3E-3817B9EBB21A%40apple.com%3E"
+       TITLE="[whatwg] Proposal: Loading and executing script as quickly	as	possible using multipart/mixed">mjs at apple.com
+       </A><BR>
+    <I>Mon Dec  3 22:02:09 PST 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="038307.html">[whatwg] Proposal: Loading and executing script as quickly as possible using multipart/mixed
+</A></li>
+        <LI>Next message: <A HREF="038247.html">[whatwg] Proposal: Loading and executing script as quickly as possible using multipart/mixed
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#38238">[ date ]</a>
+              <a href="thread.html#38238">[ thread ]</a>
+              <a href="subject.html#38238">[ subject ]</a>
+              <a href="author.html#38238">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>
+It might be good to use a custom MIME type instead of multipart/mixed. multipart/mixed can represent arbitrary heterogenous sequences of types, which is not the desired semantic here - you want a sequence of all text/javascript types. It also has a syntactic affordance for conveying a MIME type per chunk, which is unnecessary in this case. Since browsers will likely need custom logic for this case anyway, I think it might be better to have a multipart/javascript type. Note: if this feature is needed for other script types, let's say vbscript, you could mint distinct types like multipart/vbscript, or use a MIME parameter: &quot;multipart/script; type=text/javascript&quot;
+
+On Dec 3, 2012, at 1:14 PM, Adam Barth &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">w3c at adambarth.com</A>&gt; wrote:
+
+&gt;<i> == Use case ==
+</I>&gt;<i> 
+</I>&gt;<i> Load and execute script as quickly as possible.
+</I>&gt;<i> 
+</I>&gt;<i> == Discussion ==
+</I>&gt;<i> 
+</I>&gt;<i> Currently, there are a number of ways to load a script from the
+</I>&gt;<i> network and execute it, but none of them will actually load and
+</I>&gt;<i> execute the script as fast as physically possible.  Consider the
+</I>&gt;<i> following markup:
+</I>&gt;<i> 
+</I>&gt;<i> &lt;script async src=&quot;path/to/script.js&quot;&gt;&lt;/script&gt;
+</I>&gt;<i> 
+</I>&gt;<i> In this case, the user agent will wait until it receives the last byte
+</I>&gt;<i> of script.js from the network before executing the first byte of
+</I>&gt;<i> script.js.  In principle, the user agent could finish executing
+</I>&gt;<i> script.js sooner if it could overlap some of the execution time with
+</I>&gt;<i> some of the network latency, for example by executing a chunk of the
+</I>&gt;<i> script while waiting for the bytes for the next chunk to arrive from
+</I>&gt;<i> the network.
+</I>&gt;<i> 
+</I>&gt;<i> Unfortunately, without additional information, the user agent doesn't
+</I>&gt;<i> know where &quot;safe&quot; chunk boundaries are located.  Picking an arbitrary
+</I>&gt;<i> byte boundary is likely to cause a syntax error, and even picking an
+</I>&gt;<i> arbitrary JavaScript statement boundary will change the semantics of
+</I>&gt;<i> the script.  The user agent needs some sort of signal from the author
+</I>&gt;<i> to know where the safe chunk boundaries are located.
+</I>&gt;<i> 
+</I>&gt;<i> == Workarounds ==
+</I>&gt;<i> 
+</I>&gt;<i> The simplest work around is to break your script into several pieces:
+</I>&gt;<i> 
+</I>&gt;<i> &lt;script async src=&quot;path/to/script-part1.js&quot;&gt;&lt;/script&gt;
+</I>&gt;<i> &lt;script async src=&quot;path/to/script-part2.js&quot;&gt;&lt;/script&gt;
+</I>&gt;<i> &lt;script async src=&quot;path/to/script-part3.js&quot;&gt;&lt;/script&gt;
+</I>&gt;<i> 
+</I>&gt;<i> Now, script-part1.js will execute before the user agent has received
+</I>&gt;<i> the last byte of script-part3.js.  Unfortunately, this approach does
+</I>&gt;<i> not make efficient use of the network.  Specifically, if the three
+</I>&gt;<i> parts are retrieved from the network in parallel, then the user agent
+</I>&gt;<i> might receive a byte from script-part3.js before receiving all the
+</I>&gt;<i> bytes of script-part1.js, wasting network bandwidth (because the bytes
+</I>&gt;<i> from script-part3.js are not useful until all of script-part1.js is
+</I>&gt;<i> received an executed).
+</I>&gt;<i> 
+</I>&gt;<i> A more sophisticated workaround is to use an &lt;iframe&gt; element rather
+</I>&gt;<i> than a &lt;script&gt; element to load the script:
+</I>&gt;<i> 
+</I>&gt;<i> &lt;iframe src=&quot;path/to/script-in-markup.html&quot;&gt;&lt;/iframe&gt;
+</I>&gt;<i> 
+</I>&gt;<i> In this approach, script-in-markup.html is the following HTML:
+</I>&gt;<i> 
+</I>&gt;<i> &lt;script&gt;
+</I>&gt;<i> [... text of script-part1.js ...]
+</I>&gt;<i> &lt;/script&gt;
+</I>&gt;<i> &lt;script&gt;
+</I>&gt;<i> [... text of script-part2.js ...]
+</I>&gt;<i> &lt;/script&gt;
+</I>&gt;<i> &lt;script&gt;
+</I>&gt;<i> [... text of script-part3.js ...]
+</I>&gt;<i> &lt;/script&gt;
+</I>&gt;<i> 
+</I>&gt;<i> Now the bytes of the script are retrieved from the network in the
+</I>&gt;<i> proper order (making efficient use of bandwidth) and the user agent
+</I>&gt;<i> can overlap execution of the script with network latency (because the
+</I>&gt;<i> &lt;script&gt; tags delineate the safe chunks).
+</I>&gt;<i> 
+</I>&gt;<i> This approach is used in production web applications, including Gmail,
+</I>&gt;<i> to load and execute script as quickly as possible.  If you inspect a
+</I>&gt;<i> running copy of Gmail, you can find this frame---it's the one with ID
+</I>&gt;<i> &quot;js_frame&quot;.
+</I>&gt;<i> 
+</I>&gt;<i> Unfortunately, this approach as a number of disadvantages:
+</I>&gt;<i> 
+</I>&gt;<i> (1) Creating an extra &lt;iframe&gt; for loading JavaScript is not resource
+</I>&gt;<i> efficient.  The user agent needs to create a number of extra data
+</I>&gt;<i> structures and an extra JavaScript environment, which wastes time as
+</I>&gt;<i> well as memory.
+</I>&gt;<i> 
+</I>&gt;<i> (2) Authors need to write their scripts with the understanding that
+</I>&gt;<i> the primary callers of their code will do so from another frame.  For
+</I>&gt;<i> example, the instanceof operator might not work as expected if they
+</I>&gt;<i> ask whether an object from the caller (i.e., from the parent frame) is
+</I>&gt;<i> an instance of a constructor from the callee's environment (i.e., from
+</I>&gt;<i> the child frame).
+</I>&gt;<i> 
+</I>&gt;<i> (3) This approach requires the author who loads the script to use
+</I>&gt;<i> different syntax than normally used for loading script.  For example,
+</I>&gt;<i> this prevents this technique from being applied to the JavaScript
+</I>&gt;<i> libraries that Google hosts (as described by
+</I>&gt;<i> &lt;<A HREF="https://developers.google.com/speed/libraries/">https://developers.google.com/speed/libraries/</A>&gt;).
+</I>&gt;<i> 
+</I>&gt;<i> == Proposal ==
+</I>&gt;<i> 
+</I>&gt;<i> The &lt;script&gt; element should support multipart/mixed.
+</I>&gt;<i> 
+</I>&gt;<i> == Details ===
+</I>&gt;<i> 
+</I>&gt;<i> The main ingredient that we're missing is a way for the author to
+</I>&gt;<i> signal to the user agent which chunks of scripts are safe to execute
+</I>&gt;<i> in parallel with loading subsequent chunks from the network.
+</I>&gt;<i> Fortunately, the web platform already has a mechanism for breaking a
+</I>&gt;<i> single HTTP response body into chunks that are processed sequentially:
+</I>&gt;<i> multipart/mixed.
+</I>&gt;<i> 
+</I>&gt;<i> For example, if an HTTP server provides a multipart/mixed response to
+</I>&gt;<i> a request for an image, the &lt;img&gt; element will display each part of
+</I>&gt;<i> the response in sequence, animating the image.  Similarly, if an HTTP
+</I>&gt;<i> server provides a multipart/mixed response to a request for an HTML
+</I>&gt;<i> document, the user agent will display each part of the response
+</I>&gt;<i> sequentially.
+</I>&gt;<i> 
+</I>&gt;<i> One way to address this use case is to add multipart/mixed support to
+</I>&gt;<i> the &lt;script&gt; element.  Upon receiving a multipart/mixed response to a
+</I>&gt;<i> request for a script, the &lt;script&gt; element must execute each part of
+</I>&gt;<i> the response as they become available.  This behavior appears to be
+</I>&gt;<i> consistent with the definition of multipart/mixed
+</I>&gt;<i> &lt;<A HREF="http://tools.ietf.org/html/rfc2046#section-5.1.3">http://tools.ietf.org/html/rfc2046#section-5.1.3</A>&gt;.
+</I>&gt;<i> 
+</I>&gt;<i> To load and execute a script as quickly as possible, the author would
+</I>&gt;<i> use the following markup:
+</I>&gt;<i> 
+</I>&gt;<i> &lt;script async src=&quot;path/to/script.js&quot;&gt;&lt;/script&gt;
+</I>&gt;<i> 
+</I>&gt;<i> The HTTP server would then break script.js into chunks that are safe
+</I>&gt;<i> to execute sequentially and provide each chunk as a separate MIME part
+</I>&gt;<i> in a multipart/mixed response.
+</I>&gt;<i> 
+</I>&gt;<i> Adam
+</I>
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="038307.html">[whatwg] Proposal: Loading and executing script as quickly as possible using multipart/mixed
+</A></li>
+	<LI>Next message: <A HREF="038247.html">[whatwg] Proposal: Loading and executing script as quickly as possible using multipart/mixed
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#38238">[ date ]</a>
+              <a href="thread.html#38238">[ thread ]</a>
+              <a href="subject.html#38238">[ subject ]</a>
+              <a href="author.html#38238">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

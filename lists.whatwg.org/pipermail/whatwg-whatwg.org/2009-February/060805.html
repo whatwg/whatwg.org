@@ -1,0 +1,111 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Script/parser interaction bug?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Script/parser%20interaction%20bug%3F&In-Reply-To=%3C20090212222514.C75B314D91B%40looneymail-mx2.g.dreamhost.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="060779.html">
+   <LINK REL="Next"  HREF="060782.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Script/parser interaction bug?</H1>
+<!--htdig_noindex-->
+    <B>Kartikaya Gupta</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Script/parser%20interaction%20bug%3F&In-Reply-To=%3C20090212222514.C75B314D91B%40looneymail-mx2.g.dreamhost.com%3E"
+       TITLE="[whatwg] Script/parser interaction bug?">lists.whatwg at stakface.com
+       </A><BR>
+    <I>Thu Feb 12 14:25:04 PST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="060779.html">[whatwg] Script/parser interaction bug?
+</A></li>
+        <LI>Next message: <A HREF="060782.html">[whatwg] Spellchecking mark III
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#60805">[ date ]</a>
+              <a href="thread.html#60805">[ thread ]</a>
+              <a href="subject.html#60805">[ subject ]</a>
+              <a href="author.html#60805">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Thu, 12 Feb 2009 06:55:18 +0000 (UTC), Ian Hickson &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">ian at hixie.ch</A>&gt; wrote:
+&gt;<i> 
+</I>&gt;<i> Could you reannotate the above but with the script nesting level 
+</I>&gt;<i> explicitly given at each step?
+</I>&gt;<i> 
+</I>
+
+Below is an updated annotation including all the script nesting level and parser pause flag changes.
+(Original annotation at <A HREF="http://lists.whatwg.org/pipermail/whatwg-whatwg.org/2009-January/018289.html">http://lists.whatwg.org/pipermail/whatwg-whatwg.org/2009-January/018289.html</A>)
+
+- initially, script nesting level is zero, parser pause flag is false
+- tokenize/treebuild ext7.html until the first closing script tag is found (for the 7a.js script)
+- increment the script nesting level to 1
+- the 7a.js script tag has a src attribute, so it gets set as the pending external script
+- decrement the script nesting level to zero
+- since the script nesting level is zero, set the parser pause flag to false (it was already false)
+- execute the pending external script (7a.js) (this clears the pending external script pointer)
+--- insert &quot;&lt;script src=ext7b.js&gt;&lt;/script&gt;&quot; into the input stream
+--- tokenize/treebuild the 7b.js script tag until the &lt;/script&gt; for 7b.js is found
+--- increment the script nesting level to 1
+--- the 7b.js script tag has a src attribute, so it gets set as the pending external script
+--- decrement the script nesting level to zero
+--- since the script nesting level is zero, set the parser pause flag to false (it was already false)
+--- there is a pending external script (7b.js) but the tree construction stage is re-entrant, so set parser pause flag to true and return
+--- insert remaining document.write content from 7a.js into the input stream. since there is a pending external script, none of it gets tokenized/treebuilt
+- 7a.js finishes executing. at this point the script nesting level is zero and the parser pause flag is true
+- check again for a pending external script. there is one, 7b.js
+- execute the pending external script (7b.js) (this clears the pending external script pointer)
+--- throws
+- 7b.js finishes executing. at this point the script nesting level is zero and the parser pause flag is true
+- continue processing the input stream (this now has the contents of the document.write calls from 7a.js, line 2 onwards)
+- tokenize/treebuild the input stream until the &lt;/script&gt; at the bottom of 7a.js is encountered
+- increment the script nesting level to 1
+- the script tag does not have a src attribute, so it gets executed
+--- insert the div into the input stream
+--- since the parser pause flag is true the div does NOT get tokenized/treebuilt
+--- run the line that sets .firstChild.data to PASS. since the div isn't in the DOM yet, this throws
+- the script written from 7a.js finishes executing. at this point the script nesting level is 1 and the parser pause flag is true
+- decrement the script nesting level to zero
+- since the script nesting level is zero, set the parser pause flag to false
+- continue processing the input stream (this now contains just the div tag with FAIL inside)
+- tokenize/treebuild the input stream, which adds the FAIL div to the DOM
+- done
+
+Cheers,
+kats
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="060779.html">[whatwg] Script/parser interaction bug?
+</A></li>
+	<LI>Next message: <A HREF="060782.html">[whatwg] Spellchecking mark III
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#60805">[ date ]</a>
+              <a href="thread.html#60805">[ thread ]</a>
+              <a href="subject.html#60805">[ subject ]</a>
+              <a href="author.html#60805">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

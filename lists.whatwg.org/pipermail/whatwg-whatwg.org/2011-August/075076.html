@@ -1,0 +1,195 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] AppCache-related e-mails
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20AppCache-related%20e-mails&In-Reply-To=%3CCAHpoE%3DiYFCvqkaMSOxSx1ATcWjxT8AoeSUz7aJXOFTLd3iMM2A%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="075053.html">
+   <LINK REL="Next"  HREF="075054.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] AppCache-related e-mails</H1>
+<!--htdig_noindex-->
+    <B>Michael Nordman</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20AppCache-related%20e-mails&In-Reply-To=%3CCAHpoE%3DiYFCvqkaMSOxSx1ATcWjxT8AoeSUz7aJXOFTLd3iMM2A%40mail.gmail.com%3E"
+       TITLE="[whatwg] AppCache-related e-mails">michaeln at google.com
+       </A><BR>
+    <I>Wed Aug  3 18:41:09 PDT 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="075053.html">[whatwg] AppCache-related e-mails
+</A></li>
+        <LI>Next message: <A HREF="075054.html">[whatwg] AppCache-related e-mails
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#75076">[ date ]</a>
+              <a href="thread.html#75076">[ thread ]</a>
+              <a href="subject.html#75076">[ subject ]</a>
+              <a href="author.html#75076">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Tue, Aug 2, 2011 at 4:55 PM, Ian Hickson &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">ian at hixie.ch</A>&gt; wrote:
+
+&gt;<i> On Tue, 2 Aug 2011, Michael Nordman wrote:
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; If you actively want to seek out old manifests, sure, but what's the
+</I>&gt;<i> &gt; &gt; use case for doing that? It would be like trying to actively evict
+</I>&gt;<i> &gt; &gt; things from HTTP caches.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; You should talk to some app developers. View source on angry birds for a
+</I>&gt;<i> &gt; use case, they are doing this to get rid of stale version tied to old
+</I>&gt;<i> &gt; manifest urls.
+</I>&gt;<i>
+</I>&gt;<i> But why?
+</I>&gt;<i>
+</I>&gt;<i> I couldn't figure out the use case from the source you mention.
+</I>
+
+This is a message I recently received from a different developer using the
+appcache that would also like to see more in the way of being able to manage
+the set of appcaches in the system. Please see the use cases listed towards
+the end.
+
+
+Hi Michael, Greg.  I'm writing to advise you of a requirement I'd like to
+see appcache fulfill in the medium term.  We've spoken about it before, but
+only in the general context of 'what would you like to see in the future'.
+ No releases are gated on this feature, so I guess we're talking M15 or
+thereabouts.  Feel free to cross-post this to a list you deem relevant for
+wider review and discussion.
+
+The feature is a javascript API to enable the creation, enumeration, update,
+and deletion of appcaches on the current origin.  Calls might look something
+like this:
+
+/** Creates a new cache or updates an existing one with the given manifest
+URL.  Manifest URL must be in the same origin as the JS */
+createOrUpdateCache(String manifestUri, completionCallback, errorCallback);
+
+/** Enumerates the caches present on the current origin */
+enumerateCaches(CacheEnumerationCallback callback, ErrorCallback
+errorCallback);
+
+interface CacheEnumerationCallback {
+  void handleEvent(Cache[] caches);
+}
+
+interface Cache {
+  number getManifestUri();
+  number getSizeInBytes();
+  String getManifestAsText();
+  String[] getMasterEntryUris();
+  String[] getExplicitEntryUris();
+  FallbackEntry[] getFallbackEntries();
+  String[] getNetworkWhitelistUris();
+  boolean isNetworkWhitelistOpen();
+  DateTime getCreationTime();
+  DateTime getLastManifestFetchTime(); // The last time the manifest was
+fetched and checked for differences
+  DateTime getLastUpdateTime(); // The last time a manifest fetch caused an
+actual update
+  DateTime getLastAccessTime(); // The last time the cache actually bound to
+a browsing context
+  // Maybe some APIs to signal whether the cache is currently being updated,
+and whether there is currently a running browsing context bound to it.
+
+  void delete(... some callbacks ...); // Probably fails if there's a
+running browsing context bound to the cache
+  void update(... some callbacks ...); // I guess a no-op if an update is
+currently in progress or maybe even if it happened very recently
+}
+
+interface FallbackEntry {
+  String getTriggerUri();
+  String getTargetUri();
+}
+
+Additional characteristics:
+* Must be usable from pages not themselves bound to an appcache, as long as
+they are served from the same origin as the caches being operated on.
+* Must work from workers, shared workers, and background pages, again
+subject to a same origin check.
+
+The above is a very rough sketch, and needs a bunch of work, but illustrates
+the features we'd find useful.  An obvious flaw is that it doesn't fit in
+with the system of progress events etc on the current API, but there are
+probably many others.  View it mainly as a list of requirements.  Our use
+cases are as follows:
+
+* Docs maintains a set of appcaches which it uses for various purposes.
+ Each editor, for example, has a cache.  There are also cases where
+different documents require different versions of the same editor.
+* The set of caches required on a particular browser depends on the
+documents synced there.  A given set of documents will require a particular
+(much smaller) set of caches to open.  The set of caches required on a given
+browser is therefore dynamic, changing as documents enter and leave the set
+of those synchronized.
+* Each time anybody opens a docs property, and perhaps during the lifetimes
+of some of them, we perform a procedure called 'appcache maintenance', which
+ensures that the caches necessary for the current set of documents are
+synced.  This is a fairly nasty process involving many iframes, but it
+works.  We would like, however, to make this code much simpler, not have it
+involve the iframes, and make the process of piping progress events back to
+the host application less awful.  Right now it's such a pain we're not
+bothering with it.
+* We'd like to perform appcache maintenance on existing caches less often,
+reducing server load.  The timestamps included above would allow us to do
+that.
+* When an appcache is no longer needed by the current set of documents, it
+is currently just left there.  We would like to be able to clean it up.
+* We would like to be able to perform our appcache maintenance procedure
+from a shared worker, as we have one that can bring new documents into
+storage.  Right now that is impossible, as I can't open an iframe there.
+* When the user 'opts out' of offline, I'd like to be able to remove all
+their caches.  Right now I have a process by which I can remove many of
+them, but any not needed by the current set of documents will be left
+behind.  We set a short-lived cookie on the domain from the client side and
+then perform our usual maintenance procedure, which loads an invisible
+iframe referring to each cache.  The presence of the cookie causes the
+manifest fetches to serve a 404, deleting the cache.  I'd like this cleanup
+to be more straightforward and for it to cover caches not needed by the
+current set of documents.  I'd also like to be able to perform it without
+the server - there's no inherent reason why they shouldn't be able to opt
+out of offline while actually being offline.
+* When a failure in the offline system is detected, or as part of manual bug
+reports, I'd like to be able to send a dump of the caches currently stored
+on the browser to the server, thus the APIs which interrogate the details of
+the cache.
+* If we ever want to migrate to an alternate architecture involving a
+different use of the appcache system, this API would be invaluable for the
+migration.
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="075053.html">[whatwg] AppCache-related e-mails
+</A></li>
+	<LI>Next message: <A HREF="075054.html">[whatwg] AppCache-related e-mails
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#75076">[ date ]</a>
+              <a href="thread.html#75076">[ thread ]</a>
+              <a href="subject.html#75076">[ subject ]</a>
+              <a href="author.html#75076">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

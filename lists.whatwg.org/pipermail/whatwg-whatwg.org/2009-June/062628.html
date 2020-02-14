@@ -1,0 +1,161 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Workers and URL origin check
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Workers%20and%20URL%20origin%20check&In-Reply-To=%3CPine.LNX.4.62.0906120022020.1648%40hixie.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="062328.html">
+   <LINK REL="Next"  HREF="062318.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Workers and URL origin check</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Workers%20and%20URL%20origin%20check&In-Reply-To=%3CPine.LNX.4.62.0906120022020.1648%40hixie.dreamhostps.com%3E"
+       TITLE="[whatwg] Workers and URL origin check">ian at hixie.ch
+       </A><BR>
+    <I>Thu Jun 11 18:08:11 PDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="062328.html">[whatwg] Workers and URL origin check
+</A></li>
+        <LI>Next message: <A HREF="062318.html">[whatwg] Origins, reprise
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#62628">[ date ]</a>
+              <a href="thread.html#62628">[ thread ]</a>
+              <a href="subject.html#62628">[ subject ]</a>
+              <a href="author.html#62628">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Wed, 27 May 2009, Dmitry Titov wrote:
+&gt;<i>
+</I>&gt;<i> I have a question about URL origin check for Workers: the spec, in 
+</I>&gt;<i> 4.8.2, mandates a check for the Worker URL to be the 'same origin' with 
+</I>&gt;<i> the parent document's URL. At the same time, 4.2 says the origin of the 
+</I>&gt;<i> worker is derived later from the URL represented by the 'location' 
+</I>&gt;<i> object of the worker context.
+</I>&gt;<i> 
+</I>&gt;<i> However, the spec doesn't say how redirects should be processed. If a 
+</I>&gt;<i> browser gets 30x redirect request, the final URL of a worker can be 
+</I>&gt;<i> different from the original one which has passed the check before 
+</I>&gt;<i> loading. Current spec ignores the fact that origin can be changed via 
+</I>&gt;<i> redirect. If the origin of the loaded worker is based on the final 
+</I>&gt;<i> (potentially redirected) URL that 'location' object represents, then 
+</I>&gt;<i> subsequent XHR requests, nested workers and importScripts() will work in 
+</I>&gt;<i> the origin of that final URL. As specified, in case of redirect the page 
+</I>&gt;<i> from &quot; <A HREF="http://applicationInternals.com">http://applicationInternals.com</A>&quot; can use a worker from &quot; 
+</I>&gt;<i> <A HREF="http://application.com">http://application.com</A>&quot; (via redirect) to access APIs of 
+</I>&gt;<i> application.comthat were not necessarily intended for such consumption.
+</I>&gt;<i> 
+</I>&gt;<i> Should the spec simply require the redirected, final URLs to be checked 
+</I>&gt;<i> against parent's and reject the script if redirection results in a 
+</I>&gt;<i> different origin?
+</I>
+Yes. Done. Any redirects to different-origin URIs cause an error now.
+
+
+On Wed, 27 May 2009, Drew Wilson wrote:
+&gt;<i>
+</I>&gt;<i> Along the same lines, I'm wondering why we require a same-domain check 
+</I>&gt;<i> for initial worker URLs, but not for script imported via 
+</I>&gt;<i> importScripts(). Seems like we ought to have workers inherit the origin 
+</I>&gt;<i> of the script context that invoked the Worker constructor, but allow the 
+</I>&gt;<i> script URL passed to the constructor to point at any domain.
+</I>&gt;<i> 
+</I>&gt;<i> Is there a motivating security concern for this language from section 
+</I>&gt;<i> 4.8.2?:
+</I>&gt;<i> 
+</I>&gt;<i> # If the origin of the resulting absolute URL is not the same as the 
+</I>&gt;<i> # origin of the script that invoked the constructor, then throw a 
+</I>&gt;<i> # security exception.
+</I>&gt;<i>
+</I>&gt;<i> It seems like it makes it harder for people to share script across 
+</I>&gt;<i> domains without actually providing any security.
+</I>
+Yes. The idea is that we can extend this to cross-origin scripts in a 
+future version, based on the origin of the script.
+
+
+On Thu, 28 May 2009, Drew Wilson wrote:
+&gt;<i> 
+</I>&gt;<i> I'm not quite sure why importScripts() should behave more like a 
+</I>&gt;<i> &lt;script&gt; tag than the Worker constructor itself. There's no reason why I 
+</I>&gt;<i> shouldn't be able to do Worker(&quot;<A HREF="http://foo.com/worker.js">http://foo.com/worker.js</A>&quot;) if I can do 
+</I>&gt;<i> importScript(&quot; <A HREF="http://foo.com/worker.js">http://foo.com/worker.js</A>&quot;).
+</I>
+You will eventually be able to do that, once we figure out how to make 
+cross-origin workers work. Right now I'm waiting for us to have more 
+experience with cross-origin XHR and postMessage() before adding this 
+feature.
+
+Whenever we do it, though, the importScript() call will never change the 
+security context, so there will always be a conceptual difference.
+
+
+On Thu, 28 May 2009, Dmitry Titov wrote:
+&gt;<i> 
+</I>&gt;<i> Returning to the the narrower original question, what should we do with
+</I>&gt;<i> redirects during worker loads?
+</I>&gt;<i> - should we abort load if any URL in the redirect chain is from different
+</I>&gt;<i> origin?
+</I>
+That's what I've done.
+
+
+&gt;<i> - should we only abort load if the final URL is from different origin?
+</I>
+This would cause security problems for sites where one can redirect to a 
+page that the attacker can control the contents and make it valid JS.
+
+
+&gt;<i> - if the same site redirects between schemas (http-&gt;https, http-&gt;data etc)
+</I>&gt;<i> does this abort loading too?
+</I>
+Yes.
+
+
+&gt;<i> - which URL is used to compute the script's origin and/or base URL in case
+</I>&gt;<i> of redirects?
+</I>
+I've clarified the spec to make it after any redirects.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="062328.html">[whatwg] Workers and URL origin check
+</A></li>
+	<LI>Next message: <A HREF="062318.html">[whatwg] Origins, reprise
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#62628">[ date ]</a>
+              <a href="thread.html#62628">[ thread ]</a>
+              <a href="subject.html#62628">[ subject ]</a>
+              <a href="author.html#62628">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

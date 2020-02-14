@@ -1,0 +1,176 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Script preloading
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Script%20preloading&In-Reply-To=%3CE742ACB2-B2AC-4D77-B7AA-43B3625FBBE9%40gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="082455.html">
+   <LINK REL="Next"  HREF="082459.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Script preloading</H1>
+<!--htdig_noindex-->
+    <B>Kyle Simpson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Script%20preloading&In-Reply-To=%3CE742ACB2-B2AC-4D77-B7AA-43B3625FBBE9%40gmail.com%3E"
+       TITLE="[whatwg] Script preloading">getify at gmail.com
+       </A><BR>
+    <I>Mon Jul 22 16:01:13 PDT 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="082455.html">[whatwg] Script preloading
+</A></li>
+        <LI>Next message: <A HREF="082459.html">[whatwg] Script preloading
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#82456">[ date ]</a>
+              <a href="thread.html#82456">[ thread ]</a>
+              <a href="subject.html#82456">[ subject ]</a>
+              <a href="author.html#82456">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>&gt;<i> Do you have a link to your preload proposal?
+</I>
+My main `&lt;script preload&gt;` proposal (skip the first section of this LONG email, proposal starts at &quot;Summary:&quot; several paragraphs down):
+
+<A HREF="http://lists.whatwg.org/htdig.cgi/whatwg-whatwg.org/2013-July/039973.html">http://lists.whatwg.org/htdig.cgi/whatwg-whatwg.org/2013-July/039973.html</A>
+
+Then proposal slightly amended here:
+
+<A HREF="http://lists.whatwg.org/htdig.cgi/whatwg-whatwg.org/2013-July/039974.html">http://lists.whatwg.org/htdig.cgi/whatwg-whatwg.org/2013-July/039974.html</A>
+
+
+
+&gt;<i> Either way, I agree about the concern with onload. I personally have a
+</I>&gt;<i> hard time telling if it'll be confusing.
+</I>&gt;<i> 
+</I>&gt;<i> Having the load event anytime we are done with a network request also
+</I>&gt;<i> seems beneficial. Rather than having most APIs use &quot;load&quot; whereas this
+</I>&gt;<i> would use &quot;preload&quot;.
+</I>
+FWIW, I believe script loaders, at least as I envision them, would use BOTH the `onpreload` AND the `onload` events, since marking a script as ready-to-execute, however that's done, is unlikely to be a synchronouse event, so the script loader would still want to listen for when it finished running (hopefully pretty soon after being told it's OK to run!? :)
+
+I see the `onpreload` as similar in spirit to the non-standard and now-phased-out-as-of-IE11 `script.onreadystate` mechanism, which provided more detail about the status of a script as progressed from request to completion. `onpreload` just, to me, fills the spot of what semantically the word &quot;load&quot; meant, but since everyone knows &quot;load&quot; in the context of scripts means &quot;load and process/run&quot;, we can't lightly just change &quot;load&quot;.
+
+If `onpreload` seemed to imply something too far outside the normal state progression of a script, it could be called `onfinishload` or `onfinishrequest` or something like that. In the `onreadystatechange` world, they called that state &quot;loaded&quot;, FWIW.
+
+
+
+&gt;<i> Generally speaking &quot;load&quot; means &quot;loaded and processed&quot;. The
+</I>&gt;<i> 'noexecute' flag would change what the &quot;and processed&quot; piece includes.
+</I>
+Understood.
+
+I still think, though, that it's problematic to overload &quot;load&quot;, because as mentioned above, as a script loader, I'd want to know about both events (&quot;finished load&quot; and &quot;finished execution&quot;), not just a binary switch between one or the other. If load fired twice, that seems (potentially) awfully confusing. If load fired early (at load finish), and there was no more event for &quot;finished execution&quot;, script loaders would be quite hampered (at least as I envision architecting one) because they couldn't know if a script had really run yet or not, only that they asked it to be eligible to run.
+
+
+
+&gt;<i> There are three opportunities to fire &quot;error stuff&quot; here:
+</I>&gt;<i> 
+</I>&gt;<i> 1. Failed network request
+</I>&gt;<i> 2. Failed JS compilation
+</I>&gt;<i> 3. Exception thrown from execution
+</I>&gt;<i> 
+</I>&gt;<i> And there are two error reporting mechanisms in play
+</I>&gt;<i> 
+</I>&gt;<i> A. Fire an &quot;error&quot; event on the &lt;script&gt; element.
+</I>&gt;<i> B. Fire the window.onerror callback (like an event, but not exactly the same).
+</I>
+Agreed. `window.onerror` serves fine case #3. What we don't seem to have as consistent cross-browser behavior, or even terribly well defined in the spec, is #1 and #2, especially #1. Various older browsers had different interpretations as to which network conditions constituted &quot;load complete&quot; or not.
+
+Obviously, the 200 (and several other 2xx's) should be success. And I'd think it would be obvious that any of the 4xx and 5xx codes were error.
+
+But perhaps it should just be: did the network request result in a non-empty payload?
+
+Now, for #2, to my non-implementor eye, that seems pretty well definable too. But again, cross-browser mayhem was bad with this. IIRC, Opera fired the onerror in the case of bad compilation, but none of the others did. Or maybe it was vice versa. Been awhile since I looked specifically. Just for sure recall inconsistency here.
+
+
+
+&gt;<i> 1 and 2 seems like they could behave exactly the same for noexecute
+</I>&gt;<i> scripts as for normal scripts.
+</I>
+Yes, as long as all the spec makes it clear what the do's and don'ts here are, and everyone complies. :)
+
+
+
+&gt;<i> I'm not sure if that includes firing
+</I>&gt;<i> both A and B in current browsers?
+</I>
+They do not seem to fire `window.onerror` in either #1 or #2 IIRC, but they do in #3.
+
+If I could have it my way, I'd have all three errors firing on the script.onerror, and not involve window.onerror. The reason is because `window.onerror` is notoriously hijacked by various RUM libraries and such, to do remote logging of errors, so a script loader attaching to window.onerror and catch is not terribly reliable in my experience.
+
+But I'm fine with whatever combination gives reliable and non-overlapping and non-gaping error handling coverage. :)
+
+
+
+&gt;<i> 3 presumably only triggers B currently for normal scripts?
+</I>
+AFAICT, yes.
+
+
+
+&gt;<i> Indeed. Though we're only talking about the A mechanism about, right?
+</I>
+Correct. Although in an ideal world (for me), B would be more reliable, as noted above.
+
+
+
+&gt;<i> I.e. the following would cause both a &quot;load&quot; event to be fired on the
+</I>&gt;<i> &lt;script&gt;, and window.onerror to be triggered?
+</I>&gt;<i> 
+</I>&gt;<i> &lt;script src=&quot;data:text/plain,throw new Error();&quot;&gt;&lt;/script&gt;
+</I>
+Sure. Though as noted, script loaders may have limited utility of window.onerror when they run in unfamiliar/hostile pages which already hijack that error.
+
+
+
+&gt;<i> Can we get a good &quot;markup-only&quot; solution while still keeping both
+</I>&gt;<i> acceptable performance as well as correct functionality in downlevel
+</I>&gt;<i> browsers?
+</I>
+In older browsers both &lt;script dependencies&gt; and &lt;script preload&gt; would fall back to normal script loading semantics, as you noted. I think that's fine, because those older browsers have no reliable markup-only mechanism for this anyway.
+
+Speaking of &quot;no reliable markup-only mechanism&quot;, &lt;script async dependencies&gt; sounds like it's trying to be a more powerful replacement of `&lt;script defer&gt;`, which was fine in theory but is so horribly plagued with old browser bugs that it can't reliably be used in most situations right now (ie, can't be used with more than one &lt;script&gt; at a time). Moreover, &lt;script defer&gt; had no real meaning in the dynamic-after-page-load-loading scenarios, whereas &lt;script preload&gt; and &lt;script dependencies&gt; would both be useful in markup-only or dynamic-loading scenarios.
+
+
+
+--Kyle
+
+
+
+
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="082455.html">[whatwg] Script preloading
+</A></li>
+	<LI>Next message: <A HREF="082459.html">[whatwg] Script preloading
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#82456">[ date ]</a>
+              <a href="thread.html#82456">[ thread ]</a>
+              <a href="subject.html#82456">[ subject ]</a>
+              <a href="author.html#82456">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

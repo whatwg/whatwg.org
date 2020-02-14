@@ -1,0 +1,161 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] localStorage mutex - a solution?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20localStorage%20mutex%20-%20a%20solution%3F&In-Reply-To=%3C5dd9e5c50911250746xf323da9u380705628dc36fab%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="066444.html">
+   <LINK REL="Next"  HREF="066453.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] localStorage mutex - a solution?</H1>
+<!--htdig_noindex-->
+    <B>Jeremy Orlow</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20localStorage%20mutex%20-%20a%20solution%3F&In-Reply-To=%3C5dd9e5c50911250746xf323da9u380705628dc36fab%40mail.gmail.com%3E"
+       TITLE="[whatwg] localStorage mutex - a solution?">jorlow at chromium.org
+       </A><BR>
+    <I>Wed Nov 25 07:46:43 PST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="066444.html">[whatwg] localStorage mutex - a solution?
+</A></li>
+        <LI>Next message: <A HREF="066453.html">[whatwg] localStorage mutex - a solution?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#66447">[ date ]</a>
+              <a href="thread.html#66447">[ thread ]</a>
+              <a href="subject.html#66447">[ subject ]</a>
+              <a href="author.html#66447">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Wed, Nov 25, 2009 at 6:20 AM, Ian Hickson &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">ian at hixie.ch</A>&gt; wrote:
+
+&gt;<i> On Wed, 4 Nov 2009, Rob Ennals wrote:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; How about this for a solution for the localStorage mutex problem: [...]
+</I>&gt;<i>
+</I>&gt;<i> Here's a proposal based on the recent feedback:
+</I>&gt;<i>
+</I>&gt;<i> * There is a per-origin mutex. It can be owned by either an event loop
+</I>&gt;<i>  task or a network layer task.
+</I>&gt;<i>
+</I>&gt;<i> * Things that wait until their task owns the storage mutex:
+</I>&gt;<i>   - script fetching document.cookie
+</I>&gt;<i>   - script setting document.cookie
+</I>&gt;<i>   - script reading or writing a property of, or calling a method on, or
+</I>&gt;<i>     enumerating the properties of, the localStorage object
+</I>&gt;<i>   - the network layer setting cookies
+</I>&gt;<i>
+</I>&gt;<i> * Things that release the storage mutex if their task owns it:
+</I>&gt;<i>   - the network layer after it has set cookies
+</I>&gt;<i>   - script calling a method implemented in native code on a host object
+</I>&gt;<i>
+</I>
+Is this a may or a must?  As discussed, a may will result in different
+behaviors and strange bugs when someone develops on one browser and then
+tries to run their script on a different version of that browser or
+different browsers since they will probably have subtly different cases when
+they'll need to release the lock.  If it's a must, then we'll take a small
+hit in all of our script binding code, but things will be more
+interoperable.
+
+
+&gt;<i>   - script setting document.domain
+</I>&gt;<i>   - a task ending
+</I>&gt;<i>
+</I>&gt;<i> Reading or writing a property on a native object doesn't do it, so
+</I>&gt;<i>
+</I>&gt;<i>   window['x'].document.forms['y'].value = 'foo';
+</I>&gt;<i>
+</I>&gt;<i> ...doesn't release the mutex, though this (identical code) would:
+</I>&gt;<i>
+</I>&gt;<i>   window['x'].document.forms.namedItem('y').value = 'foo';
+</I>&gt;<i>
+</I>&gt;<i> ...because of namedItem() call.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> Is this unacceptable to anyone?
+</I>&gt;<i>
+</I>&gt;<i> Does anyone think that it would be better to enumerate a specific set of
+</I>&gt;<i> methods that reset the storage mutex instead? (i.e. the status quo)
+</I>&gt;<i>
+</I>&gt;<i> I am especially interested in opinions from browser vendors, and amongst
+</I>&gt;<i> those primarily those browser vendors actually implementing this now.
+</I>&gt;<i>
+</I>
+On the rest of the questions, I don't have a strong opinion.  Maybe Darin
+(the other Chromium guy who's deep in the trenches with this stuff) will.
+
+
+-----------------------------
+
+
+I know that we've discussed approximations of run to completion before, but
+maybe it's worth one more shot:  What if on the first use of document.cookie
+or local storage we took a snapshot of both and used that during the task's
+execution.  All writes would be queued up until the task finishes, at which
+point they'd be written to the central version of the cookie and/or local
+storage.  This would provide a consistent view of data for the duration of
+the task and would solve almost all the atomicity problems except
+|<i>document.cookie = document.cookie + &quot;foo&quot;;|.  For that, I'd suggest adding
+</I>a method that allows scripts to do atomic modifications to storage within a
+callback.
+
+I can understand everyone's desire to have completely serializable semantics
+for local storage access and cookies (if you don't count the servers'
+interaction with them), but maybe we need to go back to use cases.  In a
+world with WebDatabase/WebSimpleDB, I really don't see anyone turning to
+LocalStorage except for more basic uses.  Most of which I'm guessing
+need consistent reads much more than serialization of everything.
+
+And let's be realistic.  IE has had this problem with document.cookie for a
+long time.  And IE8 now has this problem with localStorage.  Given that in
+the best case (MS and all others implement the storage mutex) web developers
+will not be able to assume localStorage and document.cookie access is atomic
+for many years at a minimum, I think we're being pretty unrealistic about
+how much the storage mutex is going to improve anyone's life.  Let's come up
+with an approximation, give developers a callback for atomic access, and be
+done with it.
+
+J
+
+P.S.  Chrome is going to ship without locking, but since we auto-update all
+of our users, these problems won't necessarily persist for many years just
+because we shipped it.
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: &lt;<A HREF="http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20091125/a276d9f3/attachment-0002.htm">http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20091125/a276d9f3/attachment-0002.htm</A>&gt;
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="066444.html">[whatwg] localStorage mutex - a solution?
+</A></li>
+	<LI>Next message: <A HREF="066453.html">[whatwg] localStorage mutex - a solution?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#66447">[ date ]</a>
+              <a href="thread.html#66447">[ thread ]</a>
+              <a href="subject.html#66447">[ subject ]</a>
+              <a href="author.html#66447">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

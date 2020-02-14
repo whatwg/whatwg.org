@@ -1,0 +1,173 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Workers: what should happen when exceeding worker	limit?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Workers%3A%20what%20should%20happen%20when%20exceeding%20worker%0A%09limit%3F&In-Reply-To=%3CAANLkTimFy7ybC4nN-Za_TeJW7SwGBAUU3Ro4L7PmOSyx%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="071011.html">
+   <LINK REL="Next"  HREF="071014.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Workers: what should happen when exceeding worker	limit?</H1>
+<!--htdig_noindex-->
+    <B>Dmitry Titov</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Workers%3A%20what%20should%20happen%20when%20exceeding%20worker%0A%09limit%3F&In-Reply-To=%3CAANLkTimFy7ybC4nN-Za_TeJW7SwGBAUU3Ro4L7PmOSyx%40mail.gmail.com%3E"
+       TITLE="[whatwg] Workers: what should happen when exceeding worker	limit?">dimich at chromium.org
+       </A><BR>
+    <I>Thu Sep 23 13:28:09 PDT 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="071011.html">[whatwg] Workers: what should happen when exceeding worker limit?
+</A></li>
+        <LI>Next message: <A HREF="071014.html">[whatwg] input element list attribute and filtering suggestions
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#71013">[ date ]</a>
+              <a href="thread.html#71013">[ thread ]</a>
+              <a href="subject.html#71013">[ subject ]</a>
+              <a href="author.html#71013">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Thanks for the feedback! I'd love to know more about your use case (if
+possible), since it may motivate further thinking on these limits...
+
+Indeed, the option of immediately throwing was also considered. It didn't
+look obviously better for the following reasons (I may forget something, but
+that's what I remember):
+
+1. Workers are asynchronous so even a successful (not-queued) start will
+incur some unspecified delay - the Worker object will be created instantly
+but actual initial script or postMessage handlers won't be invoked for some
+time. This time varies (can be seconds on a netbook with many opened tabs)
+so the page can not build expectations on &quot;instant start&quot; anyways. This
+reduces the benefit of &quot;knowing right away that worker can not start&quot;.  In
+your case, for example, you might want a timer anyways, to close the worker
+and use the alternative route that you seem to have.
+
+2. There are use cases which would use workers to perform
+certain operation and then close the workers. Typical example would be some
+operation that is longer then &quot;instant&quot; so the page UI would like to be
+responsive with Cancel button ready. Once the operation completes, the
+workers are left to terminate and die. This can take a moment and the page
+does not know when previous workers actually terminate. If the page can not
+create new workers during this finalization time, it creates more complexity
+for it. Having a queue solves those edge conditions nicely.
+
+3. The current Chrome limits of 16 per page and 64 total are much lower then
+we would like them to be, due to implementation limits we hope to remove in
+the future. These limits should be high enough to realistically never prompt
+app developers to consider coding around them. Basically creating multiple
+workers should only have a limit related to memory. It might happen that
+current queues will happen to be an implementation detail of Chrome for some
+time and does not need to be reflected in the spec.
+
+4. If we are to create a mechanism that provides useful guarantees around
+timely execution in multi-thread environment, I believe we'd have
+to specify much more complex api, providing fair scheduling, guarantee
+against starvation, some real-time support etc - but we are not there yet
+:<i>-)
+</I>
+5. Normally, the JS APIs that can return &quot;quota exceeded&quot; errors typically
+imply mechanisms for granting/monitoring/revoking the said quotas, perhaps
+with UI for the user, as Database API does for example. No matter how
+initial quotas are set, there will be the app that legitimately needs a lot
+of resources while we also don't want to give the same to any random page.
+I think we don't have enough evidence yet to consider worker creation in the
+same category, but if it comes to that at some point, the exception from
+Workers constructor probably won't be enough.
+
+Again, knowing your use case in more details can help in the future design
+steps here.
+
+Dmitry
+
+On Thu, Sep 23, 2010 at 2:06 AM, Ivan Kozik &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">ivan at ludios.org</A>&gt; wrote:
+
+&gt;<i> What should happen when instantiating a Worker that cannot be started
+</I>&gt;<i> because of the limit on the number of workers?  Chrome 6 and Chromium
+</I>&gt;<i> 7.0.532.0 (60255) put the 17th worker in a queue, to be created when
+</I>&gt;<i> some existing worker terminates.  This queue seems to be limitless in
+</I>&gt;<i> size (or at least it is large).  In Opera 10.70 (9049), instantiating
+</I>&gt;<i> the 17th Worker throws &quot;Error: QUOTA_EXCEEDED_ERR&quot;.
+</I>&gt;<i>
+</I>&gt;<i> I'd much prefer that it failed immediately, rather than being put in a
+</I>&gt;<i> queue.  I use a SharedWorker as an enhancement, and I don't want to
+</I>&gt;<i> implement a timeout for the Worker spawning (I'd rather have it fail,
+</I>&gt;<i> so that I can immediately do something else).  I can avoid spawning
+</I>&gt;<i> more than 16 workers, but I never know if another tab has already
+</I>&gt;<i> created enough workers to exhaust the global worker limit (64 in
+</I>&gt;<i> Chrome, ~118 in Opera).  And if I really want to spawn the worker, I
+</I>&gt;<i> can always try spawning it again soon.
+</I>&gt;<i>
+</I>&gt;<i> This message describes why Chromium queues up excessive workers:
+</I>&gt;<i> <A HREF="http://lists.whatwg.org/pipermail/whatwg-whatwg.org/2009-July/020865.html">http://lists.whatwg.org/pipermail/whatwg-whatwg.org/2009-July/020865.html</A>
+</I>&gt;<i>
+</I>&gt;<i> I'm not sure that making it work like a &quot;sea of XHRs&quot; is the right
+</I>&gt;<i> thing, for two reasons:
+</I>&gt;<i> 1) Workers often stay running for a long time; XHRs are usually
+</I>&gt;<i> short-lived.
+</I>&gt;<i> 2) Most web applications don't expect to definitely have access to a
+</I>&gt;<i> Worker, so they work around it by running code in the page instead of
+</I>&gt;<i> the worker.  This same code path could be used when the worker limit
+</I>&gt;<i> is exhausted.  With XHRs, there's generally no workaround: you need
+</I>&gt;<i> the data, no matter what.
+</I>&gt;<i>
+</I>&gt;<i> Here's a crude test page that instantiates 17 workers:
+</I>&gt;<i> &lt;!doctype html&gt;
+</I>&gt;<i> &lt;div id=&quot;log&quot;&gt;&lt;/div&gt;
+</I>&gt;<i> &lt;script&gt;
+</I>&gt;<i> var workers = [];
+</I>&gt;<i> for(var i=0; i &lt; 17; i++) {
+</I>&gt;<i>  try {
+</I>&gt;<i>    workers.push(new Worker('empty.js'));
+</I>&gt;<i>    document.getElementById('log').innerHTML +=
+</I>&gt;<i>        'Worker #' + i + ' instantiated.&lt;br&gt;';
+</I>&gt;<i>  } catch(e) {
+</I>&gt;<i>    document.getElementById('log').innerHTML += e.toString() + '&lt;br&gt;';
+</I>&gt;<i>  }
+</I>&gt;<i> }
+</I>&gt;<i> &lt;/script&gt;
+</I>&gt;<i>
+</I>&gt;<i> Any thoughts would be appreciated.
+</I>&gt;<i>
+</I>&gt;<i> Thanks,
+</I>&gt;<i>
+</I>&gt;<i> Ivan
+</I>&gt;<i>
+</I>-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: &lt;<A HREF="http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20100923/5422aed0/attachment-0002.htm">http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20100923/5422aed0/attachment-0002.htm</A>&gt;
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="071011.html">[whatwg] Workers: what should happen when exceeding worker limit?
+</A></li>
+	<LI>Next message: <A HREF="071014.html">[whatwg] input element list attribute and filtering suggestions
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#71013">[ date ]</a>
+              <a href="thread.html#71013">[ thread ]</a>
+              <a href="subject.html#71013">[ subject ]</a>
+              <a href="author.html#71013">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

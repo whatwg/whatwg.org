@@ -1,0 +1,165 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Details on window.open
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Details%20on%20window.open&In-Reply-To=%3C50D11A89.9030000%40mit.edu%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="038408.html">
+   <LINK REL="Next"  HREF="038409.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Details on window.open</H1>
+<!--htdig_noindex-->
+    <B>Boris Zbarsky</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Details%20on%20window.open&In-Reply-To=%3C50D11A89.9030000%40mit.edu%3E"
+       TITLE="[whatwg] Details on window.open">bzbarsky at MIT.EDU
+       </A><BR>
+    <I>Tue Dec 18 17:38:17 PST 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="038408.html">[whatwg] Details on window.open
+</A></li>
+        <LI>Next message: <A HREF="038409.html">[whatwg] Null characters
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#38411">[ date ]</a>
+              <a href="thread.html#38411">[ thread ]</a>
+              <a href="subject.html#38411">[ subject ]</a>
+              <a href="author.html#38411">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On 12/18/12 3:53 PM, Ian Hickson wrote:
+&gt;<i> Per the spec, calls that would create a new browsing context are blocked
+</I>&gt;<i> unless called from the handler of a trusted 'click' event.
+</I>
+That's not web-compatible...
+
+&gt;<i> I don't know if the spec is overly strict here; maybe it should also be
+</I>&gt;<i> possible on other trusted events e.g. mousedown or keydown?
+</I>
+Gecko's current behavior is as follows:
+
+There are four possible states we can be in for popups: &quot;Allowed&quot; 
+(allows popups), &quot;Controlled&quot; (allows popups, but only up to a global 
+maximum number of popups opened from states other than &quot;Allowed&quot;), 
+&quot;Abused&quot; (does not allow popups normally) and &quot;Overridden&quot; (does not 
+allow popups normally).  If a site is white-listed in preferences to 
+allow popups, then for that site &quot;Controlled&quot; is treated as &quot;Allowed&quot; 
+and &quot;Abused&quot; is treated as &quot;Controlled&quot;.
+
+The default state is &quot;Abused&quot;, I believe.
+
+During handling of user input (which is NOT the same thing as an event 
+being trusted, iirc; in particular there is some timer involved after an 
+actual user input event was handled during which we treat things as 
+being user input, because of sites doing window.open() from timeouts set 
+from onclick), the popup state is set as follows:
+
+click: &quot;Allowed&quot; if &quot;click&quot; is in the popup-allowed whitelist
+select, change, input, keypress, keyup, keydown, mouseup, mousedown, 
+dblclick, error, submit, reset: &quot;Controlled&quot; if the event name is in
+    the popup-allowed whitelist
+
+The default value of the whitelist is &quot;change click dblclick mouseup 
+reset submit&quot;, but can be modified by the user.
+
+Furthermore, certain things propagate the popup state that was active at 
+a previous point in time.  Specifically:
+
+1)  Loading a javascript: URI will record the state that was active when 
+the load started, and temporarily set that state during the async 
+execution of the script.  So if your click handler sets a javascript: 
+URI that does window.open(), that will work.
+
+2)  Calling click() on an &lt;input type=&quot;file&quot;&gt; will record the active 
+popup state and test it when the task that would actually open the file 
+dialog runs.  This is more or less an implementation detail, looks like; 
+it's equivalent to just checking the state in click(), as long as you 
+ignore the exact firing time of popup-blocked events.
+
+3)  Submitting a form will record the popup state at the time the 
+submission started.  When the asynchronous part of the submission 
+happens (which is when a window would get opened if the form has an 
+@target), this popup state is used to decide whether to allow the window 
+to open.
+
+I think this might be it, except for some code around plug-ins that I 
+can't make sense of right now.
+
+I strongly suggest talking to all UA vendors about how their popup 
+blockers actually worked.  The Gecko setup used to be simpler, but we've 
+had to add complications to it as we came across site compat issues...
+
+&gt;<i> I haven't tried to spec it, because as far as I can tell, UAs could
+</I>&gt;<i> completely ignore it with no ill effects. If I'm wrong about this, then we
+</I>&gt;<i> should spec something.
+</I>
+I think on desktop you're somewhat wrong (e.g. it's possible to get site 
+compat bugs where you open a window at the wrong size and users can't 
+get to content)...  Most things other than the size bit can probably be 
+ignored in that feature string, though.
+
+-Boris
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="038408.html">[whatwg] Details on window.open
+</A></li>
+	<LI>Next message: <A HREF="038409.html">[whatwg] Null characters
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#38411">[ date ]</a>
+              <a href="thread.html#38411">[ thread ]</a>
+              <a href="subject.html#38411">[ subject ]</a>
+              <a href="author.html#38411">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

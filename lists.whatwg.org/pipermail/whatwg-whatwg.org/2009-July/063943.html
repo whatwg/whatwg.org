@@ -1,0 +1,234 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] scripts, defer, document.write and DOMContentLoaded
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20scripts%2C%20defer%2C%20document.write%20and%20DOMContentLoaded&In-Reply-To=%3CPine.LNX.4.62.0907312302150.6420%40hixie.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="063742.html">
+   <LINK REL="Next"  HREF="063946.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] scripts, defer, document.write and DOMContentLoaded</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20scripts%2C%20defer%2C%20document.write%20and%20DOMContentLoaded&In-Reply-To=%3CPine.LNX.4.62.0907312302150.6420%40hixie.dreamhostps.com%3E"
+       TITLE="[whatwg] scripts, defer, document.write and DOMContentLoaded">ian at hixie.ch
+       </A><BR>
+    <I>Fri Jul 31 16:50:25 PDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="063742.html">[whatwg] scripts, defer, document.write and DOMContentLoaded
+</A></li>
+        <LI>Next message: <A HREF="063946.html">[whatwg] scripts, defer, document.write and DOMContentLoaded
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#63943">[ date ]</a>
+              <a href="thread.html#63943">[ thread ]</a>
+              <a href="subject.html#63943">[ subject ]</a>
+              <a href="author.html#63943">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Tue, 21 Jul 2009, Maciej Stachowiak wrote:
+&gt;<i> On Jul 20, 2009, at 7:30 PM, Boris Zbarsky wrote:
+</I>&gt;<i> &gt; Ian Hickson wrote:
+</I>&gt;<i> &gt; &gt; Actually what's going on is more subtle than that. When you set 
+</I>&gt;<i> &gt; &gt; innerHTML, it's actually triggering the deferred scripts right 
+</I>&gt;<i> &gt; &gt; there, if it has them loaded (e.g. inline scripts or cached 
+</I>&gt;<i> &gt; &gt; scripts). If it doesn't have them loaded yet, it drops them on the 
+</I>&gt;<i> &gt; &gt; floor and doesn't ever run them. I've specced this, except that the 
+</I>&gt;<i> &gt; &gt; spec requires that not-yet-loaded scripts be loaded then run, rather 
+</I>&gt;<i> &gt; &gt; than dropped, before innerHTML continues, so there's no race 
+</I>&gt;<i> &gt; &gt; conditions.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; Er... wait.  So innerHTML has to block on network access?  And 
+</I>&gt;<i> &gt; possibly spin the event loop as it does so?
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; This doesn't seem desirable to me.... Why do we want this behavior?
+</I>&gt;<i> 
+</I>&gt;<i> innerHTML blocking on network access seems seriously problematic to me. 
+</I>&gt;<i> I don't think blocking the UI is preferable to a race condition, when we 
+</I>&gt;<i> are talking about a compatibility quirk for content doing something 
+</I>&gt;<i> dubious.
+</I>
+I've changed the spec to do external deferred src=&quot;&quot;ed scripts at the end 
+of document load (blowing away the document as before), and inline 
+deferred scripts as soon as innerHTML is set, if it is set, or else along 
+with other deferred scripts at the end of document load.
+
+
+On Tue, 21 Jul 2009, Boris Zbarsky wrote:
+&gt;<i> &gt; 
+</I>&gt;<i> &gt; I don't really understand what your proposal would actually translate 
+</I>&gt;<i> &gt; to, in precise spec terms.
+</I>&gt;<i> 
+</I>&gt;<i> I haven't internalized your parsing algorithm rules, but my intuition 
+</I>&gt;<i> given the one compat requirement I know of here (not blowing away 
+</I>&gt;<i> documents in cases where IE doesn't blow them away) is that deferred 
+</I>&gt;<i> scripts should be treated as if the &lt;script&gt; tags appeared in the HTML 
+</I>&gt;<i> character stream after all the content that is actually there...  That 
+</I>&gt;<i> is, immediately before the EOF point.
+</I>
+I don't know how to know that we are before the EOF before we are at the 
+EOF, and I am very dubious about tokenising after hitting the EOF. For 
+example, document.close() inserts an EOF, and I don't feel comfortable 
+saying that after document.close() you can still document.write() to the 
+same document.
+
+
+&gt;<i> &gt; One alternative would be to make the scripts that have &quot;src&quot; 
+</I>&gt;<i> &gt; attributes but are deferred be excluded from the innerHTML behaviour, 
+</I>&gt;<i> &gt; and just have them do the old behaviour
+</I>&gt;<i> 
+</I>&gt;<i> I could probably live with that, for what it's worth
+</I>
+That's what I've done now.
+
+
+&gt;<i> but I'm still wondering why we need this innerHTML behavior at all.  
+</I>&gt;<i> innerHTML doesn't even run scripts it directly inserts; why would it run 
+</I>&gt;<i> some other random script?
+</I>
+It's what IE does, and you found that we needed to be compatible with IE 
+for this case, as far as I can tell. When we want to be compatible with 
+IE, we should be compatible, not introduce yet another behaviour, IMHO.
+
+
+On Tue, 21 Jul 2009, Kristof Zelechovski wrote:
+&gt;<i> 
+</I>&gt;<i> 	1. What is the script source of inline script[@type='text/xml']?
+</I>&gt;<i> The rules are contradictory: source = text because it is text-based and
+</I>&gt;<i> source = infoset because it is XML-based.  (An external script is created
+</I>&gt;<i> with the source text without any preliminary parsing.)  Does being XML
+</I>&gt;<i> override being text?  
+</I>
+I don't understand the question.
+
+
+&gt;<i> 	2. Why is the special provision for XML needed at all?  Does it
+</I>&gt;<i> require invoking an embedded XML parser before the script is created?  Does
+</I>&gt;<i> it allow nested script elements?  (That would not be backwards-compatible
+</I>&gt;<i> and it would be fatal for HTML error recovery.)  What if the XML is not
+</I>&gt;<i> well-formed?  Is the embedded parser allowed to validate the XML?  What if
+</I>&gt;<i> validation fails?  Are external DTD allowed? --- forbidden?  Are XHTML
+</I>&gt;<i> scripts embedded in the XML code allowed to run in this step?  (they should
+</I>&gt;<i> not be!)
+</I>
+I don't understand these questions. I think you may be misreading the 
+spec. There is no embedded XML parser or anything like that.
+
+
+&gt;<i> 	3. Why is the script source for XML-based scripts allowed to be a
+</I>&gt;<i> node list?  Internet Explorer supports only well-formed XML documents, i.e.
+</I>&gt;<i> single trees, otherwise you get a parse error which is not very useful,
+</I>&gt;<i> except for the developer.
+</I>
+As far as I know, IE doesn't support XHTML at all, and has no support for 
+XML-based scripting languages (of which I only know one, namely XForms
+actions).
+
+
+&gt;<i> 	4. Is script[@type='text/xml'] allowed to be externally loaded?  (I
+</I>&gt;<i> suppose that it is allowed, if supported by the browser, in spite of the
+</I>&gt;<i> specification requiring data scripts to be inline.)
+</I>
+If you have an XML-based scripting language, then yes. This has nothing to 
+do with &quot;data scripts&quot;.
+
+
+&gt;<i> 	5. Is the browser allowed to expose the embedded XML document using
+</I>&gt;<i> a custom DOM property like XMLDocument?  Creating an XML script means
+</I>&gt;<i> attaching the infoset to the declaring script element in Internet Explorer.
+</I>
+There is no embedded XML document.
+
+
+On Mon, 27 Jul 2009, Jonas Sicking wrote:
+&gt;<i> 
+</I>&gt;<i> Erm, I would really not like to do this. innerHTML is an very popular
+</I>&gt;<i> method used by web developers, so adding unexpected (to say the least)
+</I>&gt;<i> behavior like this I think will be a great source of developer bugs.
+</I>
+It's apparently worked this way in IE for some time now.
+
+
+&gt;<i> &gt;&gt; * Always execute elements in the order they are inserted into the 
+</I>&gt;<i> &gt;&gt; Document, with exception of async and deferred scripts.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; I haven't done this, because people use document.appendChild() of 
+</I>&gt;<i> &gt; external scripts specifically to have scripts run &quot;ASAP&quot; and not 
+</I>&gt;<i> &gt; necessarily in order.
+</I>&gt;<i> 
+</I>&gt;<i> I'm always wary of adding race conditions, and I think that's exactly 
+</I>&gt;<i> what we're adding here. The use case of running scripts ASAP is already 
+</I>&gt;<i> supported by using the &quot;async&quot; attribute.
+</I>
+Actually async=&quot;&quot; scripts are defined to execute in order. 
+appendChild()'ed scripts are the only ones currently that aren't defined 
+to run in order. This seems to match current practice, based on my 
+admittedly limited experience.
+
+
+&gt;<i> &gt; In general, I am very wary of changing this part of the spec, as it 
+</I>&gt;<i> &gt; was written with extreme care based on all the tests I could run, 
+</I>&gt;<i> &gt; primarily on IE, but also on other browsers. The innerHTML thing, 
+</I>&gt;<i> &gt; though... I'll admit I really didn't even remotely think that there 
+</I>&gt;<i> &gt; could be something to test!
+</I>&gt;<i> 
+</I>&gt;<i> My experience implementing deferred scripts and shipping support in 
+</I>&gt;<i> firefox 3.5 is that IE behavior is not needed here. I'd like to see data 
+</I>&gt;<i> showing otherwise before making innerHTML significantly more confusing 
+</I>&gt;<i> to developers (or significantly less performant if we do the sync 
+</I>&gt;<i> network thing) given how commonly used it is.
+</I>
+I don't know how to collect this data.
+
+
+&gt;<i> We immediately noticed when document.write in deferred scripts blew away 
+</I>&gt;<i> the full document, even before shipping a beta. Once we made it append 
+</I>&gt;<i> to the end of the document we have not had a single problem reported. 
+</I>&gt;<i> This several weeks after final shipping of firefox 3.5.
+</I>
+I'm no fan of the innerHTML behaviour either, but I'm very wary of adding 
+new behaviours to the platform like this. I'm also concerned about the 
+problems I describe above with EOF and document.close(). I basically don't 
+know how to make scripts run after the parser yet still affect the parser.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="063742.html">[whatwg] scripts, defer, document.write and DOMContentLoaded
+</A></li>
+	<LI>Next message: <A HREF="063946.html">[whatwg] scripts, defer, document.write and DOMContentLoaded
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#63943">[ date ]</a>
+              <a href="thread.html#63943">[ thread ]</a>
+              <a href="subject.html#63943">[ subject ]</a>
+              <a href="author.html#63943">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

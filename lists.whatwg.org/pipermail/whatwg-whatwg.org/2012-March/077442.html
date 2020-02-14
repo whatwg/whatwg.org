@@ -1,0 +1,156 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] API for encoding/decoding ArrayBuffers into text
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20API%20for%20encoding/decoding%20ArrayBuffers%20into%20text&In-Reply-To=%3CCAD649j6EM33R3RCwsFor5QgzOWt_o3L%2BGHSkEdenPgYvuqBrrw%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="077436.html">
+   <LINK REL="Next"  HREF="077443.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] API for encoding/decoding ArrayBuffers into text</H1>
+<!--htdig_noindex-->
+    <B>Joshua Bell</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20API%20for%20encoding/decoding%20ArrayBuffers%20into%20text&In-Reply-To=%3CCAD649j6EM33R3RCwsFor5QgzOWt_o3L%2BGHSkEdenPgYvuqBrrw%40mail.gmail.com%3E"
+       TITLE="[whatwg] API for encoding/decoding ArrayBuffers into text">jsbell at chromium.org
+       </A><BR>
+    <I>Mon Mar 26 09:56:41 PDT 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="077436.html">[whatwg] API for encoding/decoding ArrayBuffers into text
+</A></li>
+        <LI>Next message: <A HREF="077443.html">[whatwg] API for encoding/decoding ArrayBuffers into text
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#77442">[ date ]</a>
+              <a href="thread.html#77442">[ thread ]</a>
+              <a href="subject.html#77442">[ subject ]</a>
+              <a href="author.html#77442">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Sat, Mar 24, 2012 at 6:52 AM, Glenn Maynard &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">glenn at zewt.org</A>&gt; wrote:
+
+&gt;<i> On Thu, Mar 22, 2012 at 8:58 AM, Anne van Kesteren &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">annevk at opera.com</A>&gt;
+</I>&gt;<i> wrote:
+</I>&gt;<i>
+</I>&gt;<i> &gt; Another way would be to have a second optional argument that indicates
+</I>&gt;<i> &gt; whether more bytes are coming (defaults to false), but I'm not sure of
+</I>&gt;<i> the
+</I>&gt;<i> &gt; chances that would be used correctly. The reasons you outline are
+</I>&gt;<i> probably
+</I>&gt;<i> &gt; why many browser implementations deal with EOF poorly too.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> It might not improve it, but I don't think it'd be worse.  If you didn't
+</I>&gt;<i> use it correctly for an encoding where it matters, the breakage would be
+</I>&gt;<i> obvious.
+</I>&gt;<i>
+</I>&gt;<i> Also, the previous &quot;automatically-streaming&quot; API has another possible
+</I>&gt;<i> misuse: constructing a single encoder, then calling it repeatedly for
+</I>&gt;<i> unrelated strings, without calling eof() between them (trailing bytes would
+</I>&gt;<i> become U+FFFD in the next string).  That'd be a less likely mistake with
+</I>&gt;<i> this, too.
+</I>&gt;<i>
+</I>
+Agreed. Simple things should be simple.
+
+
+&gt;<i> Here's a suggestion, working from that:
+</I>&gt;<i>
+</I>&gt;<i> encoder = Encoder(&quot;euc-kr&quot;);
+</I>&gt;<i> view = encoder.encode(str1, {continues: true});
+</I>&gt;<i> view = encoder.encode(str2, {continues: true});
+</I>&gt;<i> view = encoder.encode(str3, {continues: false});
+</I>&gt;<i>
+</I>&gt;<i> An alternative way to end the stream:
+</I>&gt;<i>
+</I>&gt;<i> encoder = Encoder(&quot;euc-kr&quot;);
+</I>&gt;<i> view = encoder.encode(str1, {continues: true});
+</I>&gt;<i> view = encoder.encode(str2, {continues: true});
+</I>&gt;<i> view = encoder.encode(str3, {continues: true});
+</I>&gt;<i> view = encoder.encode(&quot;&quot;, {continues: false});
+</I>&gt;<i> // or view = encoder.encode(&quot;&quot;); // equivalent; continues defaults to false
+</I>&gt;<i> // or view = encoder.encode(); // maybe equivalent, if the first parameter
+</I>&gt;<i> is optional
+</I>&gt;<i>
+</I>&gt;<i> The simplest usage is concise enough that we don't really need a separate
+</I>&gt;<i> str.encode() method:
+</I>&gt;<i>
+</I>&gt;<i> view = Encoder(&quot;euc-kr&quot;).encode(str);
+</I>&gt;<i>
+</I>&gt;<i> If it has an eof() method, it'd just be a literal wrapper for
+</I>&gt;<i> encoder.encode(), but it can probably be omitted.
+</I>
+
+Agreed, I'd omit it.
+
+Bikeshed: The |continues| term doesn't completely thrill me; it's clear in
+context, but not necessarily what someone might go searching for.
+{eof:true} would be lovely except we want the default to be yes-EOF but a
+falsy JS value. |noEOF| ?
+
+If there aren't immediate objections, I'll update my wiki draft with this
+style of API, and see about updating my JS polyfill as well.
+
+Opinions on one object type (Encoding) vs. two (Encoder, Decoder) ?
+
+One object type is simpler for the non-streaming case, e.g.:
+
+// somewhere globally
+g_codec = Encoding(&quot;euc-kr&quot;);
+// elsewhere...
+str = g_codec.decode(view); // okay
+view = g_codec.encode(str); // fine, no state captured
+str = g_codec.decode(view); // still okay
+
+but IMHO someone unfamiliar with the internals of encodings might extend
+the above into::
+
+// somewhere globally
+g_codec = Encoding(&quot;euc-kr&quot;);
+// elsewhere in some stream handling code...
+str = g_codec.decode(view, {continues: true}); // okay..
+view = g_codec.encode(str, {continues: true}); // sure, now both an encode
+and decode state are captured by codec
+str = g_codec.decode(view, {continues: true}); // okay only if this is more
+of the same stream; if there are two incoming streams, this is wrong
+
+The same mistake is possible with Encoder / Decoder objects, of course (you
+just need two globals). But something about separating them makes it
+clearer to me that the |continues| flag is affecting state in the object
+rather than just affecting the output of the call.
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="077436.html">[whatwg] API for encoding/decoding ArrayBuffers into text
+</A></li>
+	<LI>Next message: <A HREF="077443.html">[whatwg] API for encoding/decoding ArrayBuffers into text
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#77442">[ date ]</a>
+              <a href="thread.html#77442">[ thread ]</a>
+              <a href="subject.html#77442">[ subject ]</a>
+              <a href="author.html#77442">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

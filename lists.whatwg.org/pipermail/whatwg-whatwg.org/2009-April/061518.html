@@ -1,0 +1,142 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Private browsing vs. Storage and Databases
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Private%20browsing%20vs.%20Storage%20and%20Databases&In-Reply-To=%3C63df84f0904071754kce72bb3v22a3bcd822d6dd93%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="061556.html">
+   <LINK REL="Next"  HREF="061532.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Private browsing vs. Storage and Databases</H1>
+<!--htdig_noindex-->
+    <B>Jonas Sicking</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Private%20browsing%20vs.%20Storage%20and%20Databases&In-Reply-To=%3C63df84f0904071754kce72bb3v22a3bcd822d6dd93%40mail.gmail.com%3E"
+       TITLE="[whatwg] Private browsing vs. Storage and Databases">jonas at sicking.cc
+       </A><BR>
+    <I>Tue Apr  7 17:54:18 PDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="061556.html">[whatwg] Private browsing vs. Storage and Databases
+</A></li>
+        <LI>Next message: <A HREF="061532.html">[whatwg] Private browsing vs. Storage and Databases
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#61518">[ date ]</a>
+              <a href="thread.html#61518">[ thread ]</a>
+              <a href="subject.html#61518">[ subject ]</a>
+              <a href="author.html#61518">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Tue, Apr 7, 2009 at 5:24 PM, Brady Eidson &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">beidson at apple.com</A>&gt; wrote:
+&gt;<i> A commonly added feature in browsers these days is &quot;private browsing mode&quot;
+</I>&gt;<i> where the intention is that the user's browsing session leaves no footprint
+</I>&gt;<i> on their machine. &#160;Cookies, cache files, history, and other data that the
+</I>&gt;<i> browser would normally store to disk are not updated during these private
+</I>&gt;<i> browsing sessions.
+</I>&gt;<i>
+</I>&gt;<i> This concept is at odds with allowing pages to store data on the user's
+</I>&gt;<i> machine as allowed by LocalStorage and Databases. &#160;Surly persistent changes
+</I>&gt;<i> during a private browsing session shouldn't be written to the user's disk as
+</I>&gt;<i> that would violate the intention of a private browsing session.
+</I>&gt;<i>
+</I>&gt;<i> Let's take the specific case of LocalStorage, which is what I am currently
+</I>&gt;<i> working on with WebKit. &#160;In attempting to fix this bug I came up with a few
+</I>&gt;<i> possible solutions:
+</I>&gt;<i>
+</I>&gt;<i> 1 - Disable LocalStorage completely when private browsing is on. &#160;Remove it
+</I>&gt;<i> from the DOM completely.
+</I>&gt;<i> 2 - Disable LocalStorage mostly when private browsing is on. &#160;It exists at
+</I>&gt;<i> window.localStorage, but is empty and has a 0-quota.
+</I>
+For what it's worth, I believe we're currently planning on doing 2 in
+firefox. (not sure if it's been implemented in nightly trunk builds
+yet).
+
+&gt;<i> 3 - Slide a &quot;fake&quot; LocalStorage object in when private browsing is enabled.
+</I>&gt;<i> &#160;It starts empty, changes to it are successful, but it is never written to
+</I>&gt;<i> disk. &#160;When private browsing is disabled, all changes to the private
+</I>&gt;<i> browsing proxy are thrown out.
+</I>&gt;<i> 4 - Cover the real LocalStorage object with a private browsing layer. &#160;It
+</I>&gt;<i> starts with all previously stored contents. &#160;Any changes to it are pretended
+</I>&gt;<i> to occur, but are never written to disk. &#160;When private browsing is disabled,
+</I>&gt;<i> all items revert to the state they were in when private browsing was enabled
+</I>&gt;<i> and writing changes to disk is re-enabled.
+</I>
+We felt like there was a risk of data loss with this approach. For
+example imagine a web app that lets you write an email. Every 2
+minutes the app saves your email in case of a crash or power loss or
+similar. The app uses localStorage if possible, but if not uses
+XMLHttpRequest to save the data to the server.
+
+In this model it is significantly worse if it looks like a write is
+successful, but in fact isn't.
+
+&gt;<i> 5 - Treat LocalStorage as read-only when private browsing is on. &#160;It exists,
+</I>&gt;<i> and all previously stored contents can be retrieved. &#160;Any attempt to
+</I>&gt;<i> setItem(), removeItem(), or clear() fail.
+</I>
+My concern with this is the same as the reason we in firefox clear all
+cookies when entering private browsing mode. The concern is as
+follows:
+
+1. A search engine stores a user-id token in a cookie. They then use
+this token to server side store the users 10 last searches.
+
+2. A user uses this search engine to search for various items. Doing
+this causes the user-id token to be stored in a cookie.
+
+3. The user then switches to private browsing mode.
+
+4. The user makes a search for a present for his wife.
+
+5. The user switches back into normal browsing mode.
+
+At this point it is still possible to see the search for the wifes
+present in the websites store of recent searches.
+
+Something very similar could happen for localStorage I would imagine,
+where the user-identifing information is stored in the localStorage
+rather than a cookie.
+
+However other browsers have decided *not* to clear cookies as I
+understand it. For these browsers 5 would make a lot of sense. So I
+suspect we need to leave some headroom here for various implementation
+strategies for private browsing mode.
+
+/ Jonas
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="061556.html">[whatwg] Private browsing vs. Storage and Databases
+</A></li>
+	<LI>Next message: <A HREF="061532.html">[whatwg] Private browsing vs. Storage and Databases
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#61518">[ date ]</a>
+              <a href="thread.html#61518">[ thread ]</a>
+              <a href="subject.html#61518">[ subject ]</a>
+              <a href="author.html#61518">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

@@ -1,0 +1,102 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Storage mutex and cookies can lead to browser deadlock
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Storage%20mutex%20and%20cookies%20can%20lead%20to%20browser%20deadlock&In-Reply-To=%3C49136932-8457-4C3A-9190-AEA878C4087D%40google.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="064710.html">
+   <LINK REL="Next"  HREF="064613.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Storage mutex and cookies can lead to browser deadlock</H1>
+<!--htdig_noindex-->
+    <B>Jens Alfke</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Storage%20mutex%20and%20cookies%20can%20lead%20to%20browser%20deadlock&In-Reply-To=%3C49136932-8457-4C3A-9190-AEA878C4087D%40google.com%3E"
+       TITLE="[whatwg] Storage mutex and cookies can lead to browser deadlock">snej at google.com
+       </A><BR>
+    <I>Wed Aug 26 14:05:52 PDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="064710.html">[whatwg] Run to completion in the face of modal dialog boxes	(WAS: Storage mutex)
+</A></li>
+        <LI>Next message: <A HREF="064613.html">[whatwg] Storage mutex and cookies can lead to browser deadlock
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#64612">[ date ]</a>
+              <a href="thread.html#64612">[ thread ]</a>
+              <a href="subject.html#64612">[ subject ]</a>
+              <a href="author.html#64612">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>I know that one of the design issues with worker threads and local  
+storage has been how to resolve concurrency issues, and that for this  
+reason, in the current spec worker threads can't access local storage.
+
+However, there's a scenario under the current spec that doesn't  
+involve local storage, whereby a worker thread can deadlock the  
+browser. This is because access to cookies, by workers or the browser  
+itself, is also subject to that global mutex.
+
+Consider these steps:
+1. A worker thread accesses &quot;document.cookie&quot;. This causes it to  
+acquire the mutex (sec. 3.1.3).
+2. The thread now performs some long-lasting operation without  
+exiting. In the simplest case it just goes into an infinite loop.
+3. Meanwhile, the user loads a new web page in the browser.
+4. The resulting HTTP response contains a Cookie: header. The spec  
+requires that the browser's loader temporarily acquire the mutex while  
+updating the cookie (sec. 2.6, item 4).
+5. The page-load blocks indefinitely because the worker thread still  
+has the mutex and never lets go of it.
+
+The result is that the browser becomes incapable of loading any web  
+pages that use cookies. Assuming the worker thread never exits, the  
+only way to recover from this is to quit the browser. A worker thread  
+like this could very easily be created by a malicious website,  
+resulting in a DoS attack on the browser. And of course, a merely  
+poorly-written script could create the same effect without intending to.
+
+I honestly can't think of any safe way of tweaking the semantics of  
+the existing 'document.cookie' API to make it transactional. :(
+
+Has anyone implemented this portion of the spec yet?
+
+&#8212;Jens
+
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: &lt;<A HREF="http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20090826/cf1381c8/attachment-0002.htm">http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20090826/cf1381c8/attachment-0002.htm</A>&gt;
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="064710.html">[whatwg] Run to completion in the face of modal dialog boxes	(WAS: Storage mutex)
+</A></li>
+	<LI>Next message: <A HREF="064613.html">[whatwg] Storage mutex and cookies can lead to browser deadlock
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#64612">[ date ]</a>
+              <a href="thread.html#64612">[ thread ]</a>
+              <a href="subject.html#64612">[ subject ]</a>
+              <a href="author.html#64612">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

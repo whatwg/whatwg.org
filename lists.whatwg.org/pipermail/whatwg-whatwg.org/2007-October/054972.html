@@ -1,0 +1,158 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] executeSql API is synchronous
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20executeSql%20API%20is%20synchronous&In-Reply-To=%3CPine.LNX.4.62.0710120535550.19595%40hixie.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="054903.html">
+   <LINK REL="Next"  HREF="054973.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] executeSql API is synchronous</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20executeSql%20API%20is%20synchronous&In-Reply-To=%3CPine.LNX.4.62.0710120535550.19595%40hixie.dreamhostps.com%3E"
+       TITLE="[whatwg] executeSql API is synchronous">ian at hixie.ch
+       </A><BR>
+    <I>Fri Oct 12 11:46:52 PDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="054903.html">[whatwg] executeSql API is synchronous
+</A></li>
+        <LI>Next message: <A HREF="054973.html">[whatwg] database full error (was: Re: executeSql API is	synchronous)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#54972">[ date ]</a>
+              <a href="thread.html#54972">[ thread ]</a>
+              <a href="subject.html#54972">[ subject ]</a>
+              <a href="author.html#54972">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Tue, 25 Sep 2007, Maciej Stachowiak wrote:
+&gt;<i> 
+</I>&gt;<i> I agree that the actual I/O to the database should be done up front. 
+</I>&gt;<i> However, it should be possible to make the conversion from SQLite's 
+</I>&gt;<i> native data types to JavaScript datatypes lazy (such type conversion can 
+</I>&gt;<i> have nontrivial cost, especially in bulk). To do that and get Array-like 
+</I>&gt;<i> behavior, you need either a custom Array subclass, or a class that 
+</I>&gt;<i> doesn't inherit the Array implementation but does have the Array 
+</I>&gt;<i> prototype in its prototype chain. But the current spec rules this out by 
+</I>&gt;<i> requiring the result to be a &quot;native Array&quot;. Furthermore, being a 
+</I>&gt;<i> &quot;native Array&quot; requires support for mutation, which again makes custom 
+</I>&gt;<i> strategies involving lazy type conversion more challenging.
+</I>&gt;<i> 
+</I>&gt;<i> I would propose requiring that the row list object must have 
+</I>&gt;<i> number-named properties for the contents, a read-only length property, 
+</I>&gt;<i> and all Array prototype functions that do not modify the array somewhere 
+</I>&gt;<i> in its prototype chain (this would include filter, forEach, map, but not 
+</I>&gt;<i> sort or pop). I am not even sure the last part is necessary, because 
+</I>&gt;<i> using Array.forEach is not *that* much more convenient than a for loop 
+</I>&gt;<i> and is likely to be less efficient in many JS implementations. But if we 
+</I>&gt;<i> want Array operations to be available, I'd suggest doing it in a way 
+</I>&gt;<i> that does not constrain implementations to use a native Array.
+</I>
+On Tue, 25 Sep 2007, Aaron Boodman wrote:
+&gt;<i> 
+</I>&gt;<i> Ah, that makes sense. A special purpose class for the rows property is 
+</I>&gt;<i> fine with me. I don't feel that strongly about forEach and friends.
+</I>
+Done (without the Array methods).
+
+
+On Tue, 25 Sep 2007, Dimitri Glazkov wrote:
+&gt;<i> 
+</I>&gt;<i> Speaking of forEach, what do you think of (pardon any syntax errors,
+</I>&gt;<i> writing straight into gmail window):
+</I>&gt;<i> 
+</I>&gt;<i> db.forEach(&quot;SELECT * FROM pages;&quot;, function(row) {
+</I>&gt;<i>     this.innerHTML += &quot;&lt;li&gt;&lt;a href=\&quot;&quot; + row.url + &quot;\&quot;&gt;&quot; + row.title +
+</I>&gt;<i> &quot;&lt;/a&gt;&lt;/li&gt;&quot;;
+</I>&gt;<i> }, document.getElementById(&quot;pages&quot;))
+</I>&gt;<i> 
+</I>&gt;<i> and...
+</I>&gt;<i> 
+</I>&gt;<i> document.getElementById(&quot;pages&quot;).innerHTML = &quot;&lt;ul&gt;&quot; + db.map(&quot;SELECT *
+</I>&gt;<i> FROM pages&quot;, function(row) {
+</I>&gt;<i>     return &quot;&lt;li&gt;&lt;a href=\&quot;&quot; + row.url + &quot;\&quot;&gt;&quot; + row.title + &quot;&lt;/a&gt;&lt;/li&gt;&quot;
+</I>&gt;<i> }).join(&quot;&quot;) + &quot;&lt;/ul&gt;&quot;;
+</I>&gt;<i> 
+</I>&gt;<i> Why expose rows collection at all?
+</I>
+I think the above API would be must less flexible to the author. What if 
+you just want the third row or something?
+
+
+On Fri, 5 Oct 2007, Scott Hess wrote:
+&gt;<i> 
+</I>&gt;<i> If app developers, users, and browsers all agree that they want to run 
+</I>&gt;<i> some app with a substantial local database footprint, one could imagine 
+</I>&gt;<i> an accidental &quot;select * from blog_postings_Ive_read&quot; taking 2GB of 
+</I>&gt;<i> memory encoded as UTF-16.  Obviously this would be a mistake, which a 
+</I>&gt;<i> developer would want to work around by using LIMIT or something of the 
+</I>&gt;<i> sort in the query, but you're possibly still stuck killing your browser 
+</I>&gt;<i> to get out from underwater.
+</I>
+Indeed. The new model gets around this by doing all the heavy lifting in 
+the background and only invoking the callback once we have data ready.
+
+
+&gt;<i> If the callback received a result object which could be iterated over, 
+</I>&gt;<i> and had isValidRow() and isRowAvailable() both, then it could buffer 
+</I>&gt;<i> things AND break things into blocks, but that's probably annoying to 
+</I>&gt;<i> spec and code to.
+</I>
+Yeah, I think in v1 if browsers want to safeguard against multi-gigabyte 
+results sets they should just raise implementation-dependent exceptions 
+like &quot;out of memory&quot;.
+
+
+&gt;<i> It may be worthwhile to have explicit support for an error on the order 
+</I>&gt;<i> of &quot;result set too large&quot;, without defining what &quot;too large&quot; might mean.  
+</I>&gt;<i> That could be a per-user-agent preference (or constant), and the error 
+</I>&gt;<i> mainly exists so that you can tell that you have a problem and provide a 
+</I>&gt;<i> lightweight code path if you want to support that user-agent.  
+</I>&gt;<i> Regardless, if gives the implementation the latitude to say &quot;This far, 
+</I>&gt;<i> and no farther&quot;.
+</I>
+Certainly that would be reasonable. I have added it. People should let me 
+know if they want me to remove or add error codes, by the way.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="054903.html">[whatwg] executeSql API is synchronous
+</A></li>
+	<LI>Next message: <A HREF="054973.html">[whatwg] database full error (was: Re: executeSql API is	synchronous)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#54972">[ date ]</a>
+              <a href="thread.html#54972">[ thread ]</a>
+              <a href="subject.html#54972">[ subject ]</a>
+              <a href="author.html#54972">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

@@ -1,0 +1,136 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] &lt;object&gt; behavior
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20%3Cobject%3E%20behavior&In-Reply-To=%3C4AA4053B.8080107%40mit.edu%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="064859.html">
+   <LINK REL="Next"  HREF="065169.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] &lt;object&gt; behavior</H1>
+<!--htdig_noindex-->
+    <B>Boris Zbarsky</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20%3Cobject%3E%20behavior&In-Reply-To=%3C4AA4053B.8080107%40mit.edu%3E"
+       TITLE="[whatwg] &lt;object&gt; behavior">bzbarsky at MIT.EDU
+       </A><BR>
+    <I>Sun Sep  6 11:53:47 PDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="064859.html">[whatwg] &lt;object&gt; behavior
+</A></li>
+        <LI>Next message: <A HREF="065169.html">[whatwg] &lt;object&gt; behavior
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#64986">[ date ]</a>
+              <a href="thread.html#64986">[ thread ]</a>
+              <a href="subject.html#64986">[ subject ]</a>
+              <a href="author.html#64986">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Ian Hickson wrote:
+&gt;&gt;<i> 1. Its element must be attached to the document.
+</I>&gt;<i> 
+</I>&gt;<i> I'm told this is considered a bug.
+</I>
+Told by whom, if I might ask?
+
+&gt;<i> I've updated the spec to do the above, to the extent that I could work 
+</I>&gt;<i> out what the expected result is.
+</I>
+This doesn't actually specify what Gecko implements.  In particular, the 
+current spec text means that if I have a plug-in installed which 
+supports text/html and the &lt;object&gt; has type=&quot;text/html&quot; then the data 
+should be rendered as text/html regardless of the server type, even 
+though it will be rendered by the browser itself, not by the plug-in. 
+This was explicitly something I wanted to avoid in the Gecko code, and 
+was called out that way in the bugs I referenced.
+
+Was that difference intentional?
+
+Another other difference is the way data-sniffing is applied.  In Gecko, 
+data-sniffing is applied on the HTTP layer in this case, so that the 
+type considered in subsubstep 3 of your algorithm already takes 
+data-sniffing into account.  In practical terms the difference is that 
+data-sniffing only occurs if the HTTP response from the server doesn't 
+deliver a Content-Type header (modulo the text/plain thing, of course). 
+  If we assume that no plug-in has registered itself for 
+application/octet-stream, then the only cases that lead to a different 
+behavior between the two algorithms are those of the server sending 
+text/plain (for binary data) or application/octet-stream as the type. 
+Your algorithm leads to data-snifing in both cases, while no 
+data-sniffing is performed in Gecko for either case.
+
+I'm not particularly happy performing data-sniffing in those cases, 
+particularly the text/plain case (since that can lead to such data being 
+handled as text/html by the UA, given how your spec text is written 
+right now).
+
+As far as text/plain goes, the current spec text means that if I have a 
+PostScript file that includes some &quot;binary&quot; bytes in the first 512 bytes 
+and my web server sends text/plain for it and the &lt;object&gt; has a type 
+attribute with the value &quot;text/plain&quot; then the data will be treated as 
+application/postscript.  That doesn't seem desirable to me.  Is it 
+intentional?
+
+&gt;&gt;<i> 3)  A number of sites not only send a bogus server-provided type (e.g. 
+</I>&gt;&gt;<i> application/octet-stream) but also use a bogus type attribute 
+</I>&gt;&gt;<i> (specifically, application/plugin-mimetype; I suspect this is a relic of 
+</I>&gt;&gt;<i> Netscape's devedge documentation using that as an example placeholder).  
+</I>&gt;&gt;<i> See &lt;<A HREF="https://bugzilla.mozilla.org/show_bug.cgi?id=393756">https://bugzilla.mozilla.org/show_bug.cgi?id=393756</A>&gt;.  The URI 
+</I>&gt;&gt;<i> extension is used to get the type to really use in those cases in 
+</I>&gt;&gt;<i> Gecko...  If desired, I could probably dig through and figure out the 
+</I>&gt;&gt;<i> exact conditions that trigger this case.
+</I>&gt;<i> 
+</I>&gt;<i> I haven't specced this for &lt;object&gt; yet -- let me know exactly what the 
+</I>&gt;<i> spec should say if you want this added also. I'd rather have as little 
+</I>&gt;<i> dependence on extensions as possible.
+</I>
+What the Gecko code basically does is that if the type is 
+application/octet-stream after everything else has been done (so the 
+place where your current spec says &quot;then change the resource type to be 
+unknown, so that the sniffing rules in the next step are invoked&quot;) then 
+we examine the extension of the URI.  If that extension exists and if 
+there's a plug-in registered for that extension, then we set the 
+&quot;resource type&quot; (in your current draft's terms) to be the associated 
+MIME type reported by the plug-in.  I'm not sure where this list of 
+(extension,type) pairs comes from, but it looks like the plug-in 
+provides it somehow (possibly even in that form, looking at 
+&lt;<A HREF="http://mxr.mozilla.org/mozilla-central/source/modules/plugin/base/src/nsPluginsDirUtils.h#53">http://mxr.mozilla.org/mozilla-central/source/modules/plugin/base/src/nsPluginsDirUtils.h#53</A>&gt;).
+
+-Boris
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="064859.html">[whatwg] &lt;object&gt; behavior
+</A></li>
+	<LI>Next message: <A HREF="065169.html">[whatwg] &lt;object&gt; behavior
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#64986">[ date ]</a>
+              <a href="thread.html#64986">[ thread ]</a>
+              <a href="subject.html#64986">[ subject ]</a>
+              <a href="author.html#64986">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

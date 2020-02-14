@@ -1,0 +1,146 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] parsing nested forms
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20parsing%20nested%20forms&In-Reply-To=%3C4912B8DB.3010706%40kvaleberg.no%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="059318.html">
+   <LINK REL="Next"  HREF="059321.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] parsing nested forms</H1>
+<!--htdig_noindex-->
+    <B>Tommy Thorsen</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20parsing%20nested%20forms&In-Reply-To=%3C4912B8DB.3010706%40kvaleberg.no%3E"
+       TITLE="[whatwg] parsing nested forms">tommy at kvaleberg.com
+       </A><BR>
+    <I>Thu Nov  6 01:28:59 PST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="059318.html">[whatwg] Review of the 3.16 section and the HTMLInputElement interface
+</A></li>
+        <LI>Next message: <A HREF="059321.html">[whatwg] parsing nested forms
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#59316">[ date ]</a>
+              <a href="thread.html#59316">[ thread ]</a>
+              <a href="subject.html#59316">[ subject ]</a>
+              <a href="author.html#59316">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Hi again!
+
+Before I get to the real issue, I think I should give you a little bit 
+of background. I'm working for a company which makes a web browser. 
+We've been having some problems with our algorithm for parsing illegal 
+html, so we decided to scrap the whole module and implement the 
+algorithm exactly as outlined in the html5 spec. So far this has been a 
+great success. We're already way better than we used to be, but there 
+are some situations where the html5 parsing algorithm does not quite 
+give us the result we expected.
+
+Yesterday I noticed that we were not displaying the site 
+<A HREF="http://bankrate.com">http://bankrate.com</A> correctly. The problem we had on that page boils 
+down to the following markup:
+
+&lt;div id=&quot;firstdiv&quot;&gt;
+    A
+    &lt;div id=&quot;seconddiv&quot;&gt;
+        &lt;form id=&quot;firstform&quot;&gt;
+            &lt;div id=&quot;thirddiv&quot;&gt;
+                &lt;form id=&quot;secondform&quot;&gt;&lt;/form&gt;
+            &lt;/div&gt;
+        &lt;/form&gt;
+    &lt;/div&gt;
+    B
+&lt;/div&gt;
+
+I'll walk you through it; Everything is normal until we reach the start 
+tag for the &quot;secondform&quot;. It is ignored, since we're already in a form 
+(the form element pointer points to &quot;firstform&quot;.) Then we see the end 
+tag which was meant for &quot;secondform&quot;. We pop elements from the stack of 
+open elements until we find a form element (which is &quot;firstform&quot;) 
+popping off &quot;thirddiv&quot; in the process. The next token we get is the end 
+div tag which was meant for &quot;thirddiv&quot;. Since &quot;thirddiv&quot; is already 
+gone, we pop &quot;seconddiv&quot; instead, and now we're sort of off-balance. The 
+result is that A and B does not end up as children of the same div.
+
+If any of you would like to see the effect this can have on a real page, 
+you can use the parse.py script in html5lib. On a command line, use the 
+following commands:
+
+[<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">tommy at tommyslaptop</A> html]$ wget -k -O bankrate.html <A HREF="http://bankrate.com">http://bankrate.com</A>
+[<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">tommy at tommyslaptop</A> html]$ /path/to/html5lib/python/parse.py 
+bankrate.html &gt; bankrate_parsed.html
+[<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">tommy at tommyslaptop</A> html]$ firefox bankrate_parsed.html
+
+I've applied a fix to our code which makes us handle this particular 
+case better. I haven't tested it very thoroughly, but the change is to 
+implement the 'An end tag whose tag name is &quot;form&quot;' section in &quot;in body&quot; 
+as if it said:
+
+------
+An end tag whose tag name is &quot;form&quot;
+
+    Let /node/ be the form element pointer
+    Set the form element pointer to null.
+
+    If the stack of open elements does not have an element in scope with 
+the same tag name as that of the token, then this is a parse error; 
+ignore the token.
+
+    Otherwise, run these steps:
+
+       1. Generate implied end tags.
+       2. If the current node is not an element with the same tag name 
+as that of the token, then this is a parse error.
+       3. Remove /node/ from the stack of open elements
+------
+
+This seems to give us pretty much the same behaviour as Opera for the 
+simple example above. Can any of you see any potential problems with 
+this approach? In any case, I do believe that the specification needs to 
+be changed one way or another, so that it handles this case better.
+
+I think I have a couple of other instances where we've had to deviate 
+from the specification in order to tackle problems discovered by our 
+testers, and if any of you are interested in this kind of feedback, I'll 
+dig them out and post them on this list.
+
+Best regards
+Tommy Thorsen
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="059318.html">[whatwg] Review of the 3.16 section and the HTMLInputElement interface
+</A></li>
+	<LI>Next message: <A HREF="059321.html">[whatwg] parsing nested forms
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#59316">[ date ]</a>
+              <a href="thread.html#59316">[ thread ]</a>
+              <a href="subject.html#59316">[ subject ]</a>
+              <a href="author.html#59316">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

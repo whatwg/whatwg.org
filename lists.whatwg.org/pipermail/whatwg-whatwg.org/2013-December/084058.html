@@ -1,0 +1,242 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] onclose events for MessagePort
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20onclose%20events%20for%20MessagePort&In-Reply-To=%3Calpine.DEB.2.00.1312132208150.27766%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="084054.html">
+   <LINK REL="Next"  HREF="084059.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] onclose events for MessagePort</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20onclose%20events%20for%20MessagePort&In-Reply-To=%3Calpine.DEB.2.00.1312132208150.27766%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg] onclose events for MessagePort">ian at hixie.ch
+       </A><BR>
+    <I>Fri Dec 13 15:29:45 PST 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="084054.html">[whatwg] onclose events for MessagePort
+</A></li>
+        <LI>Next message: <A HREF="084059.html">[whatwg] onclose events for MessagePort
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#84058">[ date ]</a>
+              <a href="thread.html#84058">[ thread ]</a>
+              <a href="subject.html#84058">[ subject ]</a>
+              <a href="author.html#84058">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Wed, 11 Dec 2013, Jonas Sicking wrote:
+&gt;<i> On Wed, Dec 11, 2013 at 3:54 PM, Ian Hickson &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">ian at hixie.ch</A>&gt; wrote:
+</I>&gt;<i> &gt; I really don't understand why we'd want that level of complexity for 
+</I>&gt;<i> &gt; something that we can solve with just a single event handler, though. 
+</I>&gt;<i> &gt; The problem, as described, is just &quot;we need to know when a remote port 
+</I>&gt;<i> &gt; is killed due to an OOM error&quot;. The event handler does this. Why do we 
+</I>&gt;<i> &gt; need to complicate it with two-way metadata messages to pin workers 
+</I>&gt;<i> &gt; and so on? I really don't understand what that gets us.
+</I>&gt;<i> 
+</I>&gt;<i> Starting with this since there seems to be misunderstanding about use 
+</I>&gt;<i> cases.
+</I>&gt;<i> 
+</I>&gt;<i> The use case here is a page (or a worker) sending a message through a 
+</I>&gt;<i> message port and wanting to know if the other side &quot;disappears&quot; before 
+</I>&gt;<i> it is able to respond.
+</I>&gt;<i> 
+</I>&gt;<i> There are a few scenarios where the responder could disappear.
+</I>&gt;<i> 1. The process where the responder lives could crash.
+</I>&gt;<i> 2. The responder could be running in a dedicated Worker which was
+</I>&gt;<i> terminated through Worker.terminate().
+</I>&gt;<i> 3. The responder could be a web page that the user navigates away from.
+</I>&gt;<i> 4. The responder could be a dedicated Worker which is owned by a web
+</I>&gt;<i> page that the user navigates away from.
+</I>
+Well, if we want to support these then I agree that the only workable 
+solution is one where you can essentially buy a lock that prevents the 
+other side from getting bfcached until it's replied, such that if it is 
+suspended (for workers) or navigated (for browsing contexts) before it 
+receives the message saying the lock is released, it instead just gets 
+discarded permanently.
+
+It does seem pretty lame that we would allow any random page you 
+communicate with to be able to prevent you from bfcaching, but I don't 
+know what we do about that.
+
+
+&gt;<i> So I hope that describes the use case, and that it also describes the 
+</I>&gt;<i> dedicated workers issue.
+</I>
+I did actually consider these use cases, I just didn't address them 
+because exposing the bfcache logic or allowing pages to prevent bfcaching 
+seemed like a bad idea:
+
+   <A HREF="http://lists.w3.org/Archives/Public/public-whatwg-archive/2013Dec/0062.html">http://lists.w3.org/Archives/Public/public-whatwg-archive/2013Dec/0062.html</A>
+
+
+&gt;<i> No sync IPC needed. When a port is pinned, you send an async message to 
+</I>&gt;<i> the process which contains the page for the &quot;other side&quot;. When that 
+</I>&gt;<i> process receives the message you check if the page is currently being 
+</I>&gt;<i> displayed.
+</I>&gt;<i> 
+</I>&gt;<i> If the page has been completely torn down then you send a message back 
+</I>&gt;<i> saying that the page is dead and that the promise created during pinning 
+</I>&gt;<i> should be rejected.
+</I>&gt;<i> 
+</I>&gt;<i> If the page is sitting in the bfcache, you remove it from the bfcache 
+</I>&gt;<i> and send a message back saying that the page is dead and that the 
+</I>&gt;<i> promise created during pinning should be rejected.
+</I>&gt;<i> 
+</I>&gt;<i> If the page is displayed, then you add a flag indicating that if the 
+</I>&gt;<i> page is navigated away from, it should not go into the bfcache and that 
+</I>&gt;<i> we should send a signal to reject the promise.
+</I>&gt;<i> 
+</I>&gt;<i> Obviously if the process had crashed before we were able to process the 
+</I>&gt;<i> event, you send a message back to reject the promise.
+</I>&gt;<i> 
+</I>&gt;<i> The same thing is done when unpinning. You send a message to the other 
+</I>&gt;<i> side saying that it's getting unpinned.
+</I>
+This means that it's possible to get a lock, have the other side navigate 
+then go back, then have the other side receive the notification for the 
+lock. It's this that you need blocking IPC to prevent. But I guess we 
+could live with that just being possible.
+
+
+&gt;<i> &gt; I strive for a higher bar than just &quot;no objections&quot;. Certainly though 
+</I>&gt;<i> &gt; I welcome further input from everyone else here.
+</I>&gt;<i> 
+</I>&gt;<i> Your proposal doesn't even meet this bar.
+</I>
+True. A better way of putting it is that I strive for an orthogonal bar. 
+But that's another story.
+
+
+&gt;<i> But more importantly, your argument that it's too burdensome to 
+</I>&gt;<i> implement doesn't carry much weight when no actual implementors has 
+</I>&gt;<i> expressed that concern.
+</I>
+This I disagree with. I have many times been in situations where we've 
+discussed something, come up with a solution, had nobody object, specced 
+it, implemented it, shipped it, and then years later had other 
+implementors complain about the complexity.
+
+If something can be solved with a simple event, then having a complex API 
+is not a good idea.
+
+In this case, though, if we want to solve all the problems you listed, a 
+simple event isn't going to cut it, indeed.
+
+
+Anyway.
+
+If we do want to address use cases 3 and 4 above, then I agree that the 
+event in the spec today isn't sufficient.
+
+I'm not sure a promise makes a lot of sense as an alternative, though. To 
+make that work, you'd need to have the UA reject the promise but the 
+author resolve it, which seems kind of unusual for promise-based APIs. You 
+also end up, as author, being simultaneously the consumer of the promise 
+and the resolver, which is a bit weird too.
+
+Also, I'm not sure it really solves all the use cases. As an author, one 
+of the ways in which I use channels (in any environment, so not just those 
+that use MessagePorts, but also e.g. linux pipes, WebSockets, etc) is as a 
+notification mechanism. As David Barrett-Kahn implied earlier, it's no 
+good if you're listening to notifications, and then they stop, but you 
+never get told that they've stopped. The pinning mechanism would basically 
+require authors who are consuming such streams from other tabs to pin when 
+they opened the channel, and leave it pinned forever. To detect when the 
+channel is dead, they'd have to listen for rejection on the promise, an 
+object separate from the port. This seems unintuitive.
+
+But in such a scenario, would you even _want_ to block bfcaching? You'd 
+want to know when it was _never_ coming back, as in worker.terminate(). 
+But if it went into the bfcache, don't you really just want to receive a 
+message saying &quot;I'm actually not around right now&quot;?
+
+Maybe, and I'm just brainstorming here, we should deal with the bfcache 
+differently than termination/oom/crash. How about we provide an API that 
+defines an &quot;autoresponder&quot; message that gets sent when a port receives a 
+message but isn't around to handle it? Or maybe an API that defines a 
+message to send when the worker is suspended / tab is navigated away from, 
+and another that sends a message when the worker/port is resumed. Or maybe 
+instead of an API that defines a prerecorded message, we just fire a 
+different event. So you'd have:
+
+   port.onmessage - received a message
+   port.onerror - other side crashed or was terminate()d
+   port.onsuspend - other side went to sleep
+   port.onresume - other side came back
+
+Then you'd never have to actually register intent, as with the promise, 
+and we'd never actually block bfcaching, and these messages would always 
+be one-shot messages, no bidirectional IPC to manage it.
+
+Looking at your use cases again:
+
+&gt;<i> 1. The process where the responder lives could crash.
+</I>&gt;<i> 2. The responder could be running in a dedicated Worker which was
+</I>&gt;<i> terminated through Worker.terminate().
+</I>
+'error' event gets fired on other side.
+
+&gt;<i> 3. The responder could be a web page that the user navigates away from.
+</I>&gt;<i> 4. The responder could be a dedicated Worker which is owned by a web
+</I>&gt;<i> page that the user navigates away from.
+</I>
+'suspend' event gets fired on other side.
+
+MessagePorts used for request-response: you register onerror and onsuspend 
+to a handler that discards the connection.
+
+MessagePorts used for listening to notifications: you register onerror to 
+discard the connection, and onsuspend/onresume to just mark the other side 
+as unavailable at this time.
+
+It's not perfect, e.g. you never find out if the other side suspended 
+forever or not, but that's not worse than with the promise model (in that 
+model, instead of finding out the other side suspended forever, you 
+actually prevent it from ever suspending, which seems net worse).
+
+What do you think?
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="084054.html">[whatwg] onclose events for MessagePort
+</A></li>
+	<LI>Next message: <A HREF="084059.html">[whatwg] onclose events for MessagePort
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#84058">[ date ]</a>
+              <a href="thread.html#84058">[ thread ]</a>
+              <a href="subject.html#84058">[ subject ]</a>
+              <a href="author.html#84058">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

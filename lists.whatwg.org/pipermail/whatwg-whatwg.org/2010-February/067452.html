@@ -1,0 +1,132 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] canvas, img, file api and blobs
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20canvas%2C%20img%2C%20file%20api%20and%20blobs&In-Reply-To=%3Cedbbad721002161223w22bc5832idac1fd31ecbaedd2%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="067451.html">
+   <LINK REL="Next"  HREF="067453.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] canvas, img, file api and blobs</H1>
+<!--htdig_noindex-->
+    <B>Joel Webber</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20canvas%2C%20img%2C%20file%20api%20and%20blobs&In-Reply-To=%3Cedbbad721002161223w22bc5832idac1fd31ecbaedd2%40mail.gmail.com%3E"
+       TITLE="[whatwg] canvas, img, file api and blobs">jgw at google.com
+       </A><BR>
+    <I>Tue Feb 16 12:23:06 PST 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="067451.html">[whatwg] canvas, img, file api and blobs
+</A></li>
+        <LI>Next message: <A HREF="067453.html">[whatwg] canvas, img, file api and blobs
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#67452">[ date ]</a>
+              <a href="thread.html#67452">[ thread ]</a>
+              <a href="subject.html#67452">[ subject ]</a>
+              <a href="author.html#67452">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Tue, Feb 16, 2010 at 2:25 PM, Stefan Haustein &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">haustein at google.com</A>&gt;wrote:
+
+&gt;<i> On Tue, Feb 16, 2010 at 6:22 PM, Chris Marrin &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">cmarrin at apple.com</A>&gt; wrote:
+</I>&gt;<i>
+</I>&gt;&gt;<i> We've been getting pretty good traction on Vlad's ArrayBuffers proposal,
+</I>&gt;&gt;<i> which was taken from the WebGL spec. Our current plan is to change the names
+</I>&gt;&gt;<i> in the browsers (WebKit, Chrome and Mozilla) to the &quot;non-WebGL specific&quot;
+</I>&gt;&gt;<i> names Vlad proposes in his spec. We'd really like this to be the &quot;one true
+</I>&gt;&gt;<i> binary data access&quot; mechanism for HTML. We're talking to the File API guys
+</I>&gt;&gt;<i> about this and I think this API can be adapted in all the other places as
+</I>&gt;&gt;<i> well.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> As far as performance goes, can you point me at some quantitative data?
+</I>&gt;&gt;<i> When you say it's an &quot;orders-of-magnitude&quot; bottleneck, what are you
+</I>&gt;&gt;<i> comparing it to? The API is very new and we certainly want to improve it for
+</I>&gt;&gt;<i> the various purposes it can be put to. We've even talked about optimizations
+</I>&gt;&gt;<i> inside the JS implementations to improve access performance.
+</I>&gt;&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> If we can get a webgl buffer from an XHR response (which would be a *huge*
+</I>&gt;<i> improvement), we'd still need to parse the binary data when decoding JPEG
+</I>&gt;<i> headers, protocol buffers etc.
+</I>&gt;<i>
+</I>&gt;<i> Constructing ints / longs from bytes in Javascript will probably be slow,
+</I>&gt;<i> so in addition to the typed arrays, we'd love to have some kind of access
+</I>&gt;<i> that would be similar to Java's DataInput (+DataOutput, see
+</I>&gt;<i> <A HREF="http://java.sun.com/j2se/1.4.2/docs/api/java/io/DataInput.html">http://java.sun.com/j2se/1.4.2/docs/api/java/io/DataInput.html</A> ), but with
+</I>&gt;<i> endianess support....
+</I>&gt;<i>
+</I>
+Agreed with Stefan's point, although technically you could implement
+getByte(), getShort(), et al with a bunch of TypedArray views onto a single
+ArrayBuffer. But this is really, really ugly, because in the general case
+you'd need 4 ByteArrays, 2 ShortArrays, etc. to deal with arbitrary offsets.
+It would be much cleaner (and probably a bit more efficient) to implement
+these getters directly in C++. This is pretty closely analogous to Java's
+nio.ByteBuffer interface, though I think it would be better to hoist it out
+into a separate interface.
+
+As for quantitative data, I'm working on getting some together right now.
+What I'd like to do (roughly) is to define a mesh format that looks very
+roughly like this:
+
+Mesh {
+  int nVerts;
+  float[] verts; // nVerts * 3
+  int nFaces;
+  int[] triIndices; // Maybe in strips
+  // etc for materials and the like
+}
+
+And implement the fastest Javascript/JSON/whatever implementation for
+getting one over XHR and loading it into WebGL.
+
+I then plan on doing the equivalent with TypedArrays coming directly from
+XHR into WebGL without Javascript having to touch every element. I've hacked
+the WebGLArrays into TypedArrays, and implemented { ByteBuffer
+XMLHttpRequest.resultBuffer } in my local WebKit, which I can then use to
+compare performance. I strongly suspect that the latter will be enormously
+faster, but could be proven wrong.
+
+Note that to get reasonable performance in js, without TypedArray, you
+pretty much *have* to switch to a text format like JSON. You can implement
+(and we have) parsing of an arbitrary binary data structure in js, but it's
+just freakishly slow and memory-inefficient.
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: &lt;<A HREF="http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20100216/20d56c72/attachment-0002.htm">http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20100216/20d56c72/attachment-0002.htm</A>&gt;
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="067451.html">[whatwg] canvas, img, file api and blobs
+</A></li>
+	<LI>Next message: <A HREF="067453.html">[whatwg] canvas, img, file api and blobs
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#67452">[ date ]</a>
+              <a href="thread.html#67452">[ thread ]</a>
+              <a href="subject.html#67452">[ subject ]</a>
+              <a href="author.html#67452">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

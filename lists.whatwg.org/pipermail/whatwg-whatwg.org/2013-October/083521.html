@@ -1,0 +1,147 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Synchronizing Canvas updates in a worker to DOM changes in the UI thread
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Synchronizing%20Canvas%20updates%20in%20a%20worker%20to%20DOM%0A%20changes%20in%20the%20UI%20thread&In-Reply-To=%3CCABirCh-VHmQQ8BCszkB4ks%2BR%2Bud5ME2VXKs6MSuDHEJDOOLo2g%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="083516.html">
+   <LINK REL="Next"  HREF="083525.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Synchronizing Canvas updates in a worker to DOM changes in the UI thread</H1>
+<!--htdig_noindex-->
+    <B>Glenn Maynard</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Synchronizing%20Canvas%20updates%20in%20a%20worker%20to%20DOM%0A%20changes%20in%20the%20UI%20thread&In-Reply-To=%3CCABirCh-VHmQQ8BCszkB4ks%2BR%2Bud5ME2VXKs6MSuDHEJDOOLo2g%40mail.gmail.com%3E"
+       TITLE="[whatwg] Synchronizing Canvas updates in a worker to DOM changes in the UI thread">glenn at zewt.org
+       </A><BR>
+    <I>Tue Oct 22 07:37:01 PDT 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="083516.html">[whatwg] Synchronizing Canvas updates in a worker to DOM changes in the UI thread
+</A></li>
+        <LI>Next message: <A HREF="083525.html">[whatwg] Synchronizing Canvas updates in a worker to DOM changes in the UI thread
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#83521">[ date ]</a>
+              <a href="thread.html#83521">[ thread ]</a>
+              <a href="subject.html#83521">[ subject ]</a>
+              <a href="author.html#83521">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>I just noticed that Canvas already has a Canvas.setContext() method, which
+seems to do exactly what I'm proposing, even down to clearing the
+backbuffer on attach.  The only difference is that it lives on Canvas
+instead of the context--the only reason I put it there in my proposal was
+because this only seemed useful for WebGL.  Given that, I think this
+proposal can be simplified down to just: &quot;put setContext on WorkerCanvas
+too&quot;.
+
+
+On Mon, Oct 21, 2013 at 9:03 PM, Kenneth Russell &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">kbr at google.com</A>&gt; wrote:
+
+&gt;<i> There are some unexpected consequences of the attachToCanvas API
+</I>&gt;<i> style. For example, what if two contexts use attachToCanvas to target
+</I>&gt;<i> the same canvas?
+</I>
+
+I left out these details in my initial post in order to see what people
+thought at a high level before delving into details.  Attaching when
+already attached would replace the old attachment.  It's not possible for
+two workers to attach to the same canvas, since only a single WorkerCanvas
+can exist for any given canvas; and the original Canvas can't be attached
+to if a WorkerCanvas was created (eg. it's in the &quot;proxied&quot; mode).
+
+
+&gt;<i> What if one of those contexts is 2D and the other is
+</I>&gt;<i> WebGL? Currently it's illegal to try to fetch two different context
+</I>&gt;<i> types for a single Canvas. The current CanvasProxy spec contains
+</I>&gt;<i> several complex rules for these cases, and they're not easy to
+</I>&gt;<i> understand.
+</I>&gt;<i>
+</I>
+This is handled by setContext: attaching a context detaches any
+previously-attached context.
+
+
+&gt;<i> Will it be guaranteed that if you have a WebGL context, attachToCanvas
+</I>&gt;<i> to canvas1, do some rendering, and then attachToCanvas to canvas2,
+</I>&gt;<i> that the only remaining buffer in canvas1 is its color buffer? No
+</I>&gt;<i> depth buffers, multisample buffers, etc. will have to remain for some
+</I>&gt;<i> reason?
+</I>&gt;<i>
+</I>
+If you reattach to canvas1 in the future, the buffers are cleared, which
+means you can discard or reuse those buffers as soon as you attach to a
+different canvas.
+
+&gt;<i>
+</I>&gt;<i> How would WebGL's preserveDrawingBuffer attribute, which is a property
+</I>&gt;<i> of the context, interact with directing its output to multiple
+</I>&gt;<i> canvases?
+</I>&gt;<i>
+</I>
+Since attaching the canvas clears it, that would override
+preserveDrawingBuffer.
+
+
+&gt;<i> Fundamentally I think the behavior is easier to spec, and the
+</I>&gt;<i> implementation is easier to make correct, if the ultimate destination
+</I>&gt;<i> is an image rather than a canvas, and the color buffer is transferred
+</I>&gt;<i> out of the WorkerCanvas in an explicit step.
+</I>&gt;<i>
+</I>
+Whether that's true or not, making things easy for the user takes priority
+over making things easy for spec writers and implementation.
+
+
+On Tue, Oct 22, 2013 at 2:48 AM, Robert O'Callahan &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">robert at ocallahan.org</A>&gt;wrote:
+
+&gt;<i> This code actually does something potentially useful which can't easily be
+</I>&gt;<i> done with attachToCanvas: generating a series of images as fast as possible
+</I>&gt;<i> which will be processed on another thread in some way other than just
+</I>&gt;<i> rendering them on the screen. (E.g., be encoded into an animated image or
+</I>&gt;<i> video file.)
+</I>&gt;<i>
+</I>
+(This is a proposal for attachToCanvas--now setContext--not against
+transferToImageBitmap, if there are use cases that transferToImageBitmap
+solves best in its own right.  It seems like toBlob already handles this,
+though.)
+
+-- 
+Glenn Maynard
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="083516.html">[whatwg] Synchronizing Canvas updates in a worker to DOM changes in the UI thread
+</A></li>
+	<LI>Next message: <A HREF="083525.html">[whatwg] Synchronizing Canvas updates in a worker to DOM changes in the UI thread
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#83521">[ date ]</a>
+              <a href="thread.html#83521">[ thread ]</a>
+              <a href="subject.html#83521">[ subject ]</a>
+              <a href="author.html#83521">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

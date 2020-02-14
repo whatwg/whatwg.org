@@ -1,0 +1,320 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Application defined &quot;locks&quot;
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Application%20defined%20%22locks%22&In-Reply-To=%3Cbd8f24d20909091546s16156793o2318db529062a607%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="022816.html">
+   <LINK REL="Next"  HREF="022871.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Application defined &quot;locks&quot;</H1>
+<!--htdig_noindex-->
+    <B>Darin Fisher</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Application%20defined%20%22locks%22&In-Reply-To=%3Cbd8f24d20909091546s16156793o2318db529062a607%40mail.gmail.com%3E"
+       TITLE="[whatwg] Application defined &quot;locks&quot;">darin at chromium.org
+       </A><BR>
+    <I>Wed Sep  9 15:46:59 PDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="022816.html">[whatwg] Application defined &quot;locks&quot;
+</A></li>
+        <LI>Next message: <A HREF="022871.html">[whatwg] Application defined &quot;locks&quot;
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22817">[ date ]</a>
+              <a href="thread.html#22817">[ thread ]</a>
+              <a href="subject.html#22817">[ subject ]</a>
+              <a href="author.html#22817">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Wed, Sep 9, 2009 at 3:37 PM, Maciej Stachowiak &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">mjs at apple.com</A>&gt; wrote:
+
+&gt;<i>
+</I>&gt;<i> On Sep 9, 2009, at 10:55 AM, Darin Fisher wrote:
+</I>&gt;<i>
+</I>&gt;<i>  The recent discussion about the storage mutex for Cookies and LocalStorage
+</I>&gt;&gt;<i> got me thinking....
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Perhaps instead of trying to build implicit locking into those features,
+</I>&gt;&gt;<i> we should give web apps the tools to manage exclusive access to shared
+</I>&gt;&gt;<i> resources.
+</I>&gt;&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> I'm really hesitant to expose explicit locking to the Web platform. Mutexes
+</I>&gt;<i> are incredibly hard to program with correctly, and we will surely end up
+</I>&gt;<i> with stuck locks, race conditions, livelocks, and so forth. For Workers I
+</I>&gt;<i> was happy that we managed to avoid any locking primitives by using a
+</I>&gt;<i> message-passing model, but explicit mutexes would ruin that.
+</I>&gt;<i>
+</I>&gt;<i>  - Maciej
+</I>&gt;<i>
+</I>&gt;<i>
+</I>
+Note: I probably made a mistake calling these locks since they do not work
+like normal mutexes.  You can only wait for one of these locks
+asynchronously.  There is no synchronous blocking, which avoids most of the
+problems you mention.  Also, the locks are cleared when the page is
+destroyed or navigated to another domain, so you lose the problem of stuck
+locks.
+
+What motivated this was that I wanted the ability to simulate the database
+transaction model.  Since we support that, we might as well support a
+similar system that is independent of a particular storage mechanism.  Seems
+reasonable to me.
+
+Alternatively, if we had a way to set a value in local storage and read the
+value that was there, then a web page could implement a &quot;flag&quot; to indicate
+mutual exclusion. Someone interested in acquiring a flag could wait for a
+storage event to indicate that the flag was cleared.  However, what is
+missing is that there isn't a way for the &quot;flag&quot; to be auto-cleared when the
+DOM window is closed or navigated to another domain.
+
+-Darin
+
+
+
+&gt;<i>
+</I>&gt;<i>
+</I>&gt;&gt;<i> ----
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> I imagine a simple lock API:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> window.acquireLock(&quot;name&quot;)
+</I>&gt;&gt;<i> window.releaseLock(&quot;name&quot;)
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> acquireLock works like pthread_mutex_trylock in that it is non-blocking.
+</I>&gt;&gt;<i>  it returns true if you succeeded in acquiring the lock, else it returns
+</I>&gt;&gt;<i> false.  releaseLock does as its name suggests: releases the lock so that
+</I>&gt;&gt;<i> others may acquire it.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Any locks acquired would be automatically released when the DOM window is
+</I>&gt;&gt;<i> destroyed or navigated cross origin.  This API could also be supported by
+</I>&gt;&gt;<i> workers.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> The name parameter is scoped to the origin of the page.  So, this locking
+</I>&gt;&gt;<i> API only works between pages in the same origin.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> ----
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> We could also extend acquireLock to support an asynchronous callback when
+</I>&gt;&gt;<i> the lock becomes available:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> window.acquireLock(&quot;name&quot;, function() { /* lock acquired */ });
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> If the callback function is given, then upon lock acquisition, the
+</I>&gt;&gt;<i> callback function would be invoked.  In this case, the return value of
+</I>&gt;&gt;<i> acquireLock is true if the function was invoked or false if the function
+</I>&gt;&gt;<i> will be invoked once the lock can be acquired.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> ----
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Finally, there could be a helper for scoping lock acquisition:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> window.acquireScopedLock(&quot;name&quot;, function() { /* lock acquired for this
+</I>&gt;&gt;<i> scope only */ });
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> ----
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> This lock API would provide developers with the ability to indicate that
+</I>&gt;&gt;<i> their instance of the web app is the only one that should play with
+</I>&gt;&gt;<i> LocalStorage.  Other instances could then know that they don't have
+</I>&gt;&gt;<i> exclusive access and could take appropriate action.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> This API seems like it could be used to allow LocalStorage to be usable
+</I>&gt;&gt;<i> from workers.  Also, as we start developing other means of local storage
+</I>&gt;&gt;<i> (File APIs), it seems like having to again invent a reasonable implicit
+</I>&gt;&gt;<i> locking system will be a pain.  Perhaps it would just be better to develop
+</I>&gt;&gt;<i> something explicit that application developers can use independent of the
+</I>&gt;&gt;<i> local storage mechanism :-)
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> ----
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> It may be the case that we want to only provide acquireScopedLock (or
+</I>&gt;&gt;<i> something like it) to enforce fine grained locking, but I think that would
+</I>&gt;&gt;<i> only force people to implement long-lived locks by setting a field in
+</I>&gt;&gt;<i> LocalStorage.  That would then result in the locks not being managed by the
+</I>&gt;&gt;<i> UA, which means that they cannot be reliably cleaned up when the page
+</I>&gt;&gt;<i> closes.  I think it is very important that we provide facilities to guide
+</I>&gt;&gt;<i> people away from building such ad-hoc locks on top of LocalStorage.  This is
+</I>&gt;&gt;<i> why I like the explicit (non-blocking!) acquireLock and releaseLock methods.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> -Darin
+</I>&gt;&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: &lt;<A HREF="http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20090909/3527975a/attachment.htm">http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20090909/3527975a/attachment.htm</A>&gt;
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="022816.html">[whatwg] Application defined &quot;locks&quot;
+</A></li>
+	<LI>Next message: <A HREF="022871.html">[whatwg] Application defined &quot;locks&quot;
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22817">[ date ]</a>
+              <a href="thread.html#22817">[ thread ]</a>
+              <a href="subject.html#22817">[ subject ]</a>
+              <a href="author.html#22817">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

@@ -1,0 +1,132 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] LocalStorage in workers
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20LocalStorage%20in%20workers&In-Reply-To=%3C63df84f0909152027r7ddf748cx26d0e5f3bbe9fcd7%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="065266.html">
+   <LINK REL="Next"  HREF="065305.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] LocalStorage in workers</H1>
+<!--htdig_noindex-->
+    <B>Jonas Sicking</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20LocalStorage%20in%20workers&In-Reply-To=%3C63df84f0909152027r7ddf748cx26d0e5f3bbe9fcd7%40mail.gmail.com%3E"
+       TITLE="[whatwg] LocalStorage in workers">jonas at sicking.cc
+       </A><BR>
+    <I>Tue Sep 15 20:27:56 PDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="065266.html">[whatwg] LocalStorage in workers
+</A></li>
+        <LI>Next message: <A HREF="065305.html">[whatwg] LocalStorage in workers
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#65271">[ date ]</a>
+              <a href="thread.html#65271">[ thread ]</a>
+              <a href="subject.html#65271">[ subject ]</a>
+              <a href="author.html#65271">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Tue, Sep 15, 2009 at 6:56 PM, Jeremy Orlow &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">jorlow at chromium.org</A>&gt; wrote:
+&gt;<i> One possible solution is to&#160;add an asynchronous callback interface for
+</I>&gt;<i> LocalStorage into workers. &#160;For example:
+</I>&gt;<i> function myCallback(localStorage) {
+</I>&gt;<i> &#160;&#160;localStorage.accountBalance = localStorage.accountBalance + 100;
+</I>&gt;<i> }
+</I>&gt;<i> executeLocalStorageCallback(myCallback); &#160;// TODO: Make this name better
+</I>&gt;<i> &#160;:-)
+</I>&gt;<i> The interface is simple. &#160;You can only access localStorage via a callback.
+</I>&gt;<i> &#160;Any use outside of the callback is illegal and would raise an exception.
+</I>&gt;<i> &#160;The callback would acquire the storage mutex during execution, but the
+</I>&gt;<i> worker's execution would not block during this time. &#160;Of course, it's still
+</I>&gt;<i> possible for a poorly behaving worker to do large amounts of&#160;computation&#160;in
+</I>&gt;<i> the callback, but hopefully the fact they're executing in a callback makes
+</I>&gt;<i> the developer more aware of the problem.
+</I>
+First off, I agree that not having localStorage in workers is a big
+problem that we need to address.
+
+If I were designing the localStorage interface today I would use the
+above interface that you suggest. Grabbing localStorage can only be
+done asynchronously, and while you're using it, no one else can get a
+reference to it. This way there are no race conditions, but also no
+way for anyone to have to lock.
+
+So one solution is to do that in parallel to the current localStorage
+interface. Let's say we introduce a 'clientStorage' object. You can
+only get a reference to it using a 'getClientStorage' function. This
+function is available both to workers and windows. The storage is
+separate from localStorage so no need to worry about the 'storage
+mutex'.
+
+There is of course a risk that a worker grabs on to the clientStorage
+and holds it indefinitely. This would result in the main window (or
+another worker) never getting a reference to it. However it doesn't
+affect responsiveness of that window, it's just that the callback will
+never happen. While that's not ideal, it seems like a smaller problem
+than any other solution that I can think of. And the WebDatabase
+interfaces are suffering from the same problem if I understand things
+correctly.
+
+There's a couple of other interesting things we could expose on top of this:
+
+First, a synchronous API for workers. We could allow workers to
+synchronously get a reference to clientStorage. If someone is
+currently using clientStorage then the worker blocks until the storage
+becomes available. We could either use a callback as the above, which
+blocks until the clientStorage is acquired and only holds the storage
+until the callback exists. Or we could expose clientStorage as a
+property which holds the storage until control is returned to the
+worker eventloop, or until some explicit release API is called. The
+latter would be how localStorage is now defined, with the important
+difference that localStorage exposes the synchronous API to windows.
+
+Second, allow several named storage areas. We could add an API like
+getNamedClientStorage(name, callback). This would allow two different
+workers to simultaneously store things in a storage areas, as long as
+they don't need to use the *same* storage area. It would also allow a
+worker and the main window to simultaneously use separate storage
+areas.
+
+However we need to be careful if we add both above features. We can't
+allow a worker to grab multiple storage areas at the same time since
+that could cause deadlocks. However with proper APIs I believe we can
+avoid that.
+
+/ Jonas
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="065266.html">[whatwg] LocalStorage in workers
+</A></li>
+	<LI>Next message: <A HREF="065305.html">[whatwg] LocalStorage in workers
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#65271">[ date ]</a>
+              <a href="thread.html#65271">[ thread ]</a>
+              <a href="subject.html#65271">[ subject ]</a>
+              <a href="author.html#65271">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

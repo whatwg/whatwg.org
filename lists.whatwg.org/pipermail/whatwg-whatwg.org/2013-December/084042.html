@@ -1,0 +1,184 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] onclose events for MessagePort
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20onclose%20events%20for%20MessagePort&In-Reply-To=%3CCA%2Bc2ei-22s2C7JRvCc4gMXKTwLBdP8XWai38t9-6YBjpaQ8i4A%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="084040.html">
+   <LINK REL="Next"  HREF="084054.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] onclose events for MessagePort</H1>
+<!--htdig_noindex-->
+    <B>Jonas Sicking</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20onclose%20events%20for%20MessagePort&In-Reply-To=%3CCA%2Bc2ei-22s2C7JRvCc4gMXKTwLBdP8XWai38t9-6YBjpaQ8i4A%40mail.gmail.com%3E"
+       TITLE="[whatwg] onclose events for MessagePort">jonas at sicking.cc
+       </A><BR>
+    <I>Wed Dec 11 16:54:27 PST 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="084040.html">[whatwg] onclose events for MessagePort
+</A></li>
+        <LI>Next message: <A HREF="084054.html">[whatwg] onclose events for MessagePort
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#84042">[ date ]</a>
+              <a href="thread.html#84042">[ thread ]</a>
+              <a href="subject.html#84042">[ subject ]</a>
+              <a href="author.html#84042">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Wed, Dec 11, 2013 at 3:54 PM, Ian Hickson &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">ian at hixie.ch</A>&gt; wrote:
+&gt;<i> I really don't understand why we'd want that level of complexity for
+</I>&gt;<i> something that we can solve with just a single event handler, though. The
+</I>&gt;<i> problem, as described, is just &quot;we need to know when a remote port is
+</I>&gt;<i> killed due to an OOM error&quot;. The event handler does this. Why do we need
+</I>&gt;<i> to complicate it with two-way metadata messages to pin workers and so on?
+</I>&gt;<i> I really don't understand what that gets us.
+</I>
+Starting with this since there seems to be misunderstanding about use cases.
+
+The use case here is a page (or a worker) sending a message through a
+message port and wanting to know if the other side &quot;disappears&quot; before
+it is able to respond.
+
+There are a few scenarios where the responder could disappear.
+1. The process where the responder lives could crash.
+2. The responder could be running in a dedicated Worker which was
+terminated through Worker.terminate().
+3. The responder could be a web page that the user navigates away from.
+4. The responder could be a dedicated Worker which is owned by a web
+page that the user navigates away from.
+
+In scenario 3 the page could in theory send a message during the
+unload handler which indicates &quot;I won't have time to answer your
+question because i'm about to get killed&quot;.
+
+However that is not possible in any of the other scenarios.
+
+In scenario 4 it's not possible because there is no unload event that
+is fired in the worker. And the owning page could not send a message
+to the worker saying &quot;you're about to go away&quot; since the worker won't
+have time to process that as the UA is about to kill it (or at least
+freeze it) due to its owning page being navigated away from.
+
+Even if we did add a unload event to dedicated worker, that still
+wouldn't fully solve it for 4 since one of the use cases of dedicated
+workers is being able to write code that stays off the event loop for
+a long time. Such a script would not have time to receive and process
+the unload event before the worker was killed or frozen.
+
+In theory the web developer could try to solve scenario 2 and 4 doing
+what's described in [3]. However that seems painful enough that I
+don't think we should consider that a solution.
+
+So I hope that describes the use case, and that it also describes the
+dedicated workers issue.
+
+&gt;&gt;<i> The proposal at [1] does not prevent bfcaching *anytime* that
+</I>&gt;&gt;<i> MessagePorts are alive in a page that is navigated away from. We can
+</I>&gt;&gt;<i> always bfcache the page if we don't know of any &quot;other sides&quot; having
+</I>&gt;&gt;<i> pinned their port. If we later detect that a port is being pinned, we
+</I>&gt;&gt;<i> can indicate an error to the pinning side, and throw the bfcached page
+</I>&gt;&gt;<i> out of the bfcache at that time.
+</I>&gt;<i>
+</I>&gt;<i> It might be too late by then, since you might have already navigated back
+</I>&gt;<i> to the bfcached page. This is why the IPC has to be synchronous, at the
+</I>&gt;<i> latest during the back() navigation. (Not literally synchronous, I guess,
+</I>&gt;<i> since otherwise you'd have trouble handling a mirror image scenario where
+</I>&gt;<i> both sides were playing this game, but at least it needs to block the
+</I>&gt;<i> history traversal back to a document that is bfcached but for which we may
+</I>&gt;<i> not yet have received confirmation that the bfcache is clean.)
+</I>
+No sync IPC needed. When a port is pinned, you send an async message
+to the process which contains the page for the &quot;other side&quot;. When that
+process receives the message you check if the page is currently being
+displayed.
+
+If the page has been completely torn down then you send a message back
+saying that the page is dead and that the promise created during
+pinning should be rejected.
+
+If the page is sitting in the bfcache, you remove it from the bfcache
+and send a message back saying that the page is dead and that the
+promise created during pinning should be rejected.
+
+If the page is displayed, then you add a flag indicating that if the
+page is navigated away from, it should not go into the bfcache and
+that we should send a signal to reject the promise.
+
+Obviously if the process had crashed before we were able to process
+the event, you send a message back to reject the promise.
+
+The same thing is done when unpinning. You send a message to the other
+side saying that it's getting unpinned.
+
+If by the time the message gets there the page has been navigated away
+from, and thus torn down already, do nothing. This is an unfortunate
+circumstance that the page was torn down unneccesarily. But like I've
+said, completely preventing kicking pages out of the bfcache is
+something that I don't worry about as an implementor of the only
+bfcache implementation, and is also something that can be solved
+orthogonally if we really want to.
+
+In theory we can add API to lessen the risk of kicking pages out of
+bfcache somewhat here. At the cost of adding complexity. Proposals
+welcome.
+
+If the page is still rendered, signal that it is no longer needs to be
+prevented from entering bfcache.
+
+If the process has crashed, do nothing.
+
+&gt;&gt;<i> Finally, has any implementation indicated that the proposal in [1] is
+</I>&gt;&gt;<i> too burdensome to implement? If they have that of course changes the
+</I>&gt;&gt;<i> discussion dramatically here. But I'm reluctant to guess about what
+</I>&gt;&gt;<i> implementations will or won't implement. I'd rather ask them.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> [1] <A HREF="http://lists.whatwg.org/pipermail/whatwg-whatwg.org/2013-October/041250.html">http://lists.whatwg.org/pipermail/whatwg-whatwg.org/2013-October/041250.html</A>
+</I>&gt;<i>
+</I>&gt;<i> I strive for a higher bar than just &quot;no objections&quot;. Certainly though I
+</I>&gt;<i> welcome further input from everyone else here.
+</I>
+Your proposal doesn't even meet this bar. But more importantly, your
+argument that it's too burdensome to implement doesn't carry much
+weight when no actual implementors has expressed that concern.
+
+[3] <A HREF="http://lists.whatwg.org/pipermail/whatwg-whatwg.org/2013-October/041057.html">http://lists.whatwg.org/pipermail/whatwg-whatwg.org/2013-October/041057.html</A>
+
+/ Jonas
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="084040.html">[whatwg] onclose events for MessagePort
+</A></li>
+	<LI>Next message: <A HREF="084054.html">[whatwg] onclose events for MessagePort
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#84042">[ date ]</a>
+              <a href="thread.html#84042">[ thread ]</a>
+              <a href="subject.html#84042">[ subject ]</a>
+              <a href="author.html#84042">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

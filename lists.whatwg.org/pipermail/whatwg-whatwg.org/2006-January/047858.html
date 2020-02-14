@@ -1,0 +1,180 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Comment Syntax and Parsing
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Comment%20Syntax%20and%20Parsing&In-Reply-To=%3C43D611CD.6060401%40lachy.id.au%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="047850.html">
+   <LINK REL="Next"  HREF="047859.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Comment Syntax and Parsing</H1>
+<!--htdig_noindex-->
+    <B>Lachlan Hunt</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Comment%20Syntax%20and%20Parsing&In-Reply-To=%3C43D611CD.6060401%40lachy.id.au%3E"
+       TITLE="[whatwg] Comment Syntax and Parsing">lachlan.hunt at lachy.id.au
+       </A><BR>
+    <I>Tue Jan 24 03:38:53 PST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="047850.html">[whatwg] Comment Syntax and Parsing
+</A></li>
+        <LI>Next message: <A HREF="047859.html">[whatwg] Comment Syntax and Parsing
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#47858">[ date ]</a>
+              <a href="thread.html#47858">[ thread ]</a>
+              <a href="subject.html#47858">[ subject ]</a>
+              <a href="author.html#47858">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Anne van Kesteren wrote:
+&gt;<i> Quoting Henri Sivonen &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">hsivonen at iki.fi</A>&gt;:
+</I>&gt;&gt;<i> I guess the XML style is the simplest thing that could work. :-/
+</I>&gt;<i> 
+</I>&gt;<i> You are talking about conformance, but what do you want the parser to 
+</I>&gt;<i> do? And also there is talk about whitespace between -- and &gt; but currently all 
+</I>&gt;<i> kinds of chracters are allowed there (including - for instance).
+</I>
+It's important to decide upon what is to be considered a conformant
+comment and what is not before we can settle upon the best way to parse
+it.  That way we can ensure that all conforming comments are handled
+correctly and that error handling can be defined in an appropriate and
+compatible way.
+
+As for how to parse it, I'll use these test cases to demonstrate what I
+consider to be the most sane way to handle comments.  (Assume EOF at the
+end of each one)
+
+Test Case                          | Comment Content          | Output
+-----------------------------------|--------------------------|--------------
+PA&lt;!&gt;SS                            | &quot;&quot;                       | PASS
+PA&lt;! -&gt;SS                          | &quot; -&quot;                     | PASS
+PA&lt;! --&gt;SS                         | &quot; &quot;                      | PASS
+PA&lt;!-&gt;SS                           | &quot;-&quot;                      | PASS
+PA&lt;!- -&gt;SS                         | &quot;- -&quot;                    | PASS
+PA&lt;!- -&gt;SS --&gt;                     | &quot;- -&quot;                    | PASS --&gt;
+PA&lt;!- &lt;!--&gt;SS --&gt;                  | &quot;- &lt;!&quot;                   | PASS --&gt;
+PA&lt;!- &lt;!-- -&gt;SS --&gt;                | &quot;- &lt;!-- -&quot;               | PASS --&gt;
+PA&lt;!- --&gt;SS                        | &quot;- &quot;                     | PASS
+PA&lt;!- -- &gt;SS                       | &quot;- &quot;                     | PASS
+PA&lt;!-- FAIL --&gt;SS                  | &quot; FAIL &quot;                 | PASS
+PA&lt;!--&gt; FAIL --&gt;SS                 | &quot;&gt; FAIL &quot;                | PASS
+PA&lt;!--&gt; FAIL &lt;!-- --&gt;SS            | &quot;&gt; FAIL &lt;!-- &quot;           | PASS
+PA&lt;!--&gt; FAIL &lt;!-- -- --&gt;SS         | &quot;&gt; FAIL &lt;!-- -- &quot;        | PASS
+PA&lt;!-- &gt; FAIL -- &gt;SS               | &quot; &gt; FAIL &quot;               | PASS
+P&lt;!-- -- &gt;AS&lt;!-- --&gt;S              | &quot; &quot; (2 comments)         | PASS
+PA&lt;!-- FAIL -- FAIL --&gt;SS          | &quot; FAIL -- FAIL &quot;         | PASS
+P&lt;!-- -- --&gt;AS&lt;!-- -- --&gt;S         | &quot; -- &quot; (2 comments)      | PASS
+PA&lt;!-- -- -- --&gt;SS                 | &quot; -- -- &quot;                | PASS
+PA&lt;!-- FAIL -- FAIL -- FAIL --&gt;SS  | &quot; FAIL -- FAIL -- FAIL &quot; | PASS
+PA&lt;!--- FAIL --&gt;SS                 | &quot;- FAIL &quot;                | PASS
+PA&lt;!--- FAIL ---&gt;SS                | &quot;- FAIL -&quot;               | PASS
+&lt;!-- -&gt;FAIL                        | &quot; -&gt;FAIL&quot;                |
+&lt;!--- -&gt;FAIL                       | &quot;- -&gt;FAIL&quot;               |
+PA&lt;!---&gt;--&gt;SS                      | &quot;-&gt;&quot;                     | PASS
+&lt;!-- --- -&gt;                        | (not sure)               |
+PA&lt;!-- --- --&gt;SS                   | &quot; --- &quot;                  | PASS
+PA&lt;!--- --- ---&gt;SS                 | &quot;- --- -&quot;                | PASS
+
+As for actually defining how that is parsed, I believe it should work
+something like this.  Throughout this algorithm, (x) is used to 
+represent the input character, not literal characters.  The following 
+isn't perfect, I'm sure I've made some mistakes, but it should (I 
+believe) handle the above cases as described.
+
+
+&lt;!
+   * Switch to marked section open state
+
+
+Marked Section Open State
+   --
+     * Create comment token
+     * Switch to comment state
+   DOCTYPE
+     * (DOCTYPE state)
+   else (easy parse error)
+     * Create comment token
+     * Append (x) to comment token
+     * Switch to comment end state
+
+Comment State
+   -
+     * Switch to comment dash state
+   EOF
+     * Emit comment token and stop
+   else
+     * Append (x) to comment token
+     * Remain in comment state
+
+
+Comment Dash State
+   -
+     * Switch to comment end state
+   EOF
+     * Append '-' to the comment token
+     * Emit comment token and stop
+   else
+     * Append '-' and (x) to comment token
+     * Switch to comment state
+
+
+Comment End State
+   &gt;
+     * Emit comment token
+     * Switch to data state
+   -
+     * Append '-' to comment token
+   else (easy parse error)
+     * Append '--' to comment token
+     * Consume every character up to, but not including, the first
+       occurrence of '&gt;' or EOF (whichever comes first)
+     * Append the characters to the comment token
+     * If the comment token string matches /--\s*$/,
+       then strip those characters.
+       (This ensures that &lt;!-- foo --&gt; and &lt;!-- foo --   &gt; have the same
+        comment data)
+     * Emit the comment token
+
+-- 
+Lachlan Hunt
+<A HREF="http://lachy.id.au/">http://lachy.id.au/</A>
+
+
+
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="047850.html">[whatwg] Comment Syntax and Parsing
+</A></li>
+	<LI>Next message: <A HREF="047859.html">[whatwg] Comment Syntax and Parsing
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#47858">[ date ]</a>
+              <a href="thread.html#47858">[ thread ]</a>
+              <a href="subject.html#47858">[ subject ]</a>
+              <a href="author.html#47858">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

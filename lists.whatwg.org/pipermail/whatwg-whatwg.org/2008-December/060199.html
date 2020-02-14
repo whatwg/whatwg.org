@@ -1,0 +1,185 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Code defined for one document called after that document is no longer the one being displayed
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Code%20defined%20for%20one%20document%20called%20after%20that%20document%0A%20is%20no%20longer%20the%20one%20being%20displayed&In-Reply-To=%3CPine.LNX.4.62.0812200947130.30225%40hixie.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="060198.html">
+   <LINK REL="Next"  HREF="060217.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Code defined for one document called after that document is no longer the one being displayed</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Code%20defined%20for%20one%20document%20called%20after%20that%20document%0A%20is%20no%20longer%20the%20one%20being%20displayed&In-Reply-To=%3CPine.LNX.4.62.0812200947130.30225%40hixie.dreamhostps.com%3E"
+       TITLE="[whatwg] Code defined for one document called after that document is no longer the one being displayed">ian at hixie.ch
+       </A><BR>
+    <I>Mon Dec 22 19:41:08 PST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="060198.html">[whatwg] Minor typo in 8.2.4.37
+</A></li>
+        <LI>Next message: <A HREF="060217.html">[whatwg] Code defined for one document called after that document is no longer the one being displayed
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#60199">[ date ]</a>
+              <a href="thread.html#60199">[ thread ]</a>
+              <a href="subject.html#60199">[ subject ]</a>
+              <a href="author.html#60199">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>
+On Thu, 15 May 2008, Jonas Sicking wrote:
+&gt;<i> 
+</I>&gt;<i> Generally saying that &quot;scripts won't run once you've navigated away from 
+</I>&gt;<i> a page&quot; is wrong. For example I think that if you mutate the DOM of 
+</I>&gt;<i> document that has been navigated away from mutation-event handlers will 
+</I>&gt;<i> still fire. And UserDataHandlers will likely fire as described by spec.
+</I>
+The HTML5 spec now defines that once you navigate away, the scripts are 
+frozen, meaning that scripts defined by the page itself won't fire. 
+Scripts from other pages still will, though.
+
+
+&gt;<i> Not to mention that there can still be script executing for a page when the
+</I>&gt;<i> page is navigated away from. For example:
+</I>&gt;<i> 
+</I>&gt;<i> var value = &quot;hello nurse&quot;;
+</I>&gt;<i> onload = function() {
+</I>&gt;<i>   alert(&quot;i'm still the active page&quot;);
+</I>&gt;<i>   document.write(&quot;new page&quot;);
+</I>&gt;<i>   alert(&quot;I'm script running in the context of a page that has been &quot; +
+</I>&gt;<i>         &quot;navigated away from. See, |value| is still there:&quot; + value);
+</I>&gt;<i> }
+</I>
+Right, per spec, that should work fine. (The complications are if this 
+code then calls some script in another document -- then if that code calls 
+back into this code, an exception will be raised. At least, per spec. I 
+tried doing what IE does, but IE's behavior is wacky, the two asserts in 
+this example both are true:
+
+  document.open();
+  document.write(&quot;&lt;script&gt;function b(w) { assert(w === window); w.w = window; }&lt;\/script&gt;&quot;);
+  window.b(window);
+  assert(window !== window.w);
+
+...which makes no sense to me.
+
+
+&gt;<i> [ inner windows and outer windows ]
+</I>&gt;<i> [...] Some of this stuff is there for web compat. Such as the fact that 
+</I>&gt;<i> this results in the code executing after the document.write above still 
+</I>&gt;<i> is able to access global variables that were defined before the call. 
+</I>&gt;<i> I.e. the |value| in the second alert still works.
+</I>
+Per spec, document.open() doesn't replace the Window object... In fact, 
+right now even the global variables aren't ever nuked by document.open() 
+per spec. It's not really clear to me when that should happen... The 
+behavior of the browsers today is not interoperable at anything but a 
+superficial level, and the low-level behaviors are all kinda weird (e.g. 
+IE's behavior as described above). Of note, Safari doesn't seem to blow 
+away the global variables:
+
+   <A HREF="http://www.hixie.ch/tests/adhoc/dom/level0/document/open/008.html">http://www.hixie.ch/tests/adhoc/dom/level0/document/open/008.html</A>
+   <A HREF="http://www.hixie.ch/tests/adhoc/dom/level0/document/open/009.html">http://www.hixie.ch/tests/adhoc/dom/level0/document/open/009.html</A>
+
+Mozilla seems to handle 'var x' differently from 'window.x', though per 
+the JS spec I can't find any justification for this (they should be the 
+same except for the former having DontDelete set).
+
+
+On Tue, 5 Aug 2008, Ian Hickson wrote:
+&gt;<i> 
+</I>&gt;<i> I would like some input from browser vendors.
+</I>&gt;<i> 
+</I>&gt;<i> Right now, if you navigate an iframe to a document, and take a 
+</I>&gt;<i> reference to a method defined in that document, and then navigate that 
+</I>&gt;<i> iframe to another document, and then call the method, browsers differ in 
+</I>&gt;<i> what they do.
+</I>&gt;<i> 
+</I>&gt;<i> There are several behaviours:
+</I>&gt;<i> 
+</I>&gt;<i>  - In one browser, the Window object changes with each navigation,
+</I>&gt;<i>    and the global object is that object, and the method runs fine.
+</I>&gt;<i> 
+</I>&gt;<i>  - In one browser, the method call fails, saying that methods can't be 
+</I>&gt;<i>    called while the document that defined them isn't the active document 
+</I>&gt;<i>    of the browsing context whose global object is the method's.
+</I>&gt;<i> 
+</I>&gt;<i>  - In one browser, the Window object acts as a kind of view on the global 
+</I>&gt;<i>    object, which changes with each navigation, leading the method to see 
+</I>&gt;<i>    the original global object in its scope chain, but the new one if it
+</I>&gt;<i>    uses the 'window' object. (In this environment, 'this' at the top scope 
+</I>&gt;<i>    returns the 'window' object, not the global object.)
+</I>&gt;<i> 
+</I>&gt;<i>  - In one browser, the global object and the Window are the same, but the 
+</I>&gt;<i>    global object is totally wiped out with each navigation, preventing the
+</I>&gt;<i>    method from accessing its global object's data. (In this browser, the 
+</I>&gt;<i>    results are slightly different when navigating top-level windows 
+</I>&gt;<i>    instead of frames.)
+</I>&gt;<i> 
+</I>&gt;<i> These results were derived from:
+</I>&gt;<i>    <A HREF="http://damowmow.com/playground/demos/global-object/004.html">http://damowmow.com/playground/demos/global-object/004.html</A>
+</I>&gt;<i> 
+</I>&gt;<i> I propose to adopt the second behaviour above. It seems by far the 
+</I>&gt;<i> simplest behaviour to define and implement. Are there any objections to 
+</I>&gt;<i> this? Given the lack of interoperability here, it seems like we aren't 
+</I>&gt;<i> really constrained to pick something due to compatibility.
+</I>&gt;<i> 
+</I>&gt;<i> The change would be that if a method is invoked when the script 
+</I>&gt;<i> execution context that the method was running in has a Document object 
+</I>&gt;<i> that is not the active Document object of its browsing context, then 
+</I>&gt;<i> that method immediately throws an exception. Access to variables 
+</I>&gt;<i> obtained from such script execution contexts would be unaffected.
+</I>
+I've now done this.
+
+
+On Tue, 5 Aug 2008, Aaron Boodman wrote:
+&gt;<i> 
+</I>&gt;<i> By 'method' do you mean any function object, defined anywhere in that 
+</I>&gt;<i> window? For example, does document.getElementById count? Does the foo in 
+</I>&gt;<i> var myglobal = {foo:function(){...}}; ? What about getters?
+</I>
+I mean any code entry-point defined by a script. So lambdas yes, getters 
+and setters yes, API methods no.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="060198.html">[whatwg] Minor typo in 8.2.4.37
+</A></li>
+	<LI>Next message: <A HREF="060217.html">[whatwg] Code defined for one document called after that document is no longer the one being displayed
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#60199">[ date ]</a>
+              <a href="thread.html#60199">[ thread ]</a>
+              <a href="subject.html#60199">[ subject ]</a>
+              <a href="author.html#60199">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

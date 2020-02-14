@@ -1,0 +1,256 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] &lt;video&gt; &quot;await a stable state&quot; in resource selection (Was: Race condition in media load algorithm)
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20%3Cvideo%3E%20%22await%20a%20stable%20state%22%20in%20resource%20selection%0A%20%28Was%3A%20Race%20condition%20in%20media%20load%20algorithm%29&In-Reply-To=%3Cop.vg9nxhocsr6mfa%40philip-pc.gothenburg.osa%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="070081.html">
+   <LINK REL="Next"  HREF="070151.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] &lt;video&gt; &quot;await a stable state&quot; in resource selection (Was: Race condition in media load algorithm)</H1>
+<!--htdig_noindex-->
+    <B>Philip J&#228;genstedt</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20%3Cvideo%3E%20%22await%20a%20stable%20state%22%20in%20resource%20selection%0A%20%28Was%3A%20Race%20condition%20in%20media%20load%20algorithm%29&In-Reply-To=%3Cop.vg9nxhocsr6mfa%40philip-pc.gothenburg.osa%3E"
+       TITLE="[whatwg] &lt;video&gt; &quot;await a stable state&quot; in resource selection (Was: Race condition in media load algorithm)">philipj at opera.com
+       </A><BR>
+    <I>Wed Aug 11 02:13:55 PDT 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="070081.html">[whatwg] &lt;video&gt; &quot;await a stable state&quot; in resource selection (Was: Race condition in media load algorithm)
+</A></li>
+        <LI>Next message: <A HREF="070151.html">[whatwg] &lt;video&gt; &quot;await a stable state&quot; in resource selection (Was: Race condition in media load algorithm)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#70131">[ date ]</a>
+              <a href="thread.html#70131">[ thread ]</a>
+              <a href="subject.html#70131">[ subject ]</a>
+              <a href="author.html#70131">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>CC Hixie, question below.
+
+On Tue, 10 Aug 2010 18:39:04 +0200, Boris Zbarsky &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">bzbarsky at mit.edu</A>&gt; wrote:
+
+&gt;<i> On 8/10/10 4:40 AM, Philip J&#228;genstedt wrote:
+</I>&gt;&gt;<i> Because the parser can't create a state which the algorithm doesn't
+</I>&gt;&gt;<i> handle. It always first inserts the video element, then the source
+</I>&gt;&gt;<i> elements in the order they should be evaluated. The algorithm is written
+</I>&gt;&gt;<i> in such a way that the overall result is the same regardless of whether
+</I>&gt;&gt;<i> it is invoked/continued on each inserted source element or after the
+</I>&gt;&gt;<i> video element is closed.
+</I>&gt;<i>
+</I>&gt;<i> Ah, the waiting state, etc?
+</I>
+Yes, in the case of the parser inserting source elements that fail one of  
+the tests (no src, wrong type, wrong media) the algorithm will end up at  
+step 6.21 waiting. It doesn't matter if all sources are available when the  
+algorithm is first invoked or if they &quot;trickle in&quot;, be that from the  
+parser or from scripts.
+
+&gt;<i> Why does the algorithm not just reevaluate any sources after the  
+</I>&gt;<i> newly-inserted source instead?
+</I>
+Because if a source failed after network access (404, wrong MIME, etc)  
+then we'd have to perform that network access again and again for each  
+modification. More on that below.
+
+&gt;&gt;<i> However, scripts can see the state at any point, which is why it needs  
+</I>&gt;&gt;<i> to be the same in all browsers.
+</I>&gt;<i>
+</I>&gt;<i> I'm not sure which &quot;the state&quot; you mean here.
+</I>
+For example networkState can be NETWORK_NO_SOURCE, NETWORK_EMPTY or  
+NETWORK_LOADING depending on which steps you've run. Silvia Pfeiffer found  
+inconsistencies between browsers because of this in, see  
+&lt;<A HREF="http://lists.whatwg.org/htdig.cgi/whatwg-whatwg.org/2010-July/027284.html">http://lists.whatwg.org/htdig.cgi/whatwg-whatwg.org/2010-July/027284.html</A>&gt;
+
+It's quite serious because NETWORK_EMPTY is used as a condition in many  
+places of the spec, so this absolutely must be consistent between browsers.
+
+&gt;&gt;&gt;<i> Because changes to the set of &lt;source&gt; elements do not restart the
+</I>&gt;&gt;&gt;<i> resource selection algorithm, right? Why don't they, exactly? That
+</I>&gt;&gt;&gt;<i> seems broken to me, from the POV of how the rest of the DOM generally
+</I>&gt;&gt;&gt;<i> works (except as required by backward compatibility considerations)...
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> The resource selection is only started once, typically when the src
+</I>&gt;&gt;<i> attribute is set (by parser or script) or when the first source element
+</I>&gt;&gt;<i> is inserted. If it ends up in step 21 waiting, inserting another source
+</I>&gt;&gt;<i> element may cause it to continue at step 22.
+</I>&gt;<i>
+</I>&gt;<i> Right, ok.
+</I>&gt;<i>
+</I>&gt;&gt;<i> Restarting the algorithm on any modification of source elements would
+</I>&gt;&gt;<i> mean retrying sources that have previously failed due to network errors
+</I>&gt;&gt;<i> or incorrect MIME type again and again, wasting network resources.
+</I>&gt;&gt;<i> Instead, the algorithm just keeps it state and waits for more source
+</I>&gt;&gt;<i> elements to try.
+</I>&gt;<i>
+</I>&gt;<i> Well, the problem is that it introduces hysteresis into the DOM.  Why is  
+</I>&gt;<i> this a smaller consideration than the other, in the edge case when  
+</I>&gt;<i> someone inserts sources in reverse order and &quot;slowly&quot; (off the event  
+</I>&gt;<i> loop)?
+</I>
+The algorithm has been very stateful since I first implemented it and I  
+always considered the sync/async split to be precisely for that reason, to  
+be more tolerant of the order of DOM modification. I'll have to let Hixie  
+answer why this specific trade-off was made.
+
+&gt;<i> That is, why do we only consider sources inserted after the |pointer|  
+</I>&gt;<i> instead of all newly inserted sources?
+</I>
+Otherwise the pointer could potentially reach the same source element  
+twice, with the aforementioned problems with failing after network access.
+
+&gt;&gt;<i> I'm not sure what you mean by hysteresis
+</I>&gt;<i>
+</I>&gt;<i> <A HREF="http://en.wikipedia.org/wiki/Hysteresis">http://en.wikipedia.org/wiki/Hysteresis</A>
+</I>&gt;<i>
+</I>&gt;<i> Specifically, that the state of the page depends not only on the current  
+</I>&gt;<i> state of the DOM but also on the path in state space that the page took  
+</I>&gt;<i> to get there.
+</I>&gt;<i>
+</I>&gt;<i> Or in other words, that inserting two &lt;source&gt; elements does different  
+</I>&gt;<i> things depending on whether you do &quot;appendChild(a); appendChild(b)&quot; or  
+</I>&gt;<i> &quot;appendChild(b); insertBefore(a, b)&quot;, even though the resulting DOM is  
+</I>&gt;<i> exactly the same.
+</I>&gt;<i>
+</I>&gt;<i> Or in your case, the fact that the ordering of the setAttribute and  
+</I>&gt;<i> insertChild calls matters, say.
+</I>&gt;<i>
+</I>&gt;<i> Such situations, which introduce order-dependency on DOM operations, are  
+</I>&gt;<i> wonderful sources of frustration for web developers, especially if  
+</I>&gt;<i> libraries that abstract away the DOM manipulation are involved (so the  
+</I>&gt;<i> web developer can't even change the operation order).
+</I>
+OK, perhaps I should take this more seriously. Making the whole algorithm  
+synchronous probably isn't a brilliant idea unless we can also do away  
+with all of the state it keeps (i.e. hysteresis).
+
+One way would be to introduce a magic flag on all source elements to  
+indicate that they have already failed. This would be cleared whenever  
+src, type or media is modified. Another is to cache 404 responses and the  
+MIME types of rejected resources, but I think that's a bit overkill. Do  
+you have any specific ideas?
+
+&gt;&gt;&gt;<i> I have a really hard time believing that you trigger resource
+</I>&gt;&gt;&gt;<i> selection when the &lt;video&gt; is inserted into the document and don't
+</I>&gt;&gt;&gt;<i> retrigger it afterward, given that... do you?
+</I>
+To the best of my knowledge we do exactly what the spec says, apart from  
+the uncertainty regarding &quot;await a stable state&quot;.
+
+Resource selection is triggered by setting/modifying the src attribute or  
+inserting a source element when networkState is NETWORK_EMPTY. Here's an  
+annotated guide of exactly what happens in two cases:
+
+&lt;video src=&quot;video.webm&quot;&gt;
+&lt;!-- resource selection triggered as src attribute was set by parser --&gt;
+&lt;/video&gt;
+
+&lt;video&gt;
+&lt;!-- resource selection not triggered yet --&gt;
+&lt;source&gt;
+&lt;!-- resource selection triggered, ends up waiting in step 6.21 due to  
+missing src --&gt;
+&lt;source src=&quot;video.mp4&quot; type=&quot;video/mp4&quot;&gt;
+&lt;!-- resource selection continues at step 6.22, but ends up waiting again  
+in 6.21 as we don't support video/mp4 --&gt;
+&lt;source src=&quot;video.webm&quot; type=&quot;video/webm&quot;&gt;
+&lt;!-- resource selection continues at step 6.22, calling resource fetch in  
+step 6.9, potentially never returning --&gt;
+&lt;/video&gt;
+
+&gt;&gt;&gt;&gt;<i> 2. Instead of calling the resource fetch algorithm in step 5/9
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> There doesn't seem to be such a step...
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> 3. In step 21, instead of waiting forever, just return and let  
+</I>&gt;&gt;&gt;&gt;<i> inserting
+</I>&gt;&gt;&gt;&gt;<i> a source element cause it to continue at step 22.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> Again, the numbering seems to be off.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> These are steps in the resource selection algorithm, not in the resource
+</I>&gt;&gt;<i> fetch algorithm.
+</I>&gt;<i>
+</I>&gt;<i> Yes.  Step 5 in the resource selection algorithm I see is:
+</I>&gt;<i>
+</I>&gt;<i>    5. Queue a task to fire a simple event named loadstart at the media
+</I>&gt;<i>       element.
+</I>&gt;<i>
+</I>&gt;<i> It has no substeps.
+</I>
+Oops, steps 5/9/21 are substeps of step 6.
+
+&gt;&gt;<i> Mozilla is implementing this now. How are you interpreting &quot;await a
+</I>&gt;&gt;<i> stable state&quot; when the resource selection algorithm is triggered by the
+</I>&gt;&gt;<i> parser?
+</I>&gt;<i>
+</I>&gt;<i> At the moment, given that we don't differentiate betwen &quot;pause&quot; and  
+</I>&gt;<i> &quot;spin the event loop&quot; internally, it sounds like we plan to treat tis as  
+</I>&gt;<i> &quot;wait until the next event runs from the event loop&quot;.  This means we  
+</I>&gt;<i> will treat an alert being up as being in a stable state; same for sync  
+</I>&gt;<i> XHR, showModalDialog, etc.  From the parser we will basically treat it  
+</I>&gt;<i> as &quot;run asynchronously&quot;.
+</I>&gt;<i>
+</I>&gt;&gt;<i> Will the result be 100% predictable or depend on &quot;random&quot; things
+</I>&gt;&gt;<i> like how much data the parser already has available from the network?
+</I>&gt;<i>
+</I>&gt;<i> I don't know about &quot;result&quot;.  When the algorithm runs, exactly, will  
+</I>&gt;<i> depend on the amount of data the parser parses before returning to the  
+</I>&gt;<i> event loop.  Does that affect &quot;result&quot;?
+</I>
+Yes, it sounds like it very much does, and would result in disasters like  
+this:
+
+&lt;!doctype html&gt;
+&lt;video src=&quot;video.webm&quot;&gt;&lt;/video&gt;
+&lt;!-- network packet boundary or lag? --&gt;
+&lt;script&gt;alert(document.querySelector('video').networkState)&lt;/script&gt;
+
+The result will be 0 (NETWORK_EMPTY) or 2 (NETWORK_LOADING) depending on  
+whether or not the parser happened to return to the event loop before the  
+script. The only way this would not be the case is if the event loop is  
+spun before executing scripts, but I haven't found anything to that effect  
+in the spec. I hope I'm wrong, of course.
+
+-- 
+Philip J&#228;genstedt
+Core Developer
+Opera Software
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="070081.html">[whatwg] &lt;video&gt; &quot;await a stable state&quot; in resource selection (Was: Race condition in media load algorithm)
+</A></li>
+	<LI>Next message: <A HREF="070151.html">[whatwg] &lt;video&gt; &quot;await a stable state&quot; in resource selection (Was: Race condition in media load algorithm)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#70131">[ date ]</a>
+              <a href="thread.html#70131">[ thread ]</a>
+              <a href="subject.html#70131">[ subject ]</a>
+              <a href="author.html#70131">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

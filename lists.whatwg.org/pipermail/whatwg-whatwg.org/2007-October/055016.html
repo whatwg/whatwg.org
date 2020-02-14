@@ -1,0 +1,149 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] SQL API error handling
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20SQL%20API%20error%20handling&In-Reply-To=%3CPine.LNX.4.62.0710160333090.19595%40hixie.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="055014.html">
+   <LINK REL="Next"  HREF="055017.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] SQL API error handling</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20SQL%20API%20error%20handling&In-Reply-To=%3CPine.LNX.4.62.0710160333090.19595%40hixie.dreamhostps.com%3E"
+       TITLE="[whatwg] SQL API error handling">ian at hixie.ch
+       </A><BR>
+    <I>Mon Oct 15 20:37:47 PDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="055014.html">[whatwg] SQL API error handling
+</A></li>
+        <LI>Next message: <A HREF="055017.html">[whatwg] SQL API error handling
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#55016">[ date ]</a>
+              <a href="thread.html#55016">[ thread ]</a>
+              <a href="subject.html#55016">[ subject ]</a>
+              <a href="author.html#55016">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Mon, 15 Oct 2007, Scott Hess wrote:
+&gt;<i> 
+</I>&gt;<i> Under SQLite, there are cases where retrying might work, in which case 
+</I>&gt;<i> you can retry.  There are other cases where retry will never work, you 
+</I>&gt;<i> need to rollback your transaction and start over.  If you don't do so, 
+</I>&gt;<i> you can cause a deadlock.  Much of this can be addressed by using BEGIN 
+</I>&gt;<i> IMMEDIATE rather than BEGIN DEFERRED (the default for BEGIN). I'm not 
+</I>&gt;<i> certain we can address this kind of issue at the level of this API, if 
+</I>&gt;<i> multiple connections to the same database are allowed.
+</I>
+See my reply to Maciej below.
+
+
+&gt;<i> &gt; &gt; * CORRUPT, insofar as the Database API lets you delete databases (it 
+</I>&gt;<i> &gt; &gt; doesn't currently, but we've thought of adding that to Gears).
+</I>&gt;<i> 
+</I>&gt;<i> You may be correct that authors shouldn't be dealing with this. 
+</I>&gt;<i> Guaranteeing the integrity of the database at open is prohibitive (you 
+</I>&gt;<i> may have to scan the entire database), and no guarantee in practice, so 
+</I>&gt;<i> it's possible that you can detect corruption at any arbitrary statement.
+</I>
+Sure, but that problem occurs everywhere. I mean, there's no JS exception 
+for &quot;your CPU core just overheated&quot;, but we don't guarentee that won't 
+happen either. Database corruption will occur either for hardware reasons 
+or due to software bugs. Hardware failures could cause all kinds of random 
+stuff, including software bugs (through corruption of executables). Having 
+an API to handle software bugs seems silly, since if we could assume that 
+that API was bug free, why not assume the rest of the API is too. This 
+just seems like a case we shouldn't worry about.
+
+
+&gt;<i> I'm considering two classes of error, here.  One the one hand are 
+</I>&gt;<i> statements which are just incorrect, either syntactically or 
+</I>&gt;<i> structurally.  They will never execute, your app is broken.  On the 
+</I>&gt;<i> other hand are statement which fail, but are otherwise correct.  I think 
+</I>&gt;<i> these cases are reasonable to distinguish, but it may be that the author 
+</I>&gt;<i> actions for either statement would be identical, making distinguishing 
+</I>&gt;<i> them bootless.
+</I>
+Things that will always fail should raise exceptions from the method.
+
+Things that might, but whose failure state is not immediately known, call 
+the callback with an errorCode.
+
+
+&gt;<i> Whoa!  I just realized that there's another group, constraint failures.  
+</I>&gt;<i> These are statements which will sometimes succeed, sometimes fail.  As 
+</I>&gt;<i> currently spec'ed, it looks like a constraint failure will cause 
+</I>&gt;<i> rollback.  This is probably not appropriate, constraint failures are 
+</I>&gt;<i> generally expected to be benign and detectable.  Arguing against myself, 
+</I>&gt;<i> I've seen plenty of code which just treats any errors from something 
+</I>&gt;<i> which allows for a constraint failure as a constraint failure, so maybe 
+</I>&gt;<i> this also can be lumped under a single big error code.
+</I>
+Could you elaborate on this? What would code running into this situation 
+look like? How should we expose it?
+
+
+On Mon, 15 Oct 2007, Maciej Stachowiak wrote:
+&gt;<i> 
+</I>&gt;<i> With upgradeable read-write locks, this can lead to a deadlock. Consider 
+</I>&gt;<i> two transactions that start with a statement that only needs a read 
+</I>&gt;<i> lock. They each grab a non-exclusive read lock and proceed in parallel. 
+</I>&gt;<i> For each, the second statement of the transaction is a write. Each would 
+</I>&gt;<i> like to upgrade its read lock to an exclusive write lock, but neither 
+</I>&gt;<i> can because a shared read lock is still held. At least one must fail and 
+</I>&gt;<i> roll back to avoid deadlock. Thus, it must be possible for the first 
+</I>&gt;<i> write statement in a formerly read-only transaction to fail.
+</I>
+Ok, I've added a new error code (4), with the description:
+
+     The statement failed because the transaction's first
+     statement was a read-only statement, and a subsequent statement
+     in the same transaction tried to modify the database, but the
+     transaction failed to obtain a write lock before another
+     transaction obtained a write lock and changed a part of the
+     database that the former transaction was dependending upon.
+
+Is that what we want?
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="055014.html">[whatwg] SQL API error handling
+</A></li>
+	<LI>Next message: <A HREF="055017.html">[whatwg] SQL API error handling
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#55016">[ date ]</a>
+              <a href="thread.html#55016">[ thread ]</a>
+              <a href="subject.html#55016">[ subject ]</a>
+              <a href="author.html#55016">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

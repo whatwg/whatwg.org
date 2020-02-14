@@ -1,0 +1,134 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Avoiding synchronous iframe load
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Avoiding%20synchronous%20iframe%20load&In-Reply-To=%3CC9288A20-7E90-4255-A7AC-172CC23936D0%40apple.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="083461.html">
+   <LINK REL="Next"  HREF="083544.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Avoiding synchronous iframe load</H1>
+<!--htdig_noindex-->
+    <B>Ryosuke Niwa</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Avoiding%20synchronous%20iframe%20load&In-Reply-To=%3CC9288A20-7E90-4255-A7AC-172CC23936D0%40apple.com%3E"
+       TITLE="[whatwg] Avoiding synchronous iframe load">rniwa at apple.com
+       </A><BR>
+    <I>Thu Oct 17 22:22:18 PDT 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="083461.html">[whatwg] Avoiding synchronous iframe load
+</A></li>
+        <LI>Next message: <A HREF="083544.html">[whatwg] Avoiding synchronous iframe load
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#83463">[ date ]</a>
+              <a href="thread.html#83463">[ thread ]</a>
+              <a href="subject.html#83463">[ subject ]</a>
+              <a href="author.html#83463">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>
+On Oct 17, 2013, at 9:58 PM, Boris Zbarsky &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">bzbarsky at MIT.EDU</A>&gt; wrote:
+
+&gt;<i> On 10/18/13 12:39 AM, Ryosuke Niwa wrote:
+</I>&gt;&gt;<i> As far as I read the spec, the navigation happens synchronously.
+</I>&gt;<i> 
+</I>&gt;<i> It's worth defining &quot;the navigation&quot; in this context.  I assume you mean the invocation of <A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/history.html#navigate">http://www.whatwg.org/specs/web-apps/current-work/multipage/history.html#navigate</A> ?  If so, I agree that this is synchronous for iframes being added to the DOM as things are currently specced, as well as for @src changes on &lt;iframe&gt;.
+</I>&gt;<i> 
+</I>&gt;<i> This algorithm then synchronously performs certain steps.  Specifically, checking for scroll-to-anchor and doing the scroll.  At least as far as I can tell.  I don't know why it keeps checking the &quot;gone async&quot; value in steps 11, 12, 15, since nothing in the algorithm sets it to true until step 16 as far as I can tell.  Is &quot;gone async&quot; some sort of persistent state attached to the navigation, as opposed to the local variable it seems to be at step 7?
+</I>&gt;<i> 
+</I>&gt;&gt;<i> Perhaps step 15 on <A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/history.html#navigate">http://www.whatwg.org/specs/web-apps/current-work/multipage/history.html#navigate</A> indicates the specification already mandates it to be asynchronous.
+</I>&gt;<i> 
+</I>&gt;<i> I can't tell what this specification is actually saying here, unfortunately.  Too much indirection.  :(
+</I>
+Yeah, I'm getting completely lost there.  Perhaps Ian could clarify what the current specification is trying to say there.
+
+&gt;<i> The main hard design constraint I know of here is that navigating frames to about:blank via appending them to the DOM should ideally not change which document scripts see in the frame (though it does in Gecko right now; as I said we consider that a bug).  Whether this is implemented via some sort of synchronous navigation-like thing or via navigation preserving the document already in the frame seems like more of an implementation/specification detail than an observable thing...
+</I>
+I see.  Indeed, Firefox yields &quot;false&quot; but Safari, Chrome, and IE all yield &quot;true&quot; in the following example:
+&lt;!DOCTYPE html&gt;
+&lt;body&gt;&lt;script&gt;
+var iframe = document.createElement('iframe');
+iframe.onload = function () { console.log('loaded'); }
+document.body.appendChild(iframe);
+console.log('appended');
+var doc1 = iframe.contentDocument;
+setTimeout(function () {
+   console.log(doc1 === iframe.contentDocument);
+}, 0);
+&lt;/script&gt;
+
+Here is the list of output each browser yields:
+Safari  / Chrome:
+	loaded
+	appended
+	true
+Firefox:
+	appended
+	false
+	loaded
+IE:
+	loaded
+	appended
+	true
+
+IE's behavior is interesting because it's synchronous. However,
+&lt;iframe src=&quot;about:blank&quot; onload=&quot;console.log('loaded')&quot;&gt;&lt;/iframe&gt;
+&lt;script&gt;console.log('appended');&lt;/script&gt;
+yields
+	appended
+	loaded
+so IE might be behaving differently depending on whether the iframe is inserted by the script or not.
+
+&gt;&gt;<i> I'm still somewhat puzzled by the fact processing the iframe attributes synchronously navigates to a new url (which itself could be async?) whereas following a hyperlink simply queues a task to navigate:
+</I>&gt;&gt;<i> <A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/links.html#following-hyperlinks">http://www.whatwg.org/specs/web-apps/current-work/multipage/links.html#following-hyperlinks</A>
+</I>&gt;<i> 
+</I>&gt;<i> Gecko currently has that behavior: iframe @src changes start a navigation sync, while link clicks (and form submission) just post an event to start a navigation.  I wonder whether the spec simply specified that behavior....
+</I>&gt;<i> 
+</I>&gt;<i> The reason Gecko has the &quot;post an event&quot; behavior for link clicks is unclear to me.  The blame goes back to the initial revision of docshell/base/nsWebShell.cpp:
+</I>&gt;<i> 
+</I>&gt;<i>  1.1 &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">kipp at netscape.com</A>&gt; 1998-07-18 14:42
+</I>&gt;<i>  new
+</I>&gt;<i> 
+</I>&gt;<i> Not very helpful.  :(
+</I>&gt;<i> 
+</I>&gt;<i> All that said, I believe this stuff is all script-observable in the sense that it causes aborting of the document and whatnot.  Worth checking when/whether current UAs do that in the two cases.
+</I>&gt;<i> 
+</I>&gt;<i> -Boris
+</I>
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="083461.html">[whatwg] Avoiding synchronous iframe load
+</A></li>
+	<LI>Next message: <A HREF="083544.html">[whatwg] Avoiding synchronous iframe load
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#83463">[ date ]</a>
+              <a href="thread.html#83463">[ thread ]</a>
+              <a href="subject.html#83463">[ subject ]</a>
+              <a href="author.html#83463">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

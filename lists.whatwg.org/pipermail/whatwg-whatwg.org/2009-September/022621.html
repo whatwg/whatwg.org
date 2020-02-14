@@ -1,0 +1,124 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Storage mutex and cookies can lead to browser deadlock
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Storage%20mutex%20and%20cookies%20can%20lead%20to%20browser%20deadlock&In-Reply-To=%3C4AA0261D.30900%40smedbergs.us%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="022554.html">
+   <LINK REL="Next"  HREF="022623.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Storage mutex and cookies can lead to browser deadlock</H1>
+<!--htdig_noindex-->
+    <B>Benjamin Smedberg</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Storage%20mutex%20and%20cookies%20can%20lead%20to%20browser%20deadlock&In-Reply-To=%3C4AA0261D.30900%40smedbergs.us%3E"
+       TITLE="[whatwg] Storage mutex and cookies can lead to browser deadlock">benjamin at smedbergs.us
+       </A><BR>
+    <I>Thu Sep  3 13:25:01 PDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="022554.html">[whatwg] Storage mutex and cookies can lead to browser deadlock
+</A></li>
+        <LI>Next message: <A HREF="022623.html">[whatwg] Storage mutex and cookies can lead to browser deadlock
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22621">[ date ]</a>
+              <a href="thread.html#22621">[ thread ]</a>
+              <a href="subject.html#22621">[ subject ]</a>
+              <a href="author.html#22621">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>-----BEGIN PGP SIGNED MESSAGE-----
+Hash: SHA1
+
+On 9/1/09 7:31 PM, Jeremy Orlow wrote:
+
+&gt;<i> Does the silence mean that no one has any intention of implementing
+</I>&gt;<i> this?  If so, maybe we should resign ourselves to a break in the single
+</I>&gt;<i> threaded illusion for cookies.  This doesn't seem too outlandish
+</I>&gt;<i> considering that web servers working with cookies will never have such a
+</I>&gt;<i> guarantee and given that we have no evidence of widespread breakage with
+</I>&gt;<i> IE 8 and Chrome.
+</I>
+We (Firefox) just started looking at this seriously: the performance
+implications of the current global mutex are pretty unpleasant. Reading the
+spec, I didn't realize that the mutex was global instead of per-domain; I
+only figured that out reading the discussions here.
+
+The major race condition appears to be code on the web that gets
+document.cookie, parses and modifies the string it to add or remove a
+particular cookie, and sets document.cookie again. This pattern could race
+against HTTP requests which also set cookies.
+
+Chris Jones proposed that we behave in a script-consistent manner without
+actually implementing any sort of mutex:
+
+* When a script gets document.cookie, &quot;check out&quot; a consistent view of the
+cookie data. While the script runs to completion, its view of
+document.cookie does not change.
+* When the script sets document.cookie, it calculates the delta with the
+original data and &quot;commit&quot; the changes.
+* The consistent view is maintained until the script runs to completion (or
+enters a nested event loop, all the locations which are currently marked as
+releasing the storage Mutex in the current spec)
+* HTTP Set-Cookie headers stomp on prior data at any time, but don't
+interfere with the consistent script view above.
+
+It would be nice to provide a web API to perform the operation of setting a
+cookie atomically, just as the Set-Cookie HTTP header does. That is:
+document.setCookie('foo=bar; domain=subd.example.com')
+
+It's not clear whether/how this same algorithm could be applied to
+localStorage, since the amount of data required to create a consistent state
+is potentially much larger. Is there an inherently racy API in .localStorage
+which we need to protect with complicated mutex/transactional schemes?
+
+In addition, we had concerns about how the web-browser UI itself might
+interact with the global mutex. I don't think we'd want browser UI such as
+the cookie manager or &quot;Clear Private Data&quot; to wait for content script to run
+to completion. Can we make it explicit in the spec that the UA may remove
+cookies or localStorage data at any time without owning the storage mutex?
+
+- --BDS
+-----BEGIN PGP SIGNATURE-----
+Version: GnuPG v1.4.5 (Darwin)
+Comment: Using GnuPG with Mozilla - <A HREF="http://enigmail.mozdev.org/">http://enigmail.mozdev.org/</A>
+
+iD8DBQFKoCYdSSwGp5sTYNkRAi9yAKCq3GesFDNDrn134621Hm8XJaMB8ACgmIhC
+3VcXlEKmSb2l83ekH0j3Hgg=
+=FldI
+-----END PGP SIGNATURE-----
+</PRE>
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="022554.html">[whatwg] Storage mutex and cookies can lead to browser deadlock
+</A></li>
+	<LI>Next message: <A HREF="022623.html">[whatwg] Storage mutex and cookies can lead to browser deadlock
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22621">[ date ]</a>
+              <a href="thread.html#22621">[ thread ]</a>
+              <a href="subject.html#22621">[ subject ]</a>
+              <a href="author.html#22621">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

@@ -1,0 +1,121 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] selection.modify behavior across platforms
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20selection.modify%20behavior%20across%20platforms&In-Reply-To=%3CAANLkTi%3Di_bD%2By7wU40ahQh65jzpRzG3yBLC2TKUZBzjv%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="073334.html">
+   <LINK REL="Next"  HREF="073328.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] selection.modify behavior across platforms</H1>
+<!--htdig_noindex-->
+    <B>Aryeh Gregor</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20selection.modify%20behavior%20across%20platforms&In-Reply-To=%3CAANLkTi%3Di_bD%2By7wU40ahQh65jzpRzG3yBLC2TKUZBzjv%40mail.gmail.com%3E"
+       TITLE="[whatwg] selection.modify behavior across platforms">Simetrical+w3c at gmail.com
+       </A><BR>
+    <I>Sun Mar 27 11:00:53 PDT 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="073334.html">[whatwg] selection.modify behavior across platforms
+</A></li>
+        <LI>Next message: <A HREF="073328.html">[whatwg] selection.modify behavior across platforms
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#73317">[ date ]</a>
+              <a href="thread.html#73317">[ thread ]</a>
+              <a href="subject.html#73317">[ subject ]</a>
+              <a href="author.html#73317">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Sat, Mar 26, 2011 at 1:46 AM, Ehsan Akhgari &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">ehsan at mozilla.com</A>&gt; wrote:
+&gt;<i> If we define selection.modify with granulatity set to &quot;word&quot; as extending the selection to the start/end of the current word (or for that matter, to the start/end of the next/previous word!) we would have a consistent result for calls on this API. &#160;For example, if somebody is writing a spell correction UI, they would want to replace the currently selected word with another word. &#160;Even if we choose the latter definition for the API (which I find less intuitive), the author knows that they need to deal with word separator characters separately.
+</I>&gt;<i>
+</I>&gt;<i> But with the behavior of the API changing based on the platform, the author can either choose to sniff the UA string, or check what the API did after calling it. &#160;The scarier scenario is the author testing their application on one platform, and deploying it without realizing that it will break in other platforms.
+</I>
+Why would an author want to use Selection.modify() to implement a
+spellcheck API?  Wouldn't that imply that they'd have to save the
+user's selection somewhere, create a new one, modify() it to the right
+place, do whatever they want to do with the resulting range, then
+remove the ranges and restore the original selection?  Not only is
+this complicated and easy to get wrong, it might result in the
+selection visibly flickering.  For things like spellcheck, wouldn't we
+want to have an API on Range instead?
+
+If you're manipulating the selection, that suggests to me that you
+should be doing it in order to change the visible selection for the
+user's benefit.  If you're altering things for the sake of your own
+scripts and not the user, you shouldn't be altering the selection, and
+if you're forced to do that, that suggests the API is bad.  Similarly,
+the only way right now to convert HTML to plaintext that works in all
+browsers is to use Selection.toString() -- that's bad.
+
+(I notice WebKit has a bug open for creating a Range.modify() method:
+&lt;<A HREF="https://bugs.webkit.org/show_bug.cgi?id=34821">https://bugs.webkit.org/show_bug.cgi?id=34821</A>&gt;.  They seem to have a
+Range.expand() method that does something related to this:
+&lt;<A HREF="http://trac.webkit.org/changeset/48271">http://trac.webkit.org/changeset/48271</A>&gt;.)
+
+On Sat, Mar 26, 2011 at 2:51 AM, Ryosuke Niwa &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">rniwa at webkit.org</A>&gt; wrote:
+&gt;<i> I'm not sure why we need to provide a consistent behavior all platforms. &#160;I
+</I>&gt;<i> think the whole point of modify() function is so that scripts can emulate
+</I>&gt;<i> selection operations user can initiate. &#160;Imagine an app that intercepts user
+</I>&gt;<i> actions such as key down and manually sets selection using modify() because
+</I>&gt;<i> it needs to update some internal state, etc... in such applications, it's
+</I>&gt;<i> extremely desirable that the result of modify() to match what user does.
+</I>
+Why can't such an application just return true from the event handler
+to let the platform-specific behavior take effect?  Indeed, if it
+wants to respect platform-specific behavior, it can't rely on calling
+modify() in response to keypresses, because the same keypresses have
+entirely different effects on different platforms.  For instance,
+IIRC, Home on OS X goes to the beginning of the text field instead of
+the beginning of the line as on Windows/typical Linux; Ctrl-A goes to
+the beginning of the line instead of doing nothing special as on
+Windows/typical Linux; etc.  Some of this stuff is even configurable
+on some platforms (at least GTK, AFAICT).  So if the user presses
+Home, how are you going to decide whether to modify() by
+&quot;lineboundary&quot; or &quot;documentboundary&quot;?  The only reliable way is to not
+interfere at all.
+
+At this point I'm still really unclear on what the use-cases are for
+this feature.  I wasn't able to find discussion in the WebKit bug
+tracker in a quick search.  I also didn't find any explanation of
+actual use-cases on the Mozilla bug:
+&lt;<A HREF="https://bugzilla.mozilla.org/show_bug.cgi?id=496275">https://bugzilla.mozilla.org/show_bug.cgi?id=496275</A>&gt;.  I get the
+impression there are actual use-cases for *something* resembling this
+feature, I just haven't figured out what they are . . .
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="073334.html">[whatwg] selection.modify behavior across platforms
+</A></li>
+	<LI>Next message: <A HREF="073328.html">[whatwg] selection.modify behavior across platforms
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#73317">[ date ]</a>
+              <a href="thread.html#73317">[ thread ]</a>
+              <a href="subject.html#73317">[ subject ]</a>
+              <a href="author.html#73317">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

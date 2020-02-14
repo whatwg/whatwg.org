@@ -1,0 +1,191 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Proposal for separating script downloads and execution
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Proposal%20for%20separating%20script%20downloads%20and%20execution&In-Reply-To=%3C4D5D8419.9040502%40mit.edu%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="072845.html">
+   <LINK REL="Next"  HREF="072847.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Proposal for separating script downloads and execution</H1>
+<!--htdig_noindex-->
+    <B>Boris Zbarsky</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Proposal%20for%20separating%20script%20downloads%20and%20execution&In-Reply-To=%3C4D5D8419.9040502%40mit.edu%3E"
+       TITLE="[whatwg] Proposal for separating script downloads and execution">bzbarsky at MIT.EDU
+       </A><BR>
+    <I>Thu Feb 17 12:24:57 PST 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="072845.html">[whatwg] Proposal for separating script downloads and execution
+</A></li>
+        <LI>Next message: <A HREF="072847.html">[whatwg] Proposal for separating script downloads and execution
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#72846">[ date ]</a>
+              <a href="thread.html#72846">[ thread ]</a>
+              <a href="subject.html#72846">[ subject ]</a>
+              <a href="author.html#72846">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On 2/17/11 2:38 PM, Kyle Simpson wrote:
+&gt;<i> I don't know of any browsers which are set to download more than 8
+</I>&gt;<i> parallel connections.
+</I>
+You don't need it, if the content is cached, right?
+
+&gt;<i>I can't imagine that you'd have 10,000 separate
+</I>&gt;<i> downloads of the same resource. Depending on race conditions, you might
+</I>&gt;<i> get a few extra requests in before the item was cached (if it caches).
+</I>&gt;<i> But, once the item is in the cache, any additional identical requests
+</I>&gt;<i> for that element should be pulling from the cache (from a
+</I>&gt;<i> network-request-level, that is), right?
+</I>
+Yes, but they have to pull from the cache and then hold on to the data, 
+because the cache might change later, no?  That's the whole point.  If 
+you're forced to load at particular times, you can't fake it by actually 
+not loading and then reading it from cache later, because later the data 
+might be different and you'd have to go hit the network instead of using 
+the cached version... and will run the wrong script.
+
+This sort of thing should be detectable if you can tell whether the 
+script is done with the &quot;load the data but don't run it&quot; bit.
+
+&gt;<i> The question becomes, can the browser create a unique in-memory &quot;cache&quot;
+</I>&gt;<i> entry for each distinct script contents' processing, such that each
+</I>&gt;<i> script element has a pointer to its appropriate copy of the
+</I>&gt;<i> ready-to-execute script contents, without duplication?
+</I>
+Maybe or maybe not.  It really depends on how much control there is over 
+the HTTP implementation.
+
+&gt;<i> I can't imagine the browser would need separate copies for identical script contents,
+</I>&gt;<i> but perhaps I'm missing something that prevents it from doing the
+</I>&gt;<i> uniqueness caching.
+</I>
+The fact that the browser might not have a good way to tell that two 
+scripts are referencing the same content, for one thing (short of 
+loading both and then comparing them to each other).
+
+And yes, you can build a very complicated system to make this all work 
+somehow.  It's all software.  You could implement a whole separate HTTP 
+stack just for this, even, if needed.  I wasn't saying this is 
+_impossible_ to do, just that it's a significant amount of work to do 
+this well.
+
+&gt;<i> Even if they can't , what it means is, these edge cases with 10,000
+</I>&gt;<i> script requests might get exponentially bad. But it still seems like the
+</I>&gt;<i> normal majority cases will perform roughly the same, if not better. Or
+</I>&gt;<i> am I missing something?
+</I>
+Yes, the fact that exponential (heck, even polynomial nonlinear!) 
+badness is Really Bad from users' and hence implementors' point of view.
+
+If we can find as solution that makes the sane cases better without 
+having failure points like this, that's vastly preferable to one that 
+has such failure points.
+
+&gt;&gt;<i> Doing that while obeying HTTP semantics might be pretty difficult if
+</I>&gt;&gt;<i> you don't have very low-level control over your network layer.
+</I>&gt;<i>
+</I>&gt;<i> I'm not sure what you mean by &quot;HTTP semantics&quot; if it isn't about
+</I>&gt;<i> caching.
+</I>
+It is.  Specifically when you can cache what.
+
+&gt;<i> But I don't think there'd be any reason that this proposal
+</I>&gt;<i> would be suggesting any different handling of resources (from a HTTP
+</I>&gt;<i> semantics, network-request-layer perspective) than is already true of
+</I>&gt;<i> script tags.
+</I>
+Sure.  The difference is that it would require that script text that can 
+otherwise be either not loaded at all.
+
+&gt;<i> I wonder how IE is handling this, seemingly without too many issues
+</I>&gt;<i> (since they've been doing it forever).
+</I>
+Are you sure there are no issues?
+
+&gt;<i> In other words... if I loop through and create 10,000 script elements
+</I>&gt;<i> (no DOM append), and that causes 10,000 (or so) requests for that
+</I>&gt;<i> resource... how is that different/worse than if I loop through and
+</I>&gt;<i> create 10,000 script elements that I append to the DOM? Won't they have
+</I>&gt;<i> roughly the same impact on HTTP-layer loading, caching, etc?
+</I>
+In the latter case the browser doesn't have to have the scripts all in 
+memory at once; it can execute them as they load, then forget them.
+
+More importantly. the scripts will execute 10,000 times, which you will 
+definitely notice.
+
+&gt;&gt;<i> Just to be clear, that process, on our end, was a huge
+</I>&gt;&gt;<i> engineering-time sink. Several man-months were wasted on it. We would
+</I>&gt;&gt;<i> very much like to avoid having to repeat that experience if at all
+</I>&gt;&gt;<i> possible.
+</I>&gt;<i>
+</I>&gt;<i> It's a shame that it's being viewed as &quot;wasted&quot;.
+</I>
+I can call it &quot;spent&quot; if you prefer, but the upshot is that people who 
+could have been working on various standards implementation were instead 
+hand-holding sites through the problem...
+
+This wasn't specific to async=&quot;false&quot;, btw; it was the combination of 
+all the script ordering changes.  Sorry if that wasn't clear.
+
+&gt;&gt;<i> Does IE obey HTTP semantics for the preloads? Has anyone does some
+</I>&gt;&gt;<i> really careful testing of IE's actual behavior here?
+</I>&gt;<i>
+</I>&gt;<i> I've done a lot of careful testing of IE's actual behavior here. But I'm
+</I>&gt;<i> not sure I know exactly what HTTP semantics I should be looking for. If
+</I>&gt;<i> you would be able to share some specific questions to probe about IE's
+</I>&gt;<i> implementation/behavior, I'm more than happy to extend my existing tests
+</I>&gt;<i> to figure out the answers.
+</I>
+Some examples:
+
+1)  If your script is no-cache, or max-age:0, does IE make a new
+     request for it for every &lt;script&gt; element?
+2)  If you create a bunch of &lt;script&gt; elements and set src on them all
+     and the script returned is different on every GET, and then you run
+     them, do you see all the different scripts running?
+3)  If you do that experiment with 1,000 scripts all of which return
+     the same 50KB of data and none of which you insert, do you see
+     memory usage go up by 50MB?  Does this depend on whether the
+     requests can be satisfied from cache or not?
+
+-Boris
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="072845.html">[whatwg] Proposal for separating script downloads and execution
+</A></li>
+	<LI>Next message: <A HREF="072847.html">[whatwg] Proposal for separating script downloads and execution
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#72846">[ date ]</a>
+              <a href="thread.html#72846">[ thread ]</a>
+              <a href="subject.html#72846">[ subject ]</a>
+              <a href="author.html#72846">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

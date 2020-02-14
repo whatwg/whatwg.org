@@ -1,0 +1,210 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Fixing undo on the Web - UndoManager and Transaction
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Fixing%20undo%20on%20the%20Web%20-%20UndoManager%20and%20Transaction&In-Reply-To=%3CCABNRm61ZgiKXShPp7dwMzxmNSUC_5NrNWtHzXBfSAM74b9p13g%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="075098.html">
+   <LINK REL="Next"  HREF="075102.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Fixing undo on the Web - UndoManager and Transaction</H1>
+<!--htdig_noindex-->
+    <B>Ryosuke Niwa</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Fixing%20undo%20on%20the%20Web%20-%20UndoManager%20and%20Transaction&In-Reply-To=%3CCABNRm61ZgiKXShPp7dwMzxmNSUC_5NrNWtHzXBfSAM74b9p13g%40mail.gmail.com%3E"
+       TITLE="[whatwg] Fixing undo on the Web - UndoManager and Transaction">rniwa at webkit.org
+       </A><BR>
+    <I>Fri Aug  5 14:40:50 PDT 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="075098.html">[whatwg] Fixing undo on the Web - UndoManager and Transaction
+</A></li>
+        <LI>Next message: <A HREF="075102.html">[whatwg] Fixing undo on the Web - UndoManager and Transaction
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#75099">[ date ]</a>
+              <a href="thread.html#75099">[ thread ]</a>
+              <a href="subject.html#75099">[ subject ]</a>
+              <a href="author.html#75099">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Fri, Aug 5, 2011 at 1:59 PM, Jonas Sicking &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">jonas at sicking.cc</A>&gt; wrote:
+
+&gt;<i>  &gt; In the case of collaborative editing apps, reapply is different from
+</I>&gt;<i> apply because the backend server may have a tree of transaction history and
+</I>&gt;<i> may need to consult on demand in order to determine exactly what mutations
+</I>&gt;<i> have to happen.
+</I>&gt;<i>
+</I>&gt;<i> Looking at your examples other emails in this thread I do understand
+</I>&gt;<i> the idea better I think. However, it seems to me that apply is the
+</I>&gt;<i> same as reapply plus some initialization. This leads me to two
+</I>&gt;<i> questions:
+</I>&gt;<i>
+</I>
+No. As far as I understand it, reapply needs to do more work because the
+undo stack is managed by the server in such cases. The script running on the
+client may not even know what to do.
+
+2. If we do go with the init/apply/unapply approach, would it make
+&gt;<i> sense to skip init and just ask people to do it manually before
+</I>&gt;<i> creating the transaction? Or at least make init optional?
+</I>&gt;<i>
+</I>
+As it stands, apply, unapply, and reapply are optional because it's
+desirable to add some transactions that only do work in undo/redo in some
+cases.
+
+&gt;<i> Without this constraint, however, the UA is required to keep track of all
+</I>&gt;<i> DOM mutations happening in the undo scope :(
+</I>&gt;<i>
+</I>&gt;<i> ...but now you lost me :)
+</I>&gt;<i>
+</I>&gt;<i> For the record, my vision was that the editor will keep track of the
+</I>&gt;<i> mutations *it* does to the DOM and inserts managed transactions for
+</I>&gt;<i> those into the UndoManager.
+</I>&gt;<i>
+</I>
+Did you mean manual transactions?
+
+The user agents will keep track of changes done to the DOM inside &quot;apply&quot;
+method for *managed transactions*.  On the other hand, the user agent won't
+keep track of changed for manual transactions.  In a sense, manual
+transactions have the same effect as modifying DOM directly (without going
+through UndoManager) except it can be hooked up with the user agent's undo
+transaction history.
+
+The reason we need a proper sequence of managed
+transactions&lt;<A HREF="http://rniwa.com/editing/undomanager.html#proper-sequence-of-managed-transactions">http://rniwa.com/editing/undomanager.html#proper-sequence-of-managed-transactions</A>&gt;is
+because the reference points (e.g. node, offset, etc...) stored by the
+user agent for managed transactions to unapply or reapply them will be
+stale when scripts directly modifies DOM or apply a manual transaction.
+
+If we were to make this work (i.e. the user agents can always unapply or
+reapply managed transactions regardless of what happens to the DOM state),
+then the user agents must keep track of every single DOM change and update
+the internal representation of the managed transactions as needed.
+
+Any other mutations to the DOM the editor completely ignores. If the
+&gt;<i> page makes other mutations to the DOM, it should use the UndoManager
+</I>&gt;<i> and create a managed transaction for it. If it doesn't, the page is on
+</I>&gt;<i> its own. If the UndoManager is asked to undo or redo a managed
+</I>&gt;<i> transaction and the DOM doesn't look the same as it had expected, then
+</I>&gt;<i> it should do the best it can. In some cases this means that it won't
+</I>&gt;<i> produce useful mutations, but this only happens if the page has done
+</I>&gt;<i> BadThings (tm).
+</I>&gt;<i>
+</I>
+Right. This is how managed transactions are used.
+
+ &gt; Given this constraint, the apps that do use managed transactions such as
+&gt;<i> collaborative editing apps need to replace the managed transactions inserted
+</I>&gt;<i> by the UA by the corresponding manual transaction when user types text.
+</I>&gt;<i>
+</I>&gt;<i> The vision I had for how this is done is that the editor code should
+</I>&gt;<i> fire events before it makes any modifications to the DOM. The website
+</I>&gt;<i> should be able to cancel this event and instead perform it's own
+</I>&gt;<i> modifications to the DOM.
+</I>&gt;<i>
+</I>
+Yes, that'll be an option as well (although we need some event like
+beforeEditingAction).  But there are cases where the script wants to let the
+user agent modify the DOM, and then learn what it did instead of preventing
+the default action and manually simulating it because the latter involves a
+lot of work.
+
+Until the various editor implementations are there, the website can
+&gt;<i> always undo the editor transaction and then create its own manual
+</I>&gt;<i> transaction and insert in the UndoManager.
+</I>&gt;<i>
+</I>
+Right, this use case is supported by my proposal.  But the point of
+&quot;replace&quot; is to leave the changes made by the user agent alone but replace
+the entry by your own manual transaction so that undo and redo will work.
+
+Cool, that matches my understanding. Is there a reason that you're not
+&gt;<i> allowing manual transactions to be part of a transaction group though?
+</I>&gt;<i>
+</I>
+I didn't intend to disallow that.  Are there some statements that imply
+this?  I'll definitely want manual transactions to be able to form a
+transaction group.  It defeats the whole point otherwise.
+
+&gt;<i> I admit this is more of stylistic issue rather than the technical
+</I>&gt;<i> limitation but given a transaction already has label and apply &quot;properties&quot;,
+</I>&gt;<i> it seemed more natural for it to be an object.  That'll allow us to add more
+</I>&gt;<i> properties in the future.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; In particular, I really wanted to provide a mutation list as discussed on
+</I>&gt;<i> the mutation events replacement thread on public-webapps.  This allows apps
+</I>&gt;<i> to determine which transaction did what without having to listening to each
+</I>&gt;<i> mutation event, and makes it easier to replace managed transactions by
+</I>&gt;<i> manual transactions as described above.
+</I>&gt;<i>
+</I>&gt;<i> Hmm.. this is indeed an interesting idea. Though I would imagine that
+</I>&gt;<i> it's even more interesting for the page to know the &quot;semantics&quot; of the
+</I>&gt;<i> modification rather than knowing what exact DOM modifications are
+</I>&gt;<i> performed.
+</I>
+
+Totally agreed!
+
+
+&gt;<i> I.e. understand that a transaction means &quot;break current
+</I>&gt;<i> text into two paragraphs&quot; rather than &quot;insert new element with name
+</I>&gt;<i> 'p'. Remove text from other element. Add text to newly inserted
+</I>&gt;<i> element&quot;.
+</I>&gt;<i>
+</I>
+I think the command names passed to execCommand is a good starting point.
+ If we define standarized names for user editing actions (I mean I'm sure
+user agents are internally using InsertLineBreak, etc... when user presses
+the enter key), then we can have &quot;name&quot; or &quot;commandName&quot; property on the
+transaction to indicate the semantics.
+
+Note: we still need a separate &quot;label&quot; property in that case because we
+can't have &quot;Undo - InsertLineBreak&quot; on the edit menu.
+
+My idea is that the event that editor fires before modifying the DOM
+&gt;<i> would essentially describe &quot;inserting paragraph break at cursor&quot;.
+</I>
+
+Right. If you look at my document, I have a place holder for this feature in
+section 5 titled &quot;Edit action event&quot;.  I'd love to add this feature since
+almost all developers I've talked to told me they want it.
+
+- Ryosuke
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="075098.html">[whatwg] Fixing undo on the Web - UndoManager and Transaction
+</A></li>
+	<LI>Next message: <A HREF="075102.html">[whatwg] Fixing undo on the Web - UndoManager and Transaction
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#75099">[ date ]</a>
+              <a href="thread.html#75099">[ thread ]</a>
+              <a href="subject.html#75099">[ subject ]</a>
+              <a href="author.html#75099">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

@@ -1,0 +1,146 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Proposal: downsample while decoding image blobs in	createImageBitmap()
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Proposal%3A%20downsample%20while%20decoding%20image%20blobs%20in%0A%09createImageBitmap%28%29&In-Reply-To=%3CCAGN7qDCWx7zjBcP3CP62Fme9gbg4WsZyLGwMsPgAv_Ym8yURzQ%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="084077.html">
+   <LINK REL="Next"  HREF="084080.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Proposal: downsample while decoding image blobs in	createImageBitmap()</H1>
+<!--htdig_noindex-->
+    <B>Rik Cabanier</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Proposal%3A%20downsample%20while%20decoding%20image%20blobs%20in%0A%09createImageBitmap%28%29&In-Reply-To=%3CCAGN7qDCWx7zjBcP3CP62Fme9gbg4WsZyLGwMsPgAv_Ym8yURzQ%40mail.gmail.com%3E"
+       TITLE="[whatwg] Proposal: downsample while decoding image blobs in	createImageBitmap()">cabanier at gmail.com
+       </A><BR>
+    <I>Tue Dec 17 22:55:33 PST 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="084077.html">[whatwg] Proposal: downsample while decoding image blobs in	createImageBitmap()
+</A></li>
+        <LI>Next message: <A HREF="084080.html">[whatwg] Proposal: downsample while decoding image blobs in	createImageBitmap()
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#84078">[ date ]</a>
+              <a href="thread.html#84078">[ thread ]</a>
+              <a href="subject.html#84078">[ subject ]</a>
+              <a href="author.html#84078">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Tue, Dec 17, 2013 at 9:36 PM, David Flanagan &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">dflanagan at mozilla.com</A>&gt;wrote:
+
+&gt;<i>  On 12/17/13 8:36 PM, Rik Cabanier wrote:
+</I>&gt;<i>
+</I>&gt;<i> Hi David,
+</I>&gt;<i>
+</I>&gt;<i>  is there a reason why you are completely decoding the image when you
+</I>&gt;<i> create the imageBitmap? [1]
+</I>&gt;<i>
+</I>&gt;<i> I assume that that is the intent of calling createImageBitmap() on a blob.
+</I>&gt;<i> Since JPEG decoding probably takes significantly longer than blocking on
+</I>&gt;<i> memory access, I assume that lazy decoding is not really allowed.
+</I>&gt;<i>
+</I>
+No, nothing in the spec says that you *must* decode the bits:
+
+The exact judgement of what is undue latency of this is left up to the
+implementer, but in general if making use of the bitmap requires network
+I/O, or even local disk I/O, then the latency is probably undue; whereas if
+it only requires a blocking read from a GPU or system RAM, the latency is
+probably acceptable.
+
+
+In your case, things are reversed. Allocating system ram will kill
+performance and cause undue latency. Reading the JPEG image on the fly from
+a Flash disk will be less disruptive and faster.
+
+
+&gt;<i> But that misses my point. On the devices I'm concerned with I can never
+</I>&gt;<i> completely decode the image whether it is deferred or not.  If I decode at
+</I>&gt;<i> full size, apps running in the background are likely to be killed because
+</I>&gt;<i> of low memory. I need the ability to do the downsampling during the
+</I>&gt;<i> decoding process, so that there is never the memory impact of holding the
+</I>&gt;<i> entire full-size image in memory.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>   If you detect a situation where this operation causes excessive memory
+</I>&gt;<i> consumption, you could hold on to the compressed data URL and defer
+</I>&gt;<i> decoding until the point where it is actually needed.
+</I>&gt;<i> Since exhausting VM will create &quot;undue latency&quot;, this workaround follows
+</I>&gt;<i> the spirit of the spec.
+</I>&gt;<i>
+</I>&gt;<i>  If you really want to have the downsampled bits in memory, you could
+</I>&gt;<i> create a canvas and draw your image into it.
+</I>&gt;<i>
+</I>&gt;<i> I can't do that because I don't have (and cannot have) a full-size decoded
+</I>&gt;<i> image.  I've got a blob that is a JPEG encoded 5 megapixel image.  And I
+</I>&gt;<i> want to end up with a decoded 320x480 image.  And I want to get from A to B
+</I>&gt;<i> without ever allocating 20mb and decoding the image at full size
+</I>&gt;<i>
+</I>
+The downsampling happens *during* the drawimage of the imageBitmap into the
+canvas. At no point do you have to allocate 20mb.
+
+&lt;snip&gt;
+&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>  6) Finally, because image data can take up so much memory, I would
+</I>&gt;&gt;<i> like to propose that ImageBitmap have a release() method to explicitly
+</I>&gt;&gt;<i> free the memory that holds the decoded image when that decoded image
+</I>&gt;&gt;<i> data is no longer needed. This gives web applications more precise
+</I>&gt;&gt;<i> control over memory allocation without having to wait for garbage
+</I>&gt;&gt;<i> collection.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>  There was an email thread on adding this to canvas [2], it seems
+</I>&gt;<i> reasonable to add it to imageBitmap as well.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>  1:
+</I>&gt;<i> <A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/timers.html#dom-createimagebitmap">http://www.whatwg.org/specs/web-apps/current-work/multipage/timers.html#dom-createimagebitmap</A>
+</I>&gt;<i> 2:
+</I>&gt;<i> <A HREF="http://lists.whatwg.org/htdig.cgi/whatwg-whatwg.org/2013-July/040165.html">http://lists.whatwg.org/htdig.cgi/whatwg-whatwg.org/2013-July/040165.html</A>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> Thanks for this link.  It looks like the January message quoted in this
+</I>&gt;<i> July message is requesting exactly the same feature as I am for discarding
+</I>&gt;<i> or releasing ImageBitmaps.
+</I>&gt;<i>
+</I>&gt;<i>   David
+</I>&gt;<i>
+</I>
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="084077.html">[whatwg] Proposal: downsample while decoding image blobs in	createImageBitmap()
+</A></li>
+	<LI>Next message: <A HREF="084080.html">[whatwg] Proposal: downsample while decoding image blobs in	createImageBitmap()
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#84078">[ date ]</a>
+              <a href="thread.html#84078">[ thread ]</a>
+              <a href="subject.html#84078">[ subject ]</a>
+              <a href="author.html#84078">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

@@ -1,0 +1,212 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] MessagePorts in Web Workers: implementation feedback
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20MessagePorts%20in%20Web%20Workers%3A%20implementation%20feedback&In-Reply-To=%3Cf965ae410905071339w282160dehd0f345902644795e%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="061912.html">
+   <LINK REL="Next"  HREF="061913.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] MessagePorts in Web Workers: implementation feedback</H1>
+<!--htdig_noindex-->
+    <B>Drew Wilson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20MessagePorts%20in%20Web%20Workers%3A%20implementation%20feedback&In-Reply-To=%3Cf965ae410905071339w282160dehd0f345902644795e%40mail.gmail.com%3E"
+       TITLE="[whatwg] MessagePorts in Web Workers: implementation feedback">atwilson at google.com
+       </A><BR>
+    <I>Thu May  7 13:39:26 PDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="061912.html">[whatwg] rel=license example
+</A></li>
+        <LI>Next message: <A HREF="061913.html">[whatwg] MessagePorts in Web Workers: implementation feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#61910">[ date ]</a>
+              <a href="thread.html#61910">[ thread ]</a>
+              <a href="subject.html#61910">[ subject ]</a>
+              <a href="author.html#61910">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Hi all,
+
+I've been hashing through a bunch of the design issues around using
+MessagePorts within Workers with IanH and the Chrome/WebKit teams and I
+wanted to follow up with the list with my progress.
+
+The problems we've encountered are all solveable, but I've been surprised at
+the amount of work involved in implementing worker MessagePorts (and the
+resulting implications that MessagePorts have on worker
+lifecycles/reachability). My concern is that the amount of work to implement
+MessagePorts within Worker context may be so high that it will prevent
+vendors from implementing the SharedWorker API. Have other implementers
+started working on this part of the spec yet?
+
+Let me quickly run down some of the implementation issues I've run into -
+some of these may be WebKit/Chrome specific, but other browsers may run into
+some of them as well:
+
+1) MessagePort reachability is challenging in the context of separate Worker
+heaps
+
+In WebKit, each worker has its own heap (in Chrome, they will have their own
+process as well). The spec reads:
+
+User agents must act as if
+MessagePort&lt;<A HREF="http://www.w3.org/TR/html5/comms.html#messageport">http://www.w3.org/TR/html5/comms.html#messageport</A>&gt;objects
+have a strong reference to their entangled
+MessagePort &lt;<A HREF="http://www.w3.org/TR/html5/comms.html#messageport">http://www.w3.org/TR/html5/comms.html#messageport</A>&gt; object.
+
+Thus, a message port can be received, given an event listener, and then
+forgotten, and so long as that event listener could receive a message, the
+channel will be maintained.
+
+Of course, if this was to occur on both sides of the channel, then both
+ports would be garbage collected, since they would not be reachable from
+live code, despite having a strong reference to each other.
+
+Furthermore, a MessagePort&lt;<A HREF="http://www.w3.org/TR/html5/comms.html#messageport">http://www.w3.org/TR/html5/comms.html#messageport</A>&gt;object
+must not be garbage collected while there exists a message in a task
+queue &lt;<A HREF="http://www.w3.org/TR/html5/browsers.html#task-queue">http://www.w3.org/TR/html5/browsers.html#task-queue</A>&gt; that is to be
+dispatched on that
+MessagePort&lt;<A HREF="http://www.w3.org/TR/html5/comms.html#messageport">http://www.w3.org/TR/html5/comms.html#messageport</A>&gt;object,
+or while the
+MessagePort &lt;<A HREF="http://www.w3.org/TR/html5/comms.html#messageport">http://www.w3.org/TR/html5/comms.html#messageport</A>&gt; object's port
+message queue &lt;<A HREF="http://www.w3.org/TR/html5/comms.html#port-message-queue">http://www.w3.org/TR/html5/comms.html#port-message-queue</A>&gt; is
+open and there exists a
+message&lt;<A HREF="http://www.w3.org/TR/html5/comms.html#event-message">http://www.w3.org/TR/html5/comms.html#event-message</A>&gt;event in
+that queue.
+
+The end result of this is the need to track some common state across an
+entangled MessagePort pair such as: number of outstanding messages, open
+state of each end, and number of active references to each port (zero or
+non-zero). Turns out this last bit will require adding new hooks to the
+JavaScriptCore garbage collector to detect transitioning between 1 and 0
+references without actually freeing the object - not that difficult, but
+possibly something that other implementers should keep in mind.
+
+2) MessagePorts dramatically change the worker lifecycle
+
+Having MessagePorts in worker context means that Workers can outlive their
+parent window(s) - I can create a worker, pass off an entangled MessagePort
+to another window (say, to a different domain), then close the original
+window, and the worker should stay alive. In the case of WebKit, this causes
+some problems for things like worker-initiated network requests - if workers
+can continue to run even though there are no open windows for that origin,
+then it becomes problematic to perform network requests (part of this is due
+to the architecture of WebKit which requires proxying network requests to
+window context, but part of this is just a general problem of &quot;how do you
+handle things like HTTP Auth when there are no open windows for that
+origin?&quot;)
+
+Finally, the spec defines a fairly broad definition of what makes a worker
+reachable - here's an excerpt from my WebKit Shared Worker design doc, where
+I summarize the spec (possibly incorrectly - feel free to correct any
+misconceptions):
+
+&gt;<i> PermissibleThe spec specifies that a worker is *permissible* based on
+</I>&gt;<i> whether it has a reachable MessagePort that has been entangled *at some
+</I>&gt;<i> point in the past* with an active window (or with a worker who is itself
+</I>&gt;<i> permissible). Basically, if a worker has *ever* been entangled with an
+</I>&gt;<i> active window, or if it's ever been entangled with a worker who is itself
+</I>&gt;<i> permissible (i.e. it's associated with an active window via a chain of
+</I>&gt;<i> workers that have been entangled at some point in the past) then it's
+</I>&gt;<i> permissible.
+</I>&gt;<i>
+</I>&gt;<i> The reason why the &quot;at some point in the past&quot; language is present is to
+</I>&gt;<i> allow a page to create a fire-and-forget worker (for example, a worker that
+</I>&gt;<i> does a set of long network operations) without having to keep a reference to
+</I>&gt;<i> that worker around.
+</I>&gt;<i>
+</I>&gt;<i> Once the referent windows close, the worker should also close, as being
+</I>&gt;<i> permissible is a necessary (but not sufficient) criteria for being
+</I>&gt;<i> runnable.
+</I>&gt;<i> Active neededA permissible worker is *active needed* if:
+</I>&gt;<i>
+</I>&gt;<i>    1. it has pending timers/network requests/DB activity, or
+</I>&gt;<i>    2. it is currently entangled with an active window, or another active
+</I>&gt;<i>    needed worker.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> The intent behind #1 is to enable fire-and-forget workers that don't exit
+</I>&gt;<i> until they are idle. The intent behind #2 is that an idle worker shouldn't
+</I>&gt;<i> exit as long as it's reachable by an active window (possibly chained through
+</I>&gt;<i> other workers).
+</I>&gt;<i>
+</I>The end result is that for each worker we need to keep track of a big list
+of every window it's ever been entangled with. As workers become entangled
+with other workers, they each inherit the list of entangled windows from the
+other worker. As windows become inactive, we then walk the lists of every
+worker to remove references to the window and properly shutdown the worker
+as appropriate. All of this with the appropriate cross-thread
+synchronization, of course :)
+
+Likewise, determining when a worker is active needed requires tracking a
+graph of entangled message ports, and walking that graph to determine
+whether a given worker is reachable by any active window. Typically this is
+only needed when either a window closes, or when a worker goes idle.
+
+Again, none of these issues individually are insurmountable, but in total
+they add up to a significant amount of work for what should be a fairly
+incremental improvement (going from dedicated workers to shared workers).
+Have other vendors started investigating what it takes to implement
+SharedWorkers (and therefore MessagePorts in workers)?
+
+Another approach for SharedWorkers would be to give them an implicit
+MessagePort-esque API like dedicated Workers and not allow passing in
+MessagePorts to postMessage(). This would mean that references to workers
+can't really be passed around to other windows/workers, but rather are kept
+per-origin. Dedicated workers could work as they do now in Firefox/WebKit
+(with no MessagePorts). The SharedWorker lifecycle could be significantly
+simplified such that a SharedWorker is permissible as long as there's an
+active window under the same origin (no more walking some distributed
+cross-thread dependency graph).
+
+The thing we'd give up is the capabilities-based API that MessagePorts
+provide, but I'd argue that the workaround is simple: the creating window
+can just act as a proxy for the worker. IMO, the implementation burden far
+outstrips the benefit of allowing direct foreign access to workers.
+Literally 90% of the work on my plate for SharedWorkers seems to derive from
+MessagePorts in one form or another, which seems completely wrong.
+
+I'd like to hear your thoughts on this - are people open to removing
+MessagePort support from Workers?
+
+-atw
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: &lt;<A HREF="http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20090507/ce35a927/attachment-0002.htm">http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20090507/ce35a927/attachment-0002.htm</A>&gt;
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="061912.html">[whatwg] rel=license example
+</A></li>
+	<LI>Next message: <A HREF="061913.html">[whatwg] MessagePorts in Web Workers: implementation feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#61910">[ date ]</a>
+              <a href="thread.html#61910">[ thread ]</a>
+              <a href="subject.html#61910">[ subject ]</a>
+              <a href="author.html#61910">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

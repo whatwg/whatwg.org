@@ -1,0 +1,204 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Need to define same-origin policy for WebIDL operations/getters/setters
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Need%20to%20define%20same-origin%20policy%20for%20WebIDL%0A%20operations/getters/setters&In-Reply-To=%3CPine.LNX.4.64.1301080650120.12992%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="080884.html">
+   <LINK REL="Next"  HREF="080822.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Need to define same-origin policy for WebIDL operations/getters/setters</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Need%20to%20define%20same-origin%20policy%20for%20WebIDL%0A%20operations/getters/setters&In-Reply-To=%3CPine.LNX.4.64.1301080650120.12992%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg] Need to define same-origin policy for WebIDL operations/getters/setters">ian at hixie.ch
+       </A><BR>
+    <I>Mon Jan  7 23:09:19 PST 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="080884.html">[whatwg] Need to define same-origin policy for WebIDL operations/getters/setters
+</A></li>
+        <LI>Next message: <A HREF="080822.html">[whatwg] Need to define same-origin policy for WebIDL	operations/getters/setters
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#80818">[ date ]</a>
+              <a href="thread.html#80818">[ thread ]</a>
+              <a href="subject.html#80818">[ subject ]</a>
+              <a href="author.html#80818">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Tue, 8 Jan 2013, Boris Zbarsky wrote:
+&gt;<i> On 1/7/13 11:28 PM, Ian Hickson wrote:
+</I>&gt;<i> &gt; Per spec, even Windows actually don't have an origin. Things that have 
+</I>&gt;<i> &gt; origins are URLs, Documents, images, audio and video elements, fonts, 
+</I>&gt;<i> &gt; and scripts. Many of those things can have origins that are not that 
+</I>&gt;<i> &gt; of the most obvious related (or in some cases any) Document.
+</I>&gt;<i> 
+</I>&gt;<i> Yes, I know what the spec says.
+</I>&gt;<i> 
+</I>&gt;<i> What I'm saying is that the spec is not doing anyone any favors by using 
+</I>&gt;<i> &quot;origin&quot; to mean different things for different objects.
+</I>
+I don't think it &quot;means different things&quot;, but I guess that's semantics.
+
+
+&gt;<i> In particular, for images/audio/video the &quot;origin&quot; in the spec is the 
+</I>&gt;<i> origin that's relevant for the _data_, not necessarily for the element 
+</I>&gt;<i> itself.
+</I>
+In the spec's security model, origins are never relevant for elements 
+except when we're looking at the element's data.
+
+
+&gt;<i> &gt; Right. Specifically, the new security check (for compat we still need 
+</I>&gt;<i> &gt; the old one too, though I guess in many cases it's now redundant)
+</I>&gt;<i> 
+</I>&gt;<i> It's not redundant, because nothing says that 
+</I>&gt;<i> subframeDoc.getElementsByTagName is actually the WebIDL-defined method; 
+</I>&gt;<i> it could be something the script in the subframe set up.  So you have to 
+</I>&gt;<i> block access to it no matter what.
+</I>
+Agreed; by being redundant in many cases I didn't mean that we could do 
+away with it, just that in many cases you effectively have to do the check 
+twice (since in most cases the property isn't overridden).
+
+
+&gt;<i> &gt; needs to be in getElementsByTagName()'s definition or in call()'s 
+</I>&gt;<i> &gt; definition. (If the latter, we also need to put it in a number of 
+</I>&gt;<i> &gt; other places, like the stuff that interacts with getters/setters.)
+</I>&gt;<i> 
+</I>&gt;<i> I would vastly prefer that this check be in the definition of the 
+</I>&gt;<i> [[Call]], because then it can be done on the binding level, when you're 
+</I>&gt;<i> checking the this object anyway.
+</I>
+Doing it in [[Call]] and the various equivalents for IDL attributes would 
+be fine by me.
+
+
+&gt;<i> &gt; So e.g. we could put it in &quot;call()&quot; and define it as checking whether 
+</I>&gt;<i> &gt; you can obtain the property on the target object before actually 
+</I>&gt;<i> &gt; executing any code.
+</I>&gt;<i> 
+</I>&gt;<i> Is that actually needed?  There are properties you can obtain on objects 
+</I>&gt;<i> cross-origin (like window.top) that I see no need to allow via this 
+</I>&gt;<i> backdoor since no content depends on it now.  So I would prefer simply 
+</I>&gt;<i> checking whether the origin of the caller matches the origin of &quot;this&quot;.
+</I>
+Well right now &quot;this&quot; doesn't necessarily have an origin. Also, consider 
+Location. If you have a Location object and then navigate its browsing 
+context and then call something on it, you need to check that the calling 
+script doesn't match the origin of the new active document, not the origin 
+of the Location object's Window's Document.
+
+
+&gt;<i> &gt; I don't want us to literally put the checks (in the spec) in each 
+</I>&gt;<i> &gt; method / property of the four objects with these checks (Document, 
+</I>&gt;<i> &gt; Window, Location, Storage), since that's a _lot_ of places to put 
+</I>&gt;<i> &gt; these checks. We could put them in prose in the same places that have 
+</I>&gt;<i> &gt; the &quot;access&quot; checks now. Or we could put them elsewhere. Where the 
+</I>&gt;<i> &gt; current checks are makes the most sense to me, but I'm not sure 
+</I>&gt;<i> &gt; exactly how to phrase them.
+</I>&gt;<i> 
+</I>&gt;<i> Or you could spec what Gecko does, which is that any WebIDL call gets 
+</I>&gt;<i> such a check, and then it's just defined in WebIDL.  ;)
+</I>
+Doing a check on _every_ call seems rather expensive for implementations 
+that don't use Gecko's security model compared to only doing a check on 
+those interfaces that matter.
+
+
+&gt;<i> Given any script-exposed object, it already has to be associated with a 
+</I>&gt;<i> specific global.  WebIDL makes this a requirement, since you have to 
+</I>&gt;<i> find the right prototype object for it.
+</I>
+A Location object has multiple prototypes (one for each origin that 
+accesses it).
+
+
+&gt;<i> At that point, you have a Window to work with, and a Window has an 
+</I>&gt;<i> associated Document, and that has an origin.  For object-access checks 
+</I>&gt;<i> (again, as opposed to data-access checks), this is the right origin to 
+</I>&gt;<i> use.
+</I>
+For Storage, the access check has to be the actual origin of the Document, 
+not the effective script origin as it does for Window and Document.
+
+
+&gt;<i> &gt; I don't see why EventTarget would be subject to this (it's implemented 
+</I>&gt;<i> &gt; by things that need checking, but presumably everything that's 
+</I>&gt;<i> &gt; implemented in that way should just be handled by that host interface 
+</I>&gt;<i> &gt; the same way as everything on that host interface that isn't white 
+</I>&gt;<i> &gt; listed).
+</I>&gt;<i> 
+</I>&gt;<i> EventTarget isn't implemented.  It's inherited from.
+</I>
+You're right, my bad.
+
+
+&gt;<i> &gt; The only interfaces that are of interest here (that need them and 
+</I>&gt;<i> &gt; their inherited and implemented interfaces checked) are Document, 
+</I>&gt;<i> &gt; Window, Location, and Storage. At least, in the HTML spec, as far as I 
+</I>&gt;<i> &gt; can tell.
+</I>&gt;<i> 
+</I>&gt;<i>   var myGetter = Object.getOwnPropertyDescriptor(Node.prototype,
+</I>&gt;<i>                                                 &quot;firstChild&quot;).get;
+</I>&gt;<i>   var node = myGetter.call(crossOriginDoc);
+</I>&gt;<i> 
+</I>&gt;<i> This should throw; we agree on that, right?
+</I>
+Assuming the script's effective script origin is not the same as the 
+crossOriginDoc's effective script origin, it doesn't matter _what_ 
+myGetter points to. It should always throw, either TypeError (or some 
+such) if myGetter points to something that's not on Document somehow, or 
+SecurityError, if myGetter points to something that _is_ on Document. 
+Doesn't matter if it's actually from Node, Document, EventTarget, 
+GlobalEventHandlers, XPathEvaluator, any of the partial document 
+interfaces, etc; all that matters is that it wouldn't throw TypeError and 
+would throw SecurityError if you tried to get it straight of the prototype 
+of crossOriginDoc.
+
+
+&gt;<i> So I'm not sure what we're disagreeing about here.
+</I>
+I'm not really disagreeing with anything. :-)
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="080884.html">[whatwg] Need to define same-origin policy for WebIDL operations/getters/setters
+</A></li>
+	<LI>Next message: <A HREF="080822.html">[whatwg] Need to define same-origin policy for WebIDL	operations/getters/setters
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#80818">[ date ]</a>
+              <a href="thread.html#80818">[ thread ]</a>
+              <a href="subject.html#80818">[ subject ]</a>
+              <a href="author.html#80818">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

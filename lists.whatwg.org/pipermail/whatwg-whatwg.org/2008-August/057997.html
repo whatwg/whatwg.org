@@ -1,0 +1,196 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] WebWorker questions
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20WebWorker%20questions&In-Reply-To=%3C278fd46c0808121126x4e80c9b3x76eb24e5869f121e%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="057998.html">
+   <LINK REL="Next"  HREF="057999.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] WebWorker questions</H1>
+<!--htdig_noindex-->
+    <B>Aaron Boodman</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20WebWorker%20questions&In-Reply-To=%3C278fd46c0808121126x4e80c9b3x76eb24e5869f121e%40mail.gmail.com%3E"
+       TITLE="[whatwg] WebWorker questions">aa at google.com
+       </A><BR>
+    <I>Tue Aug 12 11:26:07 PDT 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="057998.html">[whatwg] WebWorker questions
+</A></li>
+        <LI>Next message: <A HREF="057999.html">[whatwg] WebWorker questions
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#57997">[ date ]</a>
+              <a href="thread.html#57997">[ thread ]</a>
+              <a href="subject.html#57997">[ subject ]</a>
+              <a href="author.html#57997">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Tue, Aug 12, 2008 at 4:50 AM, Shannon &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">shannon at arc.net.au</A>&gt; wrote:
+&gt;<i> If a WebWorker object is assigned to local variable inside a  complex script
+</I>&gt;<i> then it cannot be seen or stopped by the calling page. Should the
+</I>&gt;<i> specification offer document.workers or getAllWorkers() as a means to
+</I>&gt;<i> iterate over all workers regardless of where they were created?
+</I>
+I don't follow the first phrase here, but I can still answer the
+overall quetsion...
+
+There is currently no API to stop a worker from the outside, only from
+the inside. Providing an API to kill a worker from the outside is a
+little weird because we also want to be able to share workers between
+multiple pages. If we did both of these things then one page could
+kill a worker that other pages are relying on. Not saying this is
+unreasonable, just something to think about.
+
+As for getAllWorkers(), yes, I think this would be cool (perhaps for a
+future version of the API). If for no other reason than that there are
+interesting applications for diagnostics and introspection.
+
+&gt;<i> Is it wise to give a web application more processing power than a single CPU
+</I>&gt;<i> core (or HT thread) can provide? What stops a web page hogging ALL cores
+</I>&gt;<i> (deliberately or not) and leaving no resources for the UI mouse or key
+</I>&gt;<i> actions required to close the page? (This is not a contrived example, I have
+</I>&gt;<i> seen both Internet Explorer on Win32 and Flash on Linux consume 100% CPU on
+</I>&gt;<i> several occasions). I know it's a &quot;vendor issue&quot; but should the spec at
+</I>&gt;<i> least recommend UAs leave the last CPU/core free for OS tasks?
+</I>
+You are right that workers and other things that are controllable by
+authors but use threads should be pooled and limited. It shouldn't be
+possible to DOS a browser using workers. Currently, Gears doesn't do
+this, but we definitely should. I agree the spec should have a warning
+to this effect.
+
+&gt;<i> Can anybody point me to an existing Javascript-based web service that needs
+</I>&gt;<i> more client processing power than a single P4 core?
+</I>
+It's easy to imagine examples, but of course none exist today since
+this capability doesn't exist in browsers.
+
+100ms is generally considered to be absolute maximum amount of time a
+UI can take to update after direct interaction. After that, users
+think it is hung. It's not that hard to imagine applications for JS
+computation which surpass this amount of time, particularly when you
+consider that the cpu(s) might be busy doing something else!
+
+But I think that computation is the least interesting of the benefits
+that workers provide. The others ones are:
+
+a) Workers allow applications to perform blocking IO. Currently this
+isn't possible because it would block the UI too. In the current
+database proposal, every single SQL statement is asynchronous.
+
+b) Workers allow you to share parts of your application between
+windows. So for example, if you open Google Docs in two windows, they
+can't share any code today. Google docs is a pretty significant JS
+app, so this is already crazy inefficient. But if the user has Google
+Docs Offline enabled, then both copies of the app are also both trying
+to synchronize to the same local database. The only way to get around
+this is to implement a watchdog system where each window tries to
+detect each other through updates to the shared database. Shared
+workers allow you to solve this in a more natural way. Just put the
+synchronization code in a shared worker. All the instances of the app
+can access it.
+
+&gt;<i> Shouldn't an application that requires so much grunt really be written in
+</I>&gt;<i> Java or C as an applet, plug-in or standalone application?
+</I>
+No. Web applications have many benefits over native apps. We should
+try to increase the number of apps that can be written on the web.
+
+&gt;<i> If an application did require that much computation isn't it also likely to
+</I>&gt;<i> need a more efficient inter-&quot;thread&quot; messaging protocol than passing Unicode
+</I>&gt;<i> strings through MessagePorts? At the very least wouldn't it usually require
+</I>&gt;<i> the passing of binary data, complex objects or arrays between workers
+</I>&gt;<i> without the additional overhead of a string encode/decode?
+</I>
+We (Google) have proposed the addition of being able to pass complex
+JS objects without manually encoding/decoding, and I think that this
+will be added eventually.
+
+But even with just strings passing, it is easy to imagine applications
+where there is a large amount of background work that needs to be done
+given a small amount of input. For example, &quot;download all the
+documents for user X and store them in the database&quot;.
+
+&gt;<i> Is the resistance to adding threads to Javascript an issue with the language
+</I>&gt;<i> itself, or a matter of current interpreters being non-threadsafe?
+</I>
+Threads as they exist in java and c are widely understood to be difficult:
+
+<A HREF="http://csdl2.computer.org/persagen/DLAbsToc.jsp?resourcePath=/dl/mags/co/&amp;toc=comp/mags/co/2006/05/r5toc.xml&amp;DOI=10.1109/MC.2006.180">http://csdl2.computer.org/persagen/DLAbsToc.jsp?resourcePath=/dl/mags/co/&amp;toc=comp/mags/co/2006/05/r5toc.xml&amp;DOI=10.1109/MC.2006.180</A>
+
+I don't have a problem with coroutines personally, but I think that
+there is still a place for full processes in any programming
+environment. Sometimes it's just natural to break up an application
+into UI and background processes. Unix applications have traditionally
+been built with this model, and modern windows applications also use
+it.
+
+&gt;<i> The draft spec says &quot;protected&quot; workers are allowed to live for a
+</I>&gt;<i> &quot;user-agent-defined amount of time&quot; after a page or browser is closed. I'm
+</I>&gt;<i> not really sure what possible value this could have since as an author we
+</I>&gt;<i> won't know whether the UA allows _any_ time and if so whether that time will
+</I>&gt;<i> be enough to complete our cleanup (given a vast discrepancy in
+</I>&gt;<i> operations-per-second across UAs and client PCs). If our cleanup can be
+</I>&gt;<i> arbitrarily cancelled then isn't it likely that we might actually leave the
+</I>&gt;<i> client or server in a worse state than if we hadn't tried at all? Won't this
+</I>&gt;<i> cause difficult-to-trace sporadic bugs caused by browser differences in what
+</I>&gt;<i> could be a rare event (a close during operation Y instead of during X)?
+</I>
+I agree that workers should be immediately killed on page unload, just
+like XHRs are.
+
+&gt;<i> I just don't see any common cases where you'd _need_ multiple OS threads but
+</I>&gt;<i> still be willing to accept Javascripts' poor performance, Webworkers limited
+</I>&gt;<i> API, and MessagePorts' limited IO. The only things I can think of are new
+</I>&gt;<i> user annoyances (like delaying browser shutdown and hogging the CPU). Sure
+</I>&gt;<i> UA's might let us disable these things but then some pages won't work. The
+</I>&gt;<i> Working Draft lists a few examples, most of which appear to use non-blocking
+</I>&gt;<i> network IO and callbacks anyway. Other examples rely on the ability for
+</I>&gt;<i> workers to outlive the lifetime of the calling page (which is pretty
+</I>&gt;<i> contentious). The one remaining example is a contrived mathematical
+</I>&gt;<i> exercise. Is the scientific world really crying out for complex theorems to
+</I>&gt;<i> be solved in web browsers? What real-world use cases is WebWorkers supposed
+</I>&gt;<i> to solve?
+</I>
+I hope I've addressed some of these questions above. I'm sure you'll
+let me know if you're still unconvinced.
+
+- a
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="057998.html">[whatwg] WebWorker questions
+</A></li>
+	<LI>Next message: <A HREF="057999.html">[whatwg] WebWorker questions
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#57997">[ date ]</a>
+              <a href="thread.html#57997">[ thread ]</a>
+              <a href="subject.html#57997">[ subject ]</a>
+              <a href="author.html#57997">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

@@ -1,0 +1,205 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Some comments/questions on database storage
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Some%20comments/questions%20on%20database%20storage&In-Reply-To=%3CAAC216C2-0F73-4CB1-8134-8D80D69B653A%40apple.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="056312.html">
+   <LINK REL="Next"  HREF="056309.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Some comments/questions on database storage</H1>
+<!--htdig_noindex-->
+    <B>Brady Eidson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Some%20comments/questions%20on%20database%20storage&In-Reply-To=%3CAAC216C2-0F73-4CB1-8134-8D80D69B653A%40apple.com%3E"
+       TITLE="[whatwg] Some comments/questions on database storage">beidson at apple.com
+       </A><BR>
+    <I>Mon Feb 25 15:54:35 PST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="056312.html">[whatwg] Some comments/questions on database storage
+</A></li>
+        <LI>Next message: <A HREF="056309.html">[whatwg] Question on handling of failed statements in database API
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#56314">[ date ]</a>
+              <a href="thread.html#56314">[ thread ]</a>
+              <a href="subject.html#56314">[ subject ]</a>
+              <a href="author.html#56314">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>
+On Feb 25, 2008, at 3:12 PM, Ralf Stoltze wrote:
+
+&gt;<i> On  Monday, February 25, 2008 10:56 PM, Brady Eidson wrote:
+</I>&gt;<i>
+</I>&gt;&gt;<i> Placeholders are the mechanism the spec mandates to prevent SQL
+</I>&gt;&gt;<i> injections et al.  *How* seems to be an implementation detail.
+</I>&gt;&gt;<i> SQLite, for example, has the ? + argument structure in place already.
+</I>&gt;<i>
+</I>&gt;<i> So step 3 &quot;Replace each ? placeholder&quot; can be skipped if the  
+</I>&gt;<i> underlying
+</I>&gt;<i> DB architecture already has a similar mechanism.
+</I>
+It's not skipped - it's being fulfilled by the DB backend.
+
+This part of the spec is about what the user agent must do, not how.
+
+If the user agent uses SQLite as the backend as well as the `? + arg`  
+API SQLite provides, I think it has fulfilled it's obligations under  
+the HTML5 spec.
+
+&gt;&gt;&gt;<i> Based on 4.11.6, step 6.7, I assume the following snippet to always
+</I>&gt;&gt;&gt;<i> execute in order 1, 2, 3?
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> db.transaction(function(tx) {
+</I>&gt;&gt;&gt;<i> tx.executeSql('query 1', null, function(tx, rs) {
+</I>&gt;&gt;&gt;<i>   tx.executeSql('query 2', null, function(tx, rs) {
+</I>&gt;&gt;&gt;<i>   });
+</I>&gt;&gt;&gt;<i> });
+</I>&gt;&gt;&gt;<i> tx.executeSql('query 3', null, function(tx, rs) {
+</I>&gt;&gt;&gt;<i> });
+</I>&gt;&gt;&gt;<i> });
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> 4.11.3 step 6 states that if an executeSql call passed steps
+</I>&gt;&gt;<i> 1-5, the
+</I>&gt;&gt;<i> statement is queued up in the transaction.
+</I>&gt;&gt;<i> 4.11.6 step 6.7 says &quot;move on to the next statement, if any&quot;
+</I>&gt;&gt;<i> I trust this means &quot;the next statement in the transaction's
+</I>&gt;&gt;<i> statement
+</I>&gt;&gt;<i> queue&quot; and that the queue pops statements in the order they
+</I>&gt;&gt;<i> were queued.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> This means that query 1 would be queued, query 3 would be
+</I>&gt;&gt;<i> queued, then
+</I>&gt;&gt;<i> in the callback for query 1, query 2 would be queued.
+</I>&gt;&gt;<i> Execution order 1, 3, 2
+</I>&gt;<i>
+</I>&gt;<i> Hmm. I'm confused.
+</I>&gt;<i>
+</I>&gt;<i> A statement can only be queued when executeSql() is invoked.
+</I>&gt;<i>
+</I>&gt;<i> It's not clear to me when the top-level executeSql() methods are  
+</I>&gt;<i> invoked
+</I>&gt;<i> with respect to the overall processing model from 4.11.6.
+</I>
+ From 4.11.3:
+&quot;When the executeSql(sqlStatement, arguments, callback, errorCallback)  
+method is invoked, the user agent must run the following algorithm.
+...
+If the method was not invoked during the execution of a  
+SQLTransactionCallback, SQLStatementCallback, or  
+SQLStatementErrorCallback then raise an INVALID_STATE_ERR exception.&quot;
+
+This means that calling executeSql() is only valid from within the  
+single SQLTransactionCallback, a SQLStatementCallback, or a  
+SQLStatementErrorCallback.
+
+In the above example, the executeSql() call for query 1 and 3 are  
+being called within the SQLTransactionCallback.  The executeSql() call  
+for query 2 is being called within a SQLStatementCallback.
+
+&gt;<i> 4.11.2:
+</I>&gt;<i> &quot;The transaction() method takes one or two arguments. When called, the
+</I>&gt;<i> method must immediately return and then asynchronously run the
+</I>&gt;<i> transaction steps&quot;
+</I>
+Right, and these transaction steps are covered under 4.11.6
+
+4.11.6.4 states &quot;Invoke the transaction callback with the  
+aforementioned SQLTransaction object as its only argument.&quot;
+
+As previously mentioned, one of the 3 times you are allowed to call  
+executeSql() is from within the SQLTransactionCallback, so during step  
+4 of the transaction steps is where the script first has the  
+opportunity to call executeSql().
+
+&gt;<i> That doesn't necessarily mean to me that any executeSql() is ever
+</I>&gt;<i> invoked before the transaction steps are run. Thus, the transaction
+</I>&gt;<i> queue would be empty (what makes no sense).
+</I>
+Read the entire set of transaction steps.  The first place a statement  
+can be queued is during step 4 - from within the  
+SQLTransactionCallback.  The first time a statement is actually pulled  
+out of the transaction's statement queue to be run is step 6.
+
+It is true that if the script doesn't queue any statements during step  
+4, step 6 will be reached and the transaction queue would be empty.
+And yes, that would make no sense for the script to do - it would be a  
+waste of time.
+Which is why you'll typically see a script call executeSql() at least  
+once during the SQLTransactionCallback  ;)
+(In the above example, it calls it twice - query 1 and query 3)
+
+&gt;<i> Is it meant that all top-level executeSql() methods are executed  
+</I>&gt;<i> before
+</I>&gt;<i> the transaction steps are run? In this case, I also see execution  
+</I>&gt;<i> order
+</I>&gt;<i> 1,3,2.
+</I>
+I'd personally define &quot;top-level executeSql() calls&quot; to be  
+&quot;executeSql() calls made from within the SQLTransactionCallback&quot;
+
+Your example might also be written like this, which makes it more  
+clear how the steps run:
+
+function statementCallback(tx, results)
+{
+     // When this method is called, we're at 4.11.6, step 6.5 - the  
+SQLStatement callback
+     tx.executeSql('query 2', null);
+}
+
+function transactionCallback(tx)
+{
+     // When this method is called, the transaction steps have already  
+commenced and we are in 4.11.6, step 4,
+     // and are making our &quot;top level&quot; calls to executeSql(), queuing  
+up the first two statements in this transaction
+     tx.executeSql('query 1', null, statementCallback);
+     tx.executeSql('query 3', null);
+}
+
+db.transaction(transactionCallback);
+
+~Brady
+
+&gt;<i>
+</I>&gt;<i> /ralf
+</I>&gt;<i>
+</I>
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="056312.html">[whatwg] Some comments/questions on database storage
+</A></li>
+	<LI>Next message: <A HREF="056309.html">[whatwg] Question on handling of failed statements in database API
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#56314">[ date ]</a>
+              <a href="thread.html#56314">[ thread ]</a>
+              <a href="subject.html#56314">[ subject ]</a>
+              <a href="author.html#56314">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

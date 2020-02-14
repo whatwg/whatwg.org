@@ -1,0 +1,229 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Proposal: Adding methods like getElementById and getElementsByTagName to DocumentFragments
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Proposal%3A%20Adding%20methods%20like%20getElementById%20and%0A%20getElementsByTagName%20to%20DocumentFragments&In-Reply-To=%3C5261AE9A.9070606%40mit.edu%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="083483.html">
+   <LINK REL="Next"  HREF="083488.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Proposal: Adding methods like getElementById and getElementsByTagName to DocumentFragments</H1>
+<!--htdig_noindex-->
+    <B>Boris Zbarsky</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Proposal%3A%20Adding%20methods%20like%20getElementById%20and%0A%20getElementsByTagName%20to%20DocumentFragments&In-Reply-To=%3C5261AE9A.9070606%40mit.edu%3E"
+       TITLE="[whatwg] Proposal: Adding methods like getElementById and getElementsByTagName to DocumentFragments">bzbarsky at MIT.EDU
+       </A><BR>
+    <I>Fri Oct 18 14:56:42 PDT 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="083483.html">[whatwg] Proposal: Adding methods like getElementById and getElementsByTagName to DocumentFragments
+</A></li>
+        <LI>Next message: <A HREF="083488.html">[whatwg] Proposal: Adding methods like getElementById and getElementsByTagName to DocumentFragments
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#83484">[ date ]</a>
+              <a href="thread.html#83484">[ thread ]</a>
+              <a href="subject.html#83484">[ subject ]</a>
+              <a href="author.html#83484">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On 10/18/13 3:11 PM, Tab Atkins Jr. wrote:
+&gt;<i> There's no perf boost available for searching by id on an arbitrary
+</I>&gt;<i> element.  The reason you may get a better perf for the normal
+</I>&gt;<i> functions is that documents cache a map from id-&gt;element on
+</I>&gt;<i> themselves, so you just have to do a fast hash-lookup.  Arbitrary
+</I>&gt;<i> elements don't have this map (it would be way too much memory cost),
+</I>&gt;<i> so it'll fall back to a standard tree search, exactly as a
+</I>&gt;<i> querySelector would.
+</I>
+Tab, you keep saying that.  Let's try science instead of guessing.
+
+Performance of getting an element by ID depends on whether you have to 
+do the following:
+
+1)  Perform string concatenation (like '#'+foo) to get the string to pas 
+to the browser.
+
+2)  Walk an entire subtree (this can be avoided by using the 
+id-to-element-list hash and then checking the results to see if they 
+match, in cases when the root of the search is in the document).
+
+3)  Do complicated selector checking while walking the tree.
+
+4)  Probably other factors.
+
+Luckily, we have SVGSVGElement.prototype.getElementById available to 
+compare to Element.prototype.querySelector.  We also have at least two 
+distinct implementations (Chrome and Firefox are the ones I tried), and 
+luckily some of them are open-source so we can examine the impact of 
+different implementation strategies.
+
+With that in mind, I wrote up a testcase [1] to test the cases that do 
+and do not require a string concatenation for the querySelector call 
+(see item 1 in list above), in and out of the document (see item 2 in 
+list above).  I used a fairly large subtree that needs walking (1000 
+elements), but you can modify the testcase to your heart's content.
+
+I then tested it in three implementations: Chrome (which I'm treating as 
+a black-box for now), stock Firefox (in which 
+SVGSVGElement.prototype.getElementById in fact calls querySelector 
+internally, after CSS-escaping the input and whatnot) and a modified 
+Firefox [2], in which SVGSVGElement.prototype.getElementById just does a 
+naive tree-walk with no attempt to fast-path the in-document case.  I 
+also included document.getElementById as a control.  The numbers are as 
+follows, where all numbers are nanoseconds per call on my hardware. 
+Note that for lower iteration counts the effects of running in slower 
+JIT levels might also pop up; those shouldn't affect things by more than 
+10ns or so per loop iteration in this case, I expect.
+
+Chrome:
+document.getElementById: 55
+In-tree querySelector: 220
+In-tree querySelector, no string concat: 100
+In-tree getElementById: 55
+Out-of-tree querySelector: 2115
+Out-of-tree querySelector, no string concat: 1995
+Out-of-tree getElementById: 270
+
+Stock Firefox:
+document.getElementById: 60
+In-tree querySelector: 140
+In-tree querySelector, no string concat: 130
+In-tree getElementById: 185
+Out-of-tree querySelector: 905
+Out-of-tree querySelector, no string concat: 910
+Out-of-tree getElementById: 975
+
+Modified Firefox:
+document.getElementById: 60
+In-tree querySelector: 125
+In-tree querySelector, no string concat: 120
+In-tree getElementById: 215
+Out-of-tree querySelector: 885
+Out-of-tree querySelector, no string concat: 880
+Out-of-tree getElementById: 205
+
+So it looks to me like in practice Element.getElementById could be quite 
+a bit faster than the equivalent querySelector call, for both the 
+in-tree case (where both can avoid walking the tree) and the out-of-tree 
+case (where both need to walk the tree).
+
+Food for thought.
+
+-Boris
+
+[1] The testcase:
+
+&lt;!DOCTYPE html&gt;
+&lt;script&gt;
+   document.write(&quot;&lt;svg id='root' width='0' height='0'&gt;&quot;);
+   for (var i = 0; i &lt; 100; ++i) {
+     document.write(&quot;&lt;rect/&gt;&quot;);
+   }
+   document.write(&quot;&lt;rect id='test'/&gt;&quot;);
+   document.write(&quot;&lt;/svg&gt;\n&quot;);
+&lt;/script&gt;
+&lt;pre&gt;&lt;script&gt;
+   var node;
+   var count = 200000;
+   function doTests(root, elementId, descQS, descQSNoConcat, descGEBI) {
+     var start = new Date;
+     for (var i = 0; i &lt; count; ++i)
+       node = root.querySelector(&quot;#&quot; + elementId);
+     var stop = new Date;
+     document.writeln(descQS + ((stop - start) / count * 1e6));
+     var start = new Date;
+     for (var i = 0; i &lt; count; ++i)
+       node = root.querySelector(&quot;#test&quot;);
+     var stop = new Date;
+     document.writeln(descQSNoConcat + ((stop - start) / count * 1e6));
+     var start = new Date;
+     for (var i = 0; i &lt; count; ++i)
+       node = root.getElementById(elementId);
+     var stop = new Date;
+     document.writeln(descGEBI + ((stop - start) / count * 1e6));
+   }
+   var root = document.getElementById(&quot;root&quot;);
+   var start = new Date;
+   for (var i = 0; i &lt; count; ++i)
+     node = document.getElementById(&quot;test&quot;);
+   var stop = new Date;
+   document.writeln(&quot;document.getElementById: &quot; + ((stop - start) / 
+count * 1e6));
+   doTests(root, &quot;test&quot;,
+           &quot;In-tree querySelector: &quot;,
+           &quot;In-tree querySelector, no string concat: &quot;,
+           &quot;In-tree getElementById: &quot;);
+   root.remove();
+   doTests(root, &quot;test&quot;,
+           &quot;Out-of-tree querySelector: &quot;,
+           &quot;Out-of-tree querySelector, no string concat: &quot;,
+           &quot;Out-of-tree getElementById: &quot;);
+&lt;/script&gt;
+
+[2] The diff I applied locally to a tip-ish Firefox:
+
+diff --git a/content/svg/content/src/SVGSVGElement.cpp 
+b/content/svg/content/src/SVGSVGElement.cpp
+--- a/content/svg/content/src/SVGSVGElement.cpp
++++ b/content/svg/content/src/SVGSVGElement.cpp
+@@ -438,11 +438,15 @@ SVGSVGElement::CreateSVGTransformFromMat
+  Element*
+  SVGSVGElement::GetElementById(const nsAString&amp; elementId, ErrorResult&amp; rv)
+  {
+-  nsAutoString selector(NS_LITERAL_STRING(&quot;#&quot;));
+-  nsStyleUtil::AppendEscapedCSSIdent(PromiseFlatString(elementId), 
+selector);
+-  nsIContent* element = QuerySelector(selector, rv);
+-  if (!rv.Failed() &amp;&amp; element) {
+-    return element-&gt;AsElement();
++  for (nsIContent* kid = nsINode::GetFirstChild(); kid;
++       kid = kid-&gt;GetNextNode(this)) {
++    if (!kid-&gt;IsElement()) {
++      continue;
++    }
++    nsIAtom* id = kid-&gt;AsElement()-&gt;GetID();
++    if (id &amp;&amp; id-&gt;Equals(elementId)) {
++      return kid-&gt;AsElement();
++    }
+    }
+    return nullptr;
+  }
+
+
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="083483.html">[whatwg] Proposal: Adding methods like getElementById and getElementsByTagName to DocumentFragments
+</A></li>
+	<LI>Next message: <A HREF="083488.html">[whatwg] Proposal: Adding methods like getElementById and getElementsByTagName to DocumentFragments
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#83484">[ date ]</a>
+              <a href="thread.html#83484">[ thread ]</a>
+              <a href="subject.html#83484">[ subject ]</a>
+              <a href="author.html#83484">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

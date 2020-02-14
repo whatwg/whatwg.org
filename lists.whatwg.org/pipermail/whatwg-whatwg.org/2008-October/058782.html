@@ -1,0 +1,148 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Canvas performance issue: setting colors
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Canvas%20performance%20issue%3A%20setting%20colors&In-Reply-To=%3C9AA03364-8B25-49F1-9E38-E8C7F2CE816F%40apple.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="058780.html">
+   <LINK REL="Next"  HREF="058783.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Canvas performance issue: setting colors</H1>
+<!--htdig_noindex-->
+    <B>Oliver Hunt</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Canvas%20performance%20issue%3A%20setting%20colors&In-Reply-To=%3C9AA03364-8B25-49F1-9E38-E8C7F2CE816F%40apple.com%3E"
+       TITLE="[whatwg] Canvas performance issue: setting colors">oliver at apple.com
+       </A><BR>
+    <I>Fri Oct  3 16:37:53 PDT 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="058780.html">[whatwg] Canvas performance issue: setting colors
+</A></li>
+        <LI>Next message: <A HREF="058783.html">[whatwg] Canvas performance issue: setting colors
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#58782">[ date ]</a>
+              <a href="thread.html#58782">[ thread ]</a>
+              <a href="subject.html#58782">[ subject ]</a>
+              <a href="author.html#58782">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>I did some basic testing, and it looks like a significant amount of  
+the difference is due to this (based on the frame rate that ToT webkit  
+could kick out, the timeout difference corresponds to around a 30% on  
+its own).  However it's difficult to be entirely sure as VMWare (from  
+memory) throttles WM_PAINT messages, there's an awful lot of variance  
+in the frame rate and my testing was very ad hoc so should be taken  
+with a grain of salt :D
+
+However the topic of setting canvas fillStyle, strokeStyle etc is an  
+interesting one.  Currently setting a computed colour is a fairly icky  
+process -- you have to do something akin to:
+
+   context.fillStyle/Stroke = &quot;rgb(&quot;+r+&quot;,&quot;+g+&quot;,&quot;+b+&quot;)&quot;; // or  
+rgba(...) where appropriate
+
+Ignoring performance, that code is ugly all on its own, and when you  
+add to that the fact that most computed colours result in double  
+values (0..1) then it actually becomes something akin to
+
+   context.fillStyle/Stroke = &quot;rgb(&quot;+Math.round(255*r) 
++&quot;,&quot;+Math.round(255*g)+&quot;,&quot;+Math.round(255*b)+&quot;)&quot;;
+
+Or whatever -- even uglier.
+
+So I believe for these scenarios we need a better mechanism for  
+changing the stroke and fill style on the canvas, the trouble is that  
+i'm not sure what.  I'm really not convinced that creating a special  
+CanvasColor type would be a win because that would (at best) reduce  
+the above to something akin to
+
+  context.fillStyle/Stroke = new CanvasColor(r,g,b,a);
+
+or worse:
+
+context.fillStyle = context.createColor(r,g,b,a);
+
+But otoh, maybe if we had a generic Color object that could be used in  
+other places (like css) maybe it could be a win, especially if a Color  
+could be a solid color, pattern, gradient, etc -- I know there are  
+some places where people like behaviour like that.  OTOH, it's  
+difficult to see how that could be backwards compatible in a  
+reasonable way -- so maybe something similar to WebKit's setFillColor  
+would be best.
+
+Just a final note, I am of the opinion that while canvas.fillStyle is  
+not a stunningly fast API i am of the opinion that the real problem  
+with the fillStyle API is the verbosity of setting an arbitrary  
+computed color more than anything else.
+
+&lt;thinking out loud&gt;
+Just had a thought (no idea how original) -- how about if fillStyle  
+were able to accept a 3 or 4 number array? eg. fillStyle = [0, 0.3,  
+0.6, 1.0] ?
+
+That might work well if people are using arrays as vectors/colours
+&lt;/thinking out loud&gt;
+
+--Oliver
+
+On Oct 3, 2008, at 4:11 PM, Robert Sayre wrote:
+
+&gt;<i> On Mon, Sep 29, 2008 at 6:24 PM, Sjoerd Visscher  
+</I>&gt;<i> &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">sjoerd at w3future.com</A>&gt; wrote:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> A large percentage of the time goes into building color strings for  
+</I>&gt;&gt;<i> setting
+</I>&gt;&gt;<i> the strokeStyle, which the browser then has to take apart again.  
+</I>&gt;&gt;<i> This is a
+</I>&gt;&gt;<i> very unnecessary performance hit. (Btw, on my Mac this runs faster  
+</I>&gt;&gt;<i> under
+</I>&gt;&gt;<i> Google Chrome in VMware than natively in the latest Webkit nightly.)
+</I>&gt;<i>
+</I>&gt;<i> I see that your test case include setTimeout(doIteration, 0);
+</I>&gt;<i>
+</I>&gt;<i> Are you sure this doesn't boil down to the difference between Chrome
+</I>&gt;<i> and WebKit's setTimeout minimum delay?
+</I>&gt;<i>
+</I>&gt;<i> -- 
+</I>&gt;<i>
+</I>&gt;<i> Robert Sayre
+</I>&gt;<i>
+</I>&gt;<i> &quot;I would have written a shorter letter, but I did not have the time.&quot;
+</I>
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="058780.html">[whatwg] Canvas performance issue: setting colors
+</A></li>
+	<LI>Next message: <A HREF="058783.html">[whatwg] Canvas performance issue: setting colors
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#58782">[ date ]</a>
+              <a href="thread.html#58782">[ thread ]</a>
+              <a href="subject.html#58782">[ subject ]</a>
+              <a href="author.html#58782">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

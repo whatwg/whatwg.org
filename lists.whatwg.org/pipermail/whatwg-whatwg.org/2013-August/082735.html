@@ -1,0 +1,170 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] remove resetClip from the Canvas 2D spec
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20remove%20resetClip%20from%20the%20Canvas%202D%20spec&In-Reply-To=%3CCAA5isUbdrueeN0w4ta71W_OFMGUTrvqu5RQWR3J-UpruDnACag%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="082734.html">
+   <LINK REL="Next"  HREF="082736.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] remove resetClip from the Canvas 2D spec</H1>
+<!--htdig_noindex-->
+    <B>Simon Sarris</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20remove%20resetClip%20from%20the%20Canvas%202D%20spec&In-Reply-To=%3CCAA5isUbdrueeN0w4ta71W_OFMGUTrvqu5RQWR3J-UpruDnACag%40mail.gmail.com%3E"
+       TITLE="[whatwg] remove resetClip from the Canvas 2D spec">simon.sarris at gmail.com
+       </A><BR>
+    <I>Mon Aug 12 11:50:48 PDT 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="082734.html">[whatwg] remove resetClip from the Canvas 2D spec
+</A></li>
+        <LI>Next message: <A HREF="082736.html">[whatwg] remove resetClip from the Canvas 2D spec
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#82735">[ date ]</a>
+              <a href="thread.html#82735">[ thread ]</a>
+              <a href="subject.html#82735">[ subject ]</a>
+              <a href="author.html#82735">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>I think most performance-minded use cases will be fine with junov's idea
+since they will not want to touch the stack in the first place.
+
+Here's a simple use case: Suppose there are nested objects to be drawn,
+Panels, TextBlocks, and other visual elements. Panels are containers that
+draw a background and all of their children - and they contain any number
+of Panels or TextBlocks or other elements, and TextBlocks set the context
+font (to their font) and draw some text.
+
+The drawing structure is hierarchical, and drawn elements may be offset
+from their immediate parent. So a drawing hierarchy might look like this:
+
+Panel(A)
+    Panel(B)
+        TextBlock
+    TextBlock
+
+That is, Panel(A) contains Panel(B) and a TextBlock. And Panel(B) contains
+another TextBlock. In practice, nesting could be much deeper and more
+complicated.
+
+Now suppose also that Panels have some settings, such as a maximum width,
+that might cause their visual elements to be clipped. So a panel might need
+to save(), clip(), draw all of its children, and then restore(). Nesting
+means multiple levels of clipping, for instance with the above hierarchy it
+might look like:
+
+Panel(A)
+    clip (save)
+    drawChildren:
+        Panel(B)
+            clip (save)
+            drawChildren:
+                TextBlock
+                    sets font X
+                    fillText
+            restore
+        TextBlock
+            sets font X
+            fillText
+    restore
+
+This is problematic, because it means:
+
+1. I must use save() and restore(), which are slow in their own right
+2. The usage of save() and restore() means that, even if all (or most) of
+my fonts are set to the same value, I have to keep setting them over and
+over. Setting the font is slow in practice, even if it is set to the same
+value as before, and so it should be cached if at all possible. See:
+
+<A HREF="http://jsperf.com/can-attribs">http://jsperf.com/can-attribs</A>
+and
+<A HREF="http://jsperf.com/cached-attributes">http://jsperf.com/cached-attributes</A>
+
+(fill/stroke styles should be cached too, but the performance diff is not
+as drastic)
+
+With a nested drawing structure,when using clipping, I am much less able to
+cache the canvas font/fillStyle/strokeStyle. This hurts performance. It's
+still possible, some of the time, but its harder to realize gains.
+
+All the while this is happening I am translating, rotating, and scaling the
+transformation matrix to position nested visual elements, but this is not a
+problem since I can undo those either with setTransform or inverse
+transforms, so they do not necessitate use of save() and restore().
+Clipping has no such ability, to undo any clipping region I must clobber
+the context state with a save and restore.
+
+I hope that was clear. This is a real-world use case for a production
+canvas diagramming library.
+
+In general, junov's idea will work well for anyone who wants this because
+they need to occasionally clip while keeping their webapp performant, since
+those people are unlikely to be touching save() and restore() in the first
+place.
+
+
+
+On Mon, Aug 12, 2013 at 2:15 PM, Rik Cabanier &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">cabanier at gmail.com</A>&gt; wrote:
+
+&gt;<i> On Fri, Aug 9, 2013 at 1:40 PM, Justin Novosad &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">junov at google.com</A>&gt; wrote:
+</I>&gt;<i>
+</I>&gt;<i> &gt; On Fri, Aug 9, 2013 at 4:20 PM, Ian Hickson &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">ian at hixie.ch</A>&gt; wrote:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; This is a quite widely requested feature. What should we do to address
+</I>&gt;<i> &gt; &gt; this request instead?
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; What if resetClip restored the clip to what it was at the save call that
+</I>&gt;<i> &gt; created the current state stack level?
+</I>&gt;<i> &gt; In other words, restore the clip, but without popping it off the
+</I>&gt;<i> &gt; save/restore stack.
+</I>&gt;<i> &gt;
+</I>&gt;<i>
+</I>&gt;<i> It would be good to hear specific use cases for 'resetClip' so we can make
+</I>&gt;<i> that call.
+</I>&gt;<i> I think your proposal could be made to work with Core Graphics.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> &gt; Also, resetMatrix could be defined to do the same.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> Is that API defined somewhere?
+</I>&gt;<i>
+</I>
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="082734.html">[whatwg] remove resetClip from the Canvas 2D spec
+</A></li>
+	<LI>Next message: <A HREF="082736.html">[whatwg] remove resetClip from the Canvas 2D spec
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#82735">[ date ]</a>
+              <a href="thread.html#82735">[ thread ]</a>
+              <a href="subject.html#82735">[ subject ]</a>
+              <a href="author.html#82735">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

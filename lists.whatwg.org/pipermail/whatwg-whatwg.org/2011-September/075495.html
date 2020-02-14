@@ -1,0 +1,307 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Selectors within &lt;style scoped&gt;
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Selectors%20within%20%3Cstyle%20scoped%3E&In-Reply-To=%3CPine.LNX.4.64.1109142312530.15908%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="033212.html">
+   <LINK REL="Next"  HREF="075497.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Selectors within &lt;style scoped&gt;</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Selectors%20within%20%3Cstyle%20scoped%3E&In-Reply-To=%3CPine.LNX.4.64.1109142312530.15908%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg] Selectors within &lt;style scoped&gt;">ian at hixie.ch
+       </A><BR>
+    <I>Wed Sep 14 17:55:19 PDT 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="033212.html">[whatwg] Selectors within &lt;style scoped&gt;
+</A></li>
+        <LI>Next message: <A HREF="075497.html">[whatwg] Selectors within &lt;style scoped&gt;
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#75495">[ date ]</a>
+              <a href="thread.html#75495">[ thread ]</a>
+              <a href="subject.html#75495">[ subject ]</a>
+              <a href="author.html#75495">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>
+The question posed in this thread is whether selectors in scoped style 
+sheet blocks should be affected by ancestors of the scoped block. For 
+example, should this be possible:
+
+   &lt;body class=&quot;archive&quot;&gt;
+    ...
+    &lt;section&gt;
+     &lt;style scoped&gt;
+      section &gt; h1 { border-bottom: solid; }
+      body.homepage h1 { color: red; }
+      body.archive h1 { color: gray; }
+     &lt;/style&gt;
+     &lt;h1&gt;Hello&lt;/h1&gt; &lt;!-- this changes colour based on whether it's on a 
+                         page with &lt;body class=homepage&gt; or &lt;body 
+                         class=archive&gt; --&gt;
+     &lt;p&gt;Welcome.&lt;/p&gt;
+    &lt;/section&gt;
+    ...
+   &lt;/body&gt;
+
+Several people suggested that this would be confusing, because of 
+situations such as the following:
+
+   &lt;aside&gt;
+    &lt;h1&gt;Snippets from other blogs&lt;/h1&gt;
+    &lt;section&gt;
+     &lt;!-- content inserted from another blog --&gt;
+     &lt;style scoped&gt;
+      section &gt; h1 { border-bottom: solid; }
+      p { text-align: left; }
+      aside p { text-align: right; }
+     &lt;/style&gt;
+     &lt;p&gt;Hello.&lt;/p&gt;
+     &lt;aside&gt; &lt;p&gt; I'm happy. &lt;/p&gt; &lt;/aside&gt;
+    &lt;/section&gt;
+   &lt;/aside&gt;
+
+Here, the embedded content expects to just style its own aside, but ends 
+up styling all of its contents because it happens to be inside another 
+aside. This, it is argued, is undesireable.
+
+
+On Thu, 16 Jun 2011, Lachlan Hunt wrote:
+&gt;<i>
+</I>&gt;<i> This is the purpose of the :scope pseudo-class that is defined to match 
+</I>&gt;<i> the contextual reference elemnt, which for scoped stylesheets, will be 
+</I>&gt;<i> the parent of the style element. [...]
+</I>&gt;<i> 
+</I>&gt;<i> <A HREF="http://dev.w3.org/2006/webapi/selectors-api2/#the-scope-pseudo-class">http://dev.w3.org/2006/webapi/selectors-api2/#the-scope-pseudo-class</A>
+</I>
+Thus, to do the first example, we would use these rules:
+
+      section:scope &gt; h1, :scope section &gt; h1 { border-bottom: solid; }
+      body.homepage :scope h1 { color: red; }
+      body.archive :scope h1 { color: gray; }
+
+...and for the second example, we would use:
+
+      section:scope &gt; h1, :scope section &gt; h1 { border-bottom: solid; }
+      :scope p { text-align: left; }
+      :scope aside p { text-align: right; }
+
+Unfortunately, as some people implied on the thread, this is rather 
+awkward and certainly not intuitive.
+
+Thus the first proposal: to force all selectors in a scoped style block to 
+not have any component simple selector matching any element that is an 
+ancestor of the scoping element.
+
+Unfortunately, this breaks the first example above. Thus, the second 
+proposal:
+
+On Thu, 16 Jun 2011, Dimitri Glazkov wrote:
+&gt;<i>
+</I>&gt;<i> What if we do this:
+</I>&gt;<i> 
+</I>&gt;<i> 1) By default, &lt;style scoped&gt; implies that all selectors in this
+</I>&gt;<i> stylesheet are prefixed with &quot;:scope&quot;.
+</I>&gt;<i> 2) Unless the &quot;:scope&quot; is already in the selector.
+</I>
+I think it might be better to phrase it as follows: 
+
+ A sequence of simple selectors in a selector chain can only match the 
+ scoped element and its descendants unless a sequence of simple selectors 
+ later in the selector chain contains the :scope pseudo-class.
+
+This avoids having to define any parsing mangling, but gets more or less 
+the same effect (actually it gets a better effect, since it means that a 
+selector chain consisting of just a simple selector can match both the 
+scoping element and its descendants).
+
+Thus, to do the first example, we would now use these rules which are a 
+bit of a compromise between the intuitive (but wrong) original case and 
+the more explicit case:
+
+      section &gt; h1 { border-bottom: solid; }
+      body.homepage :scope h1 { color: red; }
+      body.archive :scope h1 { color: gray; }
+
+...and for the second example, we would just use the intuitive case:
+
+      section &gt; h1 { border-bottom: solid; }
+      p { text-align: left; }
+      aside p { text-align: right; }
+
+However, as easy as that appears at first blush, I fear it would be seem 
+quite magical to authors who have trouble enough understanding CSS as it 
+is. Consider:
+
+   &lt;aside&gt;
+    &lt;section&gt;
+     &lt;style scoped&gt;
+      aside section h1 { ... } /* matches nothing */
+      aside section:scope h1 { ... } /* matches h1 below */
+     &lt;/style&gt;
+     &lt;h1&gt;Example&lt;/h1&gt;
+     ...
+    &lt;/section&gt;
+   &lt;/aside&gt;
+
+Never before in CSS has making a selector more specific actually increased 
+the number of elements it can match.
+
+
+On Thu, 16 Jun 2011, Boris Zbarsky wrote:
+&gt;<i> 
+</I>&gt;<i> Especially if we allowed the CSSOM in this situation to include the 
+</I>&gt;<i> implied &quot;:scope&quot; on selectors that did not include it in the text (in 
+</I>&gt;<i> which case, this is a simple parse-time transformation on the 
+</I>&gt;<i> stylesheet).
+</I>
+I think if we made the CSSOM reflect different selectors than what was in 
+the style sheet, that would be very confusing for authors, especially if 
+we rewrote the rules to match as described above (so some selector chains 
+in the input would become two selector chains in the CSSOM).
+
+
+On Thu, 16 Jun 2011, Tab Atkins Jr. wrote:
+&gt;<i> 
+</I>&gt;<i> I think it's pretty easy to learn that bare selectors only apply to 
+</I>&gt;<i> children of the scoping element, not the scoping element itself.
+</I>
+With the rule as described above, there is no distinction between the 
+element itself and its descendants. The boundary is between the scoping 
+element and its parent, not at the element itself.
+
+
+On Fri, 17 Jun 2011, Kornel Lesi&#197;~Dski wrote:
+&gt;<i> 
+</I>&gt;<i> That feels magical and a bit backwards to me.
+</I>&gt;<i> 
+</I>&gt;<i> Why not scope all selectors except ones starting with :root?
+</I>&gt;<i> 
+</I>&gt;<i> .foo {scoped}
+</I>&gt;<i> 
+</I>&gt;<i> :root .foo {matches outside scope}
+</I>
+That seems just as magical. :-)
+
+With the proposal above, you would have:
+
+   .foo { ... } /* scoped */
+   :root .foo:scope, :root :scope .foo { ... } /* matches outside scope */
+
+Admittedly in the case where .foo might match either the scoping element 
+or descendants of the scoping element, the full syntax is a bit longer.
+
+For comparison, here's what the above examples would look like with your 
+proposal. For the first:
+
+      section &gt; h1 { border-bottom: solid; }
+      :root body.homepage h1 { color: red; }
+      :root body.archive h1 { color: gray; }
+
+...and for the second (same as with :scope's magic):
+
+      section &gt; h1 { border-bottom: solid; }
+      p { text-align: left; }
+      aside p { text-align: right; }
+
+Personally I think having the magic relating directly to :scope is more 
+understandable -- :scope is all about scoping. But only barely.
+
+With :root doing the magic, you're really using :root as an @-rule; you 
+might as well at that point actually do so:
+
+     &lt;style scoped&gt;
+      section &gt; h1 { border-bottom: solid; }
+      @global body.homepage h1 { color: red; }
+      @global body.archive h1 { color: gray; }
+     &lt;/style&gt;
+
+This does have the advantage of meaning there's no magic. Where do 
+implementors stand on this? Are @rules an acceptable solution? (If so, 
+we'd want to pass it by the CSSWG first.)
+
+
+There was some discussion about whether to include the scoping element in 
+the scope:
+
+On Tue, 19 Jul 2011, Tab Atkins Jr. wrote:
+&gt;<i> 
+</I>&gt;<i> I think it's best for that case to *not* match.  Otherwise, you have to 
+</I>&gt;<i> explicitly remember to add a :not(:scope) to every rule that might match 
+</I>&gt;<i> the scoping element.
+</I>&gt;<i> 
+</I>&gt;<i> It's very easy to style the scoping element by using :scope explicitly.
+</I>
+I think that would be confusing for the same reason we don't exclude the 
+root element in regular selector matching.
+
+
+On Wed, 20 Jul 2011, Kornel Lesi&#197;~Dski wrote:
+&gt;<i> 
+</I>&gt;<i> I think it should match the scoping element, as I expect this pattern to be
+</I>&gt;<i> common until &lt;style scoped&gt; is widely supported:
+</I>&gt;<i> 
+</I>&gt;<i> &lt;div id=widget&gt;
+</I>&gt;<i>  &lt;style scoped&gt;
+</I>&gt;<i>    #widget foo {}
+</I>&gt;<i>  &lt;/style&gt;
+</I>&gt;<i> &lt;/div&gt;
+</I>
+True.
+
+
+On Wed, 20 Jul 2011, Ashley Sheridan wrote:
+&gt;<i> 
+</I>&gt;<i> While I agree that that might be a common pattern, I disagree that it's 
+</I>&gt;<i> actually a good one. Consider an ad service which wraps everything in a 
+</I>&gt;<i> custom &lt;div&gt; tag. If the scope allowed the immediate parent to be 
+</I>&gt;<i> included as part of the scope, then it could allow the advert to be 
+</I>&gt;<i> altered in a way that could negatively affect the users of the site the 
+</I>&gt;<i> ad appeared on.
+</I>
+That's possible anyway -- the advertisment could just not use scoped=&quot;&quot;, 
+or use a hostile &lt;script&gt;.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="033212.html">[whatwg] Selectors within &lt;style scoped&gt;
+</A></li>
+	<LI>Next message: <A HREF="075497.html">[whatwg] Selectors within &lt;style scoped&gt;
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#75495">[ date ]</a>
+              <a href="thread.html#75495">[ thread ]</a>
+              <a href="subject.html#75495">[ subject ]</a>
+              <a href="author.html#75495">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

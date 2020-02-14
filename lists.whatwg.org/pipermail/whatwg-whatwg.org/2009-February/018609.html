@@ -1,0 +1,146 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Clickjacking and CSRF
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Clickjacking%20and%20CSRF&In-Reply-To=%3Cop.upnna6rd41y844%40id-c0735.oslo.opera.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="018614.html">
+   <LINK REL="Next"  HREF="018610.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Clickjacking and CSRF</H1>
+<!--htdig_noindex-->
+    <B>Sigbj&#248;rn Vik</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Clickjacking%20and%20CSRF&In-Reply-To=%3Cop.upnna6rd41y844%40id-c0735.oslo.opera.com%3E"
+       TITLE="[whatwg] Clickjacking and CSRF">sigbjorn at opera.com
+       </A><BR>
+    <I>Fri Feb 20 06:46:08 PST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="018614.html">[whatwg] Security attacks on local storage
+</A></li>
+        <LI>Next message: <A HREF="018610.html">[whatwg] Clickjacking and CSRF
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18609">[ date ]</a>
+              <a href="thread.html#18609">[ thread ]</a>
+              <a href="subject.html#18609">[ subject ]</a>
+              <a href="author.html#18609">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>In reply to Ian Hickson's call for comments from vendors[1], I wasn't subscribed at the time, so sorry for messing up thread status.
+
+We agree that we need a solution quickly, and we are working on it. As IE has already implemented it's own header, the most pragmatic route would be to extend that to make it safe, and use that as a temporary stop gap while we work on a long term solution. It would be good to have a public reference spec for both, to ensure interoperability. This reply therefore contains two parts, a discussion on the x-frame-options header, and some thoughts on the larger picture.
+
+The x-frame-options header:
+===========================
+This idea will work as a very specific workaround for clickjacking. It requires Web authors to opt-in, so browser vendors need to act in unison. We therefore plan to implement the same header as Microsoft has proposed, as well as to release a testsuite for this header. A couple of points regarding the implementation:
+
+We would prefer not to allow this as a meta tag, for several reasons:
+* By the time the meta reaches the client, the user might already have interacted with the document and clicked somewhere or XSS flaws might already have been exploited, so it gives a false sense of security. An attacker might be able to influence the loading time of the embedded document.
+* Documents that flicker, first display contents, and later display a warning are confusing to users. Waiting to show contents until the entire document has loaded would severely impact performance on existing web pages, and is not an option.
+* Meta tags cannot be included in many resources, for instance images and (most) objects.
+* Meta tags would not work for some types of protection, for instance for resources that redirect when not logged in, and display a page otherwise - in such cases an attacker is often trying to check if a user is logged in to a service, so a convincing spoof against that service can be launched. Supporting meta headers might therefore give web authors a false sense of security. 
+
+Every cross-domain resource must be checked for the header. Imagine the following scenario: Amazon allows an iframe (A) ad, which can script itself, but not the parent page. The ad displays some game, like &quot;how many pushups can you do?&quot;. The ad hides an amazon checkout page in an iframe (B), using clickjacking techniques. If iframe B is not checked against the XSRF header, clickjacking can still occur. Note that iframe B is not cross-domain to the top page, only to its parent. A domain might have some resources that have liberal CSRF rules, and some that have strict rules. To ensure that iframe B cannot be pointing to a resource with liberal rules, which in turn points to an iframe (C) with strict rules, resources have to be checked against every ancestor all the way to the top document.
+
+data: and javascript: URIs (as well as any other domain-less protocols) must be given the domain of their embedder (if any), in order to be checkable against the XSRF header. 
+
+Redirect handling must be taken into account, every step in the redirect chain must be individually checked against the header, and redirection stop if the resource doing the redirect would not be allowed in a frame.
+
+For the purpose of interoperability, the spec should state explicitly what same-origin vs third party means.
+* Port: Over https, different ports can mean different certificates and thus servers with varying security levels. It might be prudent to differentiate on port.
+* Protocol: One might want to allow https in https, but not http frames inside https. Differentiating on protocol might be wise.
+* Sub-domains: Sub-domains should explicitly be mentioned not to be same-origin.
+The disadvantage to differentiating between ports and protocols is that one would require additional header options in order to be able to include them in a server's policy.
+
+The elements it blocks should be explicitly listed, frame, iframe, object, applet, embed, as well as other elements that allow scripting.
+
+A long term solution
+====================
+
+Regarding clickjacking, we would like to see the problem in a larger context. Clickjacking is a type of CSRF attack, of which there are several.
+* Clickjacking/cross-framing - where cross-site content is so obscured the user thinks he is interacting with content from a different site.
+* Cross-posting - where one site can post data to another site and change the status of the user on the site. Typically many home routers are vulnerable to this, a POST to 192.168.1.1/ChangeDNSAddress could potentially change the setup of the user. Cross-posting includes any other non-indempotent methods such as PUT and DELETE.
+* Cross-authentication - where one site can request data from another site, and that request is sent with authentication tokens. An example would be a bank which redirects to the login page when not logged in, and shows content otherwise, and the code &lt;img src=&quot;<A HREF="https://www.mybank.com/protected/images/lock.gif&quot;">https://www.mybank.com/protected/images/lock.gif&quot;</A> onerror=&quot;tryAnotherBank();&quot; onload=&quot;SpoofAPasswordDialog();&quot;&gt;
+
+Note that many real world CSRF attacks will combine cross-posting and cross-authentication.
+
+There is currently little protection against clickjacking, the x-frame-options is the first attempt.
+Cross-posting is typically up to the content author to protect against, by including secret fields which cannot be guessed by an attacker. HTML 5 is working on a different protection scheme, where browsers will have to send a origin header with cross domain posting, and the web author can check for that header instead. That proposed solution cannot prevent cross-authentication though.
+There is currently no protection against cross-authentication.   
+We would like to see a unified approach of how to deal with CSRF, and since we we are discussing how to protect against clickjacking anyway, it would be the perfect time to protect against other forms too. We might very well see new forms of CSRF in the future (with offline storage, widgets or any other new technology), the solution should be extendable to combat other forms, current and future.
+
+One proposed way of doing this would be a single header, of the form:
+x-cross-domain-options: deny=frame,post,auth; AllowSameOrigin; allow=*.opera.com,example.net;
+This incorporates the idea from the IE team, and extends on it. The header can be set centrally on a server, and content authors do not need to worry about checking their forms for CSRF, nor their scripts for the Origin header. The hope would be that future web servers would set the header by default, and that browsers, some time down the line, can treat a missing header as &quot;deny=all&quot;. It also allows for easy extension should other types of CSRF be found in the future. 
+Full compatibility with the proposal from the IE team would be maintained:
+&quot;x-cross-domain-options: deny=frame; AllowSameOrigin;&quot; would be equivalent to &quot;x-frame-options: SameOrigin&quot;
+&quot;x-cross-domain-options: deny=frame;&quot; would be equivalent to &quot;x-frame-options: Deny&quot;
+
+Details:
+The header takes three arguments:
+* Deny - required - a comma separated list of CSRF that is disallowed. Current values are frame (clickjacking/cross-framing), post (cross-posting) and auth (cross-authentication).
+* * If frame is set, the resource cannot be framed in (i)frames or object/embed/applet. For browsers that allow scripting in other objects, for example SVG images, the resource cannot be included in such elements either.
+* * If post is set, only GET method will be allowed.
+* * If auth is set, authentication tokens such as cookies or HTTP authentication should not be sent with the request.
+* * There might be different options for the various deny values, this can be solved by sending multiple headers with different deny options. If several headers contain the same value, a browser should only heed the first header containing it. 
+* * The list may be extended in the future
+* Allow-same-origin - optional - a simple way to allow the same origin, without needing to hardcode the server address. Only applicable for the frame value.
+* Allow - optional - a comma separated list of domain names, each settable with an initial &quot;*.&quot; to cover any subdomains. Domains in this list are exempted to the CSRF rules specified in the deny option.
+
+It would be possible to add &quot;all&quot; and &quot;none&quot; to the list of values for the deny argument. &quot;All&quot; would be useful as a default, and protect against future CSRF attacks, although such future additions in browsers might break existing services. &quot;None&quot; would be useful for simple debugging, and if a web server wants to reserve itself against future changes in web browsers.
+
+For cross-domain resources, this means that a browser would first have to make a request with GET and without authentication tokens to get the x-cross-domain-options settings from the resource. If the settings allow, a second request may be made, if the second request would be different. The result of last request are handed over to the document.
+
+Note that this would mean that some third party resources would get two requests where they only get one today. If such a GET request has side effects without authentication, and the request would have been made with a different method or with authentication tokens in a legacy browser, the server might register two hits instead of one after this change in browsers. This might affect for instance the second time a user visists a web site using a third party counter, where the counter sets a cookie but does not bother about checking the cookies. Servers get non-authenticated GETs from spiders all the time, so this should not be a widespread or serious problem. Pre-flight requests would not be required for same-origin.
+
+Such pre-flight requests could be countered by a cacheable domain wide policy file which the browser looks for the first time a session uses cross-site resources from that domain. If set, the browser will use that setting for all requests, if not set, it will check individual resources with a pre-flight request. This would make it easy for legacy servers to become compatible. Note that W3Cs cross-site XHR has opted not to use domain wide policy files, that solution is not applicable to CSRF in general though, as it does not need to take legacy servers into account. To allow double requests, it would be possible to extend with a server header telling a browser that the information is the same whether the user is logged in or not, eliminating the need for a second, authenticated, request.
+
+This is suggestion, please tear it apart and use the best pieces of it to build something better.
+
+
+[1] <A HREF="http://lists.whatwg.org/pipermail/whatwg-whatwg.org/2009-February/018586.html">http://lists.whatwg.org/pipermail/whatwg-whatwg.org/2009-February/018586.html</A>
+
+-- 
+Sigbj&#248;rn Vik
+Security Team
+Opera Software
+
+
+
+</PRE>
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="018614.html">[whatwg] Security attacks on local storage
+</A></li>
+	<LI>Next message: <A HREF="018610.html">[whatwg] Clickjacking and CSRF
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18609">[ date ]</a>
+              <a href="thread.html#18609">[ thread ]</a>
+              <a href="subject.html#18609">[ subject ]</a>
+              <a href="author.html#18609">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

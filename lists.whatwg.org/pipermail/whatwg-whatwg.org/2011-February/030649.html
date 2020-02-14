@@ -1,0 +1,144 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Proposal for separating script downloads and
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Proposal%20for%20separating%20script%20downloads%20and&In-Reply-To=%3CAANLkTi%3DDtzT6acT4RrGdOPZMaEE-UQHWEeqVA-5%3Dz26_%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="030641.html">
+   <LINK REL="Next"  HREF="030642.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Proposal for separating script downloads and</H1>
+<!--htdig_noindex-->
+    <B>Glenn Maynard</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Proposal%20for%20separating%20script%20downloads%20and&In-Reply-To=%3CAANLkTi%3DDtzT6acT4RrGdOPZMaEE-UQHWEeqVA-5%3Dz26_%40mail.gmail.com%3E"
+       TITLE="[whatwg] Proposal for separating script downloads and">glenn at zewt.org
+       </A><BR>
+    <I>Wed Feb 23 14:50:57 PST 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="030641.html">[whatwg] Proposal for separating script downloads and
+</A></li>
+        <LI>Next message: <A HREF="030642.html">[whatwg] &lt;banner&gt; as a dedicated tag
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#30649">[ date ]</a>
+              <a href="thread.html#30649">[ thread ]</a>
+              <a href="subject.html#30649">[ subject ]</a>
+              <a href="author.html#30649">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Wed, Feb 23, 2011 at 9:14 AM, Kyle Simpson &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">getify at gmail.com</A>&gt; wrote:
+&gt;<i> Again, I think the spirit we all share is to find the simplest proposal that gets the job done, and introducing a new .execute() concept raised more questions than it purported to solve.
+</I>
+The last dozen or two messages were regarding your rabbit hole, which
+raised serious issues.
+
+&gt;<i>  c) does this run the risk of going afoul of the same issue that tripped of Firefox with their synchronous execution of inline script elements (that jQuery used for global-eval)?
+</I>
+I don't know how an opt-in API that doesn't yet exist and which nobody
+is using can run afoul of existing code, so you'll need to be more
+specific.
+
+&gt;&gt;<i> I sympathize with that, since they're aiming to improve the likelihood of
+</I>&gt;&gt;<i> being implemented--but the precedent it's drawing on seems like a bad one,
+</I>&gt;&gt;<i> which should be treated as a compatibility hack rather than a precedent for
+</I>&gt;&gt;<i> new APIs.
+</I>&gt;<i>
+</I>&gt;<i> I strongly disagree with this characterization, based solely on the fact that the wording of the current spec already says to do exactly as I'm proposing. That's not a &quot;compatibility hack&quot;, that's further standardizing the wisdom that the spec writers already thought through and codified.
+</I>
+There's no need to load images that aren't in the DOM, since you can
+simply add them to a hidden container in the document.  Loading images
+that aren't in any document avoids breaking existing pages--a
+compatibility hack.  It's odd to assume, in an architecture bogged
+down in so much backwards-compatibility, that everything it does is
+good precedent.
+
+
+On Wed, Feb 23, 2011 at 9:28 AM, Boris Zbarsky &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">bzbarsky at mit.edu</A>&gt; wrote:
+&gt;<i> Preloading of stylesheets is already supported in at least Gecko. &#160;Just mark them as disabled (or an alternate stylesheet not in the main set, which is the same thing in effect) and the sheet will be loaded+parsed but not applied. &#160;Which is presumably what you mean by stylesheet preloading?
+</I>
+Hmm.  Here's a related idea:
+
+- Add an &quot;onfetch&quot; event, when the fetch completes (put aside the
+question of this vs. onreadystatechange for now).
+- Add a &quot;noexecute&quot; attribute.  When true, the &quot;execute a script
+block&quot; steps set an internal &quot;pending-execution&quot; flag and aborts.
+This is done at the start of the &quot;If the load was successful&quot;
+subsection.
+- If the &quot;noexecute&quot; attribute is changed, and the &quot;pending-execution&quot;
+flag is true, clear the &quot;pending-execution&quot; flag and queue a task to
+run &quot;execute a script block&quot;.
+- The &quot;pending-execution&quot; flag is not propagated to clones, but always
+set to false.
+
+Put more roughly: set &quot;noexecute&quot; to preload the script, and clear it
+to execute it.
+
+The implications of this:
+
+- Scripts still receive onerror on fetch errors (&quot;for example a DNS
+error, or an HTTP 404 error&quot;), even if noexecute is set.  That is, you
+can detect network errors without executing the script.
+- Scripts can still only be executed once, regulated by the &quot;already
+started&quot; flag.
+- Capturing &quot;error&quot; on window can still be used to capture all error
+events.  (Fetching scripts without them being in any document breaks
+this, which is a serious problem with the other proposals.)
+- Once a node has had its &quot;already started&quot; flag set, the &quot;prepare a
+script&quot; steps never run on it again, even if the node is cloned.
+Clearing the &quot;pending-execution&quot; flag follows this, preventing an
+already-prepared script from being executed twice when cloned.
+- For feature detection:
+typeof(document.createElement(&quot;script&quot;).noexecute) == &quot;boolean&quot;.
+
+--
+Glenn Maynard
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="030641.html">[whatwg] Proposal for separating script downloads and
+</A></li>
+	<LI>Next message: <A HREF="030642.html">[whatwg] &lt;banner&gt; as a dedicated tag
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#30649">[ date ]</a>
+              <a href="thread.html#30649">[ thread ]</a>
+              <a href="subject.html#30649">[ subject ]</a>
+              <a href="author.html#30649">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

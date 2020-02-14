@@ -55,16 +55,9 @@ async function main() {
             continue;
         }
 
-        // Only deal with the thread / subject / author / date listings.
-        const match = /\/([0-9]{4})-([A-Z][a-z]+)\/([a-z]+)\.html$/.exec(pathname);
-        if (!match) {
-            continue;
-        }
-        const year = +match[1];
-        assert(year >= 2004 && year <= 2019);
-        const month = MONTHS.indexOf(match[2]) + 1;
-        assert(month >= 1 && month <= 12);
-        if (!['thread', 'subject', 'author', 'date', 'index'].includes(match[3])) {
+        // Only deal with individual messages.
+        const basename = path.basename(pathname);
+        if (!/^[0-9]+\.html$/.test(basename)) {
             continue;
         }
 
@@ -84,23 +77,28 @@ async function main() {
             continue;
         }
         const entries = entriesByPathname.get(pathname);
-        let entry = entries[0];
-        if (entries.length > 1) {
-            // Pick the biggest entry.
-            const sizes = entries.map(e => +e.length);
-            const maxSize = Math.max(...sizes);
-            entry = entries.find(e => +e.length === maxSize);
+        // Pick the most recent entry that has good data.
+        entries.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+        for (const entry of entries) {
+            const archiveURL = `https://web.archive.org/web/${entry.timestamp}id_/${entry.original}`;
+            const response = await fetch(archiveURL);
+            if (!response.ok) {
+                console.error(`Bad response for ${archiveURL}: ${response.status}`);
+                await new Promise(resolve => setTimeout(resolve, 30000));
+                continue;
+            }
+            const buffer = await response.buffer();
+            // These responses are effectively 404 but not served as such.
+            if (buffer.includes('Sought (htdig) archive file not found')) {
+                console.log(`Treating ${archiveURL} as 404 (skipping)`);
+                continue;
+            }
+            console.log(`Saving ${archiveURL} to ${filePath}`);
+            const dirPath = path.dirname(filePath);
+            await mkdirp(dirPath);
+            await writeFile(filePath, buffer);
+            break;
         }
-        const archiveURL = `https://web.archive.org/web/${entry.timestamp}id_/${entry.original}`;
-        console.log(`Saving ${archiveURL} to ${filePath}`);
-        const response = await fetch(archiveURL);
-        if (!response.ok) {
-            throw new Error(`Bad response for ${archiveURL}: ${response.status}`);
-        }
-        const buffer = await response.buffer();
-        const dirPath = path.dirname(filePath);
-        await mkdirp(dirPath);
-        await writeFile(filePath, buffer);
     }
 }
 
