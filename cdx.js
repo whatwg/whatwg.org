@@ -50,14 +50,8 @@ async function main() {
             pathname += 'index.html';
         }
 
-        // Only deal with the archives of the whatwg@whatwg.org list.
-        if (!pathname.startsWith('/pipermail/whatwg-whatwg.org/')) {
-            continue;
-        }
-
-        // Only deal with individual messages.
-        const basename = path.basename(pathname);
-        if (!/^[0-9]+\.html$/.test(basename)) {
+        // Only deal with whatwg@whatwg.org attachments.
+        if (!pathname.startsWith('/pipermail/whatwg-whatwg.org/attachments/')) {
             continue;
         }
 
@@ -77,7 +71,7 @@ async function main() {
             continue;
         }
         const entries = entriesByPathname.get(pathname);
-        // Pick the most recent entry that has good data.
+        // Pick the most recent entry.
         entries.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
         for (const entry of entries) {
             const archiveURL = `https://web.archive.org/web/${entry.timestamp}id_/${entry.original}`;
@@ -88,15 +82,6 @@ async function main() {
                 continue;
             }
             const buffer = await response.buffer();
-            if (!buffer.includes('</html>') && !buffer.includes('</HTML>')) {
-                console.log(`Incomplete response for ${archiveURL}`);
-                continue;
-            }
-            // These responses are effectively 404 but not served as such.
-            if (buffer.includes('Sought (htdig) archive file not found')) {
-                console.log(`Treating ${archiveURL} as 404 (skipping)`);
-                continue;
-            }
             console.log(`Saving ${archiveURL} to ${filePath}`);
             const dirPath = path.dirname(filePath);
             await mkdirp(dirPath);
