@@ -1,0 +1,235 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] about:blank synchronicity
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20about%3Ablank%20synchronicity&In-Reply-To=%3CPine.LNX.4.64.1001270149290.22027%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="067041.html">
+   <LINK REL="Next"  HREF="067130.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] about:blank synchronicity</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20about%3Ablank%20synchronicity&In-Reply-To=%3CPine.LNX.4.64.1001270149290.22027%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg] about:blank synchronicity">ian at hixie.ch
+       </A><BR>
+    <I>Wed Jan 27 00:53:38 PST 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="067041.html">[whatwg] about:blank synchronicity
+</A></li>
+        <LI>Next message: <A HREF="067130.html">[whatwg] about:blank synchronicity
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#67128">[ date ]</a>
+              <a href="thread.html#67128">[ thread ]</a>
+              <a href="subject.html#67128">[ subject ]</a>
+              <a href="author.html#67128">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Wed, 13 Jan 2010, Henri Sivonen wrote:
+&gt;<i>
+</I>&gt;<i> This has turned out to be a test suite compatibility problem with 
+</I>&gt;<i> about:blank. Mozilla's Mochitest test suite has tests that depend 
+</I>&gt;<i> about:blank in iframe having a document.body immediately upon iframe 
+</I>&gt;<i> insertion to document without a trip through the event loop.
+</I>&gt;<i> 
+</I>&gt;<i> At first look, this seems like a clear case: the spec says that 
+</I>&gt;<i> about:blank is navigated to synchronously. However, this is not what 
+</I>&gt;<i> Gecko does (with the old parser).
+</I>
+The parser isn't even invoked in this case in the spec actually. Just 
+creating an &lt;iframe&gt; and inserting in the document synchronously creates a 
+Document object with the right elements, without parsing anything.
+
+
+&gt;<i> Gecko (with the old parser) has these two characteristics:
+</I>&gt;<i>  1) If a browsing context that has no document object is asked to return 
+</I>&gt;<i> its document object, an about:blank-like DOM is generated into the 
+</I>&gt;<i> browsing context synchronously.
+</I>
+This is compatible with what the spec requires.
+
+
+&gt;<i>  2) When a browsing context is navigated to about:blank, a task is 
+</I>&gt;<i> posted to the task queue. When that task is run, about:blank is parsed 
+</I>&gt;<i> to completion during the single task queue task.
+</I>
+I've changed the spec to make actual navigation to about:blank async.
+
+
+On Wed, 13 Jan 2010, Maciej Stachowiak wrote:
+&gt;<i>
+</I>&gt;<i> I am not sure what the exact constraints are, but I believe the 
+</I>&gt;<i> following are required:
+</I>&gt;<i> 
+</I>&gt;<i> - Accessing the document of a frame with missing, empty or about:blank 
+</I>&gt;<i> src has to always give you an HTML document with a body, even if there 
+</I>&gt;<i> hasn't been a chance for the event loop to run.
+</I>&gt;<i> - A newly created iframe with missing, empty or about:blank src has to have an
+</I>&gt;<i> accessible document right away, without even cycling the event loop.
+</I>
+I believe this is guaranteed in the spec, at least for newly created 
+browsing contexts.
+
+
+&gt;<i> There are at least three particular scenarios that are relevant here:
+</I>&gt;<i> 
+</I>&gt;<i> 1) Some sites document.write or otherwise poke at the DOM of their 
+</I>&gt;<i> about:blank frames or iframes in inline script, without waiting for the 
+</I>&gt;<i> load event or anything.
+</I>&gt;<i> 
+</I>&gt;<i> 2) Some sites load multiple frames, yet one expects to poke at the 
+</I>&gt;<i> other's DOM during its load. Since load order is not guaranteed, this 
+</I>&gt;<i> would be a race condition, if the not-yet-loaded frame had no DOM, but 
+</I>&gt;<i> synchronous about:blank lets such sites muddle on through. Before we had 
+</I>&gt;<i> sufficiently synchronous loading of the initial empty frame document, we 
+</I>&gt;<i> actually encountered sites like this that broke in Safari but not IE or 
+</I>&gt;<i> Firefox.
+</I>&gt;<i> 
+</I>&gt;<i> 3) Some sites make a new iframe element using DOM calls in an event 
+</I>&gt;<i> handler, and expect it to have an empty document that's immediately 
+</I>&gt;<i> ready for DOM manipulation, without any intervening returns to the event 
+</I>&gt;<i> loop.
+</I>
+Those should all work, since they all can access the initially created 
+document (the one that doesn't involve a parser).
+
+
+On Wed, 13 Jan 2010, Boris Zbarsky wrote:
+&gt;<i> On 1/13/10 11:52 AM, Maciej Stachowiak wrote:
+</I>&gt;<i> &gt; Question: if you generate a document on the fly via early access, does
+</I>&gt;<i> &gt; it get replaced when the about:blank task actually completes?
+</I>&gt;<i> 
+</I>&gt;<i> Yes.  More precisely, the document is replaced, but the inner window is 
+</I>&gt;<i> not (the latter required for pages that set variables on the window 
+</I>&gt;<i> before the load is complete).
+</I>
+This is in fact required by the spec, too:
+
+   <A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/history.html#create-a-document-object">http://www.whatwg.org/specs/web-apps/current-work/multipage/history.html#create-a-document-object</A>
+
+
+&gt;<i> I believe Gecko treats a document.write the same way it treats a 
+</I>&gt;<i> location set in terms of network traffic: any loads that are happening 
+</I>&gt;<i> in that navigation context are canceled.  This is not specific to 
+</I>&gt;<i> pending about:blank loads.  For example, if you insert an iframe with 
+</I>&gt;<i> some http URI as @src into the DOM and then document.write into it 
+</I>&gt;<i> immediately, then the http load will be canceled.  Nothing special about 
+</I>&gt;<i> about:blank here.
+</I>
+This is currently step 8 of the document.open() algorithm.
+
+
+&gt;<i> &lt;!DOCTYPE html&gt;
+</I>&gt;<i> &lt;html&gt;
+</I>&gt;<i>   &lt;head&gt;
+</I>&gt;<i>     &lt;script&gt;
+</I>&gt;<i>       function doTheTest() {
+</I>&gt;<i>         alert(window.frames[0].document.documentElement.textContent);
+</I>&gt;<i>       }
+</I>&gt;<i>     &lt;/script&gt;
+</I>&gt;<i>   &lt;/head&gt;
+</I>&gt;<i>   &lt;body onload=&quot;doTheTest()&quot;&gt;
+</I>&gt;<i>     &lt;iframe src=&quot;&quot;&gt;&lt;/iframe&gt;
+</I>&gt;<i>     &lt;script&gt;
+</I>&gt;<i>       var doc = window.frames[0].document;
+</I>&gt;<i>       doc.documentElement.appendChild(doc.createTextNode(&quot;foopy&quot;));
+</I>&gt;<i>     &lt;/script&gt;
+</I>&gt;<i>   &lt;/body&gt;
+</I>&gt;<i> &lt;/html&gt;
+</I>&gt;<i> 
+</I>&gt;<i> This alerts empty string in Gecko (and doesn't show the string &quot;foopy&quot; 
+</I>&gt;<i> in the iframe).
+</I>
+The &quot;&quot; URL resolves to the same as &quot;./&quot;, which in IE (though no other 
+browsers) means loading up an actual page. Currently the spec agrees with 
+IE on this, though there is an open issue about whether to change this 
+that I haven't looked at yet.
+
+If we have src=&quot;about:blank&quot;, though, the spec says that the &lt;iframe&gt; gets 
+a Document object with its &lt;body&gt; created synchronously, and the 
+navigation is never done; the DOM manipulation is thus persistent (and the 
+test alerts &quot;foopy&quot;)
+
+
+On Thu, 14 Jan 2010, Henri Sivonen wrote:
+&gt;<i> 
+</I>&gt;<i> Which leads to the question: Are there known Web compat constraints on 
+</I>&gt;<i> navigating a non-framed browsing context to about:blank via 
+</I>&gt;<i> window.open() or window.location.href in a previously open()ed window?
+</I>
+Currently the spec has no about:blank-specific magic for location.href or 
+window.open() navigation of an existing browsing context as far as I 
+recall. I'm not aware of needing any.
+
+
+On Mon, 18 Jan 2010, Boris Zbarsky wrote:
+&gt;<i> On 1/13/10 4:56 PM, Ian Hickson wrote:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; It seems like simply making the first one synchronous, but making the 
+</I>&gt;<i> &gt; latter asynchronous, would satisfy your use case. Would other vendors 
+</I>&gt;<i> &gt; be ok with this?
+</I>&gt;<i> 
+</I>&gt;<i> In case it wasn't clear from the relevant Gecko thread, I would 
+</I>&gt;<i> personally be fine with this.  That said, would &quot;initial about:blank 
+</I>&gt;<i> load&quot; only include &lt;iframe/&gt; (no src at all), or also &lt;iframe src=&quot;&quot;/&gt; 
+</I>&gt;<i> or also &lt;iframe src=&quot;about:blank&quot;/&gt;?  I suspect it doesn't matter that 
+</I>&gt;<i> much, actually, but would welcome confirmation.
+</I>
+See above for the &quot;&quot; case.
+
+In the spec, src=&quot;about:blank&quot; is treated specially now and avoids 
+navigating. Omitting src=&quot;&quot; altogether also doesn't navigate (though for 
+subtly different reasons).
+
+
+&gt;<i> &gt; Would it have other problems? Are there cases other than navigation 
+</I>&gt;<i> &gt; where about:blank being synchronous is detectable? (I couldn't find 
+</I>&gt;<i> &gt; any.)
+</I>&gt;<i> 
+</I>&gt;<i> I'm not sure what you're asking here...
+</I>
+I mean, like, does it matter if about:blank is synchronous in &lt;img 
+src=&quot;&quot;&gt;, or in CSS in a url(), or something like that?
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="067041.html">[whatwg] about:blank synchronicity
+</A></li>
+	<LI>Next message: <A HREF="067130.html">[whatwg] about:blank synchronicity
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#67128">[ date ]</a>
+              <a href="thread.html#67128">[ thread ]</a>
+              <a href="subject.html#67128">[ subject ]</a>
+              <a href="author.html#67128">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

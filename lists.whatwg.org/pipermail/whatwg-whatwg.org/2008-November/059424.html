@@ -1,0 +1,812 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Workers feedback
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Workers%20feedback&In-Reply-To=%3CPine.LNX.4.62.0811122339590.1237%40hixie.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="059410.html">
+   <LINK REL="Next"  HREF="059427.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Workers feedback</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Workers%20feedback&In-Reply-To=%3CPine.LNX.4.62.0811122339590.1237%40hixie.dreamhostps.com%3E"
+       TITLE="[whatwg] Workers feedback">ian at hixie.ch
+       </A><BR>
+    <I>Thu Nov 13 15:30:47 PST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="059410.html">[whatwg] Questions on Workers spec
+</A></li>
+        <LI>Next message: <A HREF="059427.html">[whatwg] Workers feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#59424">[ date ]</a>
+              <a href="thread.html#59424">[ thread ]</a>
+              <a href="subject.html#59424">[ subject ]</a>
+              <a href="author.html#59424">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>
+I haven't written a summary of changes because this is a rather involved 
+issue and I'd like everyone who has an opinion to actually read this.
+
+I missed a few e-mails sent in the last few hours in this reply, as I 
+started this yesterday. I'll read and respond to those in a bit.
+
+On Thu, 28 Aug 2008, Jonas Sicking wrote:
+&gt;<i> 
+</I>&gt;<i> The spec currently says:
+</I>&gt;<i> 
+</I>&gt;<i> Once the WorkerGlobalScope's closing flag is set to true, the queue must 
+</I>&gt;<i> discard anything else that would be added to it. Effectively, once the 
+</I>&gt;<i> closing flag is true, timers stop firing, notifications for all pending 
+</I>&gt;<i> asynchronous operations are dropped, etc.
+</I>&gt;<i> 
+</I>&gt;<i> Does this mean that anything already on the queue will remain there? Or 
+</I>&gt;<i> will it be dropped? It sounds like it will remain, but it's somewhat 
+</I>&gt;<i> unclear.
+</I>
+I've added a parenthetical clarifying this.
+
+
+&gt;<i> In general I think the three shutdown mechanisms that exist are somewhat 
+</I>&gt;<i> messy:
+</I>&gt;<i>
+</I>&gt;<i> * Kill a worker
+</I>&gt;<i> * Terminate a worker
+</I>&gt;<i> * WorkerGlobalScope.close()
+</I>&gt;<i> 
+</I>&gt;<i> It seems excessive with 3 possible shutdown sequences, but more 
+</I>&gt;<i> importantly the differences between them seems unnecessarily big. Mostly 
+</I>&gt;<i> for users, but to a small extent also for implementors. Currently the 
+</I>&gt;<i> situation is as follows:
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i>                           | Abort   | Processes | Fires    | Fires
+</I>&gt;<i>                           | current | more      | close on | close on
+</I>&gt;<i>                           | script  | events    | scope    | tangled
+</I>&gt;<i>                           |         |           |          | ports
+</I>&gt;<i> ---------------------------------------------------------------------
+</I>&gt;<i> WorkerGlobalScope.close() | No      | Maybe[2]  | Yes      | Yes
+</I>&gt;<i> Kill a worker             | Maybe[1]| Maybe[1]  | Maybe[1] | No
+</I>&gt;<i> Terminate a worker        | Yes     | No        | Yes      | No
+</I>&gt;<i> ---------------------------------------------------------------------
+</I>&gt;<i> 
+</I>&gt;<i> [1] Implementation dependent. Presumably depends on how much patience 
+</I>&gt;<i> that the implementation thinks its users has.
+</I>&gt;<i>
+</I>&gt;<i> [2] Depends on if the event has been placed in the queue yet or not, 
+</I>&gt;<i> somewhat racy.
+</I>
+There are other ways to kill the worker:
+
+  The worker is orphaned    | Maybe[1]| Yes       | Yes      | No
+  The browser dies          | Yes     | No        | No       | No
+
+Also, your &quot;No&quot; in the top-left cell is really a Maybe[1], since if the 
+script doesn't stop then it'll trigger the Kill algorithm.
+
+
+&gt;<i> This seems excessively messy. The number of differences in the columns 
+</I>&gt;<i> and the number of maybes seems bad. I propose the following:
+</I>&gt;<i> 
+</I>&gt;<i> * Remove the &quot;Kill a worker&quot; algorithm and use &quot;Terminate a worker&quot; 
+</I>&gt;<i> everywhere it is used.
+</I>
+I strongly disagree with that. The whole point of having a distinction is 
+that we don't want scripts just being killed willy-nilly when the user 
+navigates away from the page. Scripts in the page itself aren't 
+terminated, why would we want such drastic behaviour in the threads?
+
+
+&gt;<i> * Make WorkerGlobalScope.close() not process any more events. I.e. make 
+</I>&gt;<i> setting the 'closing flag' to true always clear out all events except a 
+</I>&gt;<i> single close event.
+</I>
+Again, this seems bad as it would mean that if you navigated away from a 
+page that happened to use a worker, you could get data loss.
+
+
+&gt;<i> * Always fire close on tangled ports. In many cases this will be a no-op 
+</I>&gt;<i> since we're doing it in workers that are being closed. However if the 
+</I>&gt;<i> port is in another window or a shared worker this might not be the case.
+</I>
+I thought we weren't doing this because it exposed the details of garbage 
+collection?
+
+
+On Fri, 12 Sep 2008, Aaron Boodman wrote:
+&gt;<i>
+</I>&gt;<i> * We have discussed having onerror expose runtime script errors that 
+</I>&gt;<i> happened inside the worker. I don't think this makes sense for shared 
+</I>&gt;<i> workers, so I propose that it be spec'd to only expose load errors. 
+</I>&gt;<i> Script errors can still be exposed via a global onerror property inside 
+</I>&gt;<i> the worker, and they can still be reported to the error console. I don't 
+</I>&gt;<i> think having script errors that happened inside a worker be exposed 
+</I>&gt;<i> outside it is that useful (load errors are useful, though).
+</I>
+Right now only load errors are reported.
+
+I'll wait til the API is more stable before exposing script errors and the 
+like at all (whether on a global onerror or whatever). It is noted as an 
+XXX issues in the spec source.
+
+
+On Thu, 28 Aug 2008, Jonas Sicking wrote:
+&gt;<i>
+</I>&gt;<i> Why is importScripts imposing a same origin restriction? This won't 
+</I>&gt;<i> increase security in any way since cross-origin scripts can always be 
+</I>&gt;<i> loaded from the main thread. I think cross-site loading is fairly common 
+</I>&gt;<i> exactly for the case that importScripts, which is loading libraries.
+</I>
+I don't recall the precise reason, but I seem to recall concern over 
+specific attack vectors are what caused us to restrict this.
+
+
+&gt;<i> Also, the spec doesn't seem clear on what to do if compiling a script 
+</I>&gt;<i> fails. I think some sort of exception should be thrown, probably the 
+</I>&gt;<i> same one that is thrown if eval() is given a non-compiling script.
+</I>
+Done.
+
+
+On Tue, 30 Sep 2008, Alexey Proskuryakov wrote:
+&gt;<i> 
+</I>&gt;<i> I've been trying to understand the difference between SharedWorker and 
+</I>&gt;<i> DedicatedWorker interfaces. Besides the ability to pick an existing 
+</I>&gt;<i> worker by name, are there any other semantic differences? I may be 
+</I>&gt;<i> missing something, but it looks like a single Worker interface with an 
+</I>&gt;<i> optional name parameter to constructor would work just as well.
+</I>
+That's what we used to have. It was changed because having shared and 
+dedicated workers be too similar was considered bad API design. To be 
+honest I somewhat agree with the position that says they should be 
+distinct. I don't understand the benefit of making them the same.
+
+
+On Thu, 9 Oct 2008 <A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">kevin.hakanson at thomsonreuters.com</A> wrote:
+&gt;<i>
+</I>&gt;<i> 1.1.3 Worker used for backgroud I/O
+</I>&gt;<i> backgroud (should be background)
+</I>&gt;<i>  
+</I>&gt;<i> 1.1.4 Shared workers
+</I>&gt;<i> idependently (should be independently)
+</I>&gt;<i>  
+</I>&gt;<i> 2. Infrastructure
+</I>&gt;<i> multple (should be multiple)
+</I>
+Thanks, fixed.
+
+
+On Thu, 30 Oct 2008, Jonas Sicking wrote:
+&gt;<i>
+</I>&gt;<i> Only the globalscope is specified to implement EventTarget, the actual 
+</I>&gt;<i> Worker should too.
+</I>
+Fixed.
+
+
+On Mon, 3 Nov 2008, Jonas Sicking wrote:
+&gt;<i>
+</I>&gt;<i> For future compat it would be good to expose to workers information on 
+</I>&gt;<i> what browser is currently being used. This can be used to work around 
+</I>&gt;<i> bugs and lack of features.
+</I>&gt;<i>
+</I>&gt;<i> In a 'normal' window context the navigator object exposes a set of 
+</I>&gt;<i> properties, such as userAgent, that can be used for this purpose. I 
+</I>&gt;<i> suggest we add something similar to the worker context. The HTML5 spec 
+</I>&gt;<i> defines the following:
+</I>&gt;<i> 
+</I>&gt;<i> interface Navigator {
+</I>&gt;<i>   // client identification
+</I>&gt;<i>   readonly attribute DOMString appName;
+</I>&gt;<i>   readonly attribute DOMString appVersion;
+</I>&gt;<i>   readonly attribute DOMString platform;
+</I>&gt;<i>   readonly attribute DOMString userAgent;
+</I>&gt;<i> 
+</I>&gt;<i>   // ... other things not related to identifying the UA
+</I>&gt;<i> };
+</I>&gt;<i> 
+</I>&gt;<i> I'm not sure how stable this part of the HTML5 spec is, (I know firefox 
+</I>&gt;<i> exposes a whole host of more properties), but it seems like a good set 
+</I>&gt;<i> to start with. We should probably keep the two in sync if the window 
+</I>&gt;<i> context Navigator object changes in the future.
+</I>&gt;<i> 
+</I>&gt;<i> Orthoginally, it seems like at least the 'onLine' boolean on the 
+</I>&gt;<i> Navigator interface would be useful too, and could be exposed at the 
+</I>&gt;<i> same place.
+</I>
+Done.
+
+
+On Wed, 12 Nov 2008, Dmitry Titov wrote:
+&gt;<i> 
+</I>&gt;<i> 1. The sample code looks as
+</I>&gt;<i> if  setTimeout/clearTimeout/setInterval/clearInterval should be available to
+</I>&gt;<i> Workers (as methods of WorkerUtils?) but they are not explicitly specified
+</I>&gt;<i> on any interface. Should they be there?
+</I>
+Added.
+
+
+&gt;<i> 2. It seems workers should be able to create workers (including creating
+</I>&gt;<i> 'themselves' in case of SharedWorker). It is especially useful for a
+</I>&gt;<i>  SharedWorker to create dedicated workers - since one of the popular
+</I>&gt;<i> scenarios for it is likely  a &quot;state container&quot; that communicates with UI
+</I>&gt;<i> pages while using dedicated workers to do other operations. Will spec
+</I>&gt;<i> include this?
+</I>
+Added.
+
+
+On Fri, 12 Sep 2008, Aaron Boodman wrote:
+&gt;<i>
+</I>&gt;<i> * Similarly, I'd like to rename startConversation() to connect(). I 
+</I>&gt;<i> think this aligns nicely with the onconnect event (connect() should also 
+</I>&gt;<i> trigger a 'connect' event inside the worker).
+</I>
+On Tue, 4 Nov 2008, Jonas Sicking wrote:
+&gt;<i> 
+</I>&gt;<i> I'm fine with removing things like 'startConversation' and the implicit 
+</I>&gt;<i> call to connect() on shared workers. 'startConversation' isn't really a 
+</I>&gt;<i> new communication mechanism, but rather a convenience method on top of 
+</I>&gt;<i> postMessage.
+</I>
+I removed startConversation() from the specs altogether, since it was 
+causing too much confusion. It was only a convenience method (it was 
+exactly equivalent to creating a new MessageChannel followed by calling 
+postMessage with one of the new ports), so this doesn't change anything 
+about the actual API.
+
+I've snipped reference to startConversation from the following feedback, 
+as noted below, to avoid confusion over this.
+
+
+On Fri, 12 Sep 2008, Aaron Boodman wrote:
+&gt;<i> 
+</I>&gt;<i> * I think it was an interesting idea to have separate interfaces for
+</I>&gt;<i> Dedicated and Shared workers, but in the end I don't think there's
+</I>&gt;<i> enough difference between the two cases to justify it. I'd rather have
+</I>&gt;<i> the total API surface be smaller, and generalize concepts as much as
+</I>&gt;<i> possible. So...
+</I>&gt;<i>   - We should remove all the postMessage/onmessage stuff from
+</I>&gt;<i>     DedicatedWorker, and just use the port convenience property.
+</I>&gt;<i>   - We should move onconnect() up into WorkerGlobalScope
+</I>
+On Tue, 30 Sep 2008, Aaron Boodman wrote:
+&gt;<i>
+</I>&gt;<i> That is what we are debating here. Logically, there is a concept of a 
+</I>&gt;<i> &quot;shared worker&quot;, which can be referenced from multiple pages in the same 
+</I>&gt;<i> origin. There is a debate about how much the interface between shared 
+</I>&gt;<i> workers and dedicated workers should be different.
+</I>&gt;<i>
+</I>&gt;<i> I'm of the opinion that there should be as little difference as 
+</I>&gt;<i> possible, to lower the amount of API to learn. Therefore in my preferred 
+</I>&gt;<i> proposal, the only difference between SharedWorker and DedicatedWorker 
+</I>&gt;<i> is that the latter has a close() method. It doesn't make sense to allow 
+</I>&gt;<i> one user of a SharedWorker to close something others are depending on.
+</I>&gt;<i>
+</I>&gt;<i> Jonas is in favor of making a particular use case of DedicatedWorker as 
+</I>&gt;<i> simple to use as possible. This requires extra API on DedicatedWorker 
+</I>&gt;<i> that doesn't make sense for SharedWorker.
+</I>
+On Tue, 30 Sep 2008, Alexey Proskuryakov wrote:
+&gt;<i> 
+</I>&gt;<i> I'm not sure it's so good in the case of dedicated workers either, as 
+</I>&gt;<i> they can be used from other contexts via additional message ports. The 
+</I>&gt;<i> close() method could just close the default port.
+</I>&gt;<i> 
+</I>&gt;<i> Both shared and dedicated workers have to maintain a strong reference to 
+</I>&gt;<i> a context that created them, just to have a context to execute event 
+</I>&gt;<i> listeners in. So, they are basically the same as far as implementation 
+</I>&gt;<i> is concerned AFAICT.
+</I>
+On Tue, 30 Sep 2008, Aaron Boodman wrote:
+&gt;<i> 
+</I>&gt;<i> Sure, but in order for that to have happened, whoever created the worker 
+</I>&gt;<i> in the first place must have done it on purpose. The original worker 
+</I>&gt;<i> instance is anonymous. If the creator of that worker decides to share 
+</I>&gt;<i> it, that's fine, but it's more like cooperative sharing.
+</I>&gt;<i> 
+</I>&gt;<i> close() was added so that you could forcibly kill a worker. For example, 
+</I>&gt;<i> if you are searching a large set with many workers, you may want to kill 
+</I>&gt;<i> them once one finds a match.
+</I>&gt;<i> 
+</I>&gt;<i> The same could be achieved by just setting all the ports to null and 
+</I>&gt;<i> waiting for GC, but:
+</I>&gt;<i> 
+</I>&gt;<i> a) GC might not be for awhile, which is wasteful
+</I>&gt;<i> b) It is hard to track where all the ports went
+</I>&gt;<i> 
+</I>&gt;<i> So I think it is useful to have a conceptual difference between workers 
+</I>&gt;<i> that are 'dedicated' and those that are 'shared'.
+</I>
+On Tue, 30 Sep 2008, Alexey Proskuryakov wrote:
+&gt;<i> 
+</I>&gt;<i> Hmm... So this is more about how you use the interface, not what the 
+</I>&gt;<i> object behind it is. If one chooses to never call close() on a shared 
+</I>&gt;<i> worker (or, say, sets myWorker.close to null right after invoking 
+</I>&gt;<i> constructor), it becomes indistinguishable from a dedicated worker.
+</I>&gt;<i> 
+</I>&gt;<i> Hiding close() possibly sounds more like something a high-level 
+</I>&gt;<i> framework may want to do to enforce a certain design pattern than a core 
+</I>&gt;<i> feature.
+</I>
+On Tue, 30 Sep 2008, Aaron Boodman wrote:
+&gt;<i> 
+</I>&gt;<i> I could see that too. When all the parties accessing a shared worker are 
+</I>&gt;<i> from the same origin (as they are today) it is less of an issue. You can 
+</I>&gt;<i> probably assume that they know not to close() the worker.
+</I>
+On Thu, 6 Nov 2008, Alexey Proskuryakov wrote:
+&gt;<i> Nov 6, 2008, &#215; 2:18 AM, Jonas Sicking &#206;&#193;&#208;&#201;&#211;&#193;&#204;(&#193;):
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; A shared worker is shared between all scripts on a single site[*] that 
+</I>&gt;<i> &gt; instantiates a worker with the same name. I.e. where the second 
+</I>&gt;<i> &gt; argument to the constructor is the same. (Don't remember what happens 
+</I>&gt;<i> &gt; if the second argument is the same as an existing worker, but the 
+</I>&gt;<i> &gt; first is not, check with the spec).
+</I>&gt;<i> 
+</I>&gt;<i> Sure, that part is clear - but it's only about the behavior of the 
+</I>&gt;<i> object's constructor, not the object itself! It alone doesn't warrant 
+</I>&gt;<i> having a separate interface.
+</I>&gt;<i> 
+</I>&gt;<i> As an example from another area, see mmap(2) function - you can pass 
+</I>&gt;<i> MAP_ANON or MAP_FILE via its flags to achieve similar results. Note also 
+</I>&gt;<i> that it has a number of other options. If we create a separate interface 
+</I>&gt;<i> for every Worker isolation level needed (both inside and outside), we'll 
+</I>&gt;<i> soon end up with PrivateWorker, SharedDataWorker and who knows what 
+</I>&gt;<i> else.
+</I>
+We have different objects for shared and dedicated workers for a multitude 
+of reasons:
+
+ 1. Shared workers have a name.
+ 2. Dedicated workers have a method to terminate() them.
+ 3. The two have different communication needs (see below for detail).
+ 4. It allows us to have clearly named constructors, which makes for
+    more self-documenting code.
+ 5. It's less confusing to authors if the two concepts are distinct, 
+    since they have such different use cases and use patterns.
+
+The reasons for mixing them back together (as they used to be in the 
+original proposal) seem very unclear to me.
+
+
+On Fri, 12 Sep 2008, Aaron Boodman wrote:
+&gt;<i> 
+</I>&gt;<i> * I think onclose makes sense on Port instead of on Worker. The other 
+</I>&gt;<i> side of a Port can close out from under you, even if it is a window.
+</I>
+MessagePorts do have an onclose; it's separate from the onclose of the 
+Worker objects.
+
+
+On Fri, 12 Sep 2008, Aaron Boodman wrote:
+&gt;<i> 
+</I>&gt;<i> * Ojan brought this up earlier, but I don't think there should be 
+</I>&gt;<i> anything added to the global scope of workers except a single 'self' 
+</I>&gt;<i> object, which implements all the APIs that are available there.
+</I>
+I did this once, and was immediately told to undo it, so I'm reluctant to 
+make this change again.
+
+
+On Fri, 12 Sep 2008, Aaron Boodman wrote:
+&gt;<i>
+</I>&gt;<i> * I think it would be a nice convenience to have an onmessage event 
+</I>&gt;<i> inside workers that receives all messages sent to any port in the 
+</I>&gt;<i> worker.
+</I>
+On Tue, 30 Sep 2008, Alexey Proskuryakov wrote:
+&gt;<i>
+</I>&gt;<i> Creating/accessing a shared worker could also create a default port that 
+</I>&gt;<i> for use with Worker::postMessage, while all messages from such would be 
+</I>&gt;<i> forwarded to WorkerGlobalScope::onmessage perhaps? Closing such a port 
+</I>&gt;<i> wouldn't kill the worker thread, of course.
+</I>
+What's the use case for a global watching point like this? This seems very 
+odd.
+
+
+On Mon, 3 Nov 2008, Aaron Boodman wrote:
+&gt;<i> 
+</I>&gt;<i> My biggest issue with the proposal as currently drafted is that there 
+</I>&gt;<i> are so many different ways to send and receive messages. I think this 
+</I>&gt;<i> overcomplicates the proposal for both developers and implementors.
+</I>&gt;<i> 
+</I>&gt;<i> For dedicated workers, you can either send single messages using the 
+</I>&gt;<i> Worker object directly, like in Gears:
+</I>&gt;<i> 
+</I>&gt;<i> var worker = new Worker(&quot;foo.js&quot;);
+</I>&gt;<i> worker.postMessage(&quot;ping&quot;);
+</I>&gt;<i> 
+</I>&gt;<i> [... snipped startConversation, which is equivalent to sending 
+</I>&gt;<i> MessagePorts manually ...]
+</I>&gt;<i> 
+</I>&gt;<i> Note that the worker has to know ahead of time which API the callers 
+</I>&gt;<i> will use since the way that it replies is different depending on that. 
+</I>&gt;<i> If the caller used Worker.postMessage(), the worker should reply like 
+</I>&gt;<i> this:
+</I>&gt;<i> 
+</I>&gt;<i> onmessage = function() {
+</I>&gt;<i>   postMessage(&quot;pong&quot;);
+</I>&gt;<i> }
+</I>&gt;<i> 
+</I>&gt;<i> ... but if the caller [posted a port to talk over], then the worker 
+</I>&gt;<i> should reply like this:
+</I>&gt;<i> 
+</I>&gt;<i> onmessage = function(e) {
+</I>&gt;<i>   e.port.postMesage(&quot;pong&quot;);
+</I>&gt;<i> }
+</I>&gt;<i> 
+</I>&gt;<i> * Workers have to know what interface was used to send them messages. If 
+</I>&gt;<i> the page using a worker decide to start using a more powerful send API, 
+</I>&gt;<i> the worker must also be upgraded. You can already see examples of this 
+</I>&gt;<i> problem in the samples at the beginning of the draft. They are marked 
+</I>&gt;<i> with the comments &quot;// support being used as a shared worker as well as a 
+</I>&gt;<i> dedicated worker&quot;.
+</I>
+This is just like if the client sent &quot;PING&quot; instead of &quot;ping&quot;. It's not a 
+different mechanism, it's just a different way of using the mechanism. 
+Sure, you have to set up a convention for messages for your worker. I 
+don't see this as a problem.
+
+
+On Fri, 12 Sep 2008, Aaron Boodman wrote:
+&gt;<i>
+</I>&gt;<i> Thinking about this some more, having the &quot;port&quot; convenience properties 
+</I>&gt;<i> gets confusing when there are multiple clients sending messages, and 
+</I>&gt;<i> doesn't make a whole lot of sense with shared workers.
+</I>&gt;<i> 
+</I>&gt;<i> I think we should just get rid of these. It only adds one line of code
+</I>&gt;<i> to the simple case.
+</I>
+On Mon, 15 Sep 2008, Chris Prince wrote:
+&gt;<i>
+</I>&gt;<i> I like this a lot.  +1 to making connect() always explicit.  Implicit 
+</I>&gt;<i> creation of ports led to many rough edges.
+</I>
+On Mon, 15 Sep 2008, Chris Prince wrote:
+&gt;<i> 
+</I>&gt;<i> I think your proposal nearly works for window.postMessage() too.  If you 
+</I>&gt;<i> move 'onconnect' and 'connect()' into a MessageReceiver interface 
+</I>&gt;<i> [better name TBD], and make Worker and Window both inherit from 
+</I>&gt;<i> MessageReceiver, do you end up with a unified messaging model?
+</I>
+On Wed, 24 Sep 2008, Aaron Boodman wrote:
+&gt;<i> 
+</I>&gt;<i> In the current design, there are three separate mechanisms to connect to 
+</I>&gt;<i> and communicate with a worker:
+</I>&gt;<i> 
+</I>&gt;<i> a) DedicatedWorker::postMessage() + DedicatedWorkerGlobalScope::onmessage
+</I>&gt;<i> 
+</I>&gt;<i> [... snipped startConversation ...]
+</I>&gt;<i> 
+</I>&gt;<i> c) new SharedWorker() + SharedWorkerGlobalScope::onconnect
+</I>&gt;<i> 
+</I>&gt;<i> I would like to combine all of these into one common mechanism:
+</I>&gt;<i> 
+</I>&gt;<i> - Create a worker using either new Worker() or new SharedWorker()
+</I>&gt;<i> - Call connect() to get a channel
+</I>&gt;<i> - Inside the worker, listen for onconnect, then receive messages using
+</I>&gt;<i> the port's onmessage event
+</I>
+On Tue, 30 Sep 2008, Aaron Boodman wrote:
+&gt;<i>
+</I>&gt;<i> SharedWorkers are by definition meant to be used from multiple pages, so 
+</I>&gt;<i> a developer will usually not use the default port since it would only 
+</I>&gt;<i> work for the first client and not any other. If the developer only 
+</I>&gt;<i> intended for their to be one client, he would just use DedicatedWorker.
+</I>
+On Mon, 3 Nov 2008, Aaron Boodman wrote:
+&gt;<i> 
+</I>&gt;<i> SharedWorkers require a third, completely different API to send messages:
+</I>&gt;<i> 
+</I>&gt;<i> var w = new SharedWorker(&quot;foo.js&quot;, &quot;foo&quot;);
+</I>&gt;<i> w.port.postMessage(&quot;ping&quot;);
+</I>&gt;<i> w.port.onmessage = function(e) {};
+</I>&gt;<i> 
+</I>&gt;<i> The interface to receive messages in a SharedWorker is also special:
+</I>&gt;<i> 
+</I>&gt;<i> onconnect = function(e) {
+</I>&gt;<i>   e.port.onmessage = function(e) {
+</I>&gt;<i>     e.port.postMessage(&quot;pong&quot;);
+</I>&gt;<i>   }
+</I>&gt;<i> }
+</I>&gt;<i> 
+</I>&gt;<i> This lack of generality bothers me on an aesthetic level, but I also 
+</I>&gt;<i> think it has the following real problems:
+</I>&gt;<i> 
+</I>&gt;<i> * Having different interfaces for each use case means that each new 
+</I>&gt;<i> feature has to be added to each interface separately. [snip 
+</I>&gt;<i> misunderstanding over startConversation]
+</I>&gt;<i> 
+</I>&gt;<i> * Having multiple interfaces probably increases the chance of developers 
+</I>&gt;<i> misunderstanding and using the wrong tool for the job. [snip example 
+</I>&gt;<i> involving startConversation]
+</I>&gt;<i> 
+</I>&gt;<i> * More API for developers to learn and implementors to build.
+</I>&gt;<i> 
+</I>&gt;<i> I think that these issues can all be addressed by simplifying and 
+</I>&gt;<i> combining the various APIs. This will make the simplest examples of 
+</I>&gt;<i> workers require slightly more code, but I think it is much simpler and 
+</I>&gt;<i> more elegant.
+</I>&gt;<i> 
+</I>&gt;<i> Here is how it would work:
+</I>&gt;<i>
+</I>&gt;<i> * Get rid of the DedicatedWorker interface.
+</I>&gt;<i>
+</I>&gt;<i> * Add [a method called] &quot;connect()&quot; and make the onconnect event fire 
+</I>&gt;<i> inside the worker each time it is called.
+</I>&gt;<i> 
+</I>&gt;<i> Here's an example in code:
+</I>&gt;<i> 
+</I>&gt;<i> // dedicated workers (outside)
+</I>&gt;<i> var worker = new Worker(&quot;foo.js&quot;);
+</I>&gt;<i> var port = worker.connect();
+</I>&gt;<i> port.onmessage = function() { }
+</I>&gt;<i> port.postMessage(&quot;ping&quot;);
+</I>&gt;<i> 
+</I>&gt;<i> // dedicated workers (inside)
+</I>&gt;<i> onconnect = function(e) {
+</I>&gt;<i>   e.port.onmessage = function(e) {
+</I>&gt;<i>     e.port.postMessage(&quot;pong&quot;);
+</I>&gt;<i>   }
+</I>&gt;<i> }
+</I>&gt;<i> 
+</I>&gt;<i> Shared workers are exactly the same except the constructor is
+</I>&gt;<i> SharedWorker(&quot;foo.js&quot;, &quot;foo&quot;);
+</I>&gt;<i> 
+</I>&gt;<i> Note that I do not think it is necessary to implement this all at
+</I>&gt;<i> once. For one, the SharedWorker constructor could easily be punted for
+</I>&gt;<i> future releases.
+</I>
+On Tue, 4 Nov 2008, Jonas Sicking wrote:
+&gt;<i> 
+</I>&gt;<i> My main concern is that I think this makes the most simple use case a 
+</I>&gt;<i> bit too complicated. In the case when you have a dedicated worker that 
+</I>&gt;<i> you want to offload some calculations too you need quite a bit of code 
+</I>&gt;<i> to set up that communication.
+</I>&gt;<i> 
+</I>&gt;<i> With the current API you'd do the following:
+</I>&gt;<i> 
+</I>&gt;<i> main.js:
+</I>&gt;<i> w = new Worker('worker.js');
+</I>&gt;<i> w.postMessage(17);
+</I>&gt;<i> w.onmessage = function(e) {
+</I>&gt;<i>   answer = e.data;
+</I>&gt;<i> }
+</I>&gt;<i> 
+</I>&gt;<i> worker.js:
+</I>&gt;<i> function heavyCalulation(inValue) {
+</I>&gt;<i>   ...
+</I>&gt;<i> }
+</I>&gt;<i> onmessage = function(e) {
+</I>&gt;<i>   postMessage(heavyCalculation(e.data));
+</I>&gt;<i> }
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> With the proposed API:
+</I>&gt;<i> 
+</I>&gt;<i> main.js:
+</I>&gt;<i> w = new Worker('worker.js');
+</I>&gt;<i> p = w.connect();
+</I>&gt;<i> p.postMessage(17);
+</I>&gt;<i> p.onmessage = function(e) {
+</I>&gt;<i>   answer = e.data;
+</I>&gt;<i> }
+</I>&gt;<i> 
+</I>&gt;<i> worker.js:
+</I>&gt;<i> function heavyCalulation(inValue) {
+</I>&gt;<i>   ...
+</I>&gt;<i> }
+</I>&gt;<i> onconnect = function(e) {
+</I>&gt;<i>   e.port.onmessage = function(e2) {
+</I>&gt;<i>     e.port.postMessage(heavyCalulation(e2.data));
+</I>&gt;<i>   }
+</I>&gt;<i> }
+</I>&gt;<i> 
+</I>&gt;<i> This complexity I feel is extra bad since I suspect the simple case is 
+</I>&gt;<i> going to be the common case (I know we disagree there). I especially 
+</I>&gt;<i> dislike the fact that you have to wait for two events, first a 'connect' 
+</I>&gt;<i> event and then the actual message event. This seems overly complex for 
+</I>&gt;<i> the simple case of simply wanting to use a single communication channel 
+</I>&gt;<i> with a dedicated worker. And even though there isn't that much more code 
+</I>&gt;<i> in my example above, it took significantly more effort to get it right 
+</I>&gt;<i> given the nested two handlers that were needed.
+</I>&gt;<i> 
+</I>&gt;<i> So I think we should keep the simple case of a dedicated worker and a 
+</I>&gt;<i> single communication channel as simple as possible. This means that I 
+</I>&gt;<i> think we should keep postMessage/onmessage available on the dedicated 
+</I>&gt;<i> worker directly, as well as the dedicated worker global scope.
+</I>&gt;<i> 
+</I>&gt;<i> As an added bonus this keeps things very similar to message passing 
+</I>&gt;<i> between windows.
+</I>
+On Tue, 4 Nov 2008, Jonas Sicking wrote:
+&gt;<i> 
+</I>&gt;<i> So Hixie brought up a good point on IRC, there really is only one 
+</I>&gt;<i> communication mechanism, which is postMessage/onmessage.
+</I>&gt;<i> 
+</I>&gt;<i> I'd note that [...] all proposals have two 'communication' mechanisms: 
+</I>&gt;<i> postMessage and connect.
+</I>&gt;<i> 
+</I>&gt;<i> With Aarons proposal you have to both for a shared worker and a 
+</I>&gt;<i> dedicated worker use both mechanisms; first call connect() and then call 
+</I>&gt;<i> postMessage(). If keep postMessage on the dedicated worker the only 
+</I>&gt;<i> difference is that for a dedicated worker you skip the connect() and go 
+</I>&gt;<i> directly to postMessage.
+</I>
+On Thu, 6 Nov 2008, Alexey Proskuryakov wrote:
+&gt;<i> 
+</I>&gt;<i> Something that seems missing from these discussions is how the API 
+</I>&gt;<i> changes affect semantics of worker behavior, which makes it hard to 
+</I>&gt;<i> compare proposals. For example, having some port singled out as an 
+</I>&gt;<i> attribute of Worker (or as an implicit hidden attribute, used by methods 
+</I>&gt;<i> defined on Worker itself) sorta implies that closing it should close 
+</I>&gt;<i> other ports and dispose of the worker global scope soon. Similarly, 
+</I>&gt;<i> having separate interfaces for Worker and SharedWorker implies that 
+</I>&gt;<i> there is some fundamental difference in their behavior - a difference 
+</I>&gt;<i> that eludes me so far.
+</I>&gt;<i> 
+</I>&gt;<i> It would seem that we could make better progress if we had a list of 
+</I>&gt;<i> requirements that we want to have fulfilled (e.g., should it be possible 
+</I>&gt;<i> to easily manage worker lifetime manually by closing a dedicated port? 
+</I>&gt;<i> or should workers strive to remain available for as long as any client 
+</I>&gt;<i> has an open port, which helps write reliable code?).
+</I>&gt;<i> 
+</I>&gt;<i> I really don't think that the desire to save one line in a 500-line 
+</I>&gt;<i> program should affect the design too much. Convenience methods can be 
+</I>&gt;<i> added later, but over-engineered parts cannot be removed later. And at 
+</I>&gt;<i> this point, I believe that we are mostly speculating about use cases 
+</I>&gt;<i> (probably except for Google Gears folks, who are shipping a similar API, 
+</I>&gt;<i> and get developer feedback already).
+</I>
+On Wed, 5 Nov 2008, Jonas Sicking wrote:
+&gt;<i> Ian Hickson wrote:
+</I>&gt;<i> &gt; &gt; * Remove the port property from the SharedWorker interface and give 
+</I>&gt;<i> &gt; &gt; it a postMessage and onmessage just like dedicated workers have.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; I really don't like this. With (Dedicated)Worker it makes sense 
+</I>&gt;<i> &gt; because both sides bury the underlying message channel and ports and 
+</I>&gt;<i> &gt; so things like closing the port, or whether the port is active, are 
+</I>&gt;<i> &gt; hidden on both sides. But with SharedWorker, if we only bury it on one 
+</I>&gt;<i> &gt; side, there is a lack of symmetry that IMHO is going to lead to all 
+</I>&gt;<i> &gt; kinds of issues and confusion. I really don't like that. If people 
+</I>&gt;<i> &gt; start sending one side's pipe down another channel, we can end up with 
+</I>&gt;<i> &gt; a situation where a SharedWorker object really represents a port that 
+</I>&gt;<i> &gt; has nothing to do with the worker anymore.
+</I>&gt;<i> 
+</I>&gt;<i> It's not really that different from what you have today where a 
+</I>&gt;<i> myWorker.port object can send messages to something that isn't a worker 
+</I>&gt;<i> at all.
+</I>&gt;<i> 
+</I>&gt;<i> It also removes the issue where the .port property on a shared worker is 
+</I>&gt;<i> readonly but dead.
+</I>
+I believe that the idea that the API for shared and dedicated workers 
+should be the same is misguided. The spec used to make the two cases 
+identical. The result was confusion, and the dedicated case was much more 
+complex than necessary.
+
+Shared workers and dedicated workers are fundamentally different and have 
+different needs, and we should expose these needs in ways optimised for 
+the two cases.
+
+The basic need is that dedicated workers be able to have a two-way 
+communication channel with their creators, and shared workers be able to 
+have a two-way communication with each user of the worker.
+
+Assuming we use MessagePorts on each end for communication, then we have 
+to get the ports to each end somehow.
+
+On the outside, we can expose a port on the worker object:
+
+   var worker = new Worker(url);
+   worker.port...
+
+   var worker = new SharedWorker(url, name);
+   worker.port...
+
+...and on the inside we can have either the port provided through an 
+event:
+
+   // case A
+   var port;
+   onconnect = function(e) {
+     port = e.port;
+   };
+
+...or accessible in general:
+
+   self.port // case B
+
+The latter (B) doesn't work for shared workers, since there are multiple 
+ports in that case, so for shared workers we have to use the former (A).
+
+For dedicated workers though that's way more complexity than we want to 
+require of authors -- why do they have to listen for a port when there 
+will always be exactly one? So it makes sense to use 
+
+Now, we've at this point made the two different already, so as to simplify 
+the dedicated worker, so we could (and the spec does) make the dedicated 
+worker even simpler while we're at it.
+
+One way to do that is to bury the ports into the Worker and global scope 
+objects. If we do one side, though, we have to do the other, because it 
+would be really weird to have a message channel that half-acts like a 
+two-port channel and half doesn't. For example, if we bury it, we 
+shouldn't expose .close(), since it's better for the worker to be closed 
+using the actual .close() or .terminate() API, but if we only &quot;bury&quot; one 
+side, then one end could close the pipe and not the other, and we'd have 
+to make sure we expose .onclose on the buried end, and so forth.
+
+So, we end up with what the spec has now.
+
+I think what we have now is better than making dedicated and shared 
+workers superficially the same (as the spec used to be, and as the people 
+involved in this thread argued was bad) is more confusing for authors.
+
+At this point, if the only arguments for changing the API are &quot;it's 
+confusing for authors&quot;, then I'd rather not change the API. We got to 
+where we are today by carefully considering what would be better for 
+authors. We could continue going back-and-forth and reverting earlier 
+decisions until the cows come home, but I see no benefit to doing so.
+
+
+On Fri, 12 Sep 2008, Aaron Boodman wrote:
+&gt;<i> 
+</I>&gt;<i> * I still don't buy the utility of passing around MessagePorts, so I 
+</I>&gt;<i> suggest we table that for v2. It can always be added back later.
+</I>
+Since they so drastically affect the API design, I think putting them off 
+is a mistake. We might end up constraining ourselves in unobvious ways.
+
+
+If there are specific points that I have not explicitly replied to that 
+materially affect the arguments and my responses, please let me know. I 
+tried to take all the input above into account, but it was non-trivial, 
+since much of it was contradictory, with even individual people putting 
+forwards opposite arguments.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="059410.html">[whatwg] Questions on Workers spec
+</A></li>
+	<LI>Next message: <A HREF="059427.html">[whatwg] Workers feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#59424">[ date ]</a>
+              <a href="thread.html#59424">[ thread ]</a>
+              <a href="subject.html#59424">[ subject ]</a>
+              <a href="author.html#59424">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

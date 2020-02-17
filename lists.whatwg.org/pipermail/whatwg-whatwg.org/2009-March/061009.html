@@ -1,0 +1,139 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Script loading and execution order for importScripts
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Script%20loading%20and%20execution%20order%20for%20importScripts&In-Reply-To=%3C63df84f0903072058kca9ea4dw8159f985607978dd%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="061008.html">
+   <LINK REL="Next"  HREF="061011.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Script loading and execution order for importScripts</H1>
+<!--htdig_noindex-->
+    <B>Jonas Sicking</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Script%20loading%20and%20execution%20order%20for%20importScripts&In-Reply-To=%3C63df84f0903072058kca9ea4dw8159f985607978dd%40mail.gmail.com%3E"
+       TITLE="[whatwg] Script loading and execution order for importScripts">jonas at sicking.cc
+       </A><BR>
+    <I>Sat Mar  7 20:58:31 PST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="061008.html">[whatwg] Script loading and execution order for importScripts
+</A></li>
+        <LI>Next message: <A HREF="061011.html">[whatwg] Script loading and execution order for importScripts
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#61009">[ date ]</a>
+              <a href="thread.html#61009">[ thread ]</a>
+              <a href="subject.html#61009">[ subject ]</a>
+              <a href="author.html#61009">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Sat, Mar 7, 2009 at 1:40 AM, Oliver Hunt &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">oliver at apple.com</A>&gt; wrote:
+&gt;<i>
+</I>&gt;<i> On Mar 7, 2009, at 1:20 AM, ben turner wrote:
+</I>&gt;<i>
+</I>&gt;&gt;<i> On Fri, Mar 6, 2009 at 8:40 PM, Oliver Hunt &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">oliver at apple.com</A>&gt; wrote:
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> In all honesty i'm not sure which is the better approach as the spec
+</I>&gt;&gt;&gt;<i> approach requires developers to manually handle the potential for partial
+</I>&gt;&gt;&gt;<i> library execution, but the Mozilla approach removes the ability to load
+</I>&gt;&gt;&gt;<i> and
+</I>&gt;&gt;&gt;<i> execute scripts in parallel, which may cause latency problems.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> You are half-correct :)
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Currently we load all scripts in parallel and then _compile_ each
+</I>&gt;&gt;<i> script as soon as it has finished loading (which can be in any order).
+</I>&gt;&gt;<i> We do not _execute_ them, however, until all loading and compilation
+</I>&gt;&gt;<i> have completed successfully, and then we execute them in the order of
+</I>&gt;&gt;<i> the arguments passed to importScripts.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> You're right that this is different from the behavior described in the
+</I>&gt;&gt;<i> spec... I was supposed to mail this list a while ago and completely
+</I>&gt;&gt;<i> forgot, many apologies. We felt that our approach was a good
+</I>&gt;&gt;<i> compromise between executing only some of the scripts and executing
+</I>&gt;&gt;<i> each script as soon as possible. We are certainly open to any better
+</I>&gt;&gt;<i> alternatives. Do other JS engines have support for separating the
+</I>&gt;&gt;<i> compilation and the execution of scripts?
+</I>&gt;<i>
+</I>&gt;<i> If by &quot;compilation&quot; you mean you're (effectively) just doing a syntax check
+</I>&gt;<i> then webkit is able to this, although it has a reasonable cost associated
+</I>&gt;<i> with it, but then i have a vague hope that the work being offloaded onto
+</I>&gt;<i> workers is more substantial than the work the engine is putting into
+</I>&gt;<i> parsing.
+</I>&gt;<i>
+</I>&gt;<i> So in effect, there are 3 steps that mozilla currently takes:
+</I>&gt;<i> 1. for (url in arguments)
+</I>&gt;<i> &#160; &#160; &#160; &#160;absoluteUrl = resolve(url);
+</I>&gt;<i> &#160; &#160; &#160; &#160;if (!isValid(absoluteUrl)) throw SYNTAX_ERR
+</I>&gt;<i> &#160; &#160; &#160; &#160;absoluteUrls.push(absoluteUrl);
+</I>&gt;<i> 2. for (url in absoluteUrls)
+</I>&gt;<i> &#160; &#160; &#160; &#160;script = loadScript(url)
+</I>&gt;<i> &#160; &#160; &#160; &#160;if (!isValidSyntax(script))
+</I>&gt;<i> &#160; &#160; &#160; &#160; &#160; throw SYNTAX_ERR;
+</I>&gt;<i> &#160; &#160; &#160; &#160;scripts.push(script)
+</I>&gt;<i> 3. for (script in scripts)
+</I>&gt;<i> &#160; &#160; &#160; &#160;execute(script)
+</I>&gt;<i>
+</I>&gt;<i> While the loads in (2) can be done in parallel, i do not believe that the
+</I>&gt;<i> syntax checking can occur in parallel as the syntax error that can be thrown
+</I>&gt;<i> represents an observable side effect, and thus load completion order could
+</I>&gt;<i> result in different exceptions being thrown (syntax error on file2.js vs.
+</I>&gt;<i> file1.js)
+</I>&gt;<i>
+</I>&gt;<i> In general i think i prefer this model, despite the fact that we end up not
+</I>&gt;<i> being able to execute js while waiting for later scripts to load, it's seems
+</I>&gt;<i> much more reasonable to give not have side effects if any of the resources
+</I>&gt;<i> has a basic non-execution dependent fault.
+</I>
+Why do you think it's important not to have side effects for syntax
+errors but don't think it's important to not have side effects for
+run-time errors? Given that we simply can't fix the latter, I don't
+see any advantage to users to attempt to fix the former.
+
+I really don't think optimizing for the case when something has gone
+wrong is the way to go. That is an extremely rare case in a deployed
+application, and so optimizing for performance feels much more
+important to users.
+
+Also considering how applications are likely to handle these errors,
+I.e. full abort and tell user that an unrecoverable error has
+occurred, it doesn't really matter if there have been side effects or
+not.
+
+/ Jonas
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="061008.html">[whatwg] Script loading and execution order for importScripts
+</A></li>
+	<LI>Next message: <A HREF="061011.html">[whatwg] Script loading and execution order for importScripts
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#61009">[ date ]</a>
+              <a href="thread.html#61009">[ thread ]</a>
+              <a href="subject.html#61009">[ subject ]</a>
+              <a href="author.html#61009">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

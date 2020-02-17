@@ -1,0 +1,153 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] On tag inference
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20On%20tag%20inference&In-Reply-To=%3CPine.LNX.4.62.0603102104580.315%40dhalsim.dreamhost.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="005961.html">
+   <LINK REL="Next"  HREF="005965.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] On tag inference</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20On%20tag%20inference&In-Reply-To=%3CPine.LNX.4.62.0603102104580.315%40dhalsim.dreamhost.com%3E"
+       TITLE="[whatwg] On tag inference">ian at hixie.ch
+       </A><BR>
+    <I>Fri Mar 10 13:12:53 PST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="005961.html">[whatwg] Conformance requirements on conformance checkers
+</A></li>
+        <LI>Next message: <A HREF="005965.html">[whatwg] On tag inference
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5962">[ date ]</a>
+              <a href="thread.html#5962">[ thread ]</a>
+              <a href="subject.html#5962">[ subject ]</a>
+              <a href="author.html#5962">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Mon, 29 Aug 2005, Henri Sivonen wrote:
+&gt;<i>
+</I>&gt;<i> What kind of approach to tag inference can HTML5 be expected to take?
+</I>
+It uses a specific algorithm modelled on a finite state machine.
+
+&gt;<i> Example:
+</I>&gt;<i> &lt;p&gt;&lt;foo&gt;
+</I>&gt;<i> Is 'foo' an element that not allowed as a child of 'p' and, therefore,
+</I>&gt;<i> implicitly closes the 'p'? Or is 'foo' not on the list of elements that close
+</I>&gt;<i> 'p' and, therefore, does not implicitly close it? Which way are the inference
+</I>&gt;<i> rules going to be defined?
+</I>
+&lt;foo&gt; is a phrasing element (as are all unknown elements) and is therefore 
+treated like &lt;span&gt;, and never closes a block.
+
+The inference rules are defined basically on a case-by-case basis.
+
+
+&gt;<i> * I am assuming an implementation maintains a stack of open elements or works
+</I>&gt;<i> directly on a parser tree in which case the path from the current node to the
+</I>&gt;<i> root has the right same role as the stack.
+</I>
+Agreed. The spec uses this model too.
+
+
+&gt;<i> As far as I can tell, there are four kinds of inference needed when parsing
+</I>&gt;<i> *conforming* documents (ie. no second stack for residual style):
+</I>&gt;<i> 1) Element end causes the end of the elements that [are] on the top of the
+</I>&gt;<i> stack*.
+</I>
+These cases are common and vary in the details, but as a whole are those 
+that say &quot;generate implied end tags&quot;.
+
+
+&gt;<i> 2) End of the data stream causes the end of the element that is on the top of
+</I>&gt;<i> the stack.
+</I>
+The end of the data stream is handled just as a special token, and ends 
+processing (so the state of end tags is largely irrelevant, though as 
+defined it does close some of the tags, yes).
+
+
+&gt;<i> 3) Element start causes the end of the element that is on the top of the
+</I>&gt;<i> stack.
+</I>
+This only happens for &lt;li&gt;, &lt;p&gt;, &lt;dt&gt; and &lt;dd&gt; but is indeed one of the 
+cases. Each of those four elements has special ways of handling the 
+closing of previous elements of that type and of the other three types.
+
+
+&gt;<i> 4) Element start causes another element start before itself.
+</I>
+These are handled by the state machine model.
+
+
+&gt;<i> Is this list complete?
+</I>
+Some end tags can cause other elements to close even though they don't 
+match, e.g. &lt;/h1&gt; closing &lt;h2&gt;. There's also the complex case of residual 
+style inlines (&quot;formatting&quot; elements). As a whole the spec handles each of 
+these cases separately. Since the rules vary so much from element to 
+element it's hard to be specific about which cases are &quot;end tag 
+inference&quot;.
+
+
+&gt;<i> I am assuming that for *conforming* documents, the above-mentioned 
+</I>&gt;<i> inference decisions can be taken by observing the top of the stack and 
+</I>&gt;<i> the element name associated with the current end or start element event. 
+</I>&gt;<i> Correct? (I am assuming the rules may be applied repeatedly. Ie. null on 
+</I>&gt;<i> stack and start 'title' implies 'html' start. 'html' on stack and start 
+</I>&gt;<i> 'title' implies 'head' start. 'head' on stack and start 'title' implies 
+</I>&gt;<i> nothing and the start 'title' goes through.)
+</I>
+I don't know, I haven't considered conforming documents, they are an edge 
+case which the spec handles by virtue of handling the common case.
+
+
+&gt;<i> It seems to me that #3 is the tricky case in terms of interaction with 
+</I>&gt;<i> unknown element names. #1 and #2 require a list of elements whose end 
+</I>&gt;<i> tag is optional. #4 requires a map of top of stack plus current start 
+</I>&gt;<i> pairs to inferred start tags.
+</I>
+Unknown elemenst turn out to be near-trivial to cater for, because they 
+are the simplest kind of tag -- you treat them as inlines that are closed 
+by any end tag that isn't correctly nested, and you make their start tags 
+have no effect on tag inference.
+
+Cheers,
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="005961.html">[whatwg] Conformance requirements on conformance checkers
+</A></li>
+	<LI>Next message: <A HREF="005965.html">[whatwg] On tag inference
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5962">[ date ]</a>
+              <a href="thread.html#5962">[ thread ]</a>
+              <a href="subject.html#5962">[ subject ]</a>
+              <a href="author.html#5962">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

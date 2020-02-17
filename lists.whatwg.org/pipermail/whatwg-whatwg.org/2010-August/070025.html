@@ -1,0 +1,156 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Race condition in media load algorithm
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Race%20condition%20in%20media%20load%20algorithm&In-Reply-To=%3Cop.vg511vqnsr6mfa%40philip-pc.gothenburg.osa%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="069964.html">
+   <LINK REL="Next"  HREF="070028.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Race condition in media load algorithm</H1>
+<!--htdig_noindex-->
+    <B>Philip J&#228;genstedt</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Race%20condition%20in%20media%20load%20algorithm&In-Reply-To=%3Cop.vg511vqnsr6mfa%40philip-pc.gothenburg.osa%3E"
+       TITLE="[whatwg] Race condition in media load algorithm">philipj at opera.com
+       </A><BR>
+    <I>Mon Aug  9 03:28:33 PDT 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="069964.html">[whatwg] Race condition in media load algorithm
+</A></li>
+        <LI>Next message: <A HREF="070028.html">[whatwg] Race condition in media load algorithm
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#70025">[ date ]</a>
+              <a href="thread.html#70025">[ thread ]</a>
+              <a href="subject.html#70025">[ subject ]</a>
+              <a href="author.html#70025">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Fri, 06 Aug 2010 15:30:42 +0200, Boris Zbarsky &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">bzbarsky at mit.edu</A>&gt; wrote:
+
+&gt;<i> On 8/6/10 4:04 AM, Philip J&#228;genstedt wrote:
+</I>&gt;&gt;&gt;<i> See, this concept of &quot;a script&quot; is a funny one, given that scripts are
+</I>&gt;&gt;&gt;<i> reentrant, and that multiple different scripts can all be running at
+</I>&gt;&gt;&gt;<i> the same time, possibly with event loops nested in between on the
+</I>&gt;&gt;&gt;<i> conceptual callstack
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Well, what we really look at is an execution thread. When a script
+</I>&gt;&gt;<i> triggers a synchronous event handler or is otherwise suspended while
+</I>&gt;&gt;<i> waiting for another thread to finish, we will wait for the &quot;outermost&quot;
+</I>&gt;&gt;<i> suspended thread to finish executing. So, yeah, it's not completely
+</I>&gt;&gt;<i> trivial :)
+</I>&gt;<i>
+</I>&gt;<i> That really doesn't sound like it maps well to the proposed HTML5 spec,  
+</I>&gt;<i> for what it's worth...  Of course it sounds like you're suggesting the  
+</I>&gt;<i> spec should be changed (without actually describing your changes in  
+</I>&gt;<i> speccable non-implementation-specific terms).
+</I>
+The &quot;await a stable state&quot; concept was introduced in  
+&lt;<A HREF="http://html5.org/tools/web-apps-tracker?from=3461&amp;to=3462">http://html5.org/tools/web-apps-tracker?from=3461&amp;to=3462</A>&gt; and is used  
+only for media elements. I can't remember any discussion about the change  
+in async behavior at the time, so didn't think much of it. It's because  
+Mozilla are implementing this now that the issue has surfaced, so let's  
+try to find a solution that's implementable in all browsers. Let's focus  
+on how this interacts with the parser, because that probably changes  
+everything else to fall into place, see below.
+
+&gt;&gt;&gt;<i> It's possible that it can't. It would depend on the exact steps that
+</I>&gt;&gt;&gt;<i> run in the synchronous section, but since synchronous sections can't
+</I>&gt;&gt;&gt;<i> trigger script it might not be detectable at all.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> The most important things is that the following always alert 3
+</I>&gt;&gt;<i> (NETWORK_NO_SOURCE):
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> &lt;!doctype html&gt;
+</I>&gt;&gt;<i> &lt;video&gt;
+</I>&gt;&gt;<i> &lt;source&gt;
+</I>&gt;&gt;<i> &lt;script&gt;alert(document.querySelector('video').networkState)&lt;/script&gt;
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> In other words, the synchronous section must at the latest be run just
+</I>&gt;&gt;<i> before running an inline script.
+</I>&gt;<i>
+</I>&gt;<i> OK, let's focus on the issue at hand; I agree that we're more likely to  
+</I>&gt;<i> get somewhere with that than with generalities.  What about this case:
+</I>&gt;<i>
+</I>&gt;<i> &lt;script&gt;
+</I>&gt;<i>    var v = document.createElement(&quot;video&quot;);
+</I>&gt;<i>    var s = document.createElement(&quot;source&quot;);
+</I>&gt;<i>    v.appendChild(s);
+</I>&gt;<i>    document.body.appendChild(v);
+</I>&gt;<i>    alert(v.networkState);
+</I>&gt;<i> &lt;/script&gt;
+</I>&gt;<i>
+</I>&gt;<i> Should this also run the synchronous section before returning from the  
+</I>&gt;<i> appendChild call, even though there's a script active?  If so, how does  
+</I>&gt;<i> that fit in with your proposal?  If not, how is this different from your  
+</I>&gt;<i> example?
+</I>
+Whether it's the parser or a script that triggers the resource selection  
+algorithm, it is run up to step 2 where it's supposed to await a stable  
+state. Actually, my example is bad because networkState is set to  
+NETWORK_NO_SOURCE is step 1. What's actually interesting is when one can  
+see the side-effects of the synchronous section running, e.g. by  
+networkState being set to NETWORK_LOADING.
+
+In the case of a script triggering it, it's important that the synchronous  
+section not be run until the script has finished modifying the DOM. If  
+that's accomplished by waiting until the thread has finished or by means  
+of the event loop isn't important as long as it's implementable and the  
+result is 100% predictable. Modulo the effects of modal dialogs and other  
+corner-cases, networkState should remain at NETWORK_NO_SOURCE for the  
+remainder of the script that triggered resource selection.
+
+Parsing then. I don't know the parser section very well, but it doesn't  
+mention &quot;task&quot;, so I'm guessing that running it isn't considered a task  
+itself. I can't find anything to suggest that the parser inserting a  
+script element would cause synchronous sections to run before the script  
+is executed. What then, does &quot;await a stable&quot; state amount to? Just  
+running it the next time the event loop spins would appear to give rather  
+random results, right?
+
+The parser example above alerts 0 or 3 depending on whether the sync  
+section has run. Opera alerts 3, as the sync section is run at the same  
+time the source element is inserted by the parser. If that's not the right  
+thing to do, what is?
+
+-- 
+Philip J&#228;genstedt
+Core Developer
+Opera Software
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="069964.html">[whatwg] Race condition in media load algorithm
+</A></li>
+	<LI>Next message: <A HREF="070028.html">[whatwg] Race condition in media load algorithm
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#70025">[ date ]</a>
+              <a href="thread.html#70025">[ thread ]</a>
+              <a href="subject.html#70025">[ subject ]</a>
+              <a href="author.html#70025">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

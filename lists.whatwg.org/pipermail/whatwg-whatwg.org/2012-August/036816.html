@@ -1,0 +1,179 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] StringEncoding open issues
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20StringEncoding%20open%20issues&In-Reply-To=%3CCAD649j45C%2BJMz6mxrTKq%2BoY9S0WLY72wp9YcxC0LCZ%3DtwOWdQQ%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="079090.html">
+   <LINK REL="Next"  HREF="079093.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] StringEncoding open issues</H1>
+<!--htdig_noindex-->
+    <B>Joshua Bell</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20StringEncoding%20open%20issues&In-Reply-To=%3CCAD649j45C%2BJMz6mxrTKq%2BoY9S0WLY72wp9YcxC0LCZ%3DtwOWdQQ%40mail.gmail.com%3E"
+       TITLE="[whatwg] StringEncoding open issues">jsbell at chromium.org
+       </A><BR>
+    <I>Mon Aug  6 11:29:33 PDT 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="079090.html">[whatwg] StringEncoding: encode() return type looks weird in	the IDL
+</A></li>
+        <LI>Next message: <A HREF="079093.html">[whatwg] StringEncoding open issues
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#36816">[ date ]</a>
+              <a href="thread.html#36816">[ thread ]</a>
+              <a href="subject.html#36816">[ subject ]</a>
+              <a href="author.html#36816">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Regarding the API proposal at: <A HREF="http://wiki.whatwg.org/wiki/StringEncoding">http://wiki.whatwg.org/wiki/StringEncoding</A>
+
+It looks like we've got some developer interest in implementing this, and
+need to nail down the open issues. I encourage folks to look over the
+&quot;Resolved&quot; issues in the wiki page and make sure the resolutions - gathered
+from loose consensus here and offline discussion - are truly resolved or if
+anything is not future-proof and should block implementations from
+proceeding. Also, look at the &quot;Notes to Implementers&quot; section; this should
+be non-controversial but may be non-obvious.
+
+This leaves two open issues: behavior on encoding error, and handling of
+Byte Order Marks (BOMs)
+
+== Encoding Errors ==
+
+The proposal builds on Anne's
+<A HREF="http://dvcs.w3.org/hg/encoding/raw-file/tip/Overview.html">http://dvcs.w3.org/hg/encoding/raw-file/tip/Overview.html</A> encoding spec,
+which defines when encodings should emit an encoder error. In that spec
+(which describes the existing behavior of Web browsers) encoders are used
+in a limited fashion, e.g. for encoding form results before submission via
+HTTP, and hence the cases are much more restricted than the errors
+encountered when browsers are asked to decode content from the wild. As
+noted, the encoding process could terminate when an error is emitted.
+Alternately (and as is necessary for forms, etc) there is a
+use-case-specific escaping mechanism for non-encodable code points.
+
+The proposed TextDecoder object takes a TextDecoderOptions options with a
+|<i>fatal| flag that controls the decode behavior in case of error - if
+</I>|<i>fatal| is unset (default) a decode error produces a fallback character
+</I>(U+FFFD); if |fatal| is set then a DOMException is raised instead.
+
+No such option is currently proposed for the TextEncoder object; the
+proposal dictates that a DOMException is thrown if the encoder emits an
+error. I believe this is sufficient for V1, but want feedback. For V2 (or
+now, if desired), the API could be extended to accept an options object
+allowing for some/all of these cases;
+
+* Don't throw, instead emit a standard/encoding-specific replacement
+character (e.g. '?')
+* Don't throw, instead emit a fixed placeholder character (byte?) sequence
+* Don't throw, instead call a user-defined callback and allow it to produce
+a replacement &quot;escaped&quot; character sequence, e.g. &quot;&amp;#xXXXX;&quot;
+
+The latter seems the most flexible (superset of the rest) but is probably
+overkill for now. Since it can be added in easily later, can we defer until
+we have implementer and user feedback?
+
+
+== Byte Order Marks (BOMs) ==
+
+Once again, the proposal builds on Anne's
+<A HREF="http://dvcs.w3.org/hg/encoding/raw-file/tip/Overview.html">http://dvcs.w3.org/hg/encoding/raw-file/tip/Overview.html</A> encoding spec,
+which describes the existing behavior of Web browsers. In the wild,
+browsers deal with a variety of mechanisms for indicating the encoding of
+documents (server headers, meta tags, XML preludes, etc), many of which are
+blatantly incorrect or contradictory. One form is fortunately rarely wrong
+- if the document is encoded in UTF-8, UTF-16LE or UTF-16BE and includes
+the byte order mark (the encoding-specific serialization of U+FEFF). This
+is built into the Encoding spec - given a byte sequence to decode and an
+encoding label, the label is ignored if the sequence starts with one of the
+three UTF BOMs, and the BOM-indicated encoding is used to decode the rest
+of the stream.
+
+The proposed API will have different uses, so it is unclear that this is
+necessary or desirable.
+
+At a minimum, it is clear that:
+
+* If one of the UTF encodings is specified AND the BOM matches then the
+leading BOM character (U+FEFF) MUST NOT be emitted in the output character
+sequence (i.e. it is silently consumed)
+
+Less clear is this behavior in these two cases.
+
+* If one of the UTF encodings is specified AND and a different BOM is
+present (e.g. UTF-16LE but a UTF-16BE BOM)
+* If one of the non-UTF encodings is specified AND a UTF BOM is present
+
+Options include:
+* Nothing special - decoder does what it will with the bytes, possibly
+emitting garbage, possibly throwing
+* Raise a DOMException
+* Switch the decoder from the user-specified encoding to the DOM-specified
+encoding
+
+The latter seems the most helpful when the proposed API is used as follows:
+
+var s = TextDecoder().decode(bytes); // handles UTF-8 w/o BOM and any UTF
+w/ BOM
+
+... but it does seem a little weird when used like this;
+
+var d = TextDecoder('euc-jp');
+assert(d.encoding === 'euc-jp');
+var s = d.decode(new Uint8Array([0xFE]), {stream: true});
+assert(d.encoding === 'euc-jp');
+assert(s.length === 0); // can't emit anything until BOM is definitely
+passed
+s += d.decode(new Uint8Array([0xFF]), {stream: true});
+assert(d.encoding === 'utf-16be'); // really?
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="079090.html">[whatwg] StringEncoding: encode() return type looks weird in	the IDL
+</A></li>
+	<LI>Next message: <A HREF="079093.html">[whatwg] StringEncoding open issues
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#36816">[ date ]</a>
+              <a href="thread.html#36816">[ thread ]</a>
+              <a href="subject.html#36816">[ subject ]</a>
+              <a href="author.html#36816">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

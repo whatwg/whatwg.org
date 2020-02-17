@@ -1,0 +1,316 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Limit on number of parallel Workers.
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Limit%20on%20number%20of%20parallel%20Workers.&In-Reply-To=%3CPine.LNX.4.62.0907072347480.1060%40hixie.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020864.html">
+   <LINK REL="Next"  HREF="020873.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Limit on number of parallel Workers.</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Limit%20on%20number%20of%20parallel%20Workers.&In-Reply-To=%3CPine.LNX.4.62.0907072347480.1060%40hixie.dreamhostps.com%3E"
+       TITLE="[whatwg] Limit on number of parallel Workers.">ian at hixie.ch
+       </A><BR>
+    <I>Tue Jul  7 16:59:48 PDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020864.html">[whatwg] Helping people seaching for content filtered by license
+</A></li>
+        <LI>Next message: <A HREF="020873.html">[whatwg] Limit on number of parallel Workers.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20865">[ date ]</a>
+              <a href="thread.html#20865">[ thread ]</a>
+              <a href="subject.html#20865">[ subject ]</a>
+              <a href="author.html#20865">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>
+I include below, for the record, a set of e-mails on the topic of settings 
+limits on Workers to avoid DOS attacks.
+
+As with other such topics, the HTML5 spec allows more or less any 
+arbitrary behaviour in the face of hardware limitations. There are a 
+variety of different implementations strategies, and these will vary 
+based on the target hardware. How to handle a million new workers will be 
+different on a system with a million cores and little memory than a system 
+with one core but terabytes of memory, or a system with 100 slow cores vs 
+a system with 10 fast cores.
+
+I have therefore not added any text to the spec on the matter. Please let 
+me know if you think there should really be something in the spec on this.
+
+
+On Tue, 9 Jun 2009, Dmitry Titov wrote:
+&gt;<i> 
+</I>&gt;<i> In Chromium, workers are going to have their separate processes, at 
+</I>&gt;<i> least for now. So we quickly found that &quot;while(true) foo = new 
+</I>&gt;<i> Worker(...)&quot; quickly consumes the OS resources :-) In fact, this will 
+</I>&gt;<i> kill other browsers too, and on some systems the unbounded number of 
+</I>&gt;<i> threads will effectively &quot;freeze&quot; the system beyond the browser.
+</I>&gt;<i> 
+</I>&gt;<i> We think about how to reasonably place limits on the resources consumed 
+</I>&gt;<i> by 'sea of workers'. Obviously, one could just limit a maxumum number of 
+</I>&gt;<i> parallel workers available to page or domain or browser. But what do you 
+</I>&gt;<i> do when a limit is reached? The Worker() constructor could return null 
+</I>&gt;<i> or throw exception. However, that seems to go against the spirit of the 
+</I>&gt;<i> spec since it usually does not deal with resource constraints. So it 
+</I>&gt;<i> makes sense to look for the most sensible implementation that tries best 
+</I>&gt;<i> to behave.
+</I>&gt;<i> 
+</I>&gt;<i> Current idea is to let create as many Worker objects as requested, but 
+</I>&gt;<i> not necessarily start them right away. So the resources are not 
+</I>&gt;<i> allocated except the thin JS wrapper. As long as workers terminate and 
+</I>&gt;<i> the number of them decreases below the limit, more workers from the 
+</I>&gt;<i> &quot;ready queue&quot; could be started. This allows to support implementation 
+</I>&gt;<i> limits w/o exposing them.
+</I>&gt;<i> 
+</I>&gt;<i> This is similar to how a 'sea of XHRs' would behave. The test page 
+</I>&gt;<i> here&lt;<A HREF="http://www.figushki.com/test/xhr/xhr10000.html">http://www.figushki.com/test/xhr/xhr10000.html</A>&gt; creates 10,000 
+</I>&gt;<i> async XHR requests to distinct URLs and then waits for all of them to 
+</I>&gt;<i> complete. While it's obviosuly impossible to have 10K http connections 
+</I>&gt;<i> in parallel, all XHRs will be completed, given time.
+</I>&gt;<i> 
+</I>&gt;<i> Does it sound like a good way to avoid the resource crunch due to high 
+</I>&gt;<i> number of workers?
+</I>
+On Tue, 9 Jun 2009, Oliver Hunt wrote:
+&gt;<i>
+</I>&gt;<i> I believe that this will be difficult to have such a limit as sites may 
+</I>&gt;<i> rely on GC to collect Workers that are no longer running (so number of 
+</I>&gt;<i> running threads is non-deterministic), and in the context of mix source 
+</I>&gt;<i> content (&quot;mash-ups&quot;) it will be difficult for any content source to be 
+</I>&gt;<i> sure it isn't going to contribute to that limit.  Obviously a UA 
+</I>&gt;<i> shouldn't crash, but i believe that it is up to the UA to determine how 
+</I>&gt;<i> to achieve this -- eg. having a limit to allow a 1:1 relationship 
+</I>&gt;<i> between workers and processes will have a much lower limit than an 
+</I>&gt;<i> implementation that has a worker per thread model, or an m:n 
+</I>&gt;<i> relationship between workers and threads/processes.  Having the 
+</I>&gt;<i> specification limited simply because one implementation mechanism has 
+</I>&gt;<i> certain limits when there are many alternative implementation models 
+</I>&gt;<i> seems like a bad idea.
+</I>&gt;<i> 
+</I>&gt;<i> I believe if there's going to be any worker related limits, it should 
+</I>&gt;<i> realistically be a lower limit on the number of workers rather than an 
+</I>&gt;<i> upper.
+</I>
+On Tue, 9 Jun 2009, Jonas Sicking wrote:
+&gt;<i> 
+</I>&gt;<i> This is the solution that Firefox 3.5 uses. We use a pool of relatively 
+</I>&gt;<i> few OS threads (5 or so iirc). This pool is then scheduled to run worker 
+</I>&gt;<i> tasks as they are scheduled. So for example if you create 1000 worker 
+</I>&gt;<i> objects, those 5 threads will take turns to execute the initial scripts 
+</I>&gt;<i> one at a time. If you then send a message using postMessage to 500 of 
+</I>&gt;<i> those workers, and the other 500 calls setTimeout in their initial 
+</I>&gt;<i> script, the same threads will take turns to run those 1000 tasks (500 
+</I>&gt;<i> message events, and 500 timer callbacks).
+</I>&gt;<i> 
+</I>&gt;<i> This is somewhat simplified, and things are a little more complicated 
+</I>&gt;<i> due to how we handle synchronous network loads (during which we freeze 
+</I>&gt;<i> and OS thread and remove it from the pool), but the above is the basic 
+</I>&gt;<i> idea.
+</I>
+On Tue, 9 Jun 2009, Michael Nordman wrote:
+&gt;<i> 
+</I>&gt;<i> Thats a really good model. Scalable and degrades nicely. The only 
+</I>&gt;<i> problem is with very long running operations where a worker script 
+</I>&gt;<i> doesn't return in a timely fashion. If enough of them do that, all 
+</I>&gt;<i> others starve. What does FF do about that, or in practice do you 
+</I>&gt;<i> anticipate that not being an issue?
+</I>&gt;<i> 
+</I>&gt;<i> Webkit dedicates an OS thread per worker. Chrome goes even further (for 
+</I>&gt;<i> now at least) with a process per worker. The 1:1 mapping is probably 
+</I>&gt;<i> overkill as most workers will probably spend most of their life asleep 
+</I>&gt;<i> just waiting for a message.
+</I>
+On Thu, 11 Jun 2009, Robert O'Callahan wrote:
+&gt;<i> 
+</I>&gt;<i> You probably still want a global limit, or else malicious sites can DoS 
+</I>&gt;<i> your entire OS by spawning workers in many synthetic domains. Making the 
+</I>&gt;<i> limit per-eTLD instead of per-domain would help a bit, but maybe not 
+</I>&gt;<i> very much. Same goes for other kinds of resources; there's no really 
+</I>&gt;<i> perfect solution to DoS attacks against browsers, AFAICT.
+</I>
+On Wed, 10 Jun 2009, John Abd-El-Malek wrote:
+&gt;<i>
+</I>&gt;<i> The current thinking would be a smaller limit per page (i.e. includes 
+</I>&gt;<i> all iframes and external scripts), say around 16 workers.  Then a global 
+</I>&gt;<i> limit for all loaded pages, say around 64 or 128.  The benefit of two 
+</I>&gt;<i> limits is to reduce the chance of pages behaving differently depending 
+</I>&gt;<i> on what other sites are currently loaded.
+</I>&gt;<i>
+</I>&gt;<i> We plan on increasing these limits by a fair amount once we are able to 
+</I>&gt;<i> run multiple JS threads in a process.  It's just that even when we do 
+</I>&gt;<i> that, we'll still want to have some limits, and we wanted to use the 
+</I>&gt;<i> same approach now.
+</I>
+On Wed, 10 Jun 2009, Jonas Sicking wrote:
+&gt;<i> 
+</I>&gt;<i> We do see it as a problem, but not big enough of a problem that we
+</I>&gt;<i> needed to solve it in the initial version.
+</I>&gt;<i> 
+</I>&gt;<i> It's not really a problem for most types of calculations, as long as
+</I>&gt;<i> the number of threads is larger than the number of cores we'll still
+</I>&gt;<i> finish all tasks as quickly as the CPU is able to. Even for long
+</I>&gt;<i> running operations, if it's operations that the user wants anyway, it
+</I>&gt;<i> doesn't really matter if the jobs are running all in parallel, or
+</I>&gt;<i> staggered after each other. As long as you're keeping all CPU cores
+</I>&gt;<i> busy.
+</I>&gt;<i> 
+</I>&gt;<i> There are some scenarios which it doesn't work so well for. For
+</I>&gt;<i> example a worker that works more or less infinitely and produces more
+</I>&gt;<i> and more accurate results the longer it runs. Or something like a
+</I>&gt;<i> <A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">folding at home</A> website which performs calculations as long as the user
+</I>&gt;<i> is on a website and submits them to the server.
+</I>&gt;<i> 
+</I>&gt;<i> If enough of those workers are scheduled it will block everything else.
+</I>&gt;<i> 
+</I>&gt;<i> This is all solveable of course, there's a lot of tweaking we can do. 
+</I>&gt;<i> But we figured we wanted to get some data on how people use workers 
+</I>&gt;<i> before spending too much time developing a perfect scheduling solution.
+</I>
+On Wed, 10 Jun 2009, Michael Nordman wrote:
+&gt;<i> 
+</I>&gt;<i> I never did like the Gears model (1:1 mapping with a thread). We were 
+</I>&gt;<i> stuck with a strong thread affinity due to other constraints (script 
+</I>&gt;<i> engines, COM/XPCOM). But we could have allowed multiple workers to 
+</I>&gt;<i> reside in a single thread. A thread pool (perhaps per origin) sort of 
+</I>&gt;<i> arrangement, where once a worker was put on a particular thread it 
+</I>&gt;<i> stayed there until end-of-life.
+</I>&gt;<i> 
+</I>&gt;<i> Your FF model has more flexibility. Give a worker a slice (well where 
+</I>&gt;<i> slice == run-to-completion) on any thread in the pool, no thread 
+</I>&gt;<i> affinity whatsoever (if i understand correctly).
+</I>
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020864.html">[whatwg] Helping people seaching for content filtered by license
+</A></li>
+	<LI>Next message: <A HREF="020873.html">[whatwg] Limit on number of parallel Workers.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20865">[ date ]</a>
+              <a href="thread.html#20865">[ thread ]</a>
+              <a href="subject.html#20865">[ subject ]</a>
+              <a href="author.html#20865">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

@@ -1,0 +1,144 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Race condition in media load algorithm
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Race%20condition%20in%20media%20load%20algorithm&In-Reply-To=%3C4C5C0E82.8050809%40mit.edu%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="069963.html">
+   <LINK REL="Next"  HREF="070025.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Race condition in media load algorithm</H1>
+<!--htdig_noindex-->
+    <B>Boris Zbarsky</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Race%20condition%20in%20media%20load%20algorithm&In-Reply-To=%3C4C5C0E82.8050809%40mit.edu%3E"
+       TITLE="[whatwg] Race condition in media load algorithm">bzbarsky at MIT.EDU
+       </A><BR>
+    <I>Fri Aug  6 06:30:42 PDT 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="069963.html">[whatwg] Race condition in media load algorithm
+</A></li>
+        <LI>Next message: <A HREF="070025.html">[whatwg] Race condition in media load algorithm
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#69964">[ date ]</a>
+              <a href="thread.html#69964">[ thread ]</a>
+              <a href="subject.html#69964">[ subject ]</a>
+              <a href="author.html#69964">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On 8/6/10 4:04 AM, Philip J&#228;genstedt wrote:
+&gt;&gt;<i> See, this concept of &quot;a script&quot; is a funny one, given that scripts are
+</I>&gt;&gt;<i> reentrant, and that multiple different scripts can all be running at
+</I>&gt;&gt;<i> the same time, possibly with event loops nested in between on the
+</I>&gt;&gt;<i> conceptual callstack
+</I>&gt;<i>
+</I>&gt;<i> Well, what we really look at is an execution thread. When a script
+</I>&gt;<i> triggers a synchronous event handler or is otherwise suspended while
+</I>&gt;<i> waiting for another thread to finish, we will wait for the &quot;outermost&quot;
+</I>&gt;<i> suspended thread to finish executing. So, yeah, it's not completely
+</I>&gt;<i> trivial :)
+</I>
+That really doesn't sound like it maps well to the proposed HTML5 spec, 
+for what it's worth...  Of course it sounds like you're suggesting the 
+spec should be changed (without actually describing your changes in 
+speccable non-implementation-specific terms).
+
+&gt;&gt;<i> Who said anything about infinite loops?
+</I>&gt;<i>
+</I>&gt;<i> It's one way of a script not finishing.
+</I>
+OK, sure.  But if a script s busy-looping, I think we all agree that's 
+not considered a time when synchronous sections can be run.
+
+&gt;&gt;&gt;<i> If a script is showing a modal dialog, not loading a video in the
+</I>&gt;&gt;&gt;<i> background seems fine.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Why? It doesn't seem fine to me at all.
+</I>&gt;<i>
+</I>&gt;<i> My point is that no one uses modal dialogues
+</I>
+That's not the case, sadly.  Gecko had to implement them for compat 
+reasons, for example.
+
+In any case, modal dialogs are just one place where the issue arises. 
+Other situations per current spec that may or may not correspond to 
+threads being suspended in your model:
+
+1)  Spinning the event loop while the parser is blocked on a &lt;script&gt;
+     that's waiting on stylesheets to load.
+2)  Spinning the event loop at parse end waiting for deferred scripts.
+
+that seems to be it; the remaining cases are pauses in the spec.  That 
+said, I still think the behavior of pause (which you're proposing for 
+showModalDialog as well, I think) makes no sense; I'd much rather have 
+the showModalDialog behavior for things like sync XHR, alerts, etc.
+
+&gt;&gt;<i> It's possible that it can't. It would depend on the exact steps that
+</I>&gt;&gt;<i> run in the synchronous section, but since synchronous sections can't
+</I>&gt;&gt;<i> trigger script it might not be detectable at all.
+</I>&gt;<i>
+</I>&gt;<i> The most important things is that the following always alert 3
+</I>&gt;<i> (NETWORK_NO_SOURCE):
+</I>&gt;<i>
+</I>&gt;<i> &lt;!doctype html&gt;
+</I>&gt;<i> &lt;video&gt;
+</I>&gt;<i> &lt;source&gt;
+</I>&gt;<i> &lt;script&gt;alert(document.querySelector('video').networkState)&lt;/script&gt;
+</I>&gt;<i>
+</I>&gt;<i> In other words, the synchronous section must at the latest be run just
+</I>&gt;<i> before running an inline script.
+</I>
+OK, let's focus on the issue at hand; I agree that we're more likely to 
+get somewhere with that than with generalities.  What about this case:
+
+&lt;script&gt;
+   var v = document.createElement(&quot;video&quot;);
+   var s = document.createElement(&quot;source&quot;);
+   v.appendChild(s);
+   document.body.appendChild(v);
+   alert(v.networkState);
+&lt;/script&gt;
+
+Should this also run the synchronous section before returning from the 
+appendChild call, even though there's a script active?  If so, how does 
+that fit in with your proposal?  If not, how is this different from your 
+example?
+
+-Boris
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="069963.html">[whatwg] Race condition in media load algorithm
+</A></li>
+	<LI>Next message: <A HREF="070025.html">[whatwg] Race condition in media load algorithm
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#69964">[ date ]</a>
+              <a href="thread.html#69964">[ thread ]</a>
+              <a href="subject.html#69964">[ subject ]</a>
+              <a href="author.html#69964">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

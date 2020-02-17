@@ -1,0 +1,159 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Feedback on &quot;Video conferencing and peer-to-peer	communication&quot;
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Feedback%20on%20%22Video%20conferencing%20and%20peer-to-peer%0A%09communication%22&In-Reply-To=%3CBBF498F2D030E84AB1179E24D1AC41D612065F3187%40ESESSCMS0362.eemea.ericsson.se%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="073260.html">
+   <LINK REL="Next"  HREF="030929.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Feedback on &quot;Video conferencing and peer-to-peer	communication&quot;</H1>
+<!--htdig_noindex-->
+    <B>Stefan H&#229;kansson LK</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Feedback%20on%20%22Video%20conferencing%20and%20peer-to-peer%0A%09communication%22&In-Reply-To=%3CBBF498F2D030E84AB1179E24D1AC41D612065F3187%40ESESSCMS0362.eemea.ericsson.se%3E"
+       TITLE="[whatwg] Feedback on &quot;Video conferencing and peer-to-peer	communication&quot;">stefan.lk.hakansson at ericsson.com
+       </A><BR>
+    <I>Thu Mar 17 02:31:52 PDT 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="073260.html">[whatwg] Embedding custom hierarchical data
+</A></li>
+        <LI>Next message: <A HREF="030929.html">[whatwg] PeerConnection: encryption feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#30921">[ date ]</a>
+              <a href="thread.html#30921">[ thread ]</a>
+              <a href="subject.html#30921">[ subject ]</a>
+              <a href="author.html#30921">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>All,
+
+we've done a quick read through of the updated APIs and tools for &quot;Video conferencing and peer-to-peer communication&quot; from the latest whatwg html draft. Generally we think it is much improved over the last version, and especially a lot of details are clarified.
+
+There are detailed comments below. We know that some stuff has been deliberately left out, and some of the things have already been addressed (after we read) - but this is a compilation after a few persons read the draft, so please bear with us.
+
+Permission and UI (related to section 9.2)
+------------------------------------------
+It is not totally clear how the UI would work for granting access to use mics and cams, and furthermore how it would be possible to select several cameras (many terminals have both a front and a rear view camera) and then &quot;tell&quot; the web app which camera is which.
+
+COMMENT: A mail that also addresses the issues regarding multiple cameras: <A HREF="http://lists.whatwg.org/htdig.cgi/whatwg-whatwg.org/2011-March/030873.html">http://lists.whatwg.org/htdig.cgi/whatwg-whatwg.org/2011-March/030873.html</A>
+
+The spec says that the user-agent-specific prompt may allow user to select pre-recorded media. In that case, shouldn't it be possible to also create a Stream from a File/Blob object, containing media data?
+
+Stream API (9.3)
+----------------
+Shouldn't the &quot;ended&quot; event be call simply &quot;end&quot; to match the present tempus of the other events (&quot;pause&quot;, &quot;play&quot;)?
+
+The green box describes an attribute called paused which is not present in the Stream idls.
+
+The asynchronous StreamRecorder.getRecordedData should be void. Further, the StreamRecorder API doesn't seem to support stopping a recording without stopping the entire Stream. It feels unnecessary to continue recording a long-lived Stream to support future calls to getRecordedData if the intention was to simply record a few seconds. The idl below suggests a StreamRecorder where the recorded Blob can be accessed synchronously once available.
+
+   interface StreamRecorder {
+     void stop(); // stop the recorder (not the Stream being recorded)
+
+     readonly attribute boolean recording;
+     readonly Blob data;
+
+              attribute Function ondata; // or some other event name
+   };
+   StreamRecorder implements EventTarget;
+
+Streams in PeerConnection (9.4)
+-------------------------------
+a) We interpret the spec as &quot;addStream&quot; triggers a new ICE procedure that sets up a new &quot;channel&quot; (5-tuple) for the stream. Correct?
+
+b) Also related to addStream: it is not clear if the SDP (to be transmitted to the other end at getting the callback) contains all descriptions for all streams set up (minus the removed ones) so far or just the new one. The former would simplify SIP interop (re-invite).
+
+c) addStream is uni-directional, so in our interpretation the sdp-data transmitted from sender to receiver would indicate &quot;send-only&quot;. We guess (as mentioned above) from the description that a new ICE procedure would be deployed to set up a &quot;channel&quot; that is used for RTP (send direction) and RTCP (feedback). In many cases the service calls for symmetric flows, the two web apps would do &quot;addStream&quot; more or less simultaneously. Ideally, the &quot;channel&quot; (5-tuple) should be re-used. I am not sure how this can be accomplished.
+
+d). As you already mention, it is not defined how the application could influence the media format selected. It could be discussed to what level this should be possible. But the very least should be some kind of connection between the rendering (e.g. large area at screen, small area, mono, 5.1) and the selected format.
+
+Protection in PeerConnection(9.4)
+---------------------------------
+Unclear how to protect the &quot;PeerConnection data UDP media stream&quot; to be used by &quot;send()&quot; messages (sent with &quot;send&quot;) and streams. dTLS? SRTP? How to set up and exchange keys?
+Unclear how to protect the new &quot;channel&quot; set up by an ICE procedure at &quot;addStream&quot;. dTLS? SRTP? How to set up and exchange keys?
+
+Data in PeerConnection(send method 9.4)
+--------------------------------------
+It is stated that the data size can be up to 65467 bytes in &quot;send()&quot;. Our network guys tell us that this is unrealistic to get over such big chunks using UDP. You would need &quot;ack&quot; and &quot;re-transmission&quot; handling in JS for such large chunks. So maybe it is better to limit the size to one MTU, and if you like to send larger chunks you would have to split them up in the application.
+
+Event definition (9.6)
+----------------------
+The StreamEvent has a function called initCloseEvent.
+
+
+Br,
+Stefan
+
+
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="073260.html">[whatwg] Embedding custom hierarchical data
+</A></li>
+	<LI>Next message: <A HREF="030929.html">[whatwg] PeerConnection: encryption feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#30921">[ date ]</a>
+              <a href="thread.html#30921">[ thread ]</a>
+              <a href="subject.html#30921">[ subject ]</a>
+              <a href="author.html#30921">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

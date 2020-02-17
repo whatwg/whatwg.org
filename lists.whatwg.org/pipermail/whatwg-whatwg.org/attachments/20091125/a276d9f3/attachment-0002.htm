@@ -1,0 +1,57 @@
+<tt>
+On&nbsp;Wed,&nbsp;Nov&nbsp;25,&nbsp;2009&nbsp;at&nbsp;6:20&nbsp;AM,&nbsp;Ian&nbsp;Hickson&nbsp;&lt;span&nbsp;dir=&quot;ltr&quot;&gt;&lt;&lt;a&nbsp;href=&quot;mailto:ian@hixie.ch&quot;&gt;ian@hixie.ch&lt;/a&gt;&gt;&lt;/span&gt;&nbsp;wrote:&lt;br&gt;&lt;div&nbsp;class=&quot;gmail_quote&quot;&gt;&lt;blockquote&nbsp;class=&quot;gmail_quote&quot;&nbsp;style=&quot;margin:0&nbsp;0&nbsp;0&nbsp;.8ex;border-left:1px&nbsp;#ccc&nbsp;solid;padding-left:1ex;&quot;&gt;<br>
+<br>
+On&nbsp;Wed,&nbsp;4&nbsp;Nov&nbsp;2009,&nbsp;Rob&nbsp;Ennals&nbsp;wrote:&lt;br&gt;<br>
+&gt;&lt;br&gt;<br>
+&gt;&nbsp;How&nbsp;about&nbsp;this&nbsp;for&nbsp;a&nbsp;solution&nbsp;for&nbsp;the&nbsp;localStorage&nbsp;mutex&nbsp;problem:&nbsp;[...]&lt;br&gt;<br>
+&lt;br&gt;<br>
+Here&#39;s&nbsp;a&nbsp;proposal&nbsp;based&nbsp;on&nbsp;the&nbsp;recent&nbsp;feedback:&lt;br&gt;<br>
+&lt;br&gt;<br>
+*&nbsp;There&nbsp;is&nbsp;a&nbsp;per-origin&nbsp;mutex.&nbsp;It&nbsp;can&nbsp;be&nbsp;owned&nbsp;by&nbsp;either&nbsp;an&nbsp;event&nbsp;loop&lt;br&gt;<br>
+&nbsp; task&nbsp;or&nbsp;a&nbsp;network&nbsp;layer&nbsp;task.&lt;br&gt;<br>
+&lt;br&gt;<br>
+*&nbsp;Things&nbsp;that&nbsp;wait&nbsp;until&nbsp;their&nbsp;task&nbsp;owns&nbsp;the&nbsp;storage&nbsp;mutex:&lt;br&gt;<br>
+&nbsp; &nbsp;-&nbsp;script&nbsp;fetching&nbsp;document.cookie&lt;br&gt;<br>
+&nbsp; &nbsp;-&nbsp;script&nbsp;setting&nbsp;document.cookie&lt;br&gt;<br>
+&nbsp; &nbsp;-&nbsp;script&nbsp;reading&nbsp;or&nbsp;writing&nbsp;a&nbsp;property&nbsp;of,&nbsp;or&nbsp;calling&nbsp;a&nbsp;method&nbsp;on,&nbsp;or&lt;br&gt;<br>
+&nbsp; &nbsp; &nbsp;enumerating&nbsp;the&nbsp;properties&nbsp;of,&nbsp;the&nbsp;localStorage&nbsp;object&lt;br&gt;<br>
+&nbsp; &nbsp;-&nbsp;the&nbsp;network&nbsp;layer&nbsp;setting&nbsp;cookies&lt;br&gt;<br>
+&lt;br&gt;<br>
+*&nbsp;Things&nbsp;that&nbsp;release&nbsp;the&nbsp;storage&nbsp;mutex&nbsp;if&nbsp;their&nbsp;task&nbsp;owns&nbsp;it:&lt;br&gt;<br>
+&nbsp; &nbsp;-&nbsp;the&nbsp;network&nbsp;layer&nbsp;after&nbsp;it&nbsp;has&nbsp;set&nbsp;cookies&lt;br&gt;<br>
+&nbsp; &nbsp;-&nbsp;script&nbsp;calling&nbsp;a&nbsp;method&nbsp;implemented&nbsp;in&nbsp;native&nbsp;code&nbsp;on&nbsp;a&nbsp;host&nbsp;object&lt;br&gt;&lt;/blockquote&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;Is&nbsp;this&nbsp;a&nbsp;may&nbsp;or&nbsp;a&nbsp;must?&nbsp; As&nbsp;discussed,&nbsp;a&nbsp;may&nbsp;will&nbsp;result&nbsp;in&nbsp;different&nbsp;behaviors&nbsp;and&nbsp;strange&nbsp;bugs&nbsp;when&nbsp;someone&nbsp;develops&nbsp;on&nbsp;one&nbsp;browser&nbsp;and&nbsp;then&nbsp;tries&nbsp;to&nbsp;run&nbsp;their&nbsp;script&nbsp;on&nbsp;a&nbsp;different&nbsp;version&nbsp;of&nbsp;that&nbsp;browser&nbsp;or&nbsp;different&nbsp;browsers&nbsp;since&nbsp;they&nbsp;will&nbsp;probably&nbsp;have&nbsp;subtly&nbsp;different&nbsp;cases&nbsp;when&nbsp;they&#39;ll&nbsp;need&nbsp;to&nbsp;release&nbsp;the&nbsp;lock.&nbsp; If&nbsp;it&#39;s&nbsp;a&nbsp;must,&nbsp;then&nbsp;we&#39;ll&nbsp;take&nbsp;a&nbsp;small&nbsp;hit&nbsp;in&nbsp;all&nbsp;of&nbsp;our&nbsp;script&nbsp;binding&nbsp;code,&nbsp;but&nbsp;things&nbsp;will&nbsp;be&nbsp;more&nbsp;interoperable.&lt;/div&gt;<br>
+<br>
+&lt;div&gt; &lt;/div&gt;&lt;blockquote&nbsp;class=&quot;gmail_quote&quot;&nbsp;style=&quot;margin:0&nbsp;0&nbsp;0&nbsp;.8ex;border-left:1px&nbsp;#ccc&nbsp;solid;padding-left:1ex;&quot;&gt;<br>
+&nbsp; &nbsp;-&nbsp;script&nbsp;setting&nbsp;document.domain&lt;br&gt;<br>
+&nbsp; &nbsp;-&nbsp;a&nbsp;task&nbsp;ending&lt;br&gt;<br>
+&lt;br&gt;<br>
+Reading&nbsp;or&nbsp;writing&nbsp;a&nbsp;property&nbsp;on&nbsp;a&nbsp;native&nbsp;object&nbsp;doesn&#39;t&nbsp;do&nbsp;it,&nbsp;so&lt;br&gt;<br>
+&lt;br&gt;<br>
+&nbsp; &nbsp;window[&#39;x&#39;].document.forms[&#39;y&#39;].value&nbsp;=&nbsp;&#39;foo&#39;;&lt;br&gt;<br>
+&lt;br&gt;<br>
+...doesn&#39;t&nbsp;release&nbsp;the&nbsp;mutex,&nbsp;though&nbsp;this&nbsp;(identical&nbsp;code)&nbsp;would:&lt;br&gt;<br>
+&lt;br&gt;<br>
+&nbsp; &nbsp;window[&#39;x&#39;].document.forms.namedItem(&#39;y&#39;).value&nbsp;=&nbsp;&#39;foo&#39;;&lt;br&gt;<br>
+&lt;br&gt;<br>
+...because&nbsp;of&nbsp;namedItem()&nbsp;call.&lt;br&gt;<br>
+&lt;br&gt;<br>
+&lt;br&gt;<br>
+Is&nbsp;this&nbsp;unacceptable&nbsp;to&nbsp;anyone?&lt;br&gt;<br>
+&lt;br&gt;<br>
+Does&nbsp;anyone&nbsp;think&nbsp;that&nbsp;it&nbsp;would&nbsp;be&nbsp;better&nbsp;to&nbsp;enumerate&nbsp;a&nbsp;specific&nbsp;set&nbsp;of&lt;br&gt;<br>
+methods&nbsp;that&nbsp;reset&nbsp;the&nbsp;storage&nbsp;mutex&nbsp;instead?&nbsp;(i.e.&nbsp;the&nbsp;status&nbsp;quo)&lt;br&gt;<br>
+&lt;br&gt;<br>
+I&nbsp;am&nbsp;especially&nbsp;interested&nbsp;in&nbsp;opinions&nbsp;from&nbsp;browser&nbsp;vendors,&nbsp;and&nbsp;amongst&lt;br&gt;<br>
+those&nbsp;primarily&nbsp;those&nbsp;browser&nbsp;vendors&nbsp;actually&nbsp;implementing&nbsp;this&nbsp;now.&lt;br&gt;&lt;/blockquote&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;On&nbsp;the&nbsp;rest&nbsp;of&nbsp;the&nbsp;questions,&nbsp;I&nbsp;don&#39;t&nbsp;have&nbsp;a&nbsp;strong&nbsp;opinion.&nbsp; Maybe&nbsp;Darin&nbsp;(the&nbsp;other&nbsp;Chromium&nbsp;guy&nbsp;who&#39;s&nbsp;deep&nbsp;in&nbsp;the&nbsp;trenches&nbsp;with&nbsp;this&nbsp;stuff)&nbsp;will.&lt;/div&gt;<br>
+<br>
+&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;-----------------------------&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;I&nbsp;know&nbsp;that&nbsp;we&#39;ve&nbsp;discussed&nbsp;approximations&nbsp;of&nbsp;run&nbsp;to&nbsp;completion&nbsp;before,&nbsp;but&nbsp;maybe&nbsp;it&#39;s&nbsp;worth&nbsp;one&nbsp;more&nbsp;shot:&nbsp; What&nbsp;if&nbsp;on&nbsp;the&nbsp;first&nbsp;use&nbsp;of&nbsp;document.cookie&nbsp;or&nbsp;local&nbsp;storage&nbsp;we&nbsp;took&nbsp;a&nbsp;snapshot&nbsp;of&nbsp;both&nbsp;and&nbsp;used&nbsp;that&nbsp;during&nbsp;the&nbsp;task&#39;s&nbsp;execution.&nbsp; All&nbsp;writes&nbsp;would&nbsp;be&nbsp;queued&nbsp;up&nbsp;until&nbsp;the&nbsp;task&nbsp;finishes,&nbsp;at&nbsp;which&nbsp;point&nbsp;they&#39;d&nbsp;be&nbsp;written&nbsp;to&nbsp;the&nbsp;central&nbsp;version&nbsp;of&nbsp;the&nbsp;cookie&nbsp;and/or&nbsp;local&nbsp;storage.&nbsp; This&nbsp;would&nbsp;provide&nbsp;a consistent view&nbsp;of&nbsp;data&nbsp;for&nbsp;the&nbsp;duration&nbsp;of&nbsp;the&nbsp;task&nbsp;and&nbsp;would&nbsp;solve&nbsp;almost&nbsp;all&nbsp;the&nbsp;atomicity&nbsp;problems&nbsp;except&nbsp;|document.cookie&nbsp;=&nbsp;document.cookie&nbsp;+&nbsp;&quot;foo&quot;;|.&nbsp; For&nbsp;that,&nbsp;I&#39;d&nbsp;suggest&nbsp;adding&nbsp;a&nbsp;method&nbsp;that&nbsp;allows&nbsp;scripts&nbsp;to&nbsp;do&nbsp;atomic&nbsp;modifications&nbsp;to&nbsp;storage&nbsp;within&nbsp;a&nbsp;callback.&lt;/div&gt;<br>
+<br>
+&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;I&nbsp;can&nbsp;understand&nbsp;everyone&#39;s&nbsp;desire&nbsp;to&nbsp;have&nbsp;completely&nbsp;serializable&nbsp;semantics&nbsp;for&nbsp;local&nbsp;storage&nbsp;access&nbsp;and&nbsp;cookies&nbsp;(if&nbsp;you&nbsp;don&#39;t&nbsp;count&nbsp;the&nbsp;servers&#39;&nbsp;interaction&nbsp;with&nbsp;them),&nbsp;but&nbsp;maybe&nbsp;we&nbsp;need&nbsp;to&nbsp;go&nbsp;back&nbsp;to&nbsp;use&nbsp;cases.&nbsp; In&nbsp;a&nbsp;world&nbsp;with&nbsp;WebDatabase/WebSimpleDB,&nbsp;I&nbsp;really&nbsp;don&#39;t&nbsp;see&nbsp;anyone&nbsp;turning&nbsp;to&nbsp;LocalStorage&nbsp;except&nbsp;for&nbsp;more&nbsp;basic&nbsp;uses.&nbsp; Most&nbsp;of&nbsp;which&nbsp;I&#39;m&nbsp;guessing&nbsp;need consistent reads&nbsp;much&nbsp;more&nbsp;than&nbsp;serialization&nbsp;of&nbsp;everything.&lt;/div&gt;<br>
+<br>
+&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;And&nbsp;let&#39;s&nbsp;be&nbsp;realistic.&nbsp; IE&nbsp;has&nbsp;had&nbsp;this&nbsp;problem&nbsp;with&nbsp;document.cookie&nbsp;for&nbsp;a&nbsp;long&nbsp;time.&nbsp; And&nbsp;IE8&nbsp;now&nbsp;has&nbsp;this&nbsp;problem&nbsp;with&nbsp;localStorage.&nbsp; Given&nbsp;that&nbsp;in&nbsp;the&nbsp;best&nbsp;case&nbsp;(MS&nbsp;and&nbsp;all&nbsp;others&nbsp;implement&nbsp;the&nbsp;storage&nbsp;mutex)&nbsp;web&nbsp;developers&nbsp;will&nbsp;not&nbsp;be&nbsp;able&nbsp;to&nbsp;assume&nbsp;localStorage&nbsp;and&nbsp;document.cookie&nbsp;access&nbsp;is&nbsp;atomic&nbsp;for&nbsp;many&nbsp;years&nbsp;at&nbsp;a&nbsp;minimum,&nbsp;I&nbsp;think&nbsp;we&#39;re&nbsp;being&nbsp;pretty&nbsp;unrealistic&nbsp;about&nbsp;how&nbsp;much&nbsp;the&nbsp;storage&nbsp;mutex&nbsp;is&nbsp;going&nbsp;to&nbsp;improve&nbsp;anyone&#39;s&nbsp;life.&nbsp; Let&#39;s&nbsp;come&nbsp;up&nbsp;with&nbsp;an&nbsp;approximation,&nbsp;give&nbsp;developers&nbsp;a&nbsp;callback&nbsp;for&nbsp;atomic&nbsp;access,&nbsp;and&nbsp;be&nbsp;done&nbsp;with&nbsp;it.&lt;/div&gt;<br>
+<br>
+&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;J&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;P.S.&nbsp; Chrome&nbsp;is&nbsp;going&nbsp;to&nbsp;ship&nbsp;without&nbsp;locking,&nbsp;but&nbsp;since&nbsp;we&nbsp;auto-update&nbsp;all&nbsp;of&nbsp;our&nbsp;users,&nbsp;these&nbsp;problems&nbsp;won&#39;t&nbsp;necessarily&nbsp;persist&nbsp;for&nbsp;many&nbsp;years&nbsp;just&nbsp;because&nbsp;we&nbsp;shipped&nbsp;it.&lt;/div&gt;<br>
+<br>
+&lt;/div&gt;<br>
+
+</tt>

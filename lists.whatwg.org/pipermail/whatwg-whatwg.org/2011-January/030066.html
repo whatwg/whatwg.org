@@ -1,0 +1,194 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] ConnectionPeer experiences
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20ConnectionPeer%20experiences&In-Reply-To=%3CC1024C359E9D4C4EBC664A0111A52A3F04338EDE8E%40ESESSCMS0355.eemea.ericsson.se%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="030064.html">
+   <LINK REL="Next"  HREF="072340.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] ConnectionPeer experiences</H1>
+<!--htdig_noindex-->
+    <B>Patrik Persson J</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20ConnectionPeer%20experiences&In-Reply-To=%3CC1024C359E9D4C4EBC664A0111A52A3F04338EDE8E%40ESESSCMS0355.eemea.ericsson.se%3E"
+       TITLE="[whatwg] ConnectionPeer experiences">patrik.j.persson at ericsson.com
+       </A><BR>
+    <I>Wed Jan 26 01:04:22 PST 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="030064.html">[whatwg] (deferred) script tags with document.write built in
+</A></li>
+        <LI>Next message: <A HREF="072340.html">[whatwg] ConnectionPeer experiences
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#30066">[ date ]</a>
+              <a href="thread.html#30066">[ thread ]</a>
+              <a href="subject.html#30066">[ subject ]</a>
+              <a href="author.html#30066">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>We have done some experimentation with the ConnectionPeer API. We have
+an initial implementation of a subset of the API, using ICE (RFC 5245)
+for the peer-to-peer handshaking.  Our implementation is
+WebKit/GTK+/gstreamer-based, and we of course intend to submit it to
+WebKit, but the implementation is not quite ready for that yet.
+
+More information about our work so far can be found here:
+<A HREF="https://labs.ericsson.com/developer-community/blog/beyond-html5-peer-peer-conversational-video">https://labs.ericsson.com/developer-community/blog/beyond-html5-peer-peer-conversational-video</A>
+
+However, we have bumped into some details that we'd like to discuss
+here right away.  The following is our mix of proposals and questions.
+
+1. We propose adding a readyState attribute, to decouple the
+   onconnect() callback from any observers (such as the UI).
+
+      const unsigned short CONNECTING = 0;
+      const unsigned short CONNECTED = 1;
+      const unsigned short CLOSED = 2;
+      readonly attribute unsigned short readyState;
+
+2. We propose replacing the onstream event with custom events of type
+   RemoteStreamEvent, to distinguish between adding and removing
+   streams.
+
+      attribute Function onstreamadded;   // RemoteStreamEvent
+      attribute Function onstreamremoved; // RemoteStreamEvent
+      ...
+      interface RemoteStreamEvent : Event {
+         readonly attribute Stream stream;
+      };
+
+   The 'stream' attribute indicates which stream was added/removed.
+
+3. We propose renaming addRemoteConfiguration to
+   setRemoteConfiguration.  Our understanding of the ConnectionPeer is
+   that it provides a single-point-to-single-point connection; hence,
+   only one remote peer configuration is to be set, rather than many
+   to be added.
+
+      void setRemoteConfiguration(in DOMString configuration, in optional DOMString remoteOrigin);
+
+4. We propose swapping the ConnectionPeerConfigurationCallback
+   callback parameters. The current example seems to use only one (the
+   second one).  Swapping them allows clients that care about 'server'
+   to do so, and clients that ignore it (such as the current example)
+   to do so too.
+
+      [Callback=FunctionOnly, NoInterfaceObject]
+      interface ConnectionPeerConfigurationCallback {
+         void handleEvent(in DOMString configuration, in ConnectionPeer server);
+      };
+
+5. Should a size limit to text messages be specified? Text messages
+   with UDP-like behavior (unimportant=true) can't really be reliably
+   split into several UDP packets.  For such long chunks of data, file
+   transfer seems like a better option anyway.
+
+In summary, then, our proposal for a revised ConnectionPeer looks as follows:
+
+   [Constructor(in DOMString serverConfiguration)]
+   interface ConnectionPeer {
+      void sendText(in DOMString text, in optional boolean unimportant); // if second arg is true, then use unreliable low-latency transport (UDP-like), otherwise guarantee delivery (TCP-like)
+      attribute Function ontext; // receiving
+
+      void sendBitmap(in HTMLImageElement image);
+      attribute Function onbitmap; // receiving
+
+      void sendFile(in File file);
+      attribute Function onfile; // receiving
+
+      void addStream(in Stream stream, in optional DOMString metadata, in optional String mediaFormat);
+                               //Start stream, add meta data and encoding parameters
+      void removeStream(in Stream stream);
+      readonly attribute Stream[] localStreams;
+      readonly attribute Stream[] remoteStreams;
+
+      attribute Function onstreamadded; // receiving new stream
+      attribute Function onstreamremoved; // stream not received any more
+
+      void getLocalConfiguration(in ConnectionPeerConfigurationCallback callback); // maybe this should be in the constructor, or be an event
+      void setRemoteConfiguration(in DOMString configuration, in optional DOMString remoteOrigin); // remote origin is assumed to be same-origin if not specified. If specified, has to match remote origin (checked in handshake). Should support leading &quot;*.&quot; to mean &quot;any subdomain of&quot;.
+      void close(); // disconnects and stops listening
+
+      attribute Function onconnect;
+      attribute Function onerror;
+      attribute Function ondisconnect;
+
+      const unsigned short CONNECTING = 0;
+      const unsigned short CONNECTED = 1;
+      const unsigned short CLOSED = 2;
+      readonly attribute unsigned short readyState;
+   };
+
+   interface RemoteStreamEvent : Event {
+      readonly attribute Stream stream;
+   };
+
+   [Callback=FunctionOnly, NoInterfaceObject]
+   interface ConnectionPeerConfigurationCallback {
+      void handleEvent(in DOMString configuration, in ConnectionPeer server);
+   };
+
+What do you think?
+
+In addition to the above there is a need to add support for
+identifying streams (so that the receiving end can use the right
+element for rendering) and for influencing the media format.  Those
+parts we're still working on.
+
+--
+   Patrik Persson, Ericsson Research
+   mailto:<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">patrik.j.persson at ericsson.com</A>
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="030064.html">[whatwg] (deferred) script tags with document.write built in
+</A></li>
+	<LI>Next message: <A HREF="072340.html">[whatwg] ConnectionPeer experiences
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#30066">[ date ]</a>
+              <a href="thread.html#30066">[ thread ]</a>
+              <a href="subject.html#30066">[ subject ]</a>
+              <a href="author.html#30066">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

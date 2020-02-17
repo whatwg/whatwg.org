@@ -1,0 +1,183 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Global Script proposal.
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Global%20Script%20proposal.&In-Reply-To=%3CPine.LNX.4.62.0908291902440.6775%40hixie.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="064465.html">
+   <LINK REL="Next"  HREF="064740.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Global Script proposal.</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Global%20Script%20proposal.&In-Reply-To=%3CPine.LNX.4.62.0908291902440.6775%40hixie.dreamhostps.com%3E"
+       TITLE="[whatwg] Global Script proposal.">ian at hixie.ch
+       </A><BR>
+    <I>Sat Aug 29 14:40:29 PDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="064465.html">[whatwg] Global Script proposal.
+</A></li>
+        <LI>Next message: <A HREF="064740.html">[whatwg] Global Script proposal.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#64730">[ date ]</a>
+              <a href="thread.html#64730">[ thread ]</a>
+              <a href="subject.html#64730">[ subject ]</a>
+              <a href="author.html#64730">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Mon, 17 Aug 2009, Dmitry Titov wrote:
+&gt;<i> 
+</I>&gt;<i> Currently there is no mechanism to directly share DOM, code and data on 
+</I>&gt;<i> the same ui thread across several pages of the web application. 
+</I>&gt;<i> Multi-page applications and the sites that navigate from page to page 
+</I>&gt;<i> would benefit from having access to a shared &quot;global script context&quot; 
+</I>&gt;<i> (naming?) with direct synchronous script access and ability to 
+</I>&gt;<i> manipulate DOM.
+</I>
+This feature is of minimal use if there are multiple global objects per 
+application. For instance, if each instance of GMail results in a separate 
+global object, we really haven't solved the problem this is setting out to 
+solve. We can already get a hold of the Window objects of subwindows (e.g. 
+for popping out a chat window), which effectively provides a global 
+object for those cases, so it's only an interesting proposal if we can 
+guarantee global objects to more than just those.
+
+However, we can't. Given that all frames in a browsing context have to be 
+on the same thread, regardless of domain, then unless we put all the 
+browsing contexts on the same thread, we can't guarantee that all frames 
+from the same domain across all browsing contexts will be on the same 
+thread.
+
+But further, we actually wouldn't want to anyway. One of the goals of 
+having multiple processes is that if one tab crashes, the others don't. We 
+wouldn't want one GMail crash to take down all GMail, Google Calendar, 
+Google Chat, Google Reader, Google Search, and Google Voice tabs at once, 
+not to mention all the blogs that happened to use Google AdSense.
+
+Furthermore, consider performance going forward. CPUs have pretty much 
+gotten as fast as they're getting -- all further progress is going to be 
+in making multithreaded applications that use as many CPUs as possible. We 
+should actively moving away from single-threaded designs towards 
+multithreaded designs. A shared global script is firmly in the old way of 
+doing things, and won't scale going forward.
+
+
+&gt;<i> Chat application opens separate window for each conversation. Any opened 
+</I>&gt;<i> window may be closed and user expectation is that remaining windows 
+</I>&gt;<i> continue to work fine. Loading essentially whole chat application and 
+</I>&gt;<i> maintaining data structures (roster) in each window takes a lot of 
+</I>&gt;<i> resources and cpu.
+</I>
+Use a shared worker.
+
+I know that some consider the asynchronous interaction with workers to be 
+a blocker problem, but I don't really understand why. We already have to 
+have asynchronous communication with the server, which holds the roster 
+data structure, and so on. What difference does it make if instead of 
+talking to the server, you talk to a worker?
+
+
+&gt;<i> Finance site could open multiple windows to show information about 
+</I>&gt;<i> particular stocks. At the same time, each page often includes data-bound 
+</I>&gt;<i> UI components reflecting real-time market data, breaking news etc. It is 
+</I>&gt;<i> very natural to have a shared context which can be directly accessed by 
+</I>&gt;<i> UI on those pages, so only one set of info is maintained.
+</I>
+Again, use a shared worker. The UI side of things can be quite dumb, with 
+data pushed to it from a shared worker.
+
+
+&gt;<i> A game may open multiple windows sharing the same model to provide 
+</I>&gt;<i> different views at the game objects (as in flight simulator).
+</I>
+You wouldn't even want the logic (simulator) in this case to be on the 
+same thread as the renderers. In fact ideally you'd want everything on a 
+different thread so that you got the best performance out of the system 
+-- each renderer, each simulator, etc.
+
+
+&gt;<i> In an email application, a user may want to open a separate &quot;compose&quot; 
+</I>&gt;<i> window for a new email, often after she started to &quot;answer in place&quot; but 
+</I>&gt;<i> realized she'd like to look up something else in the mailbox for the 
+</I>&gt;<i> answer. This could be an instantaneous operation if the whole html tree 
+</I>&gt;<i> and the compose editor script were shared.
+</I>
+This is possible without a shared global script -- it's possible now, in 
+fact. Just open a window, and graft the DOM tree from the original window 
+into the new window.
+
+
+&gt;<i> Such multiple-window use cases could be simpler and use much less 
+</I>&gt;<i> resources if they had access to a shared Global Script Context so there 
+</I>&gt;<i> is no need to re-initialize and maintain the same state in all the 
+</I>&gt;<i> pages. Having direct, same-thread DOM/JS access to this context makes it 
+</I>&gt;<i> possible to avoid loading and initialization of repetitive code and 
+</I>&gt;<i> data, makes separate 'UI windows' simpler and independent.
+</I>
+There's no need for this case to use shared _global_ script; a shared 
+script just between the original window and the popped-out window is 
+sufficient (and already supported).
+
+
+&gt;<i> Another case is an application that uses navigation from page to page using
+</I>&gt;<i> menu or some site navigation mechanism. Global Script Context could keep the
+</I>&gt;<i> application state so it doesn't have to be round-tripped via server in a
+</I>&gt;<i> cookie or URL.
+</I>
+You can keep the state using sessionStorage or localStorage, or you can 
+use pushState() instead of actual navigation.
+
+
+
+I haven't added the Global Script Object proposal to HTML5. Even if we 
+were to add it to the platform, it would probably belong in its own 
+specification rather than in the HTML spec. We would also probably need 
+implementation experience before specifying it. But I really don't think 
+it is the direction we should be taking the platform in. Granted, 
+programmers today don't want to use threads -- but, well, tough. All 
+indications are that that's what the programming model of the next few 
+decades is going to be; now is the time to move that way. We shouldn't be 
+adding features that actually move us back to the single-threaded world.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="064465.html">[whatwg] Global Script proposal.
+</A></li>
+	<LI>Next message: <A HREF="064740.html">[whatwg] Global Script proposal.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#64730">[ date ]</a>
+              <a href="thread.html#64730">[ thread ]</a>
+              <a href="subject.html#64730">[ subject ]</a>
+              <a href="author.html#64730">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

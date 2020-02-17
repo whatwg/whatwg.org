@@ -1,0 +1,370 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] srcdoc=&quot;&quot; feedback
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20srcdoc%3D%22%22%20feedback&In-Reply-To=%3CPine.LNX.4.64.1011112319410.26618%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="029030.html">
+   <LINK REL="Next"  HREF="071307.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] srcdoc=&quot;&quot; feedback</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20srcdoc%3D%22%22%20feedback&In-Reply-To=%3CPine.LNX.4.64.1011112319410.26618%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg] srcdoc=&quot;&quot; feedback">ian at hixie.ch
+       </A><BR>
+    <I>Mon Nov 15 13:46:48 PST 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="029030.html">[whatwg] Reserved browsing context names
+</A></li>
+        <LI>Next message: <A HREF="071307.html">[whatwg] srcdoc=&quot;&quot; feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#29033">[ date ]</a>
+              <a href="thread.html#29033">[ thread ]</a>
+              <a href="subject.html#29033">[ subject ]</a>
+              <a href="author.html#29033">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Mon, 9 Aug 2010, Justin Schuh wrote:
+&gt;<i>
+</I>&gt;<i> I'm working on implementing iframe.srcdoc in WebKit, and section 2.5.1 
+</I>&gt;<i> states:
+</I>&gt;<i> 
+</I>&gt;<i> &quot;This specification defines the URL about:srcdoc as a reserved, though 
+</I>&gt;<i> unresolvable, about: URI, that is used as the document's address of 
+</I>&gt;<i> iframe srcdoc documents.&quot;
+</I>&gt;<i> 
+</I>&gt;<i> It seems like it would make more sense for the address to be the data 
+</I>&gt;<i> URL of the frame's document. This would be easier to implement in 
+</I>&gt;<i> WebKit, and I expect other data URL supporting browsers as well. Is 
+</I>&gt;<i> there some reasoning I'm missing for the decision to use about:srcdoc?
+</I>
+My concern is that using data: would be too easy for implementors, leading 
+to some subtle yet very hard to fix bugs. :-)
+
+For example, the origin handling for data: URLs and srcdoc=&quot;&quot; is not 
+intended to be identical (though it might be currently, I haven't 
+checked). Yet if we reuse data:, it's likely that implementations will 
+make it identical regardless of what the spec says. There's also the 
+DOCTYPE/quirks issue, where a data: document might act differently if 
+opened in its own tab than if put in using srcdoc=&quot;&quot;.
+
+
+On Thu, 26 Aug 2010, Justin Schuh wrote:
+&gt;<i>
+</I>&gt;<i> What should the baseURL and referrer be for a @srcdoc nested browsing 
+</I>&gt;<i> context?
+</I>
+The base URL was &quot;about:srcdoc&quot;. Oops. Fixed to be the base URL of the 
+parent document, like about:blank. (Be careful when implementing this to 
+follow the chain all the way up in the case of nested srcdoc iframes.)
+
+
+&gt;<i> The referrer seems trickier. I couldn't find the about:blank referrer 
+</I>&gt;<i> behavior specified anywhere, and in my testing it does not inherit the 
+</I>&gt;<i> creator document's referrer. However, it seems to me that maybe 
+</I>&gt;<i> about:srcdoc should, even if about:blank does not.
+</I>
+When the srcdoc=&quot;&quot; is used with sandbox=&quot;&quot; set without allow-same-origin, 
+the Referer header is omitted.
+
+At other times, you are correct that it wasn't well-defined (it was 
+theoretically required to be &quot;about:srcdoc&quot;). I've updated the fetching 
+algorithm to make about:srcdoc documents use the parent document's URL in 
+such situations (again going up the iframe chain until it hits a 
+non-srcdoc document).
+
+
+On Mon, 30 Aug 2010, Tab Atkins Jr. wrote:
+&gt;<i>
+</I>&gt;<i> While talking with the implementor of @srcdoc in Webkit, it came up 
+</I>&gt;<i> that, though @srcdoc is *designed* for use with @sandbox, the author 
+</I>&gt;<i> still has to explicitly add @sandbox to the &lt;iframe&gt; or else they don't 
+</I>&gt;<i> get the sandbox security model.
+</I>&gt;<i> 
+</I>&gt;<i> Can we make this automatic?  Specifically, when &lt;iframe 
+</I>&gt;<i> srcdoc=foo&gt;&lt;/iframe&gt; is specified (without @sandbox), it drops into the 
+</I>&gt;<i> sandbox security model as if &lt;iframe sandbox srcdoc=foo&gt;&lt;/iframe&gt; was 
+</I>&gt;<i> used.  If @sandbox is explicitly added, its value is instead used, so 
+</I>&gt;<i> the author can set the sandbox security flags if desired.
+</I>&gt;<i> 
+</I>&gt;<i> This would mean that there is no way for an author to use @srcdoc 
+</I>&gt;<i> *without* sandboxing.  This appears to be a minority use-case in the 
+</I>&gt;<i> first place (as far as I can tell, it's pretty much just useful for 
+</I>&gt;<i> testing purposes), but the author can always use a data: url in that 
+</I>&gt;<i> case.
+</I>
+On Mon, 30 Aug 2010, Maciej Stachowiak wrote:
+&gt;<i> 
+</I>&gt;<i> I think it's better to let these remain orthogonal features. In general 
+</I>&gt;<i> I think it is a net negative to usability when Feature A implicitly 
+</I>&gt;<i> turns on Feature B. Implicit relationships like this make the Web 
+</I>&gt;<i> platform more confusing.
+</I>
+On Mon, 30 Aug 2010, Tab Atkins Jr. wrote:
+&gt;<i> 
+</I>&gt;<i> While I agree with you in general, in this particular case I cannot. 
+</I>&gt;<i> @srcdoc wasn't designed as an orthogonal feature - it was explicitly 
+</I>&gt;<i> built with @sandbox in mind, to allow authors to shove generic content 
+</I>&gt;<i> into the sandbox without incurring a network request.  It has only niche 
+</I>&gt;<i> technical use outside the context of @sandbox.
+</I>&gt;<i> 
+</I>&gt;<i> Further, omitting @sandbox seems like an easy mistake to make, and one 
+</I>&gt;<i> that you won't realize is a mistake until an attack gets through. 
+</I>&gt;<i> Avoiding that sort of security model was precisely why @srcdoc was 
+</I>&gt;<i> designed the way it was - we want to make it hard to fail, and obvious 
+</I>&gt;<i> when you do.
+</I>
+On Mon, 30 Aug 2010, Maciej Stachowiak wrote:
+&gt;<i> 
+</I>&gt;<i> Should @seamless imply @sandbox too, then?
+</I>
+On Mon, 30 Aug 2010, Adam Barth wrote:
+&gt;<i> 
+</I>&gt;<i> I think there lots of use cases for seamless that don't require sandbox.  
+</I>&gt;<i> For example, suppose a site wants to show a login form on many pages by 
+</I>&gt;<i> only wants to implement the login logic once.  It's entirely reasonable 
+</I>&gt;<i> to wish to place the login form in a seamless iframe.  If we required 
+</I>&gt;<i> @sandbox for seamless, that would interfere with the login form working 
+</I>&gt;<i> properly with password managers.
+</I>
+On Mon, 30 Aug 2010, Ojan Vafai wrote:
+&gt;<i> 
+</I>&gt;<i> I'm not convinced this is that small of a use-case even if it's not the 
+</I>&gt;<i> primary one. We should provide a way to turn off sandboxing if we're 
+</I>&gt;<i> going to make it the default for anything.
+</I>
+On Mon, 30 Aug 2010, Tab Atkins Jr. wrote:
+&gt;<i> 
+</I>&gt;<i> Precisely; @seamless was *not* designed with the intention of always 
+</I>&gt;<i> being used with @sandbox.  It's just a nice feature to have for 
+</I>&gt;<i> &lt;iframe&gt;s in general.  So there's no real connection between @seamless 
+</I>&gt;<i> and @sandbox like there is between @srcdoc and @sandbox.
+</I>
+On Mon, 30 Aug 2010, Maciej Stachowiak wrote:
+&gt;<i> 
+</I>&gt;<i> @seamless was in fact designed to help @sandbox meet more use cases (in 
+</I>&gt;<i> particular ones where embedding untrusted content in a fixed rect is not 
+</I>&gt;<i> sufficient). But it can be used without @sandbox, and has some plausible 
+</I>&gt;<i> uses along those lines, though they were not the initial use cases 
+</I>&gt;<i> considered. LIkewise for @srcdoc. Indeed, many use cases are well-served 
+</I>&gt;<i> by using all three in tandem.
+</I>&gt;<i> 
+</I>&gt;<i> My point being, don't mix up orthogonal features in arbitrary ways. If 
+</I>&gt;<i> @srcdoc implies @sandbox, but @seamless does not, someone reviewing for 
+</I>&gt;<i> security has to remember exactly which set of similar-sounding 
+</I>&gt;<i> attributes cause sandboxing, instead of following the simple rule &quot;just 
+</I>&gt;<i> look for @sandbox&quot;. Things are clearer when security policy is explicit, 
+</I>&gt;<i> and not implied by non-security behaviors.
+</I>
+On Tue, 31 Aug 2010, Justin Schuh wrote:
+&gt;<i> 
+</I>&gt;<i> As someone who spends the majority of his time doing security 
+</I>&gt;<i> assessments and code audits, I disagree. I'd happily accept an easily 
+</I>&gt;<i> reducible false positive over a feature that simply fails open with no 
+</I>&gt;<i> security whatsoever. My reasoning here is that the vast majority of 
+</I>&gt;<i> software doesn't get security reviews, which is why secure defaults are 
+</I>&gt;<i> generally far more effective. This is particularly true when you 
+</I>&gt;<i> consider that misuse of @seamless or @srcdoc will fail obviously and 
+</I>&gt;<i> quickly in nearly all applications. However, a missing @sandbox is just 
+</I>&gt;<i> the kind of thing that's very likely to go undetected.
+</I>
+On Mon, 30 Aug 2010, Justin Schuh wrote:
+&gt;<i> 
+</I>&gt;<i> Security features are typically effective only when deployed in concert 
+</I>&gt;<i> and when they default to their most restrictive state. As I understand, 
+</I>&gt;<i> srcdoc is intended primarily as a security feature (because non-security 
+</I>&gt;<i> use cases already have solutions). So, srcdoc should behave like a 
+</I>&gt;<i> well-spec'd security feature and provide it's strongest level of 
+</I>&gt;<i> protection by default, requiring the author to scale it back if needed. 
+</I>&gt;<i> Otherwise we'll end up with common vulnerable cases because many people 
+</I>&gt;<i> will expect secure default behavior, regardless of whether or not we 
+</I>&gt;<i> spec it.
+</I>
+I considered this, but I'm not a fan of &quot;silent&quot; features like this -- I 
+find that while they initially make sense, it's easy to end up in a 
+situation where all the &quot;magic&quot; interacts in very confusing ways.
+
+Also, IMHO it's easier to review &lt;iframe&gt; for security now than it would 
+be if we made sandbox=&quot;&quot; silently apply sometimes: If sandbox=&quot;&quot; is 
+specified, you have a sandbox, otherwise you don't. So anytime you see 
+&lt;iframe&gt;, look for sandbox=&quot;&quot;.
+
+
+
+On Mon, 30 Aug 2010, Justin Schuh wrote:
+&gt;<i> 
+</I>&gt;<i> Data URLs already provide this. And if convenience is the primary goal, 
+</I>&gt;<i> it seems like there are much better ways to implement the same feature.
+</I>
+Such as what?
+
+
+On Mon, 30 Aug 2010, Justin Schuh wrote:
+&gt;<i> 
+</I>&gt;<i> However, maybe I'm missing something. Could you give a scenario where 
+</I>&gt;<i> the convenience factor is significant, and not already served by another 
+</I>&gt;<i> feature?
+</I>
+On Tue, 31 Aug 2010, Maciej Stachowiak wrote:
+&gt;<i> 
+</I>&gt;<i> You can use sandboxing with a data: URI by also specifying the &quot;sandbox&quot; 
+</I>&gt;<i> attribute. As currently specified, srcdoc is almost entirely syntactic 
+</I>&gt;<i> sugar.
+</I>
+On Tue, 31 Aug 2010, Tab Atkins Jr. wrote:
+&gt;<i> 
+</I>&gt;<i> What use-case are you trying to address that you think the suggestion in 
+</I>&gt;<i> this thread (make @srcdoc imply @sandbox) is incompatible with?  At the 
+</I>&gt;<i> moment it appears that you're confused about the goal of the change I'm 
+</I>&gt;<i> suggesting, but I could just be missing something.
+</I>
+Another use case for &lt;iframe srcdoc=&quot;&quot;&gt; is the kind of thing where today 
+you have to have a blank.html file to provide the initial contents of a 
+frame that you'll be populating with other pages (e.g. help contents in a 
+help viewer). With srcdoc=&quot;&quot; you can now conveniently put the original 
+document in the same file as the &lt;iframe&gt;:
+
+   &lt;iframe seamless srcdoc=&quot;&lt;p&gt;Select a topic from the list.&quot;&gt;&lt;/iframe&gt;
+
+It's very convenient because you can then use either a script setting 
+src=&quot;&quot; directly or regular &lt;a href=&quot;&quot; target=&quot;&quot;&gt; to update the iframe. The 
+latter is useful if you want the back/forward button to work, the former 
+is best if you want to handle that yourself or if you ever want to be able 
+to go back to the default (just remove the 'src' attribute and it'll flip 
+back to the default).
+
+
+On Mon, 30 Aug 2010, Tab Atkins Jr. wrote:
+&gt;<i> 
+</I>&gt;<i> As a seperate issue, a @srcdoc &lt;iframe&gt; should be able to receive 
+</I>&gt;<i> @seamless as well
+</I>
+Done.
+
+
+&gt;<i> even when it's officially unique-origin (that is, when the author 
+</I>&gt;<i> doesn't go out of their way to set @sandbox=allow-same-origin). There is 
+</I>&gt;<i> precedent for this in the spec - a text/html-sandboxed resource loaded 
+</I>&gt;<i> into an iframe (which is required to be unique-origin) can receive 
+</I>&gt;<i> @seamless, because it's not &quot;actually&quot; cross-origin; it only acts that 
+</I>&gt;<i> way for particular security purposes which don't apply to the use of 
+</I>&gt;<i> @seamless here.
+</I>
+There's nothing special about text/html-sandboxed here -- anything whose 
+URL is from the same origin is allowed to be seamless, even if it is 
+sandboxed with sandbox=&quot;&quot;.
+
+
+On Sun, 12 Sep 2010, Justin Schuh wrote:
+&gt;<i>
+</I>&gt;<i> Currently, section 2.5.1 states that about:srcdoc should not be navigable:
+</I>&gt;<i> 
+</I>&gt;<i>     &quot;This specification defines the URL about:srcdoc as a reserved, though
+</I>&gt;<i>      unresolvable, about: URI, that is used as the document's address of iframe
+</I>&gt;<i>      srcdoc documents.&quot;
+</I>
+That's not quite what that means, technically. The about: spec basically 
+says that the above results in about:srcdoc doing the same as 
+about:foobar, where &quot;foobar&quot; is some value the UA made up but didn't 
+publicly define (e.g. about:mozilla, about:config, about:cache...).
+
+
+&gt;<i> In working on the WebKit implementation I've found that this requirement 
+</I>&gt;<i> would necessitate major changes to the navigation and document loading 
+</I>&gt;<i> implementation. Additionally, I do think there should be a simple method 
+</I>&gt;<i> of navigating to the iframe's srcdoc browsing context. (As currently 
+</I>&gt;<i> described, this can be triggered only by modifying @srcdoc from an 
+</I>&gt;<i> outer, same origin browsing context.)
+</I>
+I don't quite follow what you mean.
+
+
+&gt;<i> So, I propose making about:srcdoc resolvable when the srcdoc attribute 
+</I>&gt;<i> is present on the iframe. It should be unresolvable only when navigated 
+</I>&gt;<i> to on a browsing context that is not an iframe with @srcdoc set.
+</I>
+I don't know what you mean.
+
+
+On Sun, 12 Sep 2010, Anne van Kesteren wrote:
+&gt;<i> 
+</I>&gt;<i> Resolvable is a term the about URL scheme draft uses to determine 
+</I>&gt;<i> whether a given about URL returns a resource or not when used somewhere. 
+</I>&gt;<i> E.g. about:blank resolves to a text/html resource consisting of the 
+</I>&gt;<i> empty string. That about:srcdoc does not resolve does not mean its 
+</I>&gt;<i> browsing context cannot be navigated.
+</I>
+On Sun, 12 Sep 2010, Justin Schuh wrote:
+&gt;<i>
+</I>&gt;<i> Sorry, that was a dumb terminology error in my original email; it should 
+</I>&gt;<i> have read &quot;the iframe's srcdoc *document*&quot; and not &quot;browsing context.&quot;
+</I>&gt;<i> 
+</I>&gt;<i> However, I believe the proposal as I originally framed it is still 
+</I>&gt;<i> accurate. I'm suggesting that navigating to the about:srcdoc on an 
+</I>&gt;<i> iframe with a @srdoc attribute should resolve to the srcdoc document. 
+</I>&gt;<i> Whereas, as I read the current spec, it would be unresolvable.
+</I>
+I don't understand. Do you mean that if the user clicks on a link like &lt;a 
+href=&quot;about:srcdoc&quot;&gt;this&lt;/a&gt; inside an &lt;iframe srcdoc='like &lt;a   
+href=&quot;about:srcdoc&quot;&gt;this&lt;/a&gt;'&gt;, the page should reload? That seems weird. 
+Why would we do that?
+
+If you mean just that location.reload() should work in a srcdoc iframe, 
+then that's a different matter... I agree that that would make sense. I've 
+updated the spec accordingly.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="029030.html">[whatwg] Reserved browsing context names
+</A></li>
+	<LI>Next message: <A HREF="071307.html">[whatwg] srcdoc=&quot;&quot; feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#29033">[ date ]</a>
+              <a href="thread.html#29033">[ thread ]</a>
+              <a href="subject.html#29033">[ subject ]</a>
+              <a href="author.html#29033">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

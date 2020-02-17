@@ -1,0 +1,198 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Comments on the definition of a valid e-mail address
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Comments%20on%20the%20definition%20of%20a%20valid%20e-mail%20address&In-Reply-To=%3C7c2a12e20908231241t6dd69956h8e1d4bc348a6b343%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="064752.html">
+   <LINK REL="Next"  HREF="064494.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Comments on the definition of a valid e-mail address</H1>
+<!--htdig_noindex-->
+    <B>Aryeh Gregor</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Comments%20on%20the%20definition%20of%20a%20valid%20e-mail%20address&In-Reply-To=%3C7c2a12e20908231241t6dd69956h8e1d4bc348a6b343%40mail.gmail.com%3E"
+       TITLE="[whatwg] Comments on the definition of a valid e-mail address">Simetrical+w3c at gmail.com
+       </A><BR>
+    <I>Sun Aug 23 12:41:12 PDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="064752.html">[whatwg] HTML 5 drag and drop feedback
+</A></li>
+        <LI>Next message: <A HREF="064494.html">[whatwg] Comments on the definition of a valid e-mail address
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#64493">[ date ]</a>
+              <a href="thread.html#64493">[ thread ]</a>
+              <a href="subject.html#64493">[ subject ]</a>
+              <a href="author.html#64493">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Section 4.10.4.1.5 defines a valid e-mail address as follows:
+
+&quot;A valid e-mail address is a string that matches the production
+dot-atom-text &quot;@&quot; dot-atom-text where dot-atom-text is defined in RFC
+5322 section 3.2.3. [RFC5322]&quot;
+
+This is much more restrictive than the full range of e-mail addresses
+allowed by RFC 5322 et al.  I've been considering whether to use
+&lt;input type=email&gt; in MediaWiki, and whether to change our server-side
+e-mail address validation to match.  Historically, MediaWiki has
+mostly just required that an @ symbol be present in the address.
+Originally we used a simplistic regex, but when users complained, we
+looked into the RFCs and decided it was too complicated to bother with
+validation beyond checking for an @ sign.
+
+So before switching us over, I decided to do some research on how many
+users' addresses would be invalidated.  I used the database for the
+English Wikipedia.  Over all registered users, I found 3,088,880
+confirmed addresses, not necessarily all distinct.  (&quot;Confirmed&quot; here
+means that in theory, modulo bugs, the user followed a confirmation
+link in the e-mail they received, so the address probably works in
+practice.)  Of those, 3,255 (~0.1%) failed HTML 5 validation, as
+determined using the following regex-based database query:
+
+<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">root at rosemary</A>:enwiki&gt; SELECT COUNT(*) FROM user WHERE
+user_email_authenticated IS NOT NULL AND user_email NOT REGEXP
+'^[-a-zA-Z0-9!#$%&amp;\'*+/=?^_`{|}~]+(\.[-a-zA-Z0-9!#$%&amp;\'*+/=?^_`{|}~]+)*@[-a-zA-Z0-9!#$%&amp;\'*+/=?^_`{|}~]+(\.[-a-zA-Z0-9!#$%&amp;\'*+/=?^_`{|}~]+)*$'
+AND user_email != '';
++----------+
+|<i> COUNT(*) |
+</I>+----------+
+|<i>     3255 |
+</I>+----------+
+1 row in set (16 min 10.80 sec)
+
+(Someone please tell me if my regex doesn't match HTML 5 here.)
+
+Inspection showed that the overwhelming majority of the failures were
+due to the presence of excess whitespace, often a single trailing
+space, or a space inserted before or after the @ sign.  When I
+adjusted the regex to ignore those failures, I got a smaller list, 202
+(about 0.007% of the total):
+
+<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">root at rosemary</A>:enwiki&gt; SELECT CONCAT('&quot;', user_email, '&quot;'),
+user_email_authenticated FROM user WHERE user_email_authenticated IS
+NOT NULL AND user_email NOT REGEXP '^[
+\t\n]*[-a-zA-Z0-9!#$%&amp;\'*+/=?^_`{|}~
+\t\n]+(\.[-a-zA-Z0-9!#$%&amp;\'*+/=?^_`{|}~
+\n\t]+)*@[-a-zA-Z0-9!#$%&amp;\'*+/=?^_`{|}~
+\n\t]+(\.[-a-zA-Z0-9!#$%&amp;\'*+/=?^_`{|}~ \n\t]+)*[ \n\t]*$' AND
+user_email NOT REGEXP
+'^[-a-zA-Z0-9!#$%&amp;\'*+/=?^_`{|}~]+(\.[-a-zA-Z0-9!#$%&amp;\'*+/=?^_`{|}~]+)*@[-a-zA-Z0-9!#$%&amp;\'*+/=?^_`{|}~]+(\.[-a-zA-Z0-9!#$%&amp;\'*+/=?^_`{|}~]+)*$'
+AND user_email != '' LIMIT 500;
++---------------------------------------------------------------------------+--------------------------+
+|<i> CONCAT('&quot;', user_email, '&quot;')
+</I>     | user_email_authenticated |
++---------------------------------------------------------------------------+--------------------------+
+...snip...
++---------------------------------------------------------------------------+--------------------------+
+202 rows in set (13 min 1.71 sec)
+
+Some of these were clearly wrong, and shouldn't have been confirmed to
+begin with.  Some even didn't have an @ sign, so probably were
+submitted in some window when we did no validation at all (and I have
+no idea how they got confirmed).  Of the ones that possibly work, I
+identified two major categories:
+
+1) Addresses in the form &quot;foo &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">bar at baz.example</A>&gt;&quot;, or similar.  These
+mostly match RFC 5322's name-addr production instead of addr-spec
+(some have trailing semicolons, or are missing the initial &lt;, etc.).
+I assume these were copy-pasted from a mail application.
+
+2) Addresses with dots in incorrect places, in either the local part
+or the domain name part.  For instance, multiple consecutive dots, or
+leading/trailing dots.  These don't match RFC 5322 at all AFAICT, but
+I asked one of the users with an invalid address of the form
+&lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">foo. at example.com</A>&gt;, and he said it worked fine for him.  GNU mail gave
+a syntax error when I tried to send mail to that address, but Gmail
+sent it without complaint, and the user received it successfully.
+
+There were other types of addresses that didn't meet HTML 5's
+specification after whitespace was stripped, but none with more than a
+single-digit number of addresses occurring in the sample of three
+million or so that I looked at.  It's notable that not a single one
+used the quoted-string or domain-literal productions, as far as I
+could tell from manual inspection.
+
+I should also note that this was only the English Wikipedia, and it
+might be that speakers of other languages are more prone to use other
+types of addresses that don't meet HTML 5's specification.  When
+looking at the Swedish and German databases, for instance, I found one
+or two addresses that had apparently been confirmed but contained
+non-ASCII characters.  I didn't know the users with those addresses,
+and I didn't want to send them unsolicited mail, so I wasn't able to
+establish whether those addresses actually worked or the confirmation
+was bogus.
+
+
+Conclusions: At a minimum, I suggest that HTML 5 require that user
+agents strip all whitespace from e-mails, not just newlines.  Roughly
+0.1% of the addresses from my sample were valid except for extraneous
+whitespace.  It's a small additional change that would cut the number
+of illegitimately invalid addresses in my sample by a factor of more
+than ten.
+
+Beyond that, although it's safe to say that quoted-string or
+domain-literal or even entirely invalid addresses are extraordinarily
+rare, there are *some* real people who do use them.  Unless something
+is so completely invalid that it's obviously impossible that any mail
+server would even try to send it anywhere, you're probably going to be
+cutting out some small number of users.
+
+So why not have the spec say that in the case of e-mail addresses, the
+browser may warn the user, but should permit them to submit the
+address anyway?  If the user is willing to override the warning, then
+it's likely that they personally know that the e-mail address works,
+e.g., because they use it.
+
+Alternatively, you could just loosen the restrictions even further,
+and only ban input that doesn't contain an @ sign.  (Or that doesn't
+match ^[^@]+@[^@]+\.[^@]+$, or whatever.)  Or just don't ban anything
+at all, like with type=tel.  type=email differs from most of the other
+types with validity constraints (like month, number, etc.) in that the
+difference between valid and invalid values is a purely pragmatic
+question (what will actually work?) that the user can often answer
+better than the application.  It doesn't seem like a good idea for the
+standard to tell users that the e-mail addresses they've actually been
+using are invalid.
+
+I think this input type has only been implemented in Opera so far.  In
+any case, I don't think there are serious interoperability concerns
+with changing it at this point, since the overwhelming majority of
+users won't be affected.
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="064752.html">[whatwg] HTML 5 drag and drop feedback
+</A></li>
+	<LI>Next message: <A HREF="064494.html">[whatwg] Comments on the definition of a valid e-mail address
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#64493">[ date ]</a>
+              <a href="thread.html#64493">[ thread ]</a>
+              <a href="subject.html#64493">[ subject ]</a>
+              <a href="author.html#64493">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

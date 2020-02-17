@@ -1,0 +1,163 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] PeerConnection: encryption feedback
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20PeerConnection%3A%20encryption%20feedback&In-Reply-To=%3CAANLkTi%3DM-_y8JL1O2kCiKWTSNnwoo4dbsH9e9zzk7dUB%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="030921.html">
+   <LINK REL="Next"  HREF="073206.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] PeerConnection: encryption feedback</H1>
+<!--htdig_noindex-->
+    <B>Glenn Maynard</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20PeerConnection%3A%20encryption%20feedback&In-Reply-To=%3CAANLkTi%3DM-_y8JL1O2kCiKWTSNnwoo4dbsH9e9zzk7dUB%40mail.gmail.com%3E"
+       TITLE="[whatwg] PeerConnection: encryption feedback">glenn at zewt.org
+       </A><BR>
+    <I>Thu Mar 17 14:44:02 PDT 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="030921.html">[whatwg] Feedback on &quot;Video conferencing and peer-to-peer	communication&quot;
+</A></li>
+        <LI>Next message: <A HREF="073206.html">[whatwg] PeerConnection: encryption feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#30929">[ date ]</a>
+              <a href="thread.html#30929">[ thread ]</a>
+              <a href="subject.html#30929">[ subject ]</a>
+              <a href="author.html#30929">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>PeerConnection defines packet encryption, but it uses AES-128-CTR
+without actually defining the counter.  It also generates a new AES
+key for each packet.  A major point of using CTR is to not have to do
+that; you have a single key and vary the counter.
+
+The inputs to AES-128-CTR are a key, a counter and a message.  A
+single key is used for the whole connection[1].  Each counter value
+can only be used once.  A nonce isn't created for each packet; only
+once for the entire connection, as part of the key.  A hash should
+also be included in each packet, to prevent semi-random tampering with
+packets on the wire.
+
+The mechanism I'd recommend is:
+
+* The encryption key for the connection is negotiated over the
+signalling connection, defined as the HMAC-SHA1 of the concatenation
+of the media stream key and a random 16-byte PeerConnection-wide
+nonce.
+* Each PeerConnection has an associated 48-bit counter value[2], which
+starts at 0.
+* To transmit a data packet to a peer, do the following:
+ 1: Let connection-key be the value of the PeerConnection's encryption key.
+ 2: Let packet-counter be the value of the PeerConnection's counter.
+ 3: Increment PeerConnection's counter value by 1.
+ 4: Let signature be the HMAC-SHA1 of the raw message.
+ 5: Let signed raw message be the concatenation of signature and raw message.
+ 6: Let masked message be the result of encrypting signed raw message
+using AES-128-CTR, with a key of connection-key and a counter value of
+packet-counter.
+
+This is 6 bytes larger than the current packet: a 20-byte hash and a
+6-byte counter, replacing the 00 00 00 01 magic and the 16-byte random
+block.  It prevents packet tampering and replay.
+
+On receiving a packet, the HMAC-SHA1 must be checked (replacing the 00
+00 00 01 check), and the counter value must be checked to prevent
+replay and excessively delayed packets.  See RFC 4347 sections 3.3
+(&quot;Replay Detection&quot;) and 4.1.2.5 (&quot;Anti-replay&quot;) for an algorithm to
+do this.  In short, you keep track of which counter values have been
+seen recently, reject repeated counters, and reject counter values
+which are too old.
+
+The magic PeerConnection &quot;salt&quot; (DB 68 B5 FD 17 0E 15 77 56 AF 7A 3A
+1A 57 75 02) seems unnecessary, replaced with the connection nonce,
+but could still be appended to the connection key if desired.
+
+There should also be a mechanism to support new hashes and ciphers in
+the future.  There's no need to actually specify other hashes at this
+point (except perhaps for testing purposes), just
+forward-compatibility for when AES and/or SHA-1 need to be replaced.
+
+This protocol is reinventing the wheel, and I'm sure a cryptography
+expert will find many more issues.  Can anyone more familiar with DTLS
+say whether it fits here?  In particular, it's important to note that
+users don't have signed SSL certificates; only webservers have those,
+in practice.  Peers can't safely establish a connection to each other
+directly: they depend on their mutual trust of the webserver, sending
+the connection key over the trusted signalling channel to prevent MITM
+attacks between peers.  I don't know if TLS can support that model, or
+if there are other problems with it (eg. too much packet overhead for
+UDP?).
+
+
+[1] Assuming no mechanism exists to negotiate nonce changes for
+long-lived connections.
+[2] 48 bits matches DTLS.  This is big enough to avoid problems with
+long-lived connections, but not so big as to waste space in the
+packet.
+
+-- 
+Glenn Maynard
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="030921.html">[whatwg] Feedback on &quot;Video conferencing and peer-to-peer	communication&quot;
+</A></li>
+	<LI>Next message: <A HREF="073206.html">[whatwg] PeerConnection: encryption feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#30929">[ date ]</a>
+              <a href="thread.html#30929">[ thread ]</a>
+              <a href="subject.html#30929">[ subject ]</a>
+              <a href="author.html#30929">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

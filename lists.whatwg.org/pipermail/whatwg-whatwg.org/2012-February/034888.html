@@ -1,0 +1,205 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] DND: proposal to expose origin
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20DND%3A%20proposal%20to%20expose%20origin&In-Reply-To=%3Cop.v9tgxeb664w2qv%40annevk-macbookpro.local%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="034887.html">
+   <LINK REL="Next"  HREF="077174.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] DND: proposal to expose origin</H1>
+<!--htdig_noindex-->
+    <B>Anne van Kesteren</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20DND%3A%20proposal%20to%20expose%20origin&In-Reply-To=%3Cop.v9tgxeb664w2qv%40annevk-macbookpro.local%3E"
+       TITLE="[whatwg] DND: proposal to expose origin">annevk at opera.com
+       </A><BR>
+    <I>Fri Feb 17 01:35:28 PST 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="034887.html">[whatwg] DND: synthetic events
+</A></li>
+        <LI>Next message: <A HREF="077174.html">[whatwg] DND: proposal to expose origin
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#34888">[ date ]</a>
+              <a href="thread.html#34888">[ thread ]</a>
+              <a href="subject.html#34888">[ subject ]</a>
+              <a href="author.html#34888">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>The feedback that follows is based on our implementation experience with  
+drag &amp; drop. The people that ought to be credited for the text below are  
+Pawe&#322; Stanek, Giorgi Chavchanidze, Wilhelm Joys Andersen, and anonymous;  
+i.e. not me.
+
+
+This is a proposal for what we see as one of the most significant  
+limitations of HTML5 drag and drop.
+
+The current drag and drop API has no way to restrict what documents may  
+become drop targets, and has no way for a drop target to know what  
+document was the source of the drag. This is intended to allow drag and  
+drop to operate freely between documents, between origins, and between  
+host applications. However, this has the effect of preventing sites from  
+safely using drag and drop for any potentially sensitive actions, such as  
+manipulating the contents of an address book, or initiating financial  
+transfers.
+
+Imagine your bank site wants to use this API, to allow you to drag a  
+&quot;payment&quot;, to a &quot;recipient&quot;. Drop it, and they start transferring the  
+money. But the API does not provide any way for your bank site to be sure  
+that you started that drag operation on their page. For example, evilsite  
+puts banksite in an invisible iframe or obscured popup (clickjacking  
+protection is not going to help), convinces you to drag an element from  
+evilsite onto the iframe, dropping it on the &quot;recipient&quot; - a transfer is  
+started.
+
+So your bank can include a password/id token in the transfer data, and  
+refuse to work if that does not exist. But that then opens the reverse  
+hole. If evilsite convinces you to start a drag operation over a banksite  
+&quot;payment&quot;, and end over evilsite, evilsite will be handed the token, which  
+it can then use. (Remember that this is supposed to allow drag/drop  
+between pages that may trust each other, even if they are not same-origin,  
+or if they cannot access each other through the frames hierarchy. Storing  
+variables on the page would not be sufficient for these cases.)
+
+Our proposal takes its cues and algorithms from the postMessage API, and  
+allows the source site to restrict drop targets to only those origins  
+which it trusts, and allows drop targets to see which origin was the  
+source of a drag. The majority of the algorithm can be copied from  
+postMessage, including the syntax for allowed target origins.
+
+interface DataTransfer {
+   ...
+   readonly attribute DOMString origin;
+   void allowTargetOrigin(DOMString targetOrigin);
+};
+
+Names are chosen to be compatible with those used by HTML5 Web Messaging.
+
+dataTransfer.origin
+   Returns a DOMString consisting of the protocol, domain and optional  
+port, of
+   the origin where the drag started:
+   <A HREF="http://evilsite.com">http://evilsite.com</A>
+   <A HREF="http://evilsite.com:8080">http://evilsite.com:8080</A>
+
+   If the drag was not started on an origin (such as a dragged file from the
+   desktop), or on a URL that is not a scheme/host/port tuple, the value  
+should
+   be the string value &quot;null&quot;. This conforms with HTML5 subsection &quot;Unicode
+   serialization of an origin&quot; -
+   <A HREF="http://dev.w3.org/html5/spec/origin-0.html#unicode-serialization-of-an-origin">http://dev.w3.org/html5/spec/origin-0.html#unicode-serialization-of-an-origin</A>
+   Attempts to write to dataTransfer.origin will be ignored but not throw an
+   error, in accordance with WebIDL.
+
+dataTransfer.allowTargetOrigin(targetOrigin)
+   Defines an origin match for sites which may receive the dropped data. If  
+this
+   method is not called, then all sites and applications may be considered
+   dropzones.
+   If the value of the targetOrigin argument is neither a single U+002A  
+ASTERISK
+   character (*), a single U+002F SOLIDUS character (/), nor an absolute  
+URL,
+   then it throws a SyntaxError exception. (This is equivalent to the  
+algorithm
+   used by HTML5 Web Messaging.)
+   <A HREF="http://banksite.com">http://banksite.com</A>
+   <A HREF="http://banksite.com:8080">http://banksite.com:8080</A>
+   * (this matches all origins, and allows exporting from the application -
+     equivalent to never calling allowTargetOrigin)
+   / (this matches the current script origin)
+   <A HREF="file://localhost/">file://localhost/</A> (this should never match any origins because file:  
+scheme
+     does not support port numbers)
+
+   If allowTargetOrigin is called when the data store is not in read/write  
+mode,
+   it must throw a SecurityError exception.
+   allowTargetOrigin may be called multiple times while the data store is in
+   read/write mode, and the effect is cumulative - a target only needs to  
+match
+   one of the targetOrigins that are supplied.
+   If the list of permitted origins contains at least one item, and none of  
+the
+   items is a single U+002A ASTERISK character (*), then it is not possible  
+to
+   drop items outside of the application - no data is exported.
+
+Before firing the dragenter, dragover, dragleave and drop events, an extra  
+step is required which tests if the target's origin matches at least one  
+of the permitted targetOrigins associated with that data store, if any. If  
+it does not match any of them, then the event firing steps should be  
+aborted, and the event should not be fired. (This avoids possibly leaking  
+data through properties of the dataTransfer that could be seen by those  
+events.) The steps for the dragstart, drag and dragend events remain  
+unchanged, as these fire at the source node, and therefore do not need to  
+be affected by targetOrigin.
+
+This does make it possible for a script to make it impossible to drop  
+items on its own document. This is expected and intentional.
+
+Our (currently internal) initial implementation of drag and drop also  
+implements this proposal.
+
+
+-- 
+Anne van Kesteren
+<A HREF="http://annevankesteren.nl/">http://annevankesteren.nl/</A>
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="034887.html">[whatwg] DND: synthetic events
+</A></li>
+	<LI>Next message: <A HREF="077174.html">[whatwg] DND: proposal to expose origin
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#34888">[ date ]</a>
+              <a href="thread.html#34888">[ thread ]</a>
+              <a href="subject.html#34888">[ subject ]</a>
+              <a href="author.html#34888">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

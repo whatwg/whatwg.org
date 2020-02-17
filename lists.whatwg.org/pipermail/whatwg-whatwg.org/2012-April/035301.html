@@ -1,0 +1,587 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] register*Handler and Web Intents
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20register%2AHandler%20and%20Web%20Intents&In-Reply-To=%3CPine.LNX.4.64.1203282218500.22654%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="035300.html">
+   <LINK REL="Next"  HREF="077756.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] register*Handler and Web Intents</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20register%2AHandler%20and%20Web%20Intents&In-Reply-To=%3CPine.LNX.4.64.1203282218500.22654%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg] register*Handler and Web Intents">ian at hixie.ch
+       </A><BR>
+    <I>Mon Apr  2 16:23:40 PDT 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="035300.html">[whatwg] Invalid values of dir attribute causing change in appearance?
+</A></li>
+        <LI>Next message: <A HREF="077756.html">[whatwg] register*Handler and Web Intents
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#35301">[ date ]</a>
+              <a href="thread.html#35301">[ thread ]</a>
+              <a href="subject.html#35301">[ subject ]</a>
+              <a href="author.html#35301">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>
+On Tue, 6 Dec 2011, James Hawkins wrote:
+&gt;<i> 
+</I>&gt;<i> One of the critical pieces of the API is a declarative registration 
+</I>&gt;<i> which allows sites to declare which intents they may be registered for.  
+</I>&gt;<i> The current draft of the API calls for a new HTML tag, &lt;intent&gt;, the 
+</I>&gt;<i> attributes of which describe the service registration [...]
+</I>
+Rather than an element just for Web Intents, I think we'd be better off 
+with an element that can be used for all the registration mechanisms: 
+registerProtocolHandler(), registerContentHandler(), and Web Intents.
+
+Similarly, rather than Web Intents only being declarative, we should 
+follow the pattern set by registerProtocolHandler() and register- 
+ContentHandler() and also support an API. This would make these three 
+mechanisms consistent with each other such that they can be considered a 
+single feature, not three features.
+
+Looking at the three features, it seems they break down as follows:
+
+   a handler registered using registerContentHandler() triggers when a URL 
+   with a particular type is opened, and results in the URL being passed 
+   to another URL that is opened.
+
+   a handler registered using registerProtocolHandler() triggers when a 
+   URL with a particular scheme is opened, and results in the URL being 
+   passed to another URL that is opened.
+
+   a handler registered using Web Intents triggers when a method is 
+   invoked on another page, and results in a URL being opened and its 
+   JavaScript context being given the information passed to the method.
+
+In the first two, the behaviour can be implemented server-side or 
+client-side; in the last case the behaviour must be done in JS.
+
+We can pretend that in the case of the first two, it's equivalent to an 
+&quot;open&quot; action with the URL as the data. This would mean that the intent 
+data, in the case of a URL open, would just be the URL string. We can 
+similarly pretend that in the case of the latter, it's fetching the page 
+like in the %s case, but since there's no %s, it doesn't put the data in 
+the URL. Or alternatively, we can say that because the data is a 
+structured clone rather than a URL, you replace the %s, if any, with the 
+empty string.
+
+Thus we reach a point where we can describe all three as a common set of 
+registration features:
+
+   1. select type of handler:
+       - url
+       - structured clone
+   2. select action
+       - &quot;open&quot;
+       - &quot;share&quot;
+       - &quot;edit&quot;
+       - etc...
+   3. optionally select one other further filter
+       - type
+       - scheme (only allowed for url handlers)
+   4. select URL to use as handler
+   5. select user-facing title
+   6. select disposition (replace page, new page, or overlay)
+
+When a URL is opened that matches a registered handler for the &quot;open&quot; 
+action and the appropriate scheme or type, imply an intent for that URL 
+handler, with any returned result being discarded.
+
+The handling can then be a single mechanism for all of the above:
+
+   1. If it's a URL handler, replace %s with the URL.
+   2. Set up the browsing context per the disposition.
+   3. Open the URL.
+   4. Set up the Window.intent API.
+
+So, what information would we need for registration?
+
+   payload type: a url, or an object to clone
+   action: a string
+   filter: either a MIME type, or a scheme
+   url: the url to call
+   title: the user-visible name of the handler
+   disposition: how to show the handler (replace, new tab, popup overlay)
+
+My suggestion then would be to add an element similar to what you suggest, 
+as well as an API similar to the existing one.
+
+The element could be something like:
+
+   &lt;intent
+     action=&quot;edit&quot;     intent action, e.g. open or edit, default &quot;share&quot;
+     type=&quot;image/png&quot;  MIME type filter [1], default &quot;*/*&quot;
+     scheme=&quot;mailto&quot;   Scheme filter [1] [2], default omitted
+     href=&quot;&quot;           Handler URL [2], default &quot;&quot;
+     title=&quot;Foo&quot;       Handler user-visible name, required attribute
+     disposition=&quot;&quot;    &quot;replace&quot;, &quot;new&quot;, or &quot;overlay&quot;, default &quot;overlay&quot;
+   &gt;&lt;/intent&gt;
+
+[1] Only one of type=&quot;&quot; and scheme=&quot;&quot; is allowed.
+[2] scheme=&quot;&quot; is only allowed if href=&quot;&quot; contains %s.
+
+The API could be something like:
+
+  void registerIntentHandler(DOMString action, DOMString type, DOMString url, DOMString title, DOMString disposition);
+  DOMString isIntentHandlerRegistered(DOMString action, DOMString type, DOMString url);
+  void unregisterIntentHandler(DOMString action, DOMString type, DOMString url);
+
+The disposition of registerContentHandler() and registerProtocolHandler() 
+would always be &quot;replace&quot;. The /url/ argument of registerProtocolHandler() 
+would not be allowed to contain %s.
+
+A handler, once registered, would remain so until it was explicitly 
+removed with unregisterIntentHandler() or removed by the user, as now for 
+the other handler APIs; or, for registrations done with the declarative 
+form, would remain until the user returns to the same page and the page 
+returns a 200, 404, or 410 response (at which point it would be 
+unregistered until such time as the &lt;intent&gt; elment is seen again, which 
+could happen that very same page load).
+
+Removing the element from the DOM would have no effect; adding it to the 
+DOM (e.g. by the parser or script) is what would trigger a declarative 
+registration.
+
+
+I'm not hugely happy with the idea of introducing yet another 
+empty-element-with-an-end-tag to HTML, especially here where I really 
+don't see much of a need for fallback. Adding it to the &lt;head&gt; would make 
+sense but would be very expensive. I don't really see another element we 
+could reuse sanely, though (overloading &lt;meta&gt; and &lt;link&gt; doesn't really 
+work here as they don't have the same semantics really).
+
+
+From a purely spec-editorial perspective, it seems to make more sense to 
+have all of this in one spec, rather than split across multiple specs. If 
+you would like, I'd be willing to spec this all in the HTML spec (which 
+would especially make sense if we do add another element); alternatively, 
+we should really consider moving the existing register*Handler() stuff to 
+the same spec as the intent stuff.
+
+
+On Tue, 6 Dec 2011, Anne van Kesteren wrote:
+&gt;<i> 
+</I>&gt;<i> You could also have
+</I>&gt;<i> 
+</I>&gt;<i> &lt;meta name=&quot;intent&quot; content=&quot;<A HREF="http://webintents.org/share">http://webintents.org/share</A> image/*&quot;&gt;
+</I>&gt;<i> 
+</I>&gt;<i> or some such. Splitting a string on spaces and using the result is not 
+</I>&gt;<i> that hard and a common pattern. And seems like a much better alternative 
+</I>&gt;<i> than changing the HTML parser.
+</I>
+Trying to fit the registration components listed above into &lt;meta&gt; really 
+doesn't work all that well, IMHO.
+
+
+On Tue, 6 Dec 2011, James Graham wrote:
+&gt;<i> On Tue, 6 Dec 2011, Anne van Kesteren wrote:
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; Especially changing the way &lt;head&gt; is parsed is hairy. Every new 
+</I>&gt;<i> &gt; element we introduce there will cause a &lt;body&gt; to be implied before it 
+</I>&gt;<i> &gt; in down-level clients. That's very problematic.
+</I>&gt;<i> 
+</I>&gt;<i> Yes, I consider adding new elements to &lt;head&gt; to be very very bad for 
+</I>&gt;<i> this reason. Breaking DOM consistency between supporting and 
+</I>&gt;<i> non-supporting browsers can cause adding an intent to cause unrelated 
+</I>&gt;<i> breakage (e.g. by changing document.body.firstChild).
+</I>
+That is true, but adding this to the body seems weird too.
+
+
+On Tue, 6 Dec 2011, James Hawkins wrote:
+&gt;<i> 
+</I>&gt;<i> Originally we envisioned using a self-closing tag placed in head for the 
+</I>&gt;<i> intent tag; however, we're now leaning towards not using self-closing 
+</I>&gt;<i> and having the tag be placed in the body with fallback content, e.g., to 
+</I>&gt;<i> install an extension to provide similar functionality.
+</I>&gt;<i> 
+</I>&gt;<i> &lt;intent action=&quot;webintents.org/share&quot;&gt;
+</I>&gt;<i>   Click here to install our extension that implements sharing!
+</I>&gt;<i> &lt;/intent&gt;
+</I>&gt;<i> 
+</I>&gt;<i> What are your thoughts on this route?
+</I>
+How common will fallback be on the short term and on the long term?
+
+We have this mechanism for, e.g., &lt;iframe&gt;, and at the moment it's mostly 
+just an ugly wart in the language.
+
+
+On Fri, 16 Dec 2011, Julian Reschke wrote:
+&gt;<i> Anne wrote:
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; We can just add additional attributes to &lt;meta&gt; you know. We have done 
+</I>&gt;<i> &gt; the same for &lt;link&gt;. E.g. for &lt;link rel=icon&gt; you can specify a sizes 
+</I>&gt;<i> &gt; attribute.
+</I>&gt;<i> 
+</I>&gt;<i> That makes it sound a lot easier than it is. After all, there's no 
+</I>&gt;<i> extension point here. Adding attributes to &lt;meta&gt; (or &lt;link&gt;) requires a 
+</I>&gt;<i> change to HTML5, or a delta spec adding these as conforming attributes.
+</I>
+Adding new attributes is reasonably trivial in practice. My concern with 
+reusing &lt;meta&gt; or &lt;link&gt; is more that it doesn't really fit the semantics 
+of the existing attributes or processing model.
+
+
+On Mon, 12 Dec 2011, James Hawkins wrote:
+&gt;<i> 
+</I>&gt;<i> For R*H, ?foo=%s normally requires server side processing.  With Web 
+</I>&gt;<i> Intents, this data is passed completely client-side on the intent 
+</I>&gt;<i> object.
+</I>
+Both have strong use cases. I think we should support both. In the case of 
+data being cloned, it doesn't make much sense to upload it, so naturally 
+that would just be provided client-side, as described above. For URLs, 
+though, the opposite is the case -- you will usually want to fetch the URL 
+somehow, which is almost always going to require work on the server side 
+since the client typically won't have access rights to obtain the data 
+(for content handlers) or open the connection (for protocol handlers).
+
+
+&gt;<i> Wildcard matching.  R*H does not allow wildcard matching, where as Web 
+</I>&gt;<i> Intents would allow a service to register for image/* in one succinct 
+</I>&gt;<i> registration.
+</I>
+I don't think wildcard matching really makes sense. In particular, I'm not 
+aware of any service that can honestly say it supports image/*, or indeed 
+any other topleveltype/*.
+
+
+On Tue, 13 Dec 2011, Simon Pieters wrote:
+&gt;<i> 
+</I>&gt;<i> I'm not sure it's a good idea security-wise to have this feature as an 
+</I>&gt;<i> element. Many sites use black-list based HTML filtering of user input, 
+</I>&gt;<i> to filter out &quot;bad&quot; stuff like &lt;script&gt; elements. It's easy to argue 
+</I>&gt;<i> that they are already screwed, but we still have to think about it when 
+</I>&gt;<i> adding new features to the platform, because there are many such sites. 
+</I>&gt;<i> It would be easy to inject an &lt;intent&gt; tag to such sites, whereas it is 
+</I>&gt;<i> harder to call navigator.register*Handler.
+</I>
+On Wed, 14 Dec 2011, Greg Billock wrote:
+&gt;<i> 
+</I>&gt;<i> Even with malicious content chosen by the attacker, the only impact on 
+</I>&gt;<i> the target page is injecting a &quot;window.intent&quot; object with some opaque 
+</I>&gt;<i> (but malicious!) content. Getting the page to execute that malicious 
+</I>&gt;<i> content is the big hurdle. Either you can inject code into the page 
+</I>&gt;<i> causing this execution, in which case, why bother, or the page is using 
+</I>&gt;<i> window.intent unsafely. This is a concern, but in that case, the exploit 
+</I>&gt;<i> is more easily accomplished directly, rather than a circuitous route 
+</I>&gt;<i> through an injected &lt;intent&gt; tag.
+</I>
+There's also the following somewhat artificial attack scenario:
+
+ 1. User is tricked into going to victim.example.com. An injection attack 
+    is used to register a custom handler for vicitim.example.com. Not 
+    knowing that the user is at victim.example.com, and given a misleading
+    handler title and so forth, the user adds the handler, thinking it is
+    something else.
+ 2. User is tricked into going to some other site that invokes the 
+    handler.
+ 3. The user, thinking the handler is something else, picks it (it would
+    probably be the only such handler in this scenario, with the action
+    being a unique one for the attack).
+ 4. The user, confused as to which site he is visiting, performs an action
+    on the victim site, thinking he is on some other site. Maybe the site 
+    is made to appear like another via some injected CSS. (Hey, we're 
+    assuming the site is susceptible to injection in the first place.)
+ 
+A lot has to go wrong for this to really happen, though.
+
+
+&gt;<i> Another threat model related to this is cross-origin registration. If an 
+</I>&gt;<i> &lt;intent&gt; tag can be injected with a cross-origin service, information 
+</I>&gt;<i> about the current page state could be leaked to the malicious host by 
+</I>&gt;<i> way of that cross-origin url. If the site is relying on a blacklist (so, 
+</I>&gt;<i> say, &lt;img&gt; tags couldn't be injected), and has a vulnerability allowing 
+</I>&gt;<i> the gathering of information on the page or the DOM context, then an 
+</I>&gt;<i> &lt;intent&gt; tag injection is a new vehicle to carry that data to an 
+</I>&gt;<i> attacker. Again, there's a couple more obstacles: the user would need to 
+</I>&gt;<i> approve the registration and then launch an intent, but those sound easy 
+</I>&gt;<i> to arrange. The real way to combat this is to not allow cross-origin 
+</I>&gt;<i> service registration.
+</I>
+Yes, I see no reason to allow cross-origin registration. The existing 
+methods do not allow that.
+
+
+&gt;<i> &gt; Separately, I'm not so happy with having two APIs for the same thing. 
+</I>&gt;<i> &gt; We don't enable anything new, but we double the attack surface, the 
+</I>&gt;<i> &gt; cost to implement and test, authors need to not only learn both, but 
+</I>&gt;<i> &gt; also need to learn (and argue) about which to use, and so forth. 
+</I>&gt;<i> &gt; register*Handler has already been shipped in some browsers.
+</I>&gt;<i> 
+</I>&gt;<i> We've seen some down-sides of the imperative registration approach: 
+</I>&gt;<i> clients ask for ways to detect if they are registered, which breaks 
+</I>&gt;<i> opacity and is, I think, a bigger security concern than the above.
+</I>
+The API does expose this information.
+
+I don't see why they wouldn't want this information with the declarative 
+approach as well. GMail, for instance, asked to be able to tell if they 
+were registered so that they could display more elaborate documentation.
+
+
+On Fri, 16 Dec 2011, Paul Kinlan wrote:
+&gt;<i> 
+</I>&gt;<i> We didn't want to add additional attributes to the meta tag or link tag 
+</I>&gt;<i> just for intents, this seems to open up the flood gates for future 
+</I>&gt;<i> platform features to also extend the meta syntax, the meta element then 
+</I>&gt;<i> just becomes a dumping ground.
+</I>
+That's not a big concern, so long as the semantics make sense.
+
+With intent registration, I'm not sure they do.
+
+e.g. with &lt;link href=&quot;&quot;&gt; you'd want to be able to register a URL with a %s 
+segment for content/protocol handlers, but that's no longer a valid URL, 
+so it's weird to use href=&quot;&quot; which currently requires a valid URL.
+
+Similarly, using type=&quot;&quot; to mean the filter rather than the type of the 
+content at the href=&quot;&quot; URL would mean the type=&quot;&quot; attribute has a 
+different meaning based on context.
+
+Similarly, we have an action=&quot;&quot; attribute on &lt;link&gt; that defines the 
+disposition, but it has different values than what we're talking about 
+here, so it would be weird to reuse it, and would be weird not to.
+
+&lt;meta&gt; is also a weird case because we'd basically be reusing the element 
+but none of the attributes, and it already has three different roles.
+
+On Wed, 25 Jan 2012, Paul Kinlan wrote:
+&gt;<i> 
+</I>&gt;<i> Yes we are ok with it being in the body. &#160;Having the intent tag in the 
+</I>&gt;<i> body allows us to have a strong graceful degradation story for Web 
+</I>&gt;<i> Developers and Publishers. &#160;The &lt;intent&gt; tag in the body allows us to do 
+</I>&gt;<i> several nice things such as:
+</I>&gt;<i> 
+</I>&gt;<i> 1.  Giving the user another way to handle the action and allowing for
+</I>&gt;<i> custom styling of the element:
+</I>&gt;<i> &lt;intent action=&quot;<A HREF="http://webintents.org/share">http://webintents.org/share</A>&quot; ... style=&quot;background-color:red;&quot;&gt;
+</I>&gt;<i>   &lt;p&gt;Add our bookmarklet &lt;a href=&quot;javascript:.......&quot;&gt;Drag to bookmark
+</I>&gt;<i> bar&lt;/a&gt;&lt;/p&gt;
+</I>&gt;<i> &lt;/intent&gt;
+</I>
+I guess that might be common, yes. Though most browsers don't allow you to 
+add bookmarklets that way anymore, so I'm not sure it'd work exactly like 
+that.
+
+
+&gt;<i> 2. We can add the script polyfil in seamlessly - conforming UA's will
+</I>&gt;<i> ignore internal content, non-conforming UA's will treat it as an
+</I>&gt;<i> element they should descend into and thus load the required script.
+</I>&gt;<i> &lt;intent ...&gt;
+</I>&gt;<i>   &lt;!-- Load the polyfill shim --&gt;
+</I>&gt;<i>   &lt;script src=&quot;<A HREF="http://webintents.org/webintents.min.js">http://webintents.org/webintents.min.js</A>&quot;&gt;&lt;/script&gt;
+</I>&gt;<i> &lt;/intent&gt;
+</I>
+That script would execute even in browsers with &lt;intent&gt; support.
+
+
+&gt;<i> 3. It opens up the possibility for intent specific sub-tags - much like 
+</I>&gt;<i> &lt;source&gt; in &lt;video&gt; that we might need in the future.
+</I>
+That's more of an argument to avoid it...
+
+
+On Wed, 25 Jan 2012, Paul Kinlan wrote:
+&gt;<i> 
+</I>&gt;<i> I would prefer to treat it like a embedded content element [1] and have 
+</I>&gt;<i> the intent spec define how fallback content should be presented and 
+</I>&gt;<i> parsed - so we would define that &lt;script&gt; is ignored in a conforming UA. 
+</I>&gt;<i> &#160;In our case we would want to work like the video element [2] with the 
+</I>&gt;<i> added script restriction.
+</I>&gt;<i> 
+</I>&gt;<i> Is this a completely abhorent solution?
+</I>
+I wouldn't say &quot;completely abhorent&quot;, but having conditions that control 
+whether script runs or not is not something that I would recommend. It has 
+historically been fraught with problems, which has led us to &lt;script&gt; 
+having an excessively complicated parsing model. I would recommend not 
+adding any magic there.
+
+
+On Sat, 17 Dec 2011, Anne van Kesteren wrote:
+&gt;<i> 
+</I>&gt;<i> The answer is that when you want to add something new to the &lt;head&gt; 
+</I>&gt;<i> element, it makes sense to consider using &lt;meta&gt; and &lt;link&gt;, and that 
+</I>&gt;<i> adding attributes to them is not a big deal, because it rarely happens 
+</I>&gt;<i> that we do so. In the close to eight years the WHATWG has been working 
+</I>&gt;<i> on HTML, we have added one new attribute, to &lt;link&gt;.
+</I>
+We've added more than just one. Microdata adds a bunch that have specific 
+semantics on those elements, we've invented charset=&quot;&quot; based on legacy 
+behaviour, and we added sizes=&quot;&quot;.
+
+
+On Sat, 17 Dec 2011, Paul Kinlan wrote:
+&gt;<i> 
+</I>&gt;<i> Intents is a new platform feature and we would add 4 or more on the meta 
+</I>&gt;<i> tag just for this first version of intents, and then more again when we 
+</I>&gt;<i> add more features to the intent declaration system to handle RPH and 
+</I>&gt;<i> RPC.  I don't think this is an acceptable solution just for intents and 
+</I>&gt;<i> why a new self contained tag is a better solution.
+</I>
+I don't think it's as big an issue as you suggest.
+
+The only reason I think it doesn't make sense to reuse &lt;meta&gt; is that it 
+would add a fourth orthogonal processing model for that element. If 
+intents were more like one of the existing models, it would make perfect 
+sense to reuse &lt;meta&gt;, even with a dozen new attributes. Attribute are 
+cheap. Elements are ridiculously more expensive.
+
+
+On Wed, 15 Feb 2012, James Hawkins wrote:
+&gt;<i>
+</I>&gt;<i> We, the designers of the Web Intents draft API, have always seen Web 
+</I>&gt;<i> Intents as a superset of the functionality provided by 
+</I>&gt;<i> registerProtocolHandler (RPH) and registerContentHandler (RCH).  To 
+</I>&gt;<i> follow this to the logical conclusion, we should be able to provide 
+</I>&gt;<i> functionally equivalent counterparts to RPH/RCH in Web Intents.  This 
+</I>&gt;<i> proposal provides a means of deprecating RPH/RCH, replacing this 
+</I>&gt;<i> functionality with equivalent functionality from Web Intents.
+</I>
+I don't think it makes sense to deprecate them. We should design intents 
+to incorporate them, not deprecate them.
+
+
+&gt;<i> isProtocolHandlerRegistered / isContentHandlerRegistered
+</I>&gt;<i> ========================================================
+</I>&gt;<i> 
+</I>&gt;<i> There are serious fingerprinting issues with these methods, and when 
+</I>&gt;<i> contemplating analogous methods for Web Intents, we thought long and 
+</I>&gt;<i> hard about the fingerprinting issue.
+</I>&gt;<i> 
+</I>&gt;<i> As spec'ed a site could call registerProtocolHandler('web+uniqueID', 
+</I>&gt;<i> ...) where uniqueID is unique to a user.  The site could then call 
+</I>&gt;<i> isProtocolHandlerRegistered with that matching 'web+uniqueID' to verify 
+</I>&gt;<i> who the user is.
+</I>
+How would they know what scheme to check?
+
+Also, the user would typically have to agree to registering the handler 
+for this, so they would have an idea that the scheme was dodgy. A bigger 
+threat, IMHO, is registering a URL with a session ID, much like a site 
+could redirect the page to a URL with a session ID when registering an 
+&lt;intent&gt; and then check the URL when invoking the handler.
+
+
+&gt;<i> Instead of creating analogous functionality of these methods for Web 
+</I>&gt;<i> Intents, we decided to tackle the problem state of an empty picker.
+</I>
+An empty picker isn't really the use case being addressed by these 
+methods. (I don't really see how they would help for that use case.)
+
+The use case is for a site that wants to show more elaborate advocacy for 
+users who have not yet registered the handler.
+
+
+&gt;<i> unregisterProtocolHandler / unregisterContentHandler
+</I>&gt;<i> ===========================================
+</I>&gt;<i> 
+</I>&gt;<i> The analogous functionality for these methods in Web Intents already 
+</I>&gt;<i> exists and is the same as the removal of any type of service: remove the 
+</I>&gt;<i> declarative registration from the content, and the UA will unregister 
+</I>&gt;<i> the service as a handler.
+</I>
+That only works if the user visits the same page again. Why would the use 
+visit the page if the handler no longer exists?
+
+
+On Tue, 21 Feb 2012, Bjartur Thorlacius wrote:
+&gt;<i>
+</I>&gt;<i> Windows Explorer (the file manager) does for example offer users to edit 
+</I>&gt;<i> images upon right-click. I worry that if URI scheme handlers need not 
+</I>&gt;<i> only take care of fetching but also of presentation, other actions than 
+</I>&gt;<i> view will be unnecessarily hard to implement. Thus I figure retrieval 
+</I>&gt;<i> and presentation must be separated.
+</I>
+I don't really see how you would tell the browser what the action is.
+
+
+
+
+As part of replying to this e-mail, I also reviewed the existing Web 
+Intents spec. Here are some comments on it. I hope they are helpful.
+
+- Nothing seems to ever actually invoke the structured clone algorithm, so 
+it's unclear when that should run. In particular, I don't understand when 
+ports get cloned. Is it in the constructor? In startActivity?
+
+- What does it mean for a member of Intent to only be present at certain 
+times? (e.g. &quot;Only present when the Intent object is delivered to the 
+Service page&quot;)
+
+- A lot of the spec seems to be lacking in formal requirements; it just 
+describes what happens but doesn't actually require it.
+
+- The spec requires that the interfaces that the Window object (called 
+&quot;DOMWindow&quot; in the spec for some reason) implements depend on the markup 
+in the page. This makes no sense, since the markup in the page isn't known 
+at the time the interfaces are prepared, and even if they were, the page's 
+content can change dynamically with elements being added and removed from 
+script randomly.
+
+- Using URLs as intents, especially for the default intents, is overly 
+verbose. I highly recommend just having a wiki page be a registry of 
+widely used intents, and saying that if people want specialised ones for 
+their own communities, they can then use URLs, but otherwise it's fine to 
+just use simple identifiers like &quot;edit&quot; or &quot;share&quot;, so long as they are 
+registered in the wiki. This is what we're doing with rel=&quot;&quot; and it seems 
+to work fine.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="035300.html">[whatwg] Invalid values of dir attribute causing change in appearance?
+</A></li>
+	<LI>Next message: <A HREF="077756.html">[whatwg] register*Handler and Web Intents
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#35301">[ date ]</a>
+              <a href="thread.html#35301">[ thread ]</a>
+              <a href="subject.html#35301">[ subject ]</a>
+              <a href="author.html#35301">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

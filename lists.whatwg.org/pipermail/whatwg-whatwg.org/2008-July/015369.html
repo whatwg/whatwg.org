@@ -1,0 +1,257 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Web Sockets
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Web%20Sockets&In-Reply-To=%3C4886CD13.6020504%40arc.net.au%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="015363.html">
+   <LINK REL="Next"  HREF="015357.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Web Sockets</H1>
+<!--htdig_noindex-->
+    <B>Shannon</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Web%20Sockets&In-Reply-To=%3C4886CD13.6020504%40arc.net.au%3E"
+       TITLE="[whatwg] Web Sockets">shannon at arc.net.au
+       </A><BR>
+    <I>Tue Jul 22 23:17:55 PDT 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="015363.html">[whatwg] Web Sockets
+</A></li>
+        <LI>Next message: <A HREF="015357.html">[whatwg] to use pixels a DPI should be defined in hader of each page
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#15369">[ date ]</a>
+              <a href="thread.html#15369">[ thread ]</a>
+              <a href="subject.html#15369">[ subject ]</a>
+              <a href="author.html#15369">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Philipp Serafin wrote:
+&gt;<i>
+</I>&gt;&gt;<i> Asynchronous: Requests and responses can be pipelined, meaning requests and
+</I>&gt;&gt;<i> responses can be transmitted simultaneously and are queued.
+</I>&gt;&gt;<i>     
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> I think the problem is that this definition of &quot;asynchronous&quot; is very
+</I>&gt;<i> narrow. Yes, you don't need to wait for a request to finish before you
+</I>&gt;<i> issue a new one. But you'd still be bound to HTTP's request/response
+</I>&gt;<i> scheme in general.
+</I>&gt;<i>   
+</I>
+WebSockets uses HTTP so it is hardly immune to the request/response 
+behaviour of its underlying protocol (including the stream nature of TCP).
+
+Besides this statement appears to be based on the assumption that the 
+server MUST wait for additional client requests to send each &quot;message&quot;. 
+However the specification allows the server to send &quot;chunked&quot; or 
+&quot;multipart&quot; data in a variety of ways so full asynchronous communication 
+is acheivable by making the response chunks  part of one long HTTP 
+multipart response and allowing the javascript API to access the 
+incoming data while the response is incomplete. It can be simplified for 
+the end-user by allowing the raw server response to be read by bytes, 
+lines or &quot;parts&quot;. If you need more channels (ie, to pass messages while 
+sending a large file) then you simply open more WebSockets and let the 
+server handle multiplexing via cookies or message ids.
+
+&gt;<i> However, web authors might want to employ other schemes as well, for
+</I>&gt;<i> example server-sided asynchronous notifications (&quot;pushing&quot;),
+</I>&gt;<i>   
+</I>
+Client opens a connection. handshakes, then leaves connection open 
+listening for &quot;pushed&quot; parts in the response stream.
+
+&gt;<i> client-sided notifications that don't need to be replied
+</I>
+HTTP has a status code specifically for this purpose.
+
+&gt;<i>  or requests that can be answered out-of-order.
+</I>
+The order of data is controlled by the order it is sent by the 
+application. There is no requirement for the requests and 
+responses/parts to be synchronised. Especially if the server responses 
+consist of a single multi-part &quot;response&quot;.
+
+
+
+I'm not advocating against WebSockets, just its current definition. In 
+particular it tries to solve things that HTTP/1.1 already handles. I 
+believe we should be thinking of WebSockets as a Javascript API, not a 
+new communications protocol for the simple reason that HTTP is already a 
+very suitable and widely deployed protocol. What authors (especially 
+AJAX authors) are missing is a reliable way to use HTTP's existing 
+asynchronous connection support.
+
+Here are my issues with WebSockets as currently defined:
+
+1.) Request must have a &lt;scheme&gt; component whose value is either &quot;ws&quot; or 
+&quot;wss&quot;
+
+The &quot;scheme&quot; should be HTTP(S). WebSockets should be the API.
+
+2.) The message  event is fired when when data is received for a 
+connection.
+
+What &quot;data&quot;? A byte, a line, a chunk, the whole response? The spec isn't 
+clear. I'd also recommend adding a connection.read( max_bytes ) method 
+as used by Python and most languages to let the author receive bytes at 
+a frequency appropriate to the application (eg, a game might want to 
+frequently poll for small updates).
+
+3.) If the resulting absolute URL has a &lt;port&gt; component, then let port 
+be that component's value; otherwise, if secure is false, let port be 
+81, otherwise let port be 815.
+
+No, no, no! Don't let paranoia override common sense. Not all websocket 
+applications will have the luxury to run on these ports (multiple web 
+servers, shared host, tunnelled connections, 2 websocket apps on one 
+host, etc...).
+
+4.) The whole handshake is too complex.
+
+There are many firewalls, proxies and servers that legimately insert, 
+change, split, or remove HTTP headers or modify their order. This is 
+also likely if the service being provided sits on top of a 
+framework/server (such as Coldfusion/IIS). Also what happens if HTTP/1.2 
+is sent? These will break the WebSocket handshake as currently defined.
+
+rfc 2616 section 3 says: The version of an HTTP message is indicated by 
+an HTTP-Version field in the first line of the message.
+HTTP-Version   = &quot;HTTP&quot; &quot;/&quot; 1*DIGIT &quot;.&quot; 1*DIGIT
+
+How many non-http servers send this? Probably none. I recommend the 
+handshake simply read about 256 bytes of the server response and check 
+that it contains a valid HTTP version field and one or more valid HTTP 
+headers and optional end-of-headers marker. If ALL headers semantically 
+validate  (ie, with the regex [A-Za-z-]: \s(.*?)\r\n) then it is 
+reasonably safe to assume it is a real HTTP or WebSockets service. If 
+the headers validate then the client repeats the process until the 
+message body is reached. At this point we check our collected headers 
+for at least one &quot;Accept&quot; header containing &quot;WebSocket&quot; (assuming that 
+being a &quot;WebSocket&quot; rather than a basic pipelined HTTP connection is 
+even useful).
+
+5.) URI parsing specification
+
+The current proposal spells out the URI/path parsing scheme. However 
+this should be treated EXACTLY like HTTP so the need to define it in the 
+spec is redundant. It is enough to say that the resource may be 
+requested using a GET or POST request. Same with cookie handling, 
+authorization and other HTTP headers. These should be handled by the 
+webserver and/or application exactly as normal, there is no need to 
+rewrite the rules simply because the information flow is asynchronous.
+
+6.) Data framing specification
+
+Redundant because HTTP already provides multiple methods of data segment 
+encapsulation including &quot;Content-Length&quot;, &quot;Transfer-Encoding&quot; and 
+&quot;Content-Type&quot;. Each of these have sub-types suitable for a range of 
+possible WebSocket applications. Naturally it is not necessary for the 
+client or server to support them all since there are HTTP headers 
+explicitly designed for this kind of negotiation. The WebSocket should 
+however define at least one fallback method that can be relied on (I 
+recommend &quot;Content-Length&quot;,  &quot;Transfer-Encoding: chunked&quot; and 
+&quot;Content-Type: multipart/form-data&quot; as MUST requirements).
+
+7.) WebSockets needs a low-level interface as well
+
+By &quot;dumbing down&quot; the data transfer into fired events and wrapping the 
+data segments internally the websocket hides the true communication 
+behind an abstract object. This is a good thing for simplicity but 
+extremely limiting for authors wanting to fine-tune an application or 
+adapt to future protocols. I strongly recommend that rawwrite() and 
+rawread() methods be made available to an OPEN (ie, 
+authenticated/handshaked) websocket to allow direct handling of the 
+stream. It would be understood that authors using these methods must 
+understand the nature of both HTTP and websockets. In the same way a 
+settimeout() method should be provided to control blocking/non-blocking 
+behaviour. I can't stress enough how important these interfaces are, as 
+they may one day be required to implement WebSockets 2.0 on &quot;legacy&quot; or 
+broken HTML5 browsers.
+
+8.) Origin: / WebSocket-Origin:
+
+Specifying clients allowed to originate a connection is a disaster 
+waiting to happen for the simple reason that sending your origin is a 
+privacy violation in the same vain as the referrer field. Any 
+open-source browser or privacy plugin will simply disable or spoof this 
+since it would allow advertising networks to track people by ad-serving 
+via websockets. Such tracking undermines the security of anonymising 
+proxies (as the &quot;origin&quot; may be a private site or contain a client id). 
+Using origin as a required field essentially makes the use of &quot;referrer&quot; 
+mandatory. If a websocket wants to restrict access then it will have to 
+use credentials or IP ranges like everything else.
+
+9.) WebSocket-Location
+
+The scenario this is supposed to solve (that an application makes a 
+mistake about what host it's on and somehow sends the wrong data) is 
+contrived. What's more likely to happen is that a server application has 
+trouble actually knowing its (virtual) hostname (due to a proxy, 
+mod_rewrite, URL masking or other legitimate redirect) and therefore NO 
+clients can connect. It isn't uncommon for the host value passed to a 
+CGI script and the hostname returned by the environment (ie, via uname 
+or OS library) to conflict. Then there is the matter of an SSL 
+connection (no host header available). I'm having trouble determining 
+why this should even matter. I suspect most simple applications/wrappers 
+will just echo back the host header sent by the client so if a mistake 
+is made it's likely to go unnoticed anyway.
+
+10.) To close the Web Socket connection, either the user agent or the 
+server closes the TCP/IP connection. There is no closing handshake.
+
+HTTP provides a reliable way of closing a connection so that all parties 
+(client, server and proxies) know why the connection ended. There is no 
+reason for websockets to not follow this protocol and close the 
+connection properly.
+
+
+In conclusion, the current specification of WebSockets re-invents 
+several wheels and does so in ways that are overly complex, error-prone 
+and yet seriously limited in functionality. The whole concept needs to 
+be approached from the position of making HTTP's features (which are 
+already implemented in most UAs) available to Javascript (while 
+preventing the exploit of non-HTTP services). I do not believe this is 
+difficult if my recommendations above are followed. I do not wish to be 
+overly critical without contributing a solution, so if there are no 
+serious objections to the points I've made I will put time into 
+reframing my objections as a compete specification proposal.
+
+
+Shannon
+
+
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: &lt;<A HREF="http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20080723/ac285de0/attachment.htm">http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20080723/ac285de0/attachment.htm</A>&gt;
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="015363.html">[whatwg] Web Sockets
+</A></li>
+	<LI>Next message: <A HREF="015357.html">[whatwg] to use pixels a DPI should be defined in hader of each page
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#15369">[ date ]</a>
+              <a href="thread.html#15369">[ thread ]</a>
+              <a href="subject.html#15369">[ subject ]</a>
+              <a href="author.html#15369">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

@@ -1,0 +1,194 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Proposal: Add window.getLastError (or modify invocation arguments of window.onerror)
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Proposal%3A%20Add%20window.getLastError%20%28or%20modify%0A%20invocation%20arguments%20of%20window.onerror%29&In-Reply-To=%3CPine.LNX.4.64.1211290117020.1991%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="038155.html">
+   <LINK REL="Next"  HREF="080443.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Proposal: Add window.getLastError (or modify invocation arguments of window.onerror)</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Proposal%3A%20Add%20window.getLastError%20%28or%20modify%0A%20invocation%20arguments%20of%20window.onerror%29&In-Reply-To=%3CPine.LNX.4.64.1211290117020.1991%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg] Proposal: Add window.getLastError (or modify invocation arguments of window.onerror)">ian at hixie.ch
+       </A><BR>
+    <I>Wed Nov 28 19:35:21 PST 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="038155.html">[whatwg] &lt;script&gt; features
+</A></li>
+        <LI>Next message: <A HREF="080443.html">[whatwg] Proposal: Add window.getLastError (or modify invocation arguments of window.onerror)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#38156">[ date ]</a>
+              <a href="thread.html#38156">[ thread ]</a>
+              <a href="subject.html#38156">[ subject ]</a>
+              <a href="author.html#38156">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Tue, 8 May 2012, James Greene wrote:
+&gt;<i>
+</I>&gt;<i> The problem [with window.onerror is] that this mechanism does not allow 
+</I>&gt;<i> us to inspect the pertinent Error object at all: it only provides us 
+</I>&gt;<i> with three arguments at invocation time: message (string), fileName 
+</I>&gt;<i> (string), and lineNumber (number). These are rarely useful in practice.
+</I>
+Could you elaborate on what the exception object (Error or DOMException or 
+whatever) provides that the onerror callback's arguments don't, that you 
+would find useful for debugging? Is it just the stack trace?
+
+
+On Wed, 9 May 2012, Simon Pieters wrote:
+&gt;<i> &gt;
+</I>&gt;<i> &gt; ## My proposal(s) to fix it
+</I>&gt;<i> &gt; As such, I propose the following two options as fixes:
+</I>&gt;<i> &gt; 1. Add a function like `getLastError` to the global `window` object that
+</I>&gt;<i> &gt; would fetch the actual `Error` object associated with the most recent
+</I>&gt;<i> &gt; unhandled error.  I would foresee common usage looking something like the
+</I>&gt;<i> &gt; following:
+</I>&gt;<i> &gt; ```
+</I>&gt;<i> &gt; var oldOnError = window.onerror;
+</I>&gt;<i> &gt; window.onerror = function myErrorHandler(errorMsg, url, lineNumber) {
+</I>&gt;<i> &gt;        if (oldOnError) {
+</I>&gt;<i> &gt;            return oldOnError(errorMsg, url, lineNumber);
+</I>&gt;<i> &gt;        }
+</I>&gt;<i> &gt;       var e = window.getLastError();
+</I>&gt;<i> &gt;        alert(&quot;Globally unhandled error! But we now can discover its origin.
+</I>&gt;<i> &gt; Details: &quot; + e);
+</I>&gt;<i> &gt;        return false;
+</I>&gt;<i> &gt; }
+</I>&gt;<i> &gt; ```
+</I>&gt;<i> &gt; 2. Alternatively (though less preferably), we could also update the
+</I>&gt;<i> &gt; invocation arguments of `window.onerror` callbacks to include a new fourth
+</I>&gt;<i> &gt; argument that would be the relevant `Error` object itself:
+</I>&gt;<i> &gt;    ```
+</I>&gt;<i> &gt;    var oldOnError = window.onerror;
+</I>&gt;<i> &gt;    window.onerror = function myErrorHandler(errorMsg, url, lineNumber, e) {
+</I>&gt;<i> &gt;        if (oldOnError) {
+</I>&gt;<i> &gt;            return oldOnError(errorMsg, url, lineNumber, e);
+</I>&gt;<i> &gt;        }
+</I>&gt;<i> &gt;       alert(&quot;Globally unhandled error! But we now can discover its origin.
+</I>&gt;<i> &gt; Details: &quot; + e);
+</I>&gt;<i> &gt;        return false;
+</I>&gt;<i> &gt;    }
+</I>&gt;<i> &gt;    ```
+</I>&gt;<i> &gt;    While this essentially makes the first three arguments useless, I have
+</I>&gt;<i> &gt; posed it this way for the sake of backward compatibility.
+</I>&gt;<i> 
+</I>&gt;<i> I'd prefer this second option (except making it the fifth argument), 
+</I>&gt;<i> because the exception object can become garbage earlier and because for 
+</I>&gt;<i> cross-origin script errors, the arguments to window.onerror are masked 
+</I>&gt;<i> for security reasons, and we would need to mask the exception object as 
+</I>&gt;<i> well, so it seems better to use the same mechanism for that.
+</I>
+I don't really understand the practical difference between these two 
+options, assuming getLastError() only returns a value while the onerror 
+handler is being invoked. (If it returns a value after it's invoked, you 
+get the problem zcorpan describes above, of the value not being garbage 
+collectable until much later.)
+
+
+&gt;<i> Also for compile script errors, there is no exception object.
+</I>
+That's a good point also.
+
+
+On Fri, 11 May 2012, James Greene wrote:
+&gt;<i> 
+</I>&gt;<i> I personally am interested in adding the stack trace, yes, but ideally I 
+</I>&gt;<i> would just have access to the full &quot;Error&quot; object so I can always have 
+</I>&gt;<i> an up-to-date model if the &quot;Error&quot; object continues to change (as it 
+</I>&gt;<i> probably will).  For example, some devs may be interested in the &quot;Error&quot; 
+</I>&gt;<i> object's &quot;name&quot; property, which is already a part of the object today 
+</I>&gt;<i> but is not provided to &quot;window.onerror&quot; callbacks.  And again, if 
+</I>&gt;<i> additional properties are added in the future, it's just more and more 
+</I>&gt;<i> properties that may need to get incrementally added to the 
+</I>&gt;<i> &quot;window.onerror&quot; invocation arguments list.
+</I>
+Having the exception object, if any, in the onerror callback, seems 
+reasonable, and would indeed limit how many more arguments we may have to 
+add over the years. It seems that providing it as an argument would be 
+better than as a global, though.
+
+
+&gt;<i> For example, I proposed the addition of an &quot;innerError&quot; property (or 
+</I>&gt;<i> some would call it &quot;cause&quot;) for chaining errors and masking internal 
+</I>&gt;<i> errors that consumers shouldn't see, instead providing a customer-facing 
+</I>&gt;<i> message.
+</I>
+I'm not familiar with that proposal.
+
+
+On Fri, 11 May 2012, James Greene wrote:
+&gt;<i>
+</I>&gt;<i> Alright... so what's next?  I'm assuming this needs further discussion 
+</I>&gt;<i> with other WHATWG members chiming in.  If I can help, please let me 
+</I>&gt;<i> know. I'd like to see this request through.
+</I>
+Discussion isn't really what's needed, so much as commitments (or at 
+least, positive interest) from browser vendors. See this FAQ entry:
+
+   <A HREF="http://wiki.whatwg.org/wiki/FAQ#Is_there_a_process_for_adding_new_features_to_a_specification.3F">http://wiki.whatwg.org/wiki/FAQ#Is_there_a_process_for_adding_new_features_to_a_specification.3F</A>
+
+
+In general, providing the exception object as a fifth argument to onerror 
+seems reasonable to me. Any implementors interested in adding this?
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="038155.html">[whatwg] &lt;script&gt; features
+</A></li>
+	<LI>Next message: <A HREF="080443.html">[whatwg] Proposal: Add window.getLastError (or modify invocation arguments of window.onerror)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#38156">[ date ]</a>
+              <a href="thread.html#38156">[ thread ]</a>
+              <a href="subject.html#38156">[ subject ]</a>
+              <a href="author.html#38156">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

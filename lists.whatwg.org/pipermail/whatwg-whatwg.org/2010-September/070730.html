@@ -1,0 +1,243 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] The choice of script global object to use when the script element is moved
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20The%20choice%20of%20script%20global%20object%20to%20use%20when%20the%0A%20script%20element%20is%20moved&In-Reply-To=%3CPine.LNX.4.64.1009082113120.3392%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="070702.html">
+   <LINK REL="Next"  HREF="070738.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] The choice of script global object to use when the script element is moved</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20The%20choice%20of%20script%20global%20object%20to%20use%20when%20the%0A%20script%20element%20is%20moved&In-Reply-To=%3CPine.LNX.4.64.1009082113120.3392%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg] The choice of script global object to use when the script element is moved">ian at hixie.ch
+       </A><BR>
+    <I>Wed Sep  8 14:47:31 PDT 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="070702.html">[whatwg] The choice of script global object to use when the script element is moved
+</A></li>
+        <LI>Next message: <A HREF="070738.html">[whatwg] The choice of script global object to use when the	script element is moved
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#70730">[ date ]</a>
+              <a href="thread.html#70730">[ thread ]</a>
+              <a href="subject.html#70730">[ subject ]</a>
+              <a href="author.html#70730">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Fri, 3 Sep 2010, Henri Sivonen wrote:
+&gt;<i>
+</I>&gt;<i> When evaluating a parser-inserted script, there are three potential script global objects to use:
+</I>&gt;<i>  1) The script global object of the document whose active parser the parser that inserted the script is.
+</I>&gt;<i>  2) The script global object of the document that owned the script element at the time of invoking the &quot;run&quot; algorithm.
+</I>&gt;<i>  3) The script global object of the document that owns the script element at the time of script evaluation.
+</I>
+#1 and #2 are dodgy because the documents in question might have been 
+GC'ed by that point.
+
+
+&gt;<i> The spec says the answer is #3. WebKit (with HTML5 parser or without) 
+</I>&gt;<i> says the answer is #1. Firefox 3.6 says the answer is #2.
+</I>&gt;<i> 
+</I>&gt;<i> I doubt that there are Web compat considerations forcing this choice, 
+</I>&gt;<i> because IE8 doesn't get as far as running the script in this case. IE9 
+</I>&gt;<i> tries to do either #2 or #3 (not sure which) succeeding for inline 
+</I>&gt;<i> scripts and failing for external ones. (IIRC, the text in the spec that 
+</I>&gt;<i> explains the distinction between 1 and the other (without explaining the 
+</I>&gt;<i> distinction between 2 and 3) was added specifically for the benefit of 
+</I>&gt;<i> the IE team.)
+</I>
+I'm not sure exactly which sentence you mean here, but I'm happy to 
+clarify text if anything is ambiguous.
+
+
+&gt;<i> The spec asserts that these options are equally safe, because if 
+</I>&gt;<i> something is able to move the scripts so that 1, 2 and 3 would result in 
+</I>&gt;<i> different script global objects, the script gets moved within one 
+</I>&gt;<i> Origin.
+</I>
+There's some weirdness, e.g. if one of the browsing contexts has script 
+disabled or if document.domain gets changed after the &lt;script&gt; node is 
+moved to another document, but yeah, as far as I can tell either option is 
+safe.
+
+
+&gt;<i> However, if there's something other than Same Origin restricting what 
+</I>&gt;<i> scripts are eligible for evaluation (e.g. Content Security Policies that 
+</I>&gt;<i> I don't know well enough to reason about), 1, 2 and 3 might not be 
+</I>&gt;<i> equally safe.
+</I>
+Essentially, there are two browsing contexts, the one with the parser and 
+the other one.
+
+- If the one with the parser moves the script to the other context: for an 
+attack to be relevant here, the script would have to run in the other 
+context, but any attack possible this way could also be done by just 
+creating a script in that document and appending it, or setting onload or 
+onclick or some such content attribute in that document. If script is 
+disabled in that other browsing context then nothing happens.
+
+- If the one without the parser grabs the script and inserts it into 
+itself, then for any attack to be interesting, scripting in the parser doc 
+has to be disabled (since otherwise the other doc could just inject script 
+into the parser doc and do whatever it wanted as if it was itself the 
+parser doc). If we make scripts run in the parser doc context, then you 
+can use this to grab a &lt;script src=&quot;&quot;&gt; that is Referer-checked and execute 
+it in the other doc's context, grabbing any information from that script. 
+However, you could also do this by just pushState()ing to the other doc's 
+URL, and then obtaining the script directly. The other possibility is 
+scripts running in the non-parser doc context, but as far as I can tell 
+you can always just grab the script from the other DOM and copy it to run 
+in the non-parser doc, so again no new security problem seems to be 
+introduced.
+
+So in conclusion, I really don't see a new attack vector regardless of 
+what we do here.
+
+
+&gt;<i>  * Why does the spec say #3 when none of the browsers did #3 at the time 
+</I>&gt;<i> of spec writing?
+</I>
+I don't know the original reason. I would guess it was simply a matter of 
+doing the simplest thing in the spec -- I try wherever possible to not 
+refer back to the active parser if I can avoid it, letting things work 
+identically with DOM manipulation from script as from the parser. Also, it 
+avoids any weirdness like how to handle the case of the original doc(s) 
+being GCed.
+
+
+&gt;<i>  * Are there use cases that favor any one of these in particular? (I 
+</I>&gt;<i> doubt it.)
+</I>
+They seem identical.
+
+
+&gt;<i> FWIW, my gut says we should do #1, since it is obviously secure, except 
+</I>&gt;<i> it would be unfortunate if the spec changed to #1 but too late for IE9 
+</I>&gt;<i> to match.
+</I>
+They all seem obviously secure. If you can manipulate a document's DOM, 
+you can essentially do anything including running arbitrary script in that 
+document or run script from that document in your document.
+
+One advantage of doing #3 is that, as Adam pointed out, the implementation 
+is required to get the security context at the last minute, where it's 
+most likely to be up to date (e.g. with document.domain changes, etc) even 
+in the case of the &lt;script&gt; element not being moved around.
+
+
+On Fri, 3 Sep 2010, Boris Zbarsky wrote:
+&gt;<i> 
+</I>&gt;<i> Could it cause script to run from a &lt;script&gt; element that someone sticks 
+</I>&gt;<i> in a same-origin but sandboxed iframe if the non-sandboxed parent moves 
+</I>&gt;<i> some part of the DOM out before the parse is done?
+</I>
+The only relevant case would be a sandboxed frame that is marked 
+same-origin with script disabled, where a page moves a &lt;script&gt; block from 
+the &lt;iframe&gt; into itself between the &lt;script&gt; being added to the DOM and 
+the &lt;script&gt; executing. Yes, if you grab the &lt;script&gt; element before the 
+parser hits the &lt;/script&gt; tag in this particular case, you would end up 
+running script that would otherwise not run. For this to be used as an 
+attack vector you'd have to find a page that move nodes from a sandboxed 
+iframe first, but if you did it seems like a much more interesting attack 
+vector would be to just set event handler attributes on the nodes (onload, 
+onmouseover, etc) that get copied.
+
+
+On Tue, 7 Sep 2010, Henri Sivonen wrote:
+&gt;<i> 
+</I>&gt;<i> Since the check &quot;If scripting is disabled for the script element, or if 
+</I>&gt;<i> the user agent does not support the scripting language given by the 
+</I>&gt;<i> script block's type for this script element, then the user agent must 
+</I>&gt;<i> abort these steps at this point. The script is not executed.&quot; happens at 
+</I>&gt;<i> the time of the &quot;run&quot; algorithm and since iframe sandboxing or Content 
+</I>&gt;<i> Security Policies can cause scripting to be &quot;disabled&quot;, a security check 
+</I>&gt;<i> has to happen at the time of invoking the &quot;run&quot; algorithm (assuming we 
+</I>&gt;<i> don't want to change the pre-existing behavior of what happens in the 
+</I>&gt;<i> common same-document case where a script gets rejected and we don't want 
+</I>&gt;<i> to decouple the time on supported language check from the time of 
+</I>&gt;<i> security-based rejections; this would be detectable in the 
+</I>&gt;<i> document.write() case).
+</I>
+Checking whether the browsing context's scripting is disabled is (at least 
+in principle) a different check than getting the script's origin and 
+global scope object, which is what matters in the execution case.
+
+
+&gt;<i> Is there any good reason (other than differing from current IE9 PP 
+</I>&gt;<i> behavior) not to do #1 with the additional stipulation that making the 
+</I>&gt;<i> document whose active parser the parser is go away makes the scripts 
+</I>&gt;<i> that are pending to run in the context of its script global object 
+</I>&gt;<i> behave (stop?) the same regardless of which document they are in? (I.e. 
+</I>&gt;<i> if the document that had the active parser gets torn down before the 
+</I>&gt;<i> scripts inserted into another doc have loaded, those scripts wouldn't be 
+</I>&gt;<i> evaluated.) I still believe doing #1 in Gecko would be the simplest 
+</I>&gt;<i> thing. With the test cases above, WebKit seems to be doing #1 already 
+</I>&gt;<i> (and then crashing) and Opera fails to move the scripts so the execution 
+</I>&gt;<i> context ends up being the same as it would in case #1.
+</I>
+#3 is simpler to understand, IMHO. However, #1 is not particularly hard to 
+spec, and I guess does decrease the odds of scripts being made to run 
+accidentally by a bug in a script using sandboxed or CSP context.
+
+If everyone is ok with #1, I'm happy to change the spec accordingly.
+
+
+&gt;<i> Suppose there are two docs from one Origin. The document that the parser 
+</I>&gt;<i> is associated with doesn't have a CSP. A script in it moves a node in 
+</I>&gt;<i> such a way that the parser ends up inserting subsequent scripts into 
+</I>&gt;<i> another document. That document has a CSP that bans scripts. Would you 
+</I>&gt;<i> consider it a bug if a script ran in the context of the script global 
+</I>&gt;<i> object of the document whose CSP says no scripts?
+</I>
+If the CSP applied then the script would not run, if it didn't then it 
+would run in the context of the doc without the CSP. I'm sure we wouldn't 
+want to define the CSP as applying to nodes in a different way than the 
+global scope is picked.
+
+The more interesting case is the reverse: a non-CSP doc grabs &lt;script&gt; 
+nodes from a CSP-covered partly-untrusted document being parsed, and ends 
+up executing the scripts under a different policy.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="070702.html">[whatwg] The choice of script global object to use when the script element is moved
+</A></li>
+	<LI>Next message: <A HREF="070738.html">[whatwg] The choice of script global object to use when the	script element is moved
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#70730">[ date ]</a>
+              <a href="thread.html#70730">[ thread ]</a>
+              <a href="subject.html#70730">[ subject ]</a>
+              <a href="author.html#70730">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

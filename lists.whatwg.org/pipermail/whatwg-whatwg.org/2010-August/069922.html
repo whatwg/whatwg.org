@@ -1,0 +1,149 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Race condition in media load algorithm
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Race%20condition%20in%20media%20load%20algorithm&In-Reply-To=%3C4C5AD729.2050501%40mit.edu%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="069917.html">
+   <LINK REL="Next"  HREF="069929.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Race condition in media load algorithm</H1>
+<!--htdig_noindex-->
+    <B>Boris Zbarsky</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Race%20condition%20in%20media%20load%20algorithm&In-Reply-To=%3C4C5AD729.2050501%40mit.edu%3E"
+       TITLE="[whatwg] Race condition in media load algorithm">bzbarsky at MIT.EDU
+       </A><BR>
+    <I>Thu Aug  5 08:22:17 PDT 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="069917.html">[whatwg] Race condition in media load algorithm
+</A></li>
+        <LI>Next message: <A HREF="069929.html">[whatwg] Race condition in media load algorithm
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#69922">[ date ]</a>
+              <a href="thread.html#69922">[ thread ]</a>
+              <a href="subject.html#69922">[ subject ]</a>
+              <a href="author.html#69922">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On 8/5/10 5:14 AM, Philip J&#228;genstedt wrote:
+&gt;&gt;<i> It's not, in fact, trivial in implementation. You're making
+</I>&gt;&gt;<i> assumptions about how implementations work that don't seem warranted
+</I>&gt;&gt;<i> (e.g. the concept of &quot;reference to that very script&quot; is not
+</I>&gt;&gt;<i> well-defined in some implementations). In particular, what you're
+</I>&gt;&gt;<i> proposing is not at all trivial in Gecko.
+</I>&gt;<i>
+</I>&gt;<i>  From &lt;<A HREF="https://bugzilla.mozilla.org/show_bug.cgi?id=485288#c7">https://bugzilla.mozilla.org/show_bug.cgi?id=485288#c7</A>&gt; it sounds
+</I>&gt;<i> like Gecko actually has pretty much the same tools to work with as
+</I>&gt;<i> Opera: a nsIThreadObserver that allows you to wait until you've
+</I>&gt;<i> &quot;finished the task in which some JS called load()&quot;. This is exactly what
+</I>&gt;<i> Opera does.
+</I>
+No, what Gecko has is an nsIThreadObserver which is notified when an 
+event is processed.  This as nothing with any particular event 
+finishing, and will get called in the &quot;pause&quot; and &quot;spin event loop&quot; 
+states that are defined in the spec.  It does not allow you to wait for 
+a particular task to finish.
+
+Furthemore, tasks do not map to &quot;scripts&quot; very well, either in Gecko or 
+in general.
+
+&gt;<i> (It's difficult for Opera to rely on the message loop to resume the
+</I>&gt;<i> synchronous section, because our script engine can suspend and continue
+</I>&gt;<i> executing on a later message. Therefore, waiting for a script to finish
+</I>&gt;<i> executing is the best solution.)
+</I>
+See, this concept of &quot;a script&quot; is a funny one, given that scripts are 
+reentrant, and that multiple different scripts can all be running at the 
+same time, possibly with event loops nested in between on the conceptual 
+callstack
+
+&gt;&gt;&gt;<i> If it doesn't, just don't ever continue with the synchronous section.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> I don't think that's reasonable.
+</I>&gt;<i>
+</I>&gt;<i> A script that's stuck in an infinite loop is broken
+</I>
+Who said anything about infinite loops?
+
+&gt;<i> If a script is showing a modal dialog, not loading a video in the
+</I>&gt;<i> background seems fine.
+</I>
+Why?  It doesn't seem fine to me at all.
+
+&gt;&gt;&gt;<i> It would block all event handlers from running too
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> I believe this is false in the case of showModalDialog.
+</I>&gt;<i>
+</I>&gt;<i> It sounds like we're going to end up with slightly incompatible
+</I>&gt;<i> implementations.
+</I>
+Well, neither one of us is implementing what the spec calls for (in 
+different ways), so... ;)
+
+&gt;<i> A far more important issue is still what to do while the parser is
+</I>&gt;<i> running and we should &quot;await a stable state&quot;. It can't possibly mean
+</I>&gt;<i> waiting until the parser has completely finished running
+</I>
+Indeed, no.  However I would assume that a &quot;stable state&quot; in that 
+situation would, for example, imply that the DOM is in a self-consistent 
+state.  So if you start the load algorithm when a &lt;video&gt; is inserted in 
+the document, it has to be after the insertion is fully processed or 
+some such...
+
+In practice, what Gecko would likely do here is to treat &quot;stable state&quot; 
+as &quot;the event loop is spinning&quot;, just like we would for the other case. 
+  This means that while a modal dialog is up, or a sync XHR is running 
+or whatnot is a stable state.
+
+&gt;<i> If it just means
+</I>&gt;<i> letting the parser finish its current batch of input
+</I>
+I would assume it does.
+
+&gt;<i> I can't see how
+</I>&gt;<i> black-box testing could tell the difference between this and always
+</I>&gt;<i> ignoring the &quot;await a stable state&quot; step
+</I>
+It's possible that it can't.  It would depend on the exact steps that 
+run in the synchronous section, but since synchronous sections can't 
+trigger script it might not be detectable at all.
+
+-Boris
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="069917.html">[whatwg] Race condition in media load algorithm
+</A></li>
+	<LI>Next message: <A HREF="069929.html">[whatwg] Race condition in media load algorithm
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#69922">[ date ]</a>
+              <a href="thread.html#69922">[ thread ]</a>
+              <a href="subject.html#69922">[ subject ]</a>
+              <a href="author.html#69922">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

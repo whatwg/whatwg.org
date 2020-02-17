@@ -1,0 +1,150 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Worker lifecycle
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Worker%20lifecycle&In-Reply-To=%3C14173BE7-C87B-4E25-A67A-C89B6364DD6F%40apple.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="062268.html">
+   <LINK REL="Next"  HREF="062258.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Worker lifecycle</H1>
+<!--htdig_noindex-->
+    <B>Maciej Stachowiak</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Worker%20lifecycle&In-Reply-To=%3C14173BE7-C87B-4E25-A67A-C89B6364DD6F%40apple.com%3E"
+       TITLE="[whatwg] Worker lifecycle">mjs at apple.com
+       </A><BR>
+    <I>Fri May 29 13:29:56 PDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="062268.html">[whatwg] Worker lifecycle
+</A></li>
+        <LI>Next message: <A HREF="062258.html">[whatwg] Worker lifecycle
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#62269">[ date ]</a>
+              <a href="thread.html#62269">[ thread ]</a>
+              <a href="subject.html#62269">[ subject ]</a>
+              <a href="author.html#62269">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>
+On May 29, 2009, at 11:29 AM, Drew Wilson wrote:
+
+&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> On Thu, May 28, 2009 at 7:47 PM, Maciej Stachowiak &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">mjs at apple.com</A>&gt;  
+</I>&gt;<i> wrote:
+</I>&gt;<i>
+</I>&gt;<i> On May 28, 2009, at 5:17 PM, Ian Hickson wrote:
+</I>&gt;<i>
+</I>&gt;<i> On Thu, 28 May 2009, Maciej Stachowiak wrote:
+</I>&gt;<i> On May 28, 2009, at 1:08 PM, Ian Hickson wrote:
+</I>&gt;<i> On Thu, 28 May 2009, Maciej Stachowiak wrote:
+</I>&gt;<i>
+</I>&gt;<i> If so, that seems like it could create unbounded memory leaks in
+</I>&gt;<i> long-running Web applications that use MessagePorts, even if all
+</I>&gt;<i> references to both endpoints of the MessageChannel are dropped. That
+</I>&gt;<i> seems unacceptable to me, unless I misunderstood.
+</I>&gt;<i>
+</I>&gt;<i> The requirement is actually indistinguishable from the UA using the
+</I>&gt;<i> other alternative and just having a really slow garbage collector that
+</I>&gt;<i> only runs at page-closing time.
+</I>&gt;<i>
+</I>&gt;<i> So it's exactly equivalent to the old requirement, except the spec now
+</I>&gt;<i> specifically points out that you can just leak forever instead. I  
+</I>&gt;<i> don't
+</I>&gt;<i> think that addresses the original concern at all.
+</I>&gt;<i>
+</I>&gt;<i> I've tweaked the text some to make it clear that once the port is not
+</I>&gt;<i> entangled, it doesn't continue being protected in this way.
+</I>&gt;<i>
+</I>&gt;<i> The new text seems to be this:
+</I>&gt;<i>
+</I>&gt;<i> &quot;When a MessagePort object is entangled, user agents must either act  
+</I>&gt;<i> as if the object has a strong reference to its entangledMessagePort  
+</I>&gt;<i> object, or as if the MessagePort object's owner has a strong  
+</I>&gt;<i> reference to the MessagePort object&quot;
+</I>&gt;<i>
+</I>&gt;<i> It seems to me this allows the following case: two message ports A  
+</I>&gt;<i> and B are entangled. A is treated as having a strong reference to B,  
+</I>&gt;<i> but is not treated as if its owner has a strong reference to it.  
+</I>&gt;<i> However, B is not treated as having a strong reference to A, but is  
+</I>&gt;<i> treated as if its owner has a strong reference to it. Is that  
+</I>&gt;<i> intended? I think this behavior would be practically implementable  
+</I>&gt;<i> and quite useful in many cases, even though it is asymmetric. But I  
+</I>&gt;<i> am not sure if the text intended to allow it.
+</I>&gt;<i>
+</I>&gt;<i> Can you elaborate on this a bit? Where would this asymmetric  
+</I>&gt;<i> behavior be useful? It seems like in the specific case you cite, B  
+</I>&gt;<i> would be doubly-referenced, while A would be unreferenced.
+</I>
+Ian clarified on IRC that he didn't mean to allow it. The reason it  
+would be useful is that it would allow A to be garbage collected as  
+soon as it has no references, at which point it can notify B that it's  
+gone, and then B can switch rules, and itself be garbage collected  
+once it has no references. It would prevent memory leaks but would not  
+provide meaningful limits on nondeterminism.
+
+Regards,
+Maciej
+
+P.S. In case anyone doubts that distributed GC is hard (as apparently  
+Ian did until yesterday), here is a clarifying example. It might seem  
+simple to come up with a protocol for two MessagePorts to tell each  
+other when they are otherwise unreferenced by anything in their own  
+heap with minimal GC hooks. But suppose you have Workers A and B, and  
+Window W, and a MessageChannel connecting each pair. The MessagePorts  
+are AB-A (the endpoint of the AB channel in A), AB-B, AW-A, AW-W, BW- 
+B, BW-W. Now suppose that the two MessagePorts in each global context  
+indirectly reference each other (so AB-A has a reference to AW-W and  
+vice vera and so forth). It's quite hard to come up with a protocol  
+that will let all six MessagePorts know that they have no references  
+besides each other and thus may be garbage collected. Note that this  
+example can easily arise in practice, for example if the onmessage  
+listeners for each message port are closures with both the relevant  
+ports in scope. Note also that distributed GC among 3 heaps is still a  
+much simpler special case than the fully general case of N heaps. In  
+practice, this means that any implementation with split heaps (which  
+likely will include all multiprocess implementations) has to take the  
+more conservative lifetime rule, tying to the owner. So in practice,  
+the only way to reliably free the resources associated with a  
+MessagePort will be to .close() it.
+
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: &lt;<A HREF="http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20090529/3f9ad79a/attachment-0002.htm">http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20090529/3f9ad79a/attachment-0002.htm</A>&gt;
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="062268.html">[whatwg] Worker lifecycle
+</A></li>
+	<LI>Next message: <A HREF="062258.html">[whatwg] Worker lifecycle
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#62269">[ date ]</a>
+              <a href="thread.html#62269">[ thread ]</a>
+              <a href="subject.html#62269">[ subject ]</a>
+              <a href="author.html#62269">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

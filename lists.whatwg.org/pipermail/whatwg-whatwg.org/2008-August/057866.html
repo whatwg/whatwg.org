@@ -1,0 +1,217 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Web Workers and MessagePort feedback
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Web%20Workers%20and%20MessagePort%20feedback&In-Reply-To=%3C4898CBA7.2080801%40sicking.cc%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="057861.html">
+   <LINK REL="Next"  HREF="057867.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Web Workers and MessagePort feedback</H1>
+<!--htdig_noindex-->
+    <B>Jonas Sicking</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Web%20Workers%20and%20MessagePort%20feedback&In-Reply-To=%3C4898CBA7.2080801%40sicking.cc%3E"
+       TITLE="[whatwg] Web Workers and MessagePort feedback">jonas at sicking.cc
+       </A><BR>
+    <I>Tue Aug  5 14:52:39 PDT 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="057861.html">[whatwg] Web Workers and MessagePort feedback
+</A></li>
+        <LI>Next message: <A HREF="057867.html">[whatwg] Web Workers and MessagePort feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#57866">[ date ]</a>
+              <a href="thread.html#57866">[ thread ]</a>
+              <a href="subject.html#57866">[ subject ]</a>
+              <a href="author.html#57866">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Aaron Boodman wrote:
+&gt;<i> I'm still digesting the Web Worker proposal, but here is some
+</I>&gt;<i> feedback. Sorry it is a bit long.
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> Structural API stuff:
+</I>&gt;<i> 
+</I>&gt;<i> - I still haven't really internalized the need to either have workers
+</I>&gt;<i> speak directly to anyone other than the person who created them, or
+</I>&gt;<i> the other use cases that MessageChannels are intended for. There is a
+</I>&gt;<i> lot of complexity here. I think we need to add some requirements and
+</I>&gt;<i> motivations to the top of the doc, and some code samples showing the
+</I>&gt;<i> intended usage before implementors can really decide whether it's
+</I>&gt;<i> worth taking on.
+</I>&gt;<i> 
+</I>&gt;<i> - It seems like we might want an object that represents workers. This
+</I>&gt;<i> would allow us put the 'onload' and 'onerror' events from MessagePort
+</I>&gt;<i> there, instead of on MessagePort, which makes more sense to me (I
+</I>&gt;<i> don't know what it means for a MessagePort to 'load' or 'error'
+</I>&gt;<i> outside of the context of a worker). MessagePort.onunload could then
+</I>&gt;<i> change to 'onclose' to go with the close() method.
+</I>&gt;<i> 
+</I>&gt;<i> It seems like over time, we might want to be able to perform other
+</I>&gt;<i> operations on a worker and having the worker object might be handy.
+</I>
+Agreed.
+
+&gt;<i> I know this is weird wrt GC when combined with MessagePorts, and I
+</I>&gt;<i> don't have a proposed solution.
+</I>
+I don't think we should say much regarding GC at all. All we should say 
+is that GC should not affect the operation of the page. I.e. it is not 
+allowed to GC an Worker that someone still has references to, or a 
+Worker that has XHR loads in progress or timers pending.
+
+Very few other specs mention GC and I haven't noticed that ever being a 
+problem. For example everyone agrees that it's a bug that gecko 
+sometimes GCs the parent of a node, if you're not actively holding any 
+references to anything in the parent chain.
+
+&gt;<i> - It's odd to me that the way to establish a channel to a worker
+</I>&gt;<i> depends on whether you are the creator of the worker or not. The
+</I>&gt;<i> creator gets a MessagePort to a new channel back from createWorker(),
+</I>&gt;<i> but any other function must pass a new MessagePort over the original
+</I>&gt;<i> one, and the worker must know to use that secondary port to talk back.
+</I>&gt;<i> 
+</I>&gt;<i> I would prefer to see something like:
+</I>&gt;<i> 
+</I>&gt;<i> void Worker.postMessage(DOMString message)
+</I>&gt;<i> void Worker.postMessage(DOMString message, MessagePort port)
+</I>&gt;<i> 
+</I>&gt;<i> That way the way to establish a new channel is the same for all
+</I>&gt;<i> callers. It also has the advantage of looking similar to a window's
+</I>&gt;<i> postMessage API.
+</I>
+Agreed.
+
+&gt;<i> Here is how the previous two suggestions would look together:
+</I>&gt;<i> 
+</I>&gt;<i> var worker = new Worker(&quot;foo.js&quot;);
+</I>&gt;<i> worker.onload = function() { ... }
+</I>&gt;<i> worker.onerror = function() { ... }
+</I>&gt;<i> worker.onunload = function() { ... }  // called when the worker shuts down
+</I>&gt;<i> worker.sendMessage(&quot;hello!&quot;);
+</I>
+So I really like this API. However it makes it completely impossible to 
+ever pass worker objects across threads. I.e. we could never allow:
+
+worker1.postMessage(&quot;...&quot;, worker2);
+
+This would be very strange if we had .onload, .onerror etc on the worker 
+object itself since those properties wouldn't make much sense living in 
+multiple &quot;threads&quot; at once.
+
+While I agree direct communication between sibling workers is an 
+edgecase, it's something I would prefer to not make impossible for 
+future versions of the spec.
+
+Though I just realized that we could cover that case using only 
+MessagePorts. So we say that you can only communicate with your creator, 
+and any children using direct .postMessage. If you want to more complex 
+communication patterns then set up MessagePorts.
+
+&gt;<i> - The spec says that as soon as a worker is not reachable (determined
+</I>&gt;<i> via GC) from any MessagePort, it is eligible for shutdown. Shutdown
+</I>&gt;<i> would attempt to finish all queued messages, but not allow any new
+</I>&gt;<i> ones.
+</I>&gt;<i> 
+</I>&gt;<i> This concerns me because it means that workers will have different
+</I>&gt;<i> behavior depending on GC timing. If a worker is not referenced from
+</I>&gt;<i> any port, and it sends an XHR, that XHR may or may not be sent
+</I>&gt;<i> depending on when GC runs. This is different than how XHR behaves
+</I>&gt;<i> normally. Typically, XHR objects that have outstanding IO but no
+</I>&gt;<i> referers will not be GC'd until they complete or fail.
+</I>&gt;<i> 
+</I>&gt;<i> Finally this does not allow use cases such as creating a worker to
+</I>&gt;<i> synchronize a local database with the network without ever sending
+</I>&gt;<i> notifications back to the parent.
+</I>&gt;<i> 
+</I>&gt;<i> Maybe workers should stay alive as long as any of the following are true:
+</I>&gt;<i> 
+</I>&gt;<i> - There is script running in them
+</I>&gt;<i> - There are messages to them queued
+</I>&gt;<i> - There is a messageport alive anywhere that could send messages to them
+</I>&gt;<i> - There are &quot;asynchronous operations&quot; (xhr, timers, database
+</I>&gt;<i> operations) inside them outstanding
+</I>
+Agreed. Like I said above, I think the less we say about GC the better. 
+GC effects should not be noticeable to the page.
+
+&gt;<i> - Why is there an ownerWindow property on MessagePort? If I understand
+</I>&gt;<i> correctly, this is just a synonym for the 'window' object of the
+</I>&gt;<i> currently executing script context.  I think it should go away.
+</I>
+If we put postMessage directly on the Worker object we don't need to 
+mention MessagePorts in the Web workers spec at all. They can just be an 
+orthogonal specs.
+
+&gt;<i> - The purpose of 'import()' on WindowWorker was not immediately
+</I>&gt;<i> obvious to me from its name. Should it be 'importScript()'? or
+</I>&gt;<i> 'includeScript()' maybe?
+</I>&gt;<i> 
+</I>&gt;<i> - Should import() accept an array of URLs, so that the UA can fetch
+</I>&gt;<i> them in parallel if it has the ability to do that?
+</I>
+Agreed on both.
+
+&gt;<i> - The string URL property on the WindowWorker interface is less useful
+</I>&gt;<i> than the parsed structure that window.location has. Can we use
+</I>&gt;<i> something like this instead, except making it read-only?
+</I>
+Why do we need it at all?
+
+If we do think it's useful, most of the uses that I've seen for the 
+parsed URL structure has been to set the .hash in order to scroll around 
+on a page or communicate between iframes of different origins (ugh!!). 
+Neither of these applies here I'd say.
+
+&gt;<i> - The &quot;front-line&quot; nomenclature was a bit weird to me. How about &quot;top-level&quot;?
+</I>
+I didn't try to grokk this part yet. Is it just about estabilishing 
+lifetime of the worker objects? If so, see my previous comments about GC.
+
+&gt;<i> - Would it be too weird to have createWorker overloaded to take an
+</I>&gt;<i> optional name parameter? This would make the behavior similar to
+</I>&gt;<i> window.open(), which either opens a new window or reuses an existing
+</I>&gt;<i> window with the same name.
+</I>
+What would it be used for? window.open uses the name so you can target 
+links at it which doesn't seem like it applies here either.
+
+/ Jonas
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="057861.html">[whatwg] Web Workers and MessagePort feedback
+</A></li>
+	<LI>Next message: <A HREF="057867.html">[whatwg] Web Workers and MessagePort feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#57866">[ date ]</a>
+              <a href="thread.html#57866">[ thread ]</a>
+              <a href="subject.html#57866">[ subject ]</a>
+              <a href="author.html#57866">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

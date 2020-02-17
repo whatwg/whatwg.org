@@ -1,0 +1,142 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Another issue in 12.2.5.5 parsing tokens in foreign content
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Another%20issue%20in%2012.2.5.5%20parsing%20tokens%20in%20foreign%0A%20content&In-Reply-To=%3Calpine.DEB.2.00.1307312035560.9685%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="082218.html">
+   <LINK REL="Next"  HREF="039920.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Another issue in 12.2.5.5 parsing tokens in foreign content</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Another%20issue%20in%2012.2.5.5%20parsing%20tokens%20in%20foreign%0A%20content&In-Reply-To=%3Calpine.DEB.2.00.1307312035560.9685%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg] Another issue in 12.2.5.5 parsing tokens in foreign content">ian at hixie.ch
+       </A><BR>
+    <I>Wed Jul 31 14:05:57 PDT 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="082218.html">[whatwg] Another issue in 12.2.5.5 parsing tokens in foreign content
+</A></li>
+        <LI>Next message: <A HREF="039920.html">[whatwg] Question about DOMImplementation.createHTMLDocument() specifications
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#82587">[ date ]</a>
+              <a href="thread.html#82587">[ thread ]</a>
+              <a href="subject.html#82587">[ subject ]</a>
+              <a href="author.html#82587">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Thu, 4 Jul 2013, Michael Day wrote:
+&gt;<i> &gt; 
+</I>&gt;<i> &gt; The problem is that we can't do (2) in _all_ cases, e.g. innerHTML on 
+</I>&gt;<i> &gt; an &lt;svg&gt; can't possibly break out of the &lt;svg&gt; if it sees one of these 
+</I>&gt;<i> &gt; tags, since that's the &quot;root&quot; of what is being parsed.
+</I>&gt;<i> 
+</I>&gt;<i> Yes, HTML has already lost the composability of parsing that XML and 
+</I>&gt;<i> other languages have, that's long gone. But that doesn't mean we should 
+</I>&gt;<i> try to make it even more irregular :)
+</I>&gt;<i> 
+</I>&gt;<i> Currently Firefox, Chrome, and Prince all treat the fragment case the 
+</I>&gt;<i> same as the whole document case, so we already have interoperable 
+</I>&gt;<i> behaviour on this issue.
+</I>
+If you treated them the same, you would either crash or have an infinite 
+loop, because you'd either pop the root element off the stack and then try 
+to append something to null, or you'd try to reprocess the token without 
+having popped anything first.
+
+There has to be _some_ special casing of &lt;svg&gt;.innerHTML.
+
+What should the special casing be? Consider this case:
+
+   &lt;svg&gt;.innerHTML = '&lt;g&gt;&lt;p&gt;'
+
+I can see two possible options:
+
+    svg
+    |
+    +-- g
+        |
+        +-- P
+
+Or:
+
+    svg
+    |
+    +-- g
+    |
+    +-- P
+
+Neither are what happens in the non-fragment case (in that case the &lt;p&gt; is 
+a sibling of the &lt;svg&gt;).
+
+Consider this case:
+
+   &lt;svg&gt;.innerHTML = '&lt;g&gt;&lt;svg&gt;&lt;g&gt;&lt;p&gt;'
+
+Here, the &lt;P&gt; node could be a child of the innermost &lt;g&gt;, the innermost 
+&lt;svg&gt;, the outermost &lt;g&gt;, or the outermost &lt;svg&gt;. I could see arguments 
+for all those cases. It seems unlikely that the author meant any of them.
+         
+
+&gt;<i> Since the HTML spec is supposed to reflect reality, it seems pointless 
+</I>&gt;<i> to deliberately introduce an inconsistency in the parsing model that 
+</I>&gt;<i> requires changes in all user agents to implement.
+</I>
+All the user agents (or at least, all the browsers I could test) have to 
+change anyway. Blink-based browsers and WebKit-based browsers don't 
+support innerHTML on &lt;svg&gt; at all. Firefox supports innerHTML on &lt;svg&gt; but 
+puts all the nodes in the HTML namespace.
+
+In conclusion, the reason I simply removed the quirk from fragment parsing 
+rather than trying to make it work is that:
+
+ - all browsers will have to change anyway,
+
+ - the quirk needs special handling in the fragment case anyway,
+
+ - it's not clear what the behaviour should be,
+
+ - in many cases, we're not error-correcting in a useful way anyway.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="082218.html">[whatwg] Another issue in 12.2.5.5 parsing tokens in foreign content
+</A></li>
+	<LI>Next message: <A HREF="039920.html">[whatwg] Question about DOMImplementation.createHTMLDocument() specifications
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#82587">[ date ]</a>
+              <a href="thread.html#82587">[ thread ]</a>
+              <a href="subject.html#82587">[ subject ]</a>
+              <a href="author.html#82587">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

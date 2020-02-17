@@ -1,0 +1,146 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Canvas in workers
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Canvas%20in%20workers&In-Reply-To=%3CCAMYvS2ep1uEZ1ymXB20zzgukS94NV03F3oUA8R-BtSdbsGmVfA%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="083387.html">
+   <LINK REL="Next"  HREF="083394.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Canvas in workers</H1>
+<!--htdig_noindex-->
+    <B>Kenneth Russell</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Canvas%20in%20workers&In-Reply-To=%3CCAMYvS2ep1uEZ1ymXB20zzgukS94NV03F3oUA8R-BtSdbsGmVfA%40mail.gmail.com%3E"
+       TITLE="[whatwg] Canvas in workers">kbr at google.com
+       </A><BR>
+    <I>Tue Oct 15 15:55:14 PDT 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="083387.html">[whatwg] Canvas in workers
+</A></li>
+        <LI>Next message: <A HREF="083394.html">[whatwg] Canvas in workers
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#83389">[ date ]</a>
+              <a href="thread.html#83389">[ thread ]</a>
+              <a href="subject.html#83389">[ subject ]</a>
+              <a href="author.html#83389">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Mon, Oct 14, 2013 at 1:34 PM, Robert O'Callahan &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">robert at ocallahan.org</A>&gt; wrote:
+&gt;<i> On Mon, Oct 14, 2013 at 2:20 PM, Kenneth Russell &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">kbr at google.com</A>&gt; wrote:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Would you mind looking at the proposal
+</I>&gt;&gt;<i> <A HREF="http://wiki.whatwg.org/wiki/CanvasInWorkers">http://wiki.whatwg.org/wiki/CanvasInWorkers</A> and commenting on it?
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> Sure. Kyle and I looked at it while we were working on our proposal. The
+</I>&gt;<i> main issues I have with it are that rearchitecting &lt;canvas&gt; to introduce the
+</I>&gt;<i> DrawingBuffer layer of abstraction seems unnecessarily complex, and it
+</I>&gt;<i> doesn't handle direct presentation of frames from the worker, bypassing the
+</I>&gt;<i> main thread.
+</I>
+Note that the CanvasInWorkers draft solves some other longstanding
+issues not addressed by the WorkerCanvas proposal. It provides the
+ability to render to multiple canvases from a single context, whether
+workers are involved or not. It achieves ideal memory utilization by
+being very explicit in the API, without the need for extensive and
+subtle optimizations behind the scenes.
+
+It's worth considering whether a change to the CanvasInWorkers
+proposal could support presenting frames directly from the worker.
+
+
+&gt;&gt;<i> There's been some recent discussion in the WebGL WG on this topic and
+</I>&gt;&gt;<i> concerns were raised from other parties at Mozilla about the
+</I>&gt;&gt;<i> DrawingBuffer proposal above, including that it isn't possible to
+</I>&gt;&gt;<i> render from a worker without synchronizing with the main thread.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> This is a huge limitation. For games and other animated content, achieving a
+</I>&gt;<i> stable frame rate is super important and a key motivation for adding canvas
+</I>&gt;<i> support to workers.
+</I>&gt;<i>
+</I>&gt;<i> My vision for handling the Maps use-cases based on our proposal is this: the
+</I>&gt;<i> worker renders to one or more WorkerCanvases, then does
+</I>&gt;<i> createImageBitmap(canvasContext), then ships the ImageBitmap(s) to the main
+</I>&gt;<i> thread using postMessage, and then renders those ImageBitmaps either by
+</I>&gt;<i> drawing them to a canvas or in some more direct way.
+</I>&gt;<i>
+</I>&gt;<i> This can all be implemented in a zero-copy way with the APIs currently in
+</I>&gt;<i> the spec, though it's not trivial. You'd need to do a few optimizations:
+</I>&gt;<i> -- createImageBitmap(canvasContext) would take a lazy snapshot of the canvas
+</I>&gt;<i> contents; i.e., further modifications to the canvas would trigger a copy (on
+</I>&gt;<i> the worker), but if the canvas is untouched no copy is required.
+</I>&gt;<i> -- structured clone of the ImageBitmap would not copy. This may actually
+</I>&gt;<i> require a small spec change.
+</I>&gt;<i> -- drawing an ImageBitmap to a 2D &lt;canvas&gt;, if it covers the whole canvas,
+</I>&gt;<i> would simply replace the canvas buffer with the ImageBitmap contents (and
+</I>&gt;<i> perform copy-on-write if the script later makes changes to that canvas).
+</I>&gt;<i> These optimizations would all be useful in other contexts too. Whatever
+</I>&gt;<i> happens with canvas-in-a-worker, I bet we'll end up doing these
+</I>&gt;<i> optimizations for other reasons.
+</I>
+I agree that it's probably possible to make this work. It is still
+worth considering whether these optimizations are going to be fragile,
+and whether developers will fall off a performance cliff if something
+subtle changes in their code or in the browser's behavior in the
+future.
+
+
+&gt;<i> It might make sense to create an API that renders an ImageBitmap more
+</I>&gt;<i> directly than drawing it to a canvas. For example we could create an API
+</I>&gt;<i> that allows an &lt;img&gt; element to render an ImageBitmap. It would be a bit
+</I>&gt;<i> simpler for authors and perhaps a bit simpler to implement than the final
+</I>&gt;<i> optimization in my list above.
+</I>
+That's an interesting possibility. It would probably be quite a bit
+simpler to both specify and implement rather than using a canvas on
+the receiving end.
+
+-Ken
+
+
+&gt;<i> Rob
+</I>&gt;<i> --
+</I>&gt;<i> Jtehsauts  tshaei dS,o n&quot; Wohfy  Mdaon  yhoaus  eanuttehrotraiitny  eovni le
+</I>&gt;<i> atrhtohu gthot sf oirng iyvoeu rs ihnesa.r&quot;t sS?o  Whhei csha iids  teoa
+</I>&gt;<i> stiheer :p atroa lsyazye,d  'mYaonu,r  &quot;sGients  uapr,e  tfaokreg iyvoeunr,
+</I>&gt;<i> 'm aotr  atnod  sgaoy ,h o'mGee.t&quot;  uTph eann dt hwea lmka'n?  gBoutt  uIp
+</I>&gt;<i> waanndt  wyeonut  thoo mken.o w
+</I>
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="083387.html">[whatwg] Canvas in workers
+</A></li>
+	<LI>Next message: <A HREF="083394.html">[whatwg] Canvas in workers
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#83389">[ date ]</a>
+              <a href="thread.html#83389">[ thread ]</a>
+              <a href="subject.html#83389">[ subject ]</a>
+              <a href="author.html#83389">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

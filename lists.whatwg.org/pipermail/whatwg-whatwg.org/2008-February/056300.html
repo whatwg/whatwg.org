@@ -1,0 +1,583 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] several messages about &lt;event-source&gt; and related	subjects
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20several%20messages%20about%20%3Cevent-source%3E%20and%20related%0A%09subjects&In-Reply-To=%3CPine.LNX.4.62.0802212051290.6407%40hixie.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="056298.html">
+   <LINK REL="Next"  HREF="056302.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] several messages about &lt;event-source&gt; and related	subjects</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20several%20messages%20about%20%3Cevent-source%3E%20and%20related%0A%09subjects&In-Reply-To=%3CPine.LNX.4.62.0802212051290.6407%40hixie.dreamhostps.com%3E"
+       TITLE="[whatwg] several messages about &lt;event-source&gt; and related	subjects">ian at hixie.ch
+       </A><BR>
+    <I>Fri Feb 22 02:16:51 PST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="056298.html">[whatwg] More ImageData issues
+</A></li>
+        <LI>Next message: <A HREF="056302.html">[whatwg] Pagination Was: article: do we really need this?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#56300">[ date ]</a>
+              <a href="thread.html#56300">[ thread ]</a>
+              <a href="subject.html#56300">[ subject ]</a>
+              <a href="author.html#56300">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>
+Sorry about the three-way cross-post, but this message contains replies to 
+e-mails from those three mailing lists. Please select just the one mailing 
+list when replying, and trim the quotes below to include only what you are 
+discussing. Thanks.
+
+Executive summary:
+
+ * Made it possible to adjust the reconnection timeout.
+
+ * Made it so that the client tells the server what the last message it 
+   received was when it reconnects, so as to allow seamless continuation. 
+
+ * Rewrote the implementation processing requirements.
+
+ * Simplified the event stream format:
+    - removed the concept of 'commands'
+    - changed the comment syntax from starting with a ';' to
+      starting with a ':'
+
+ * Removed the possibility to control anything of the event other than the 
+   'data' and 'type' of the event.
+
+ * Restricted the events that can be fired to all use MessageEvent.
+
+ * Made 'message' events not bubble.
+
+ * Made the MIME type of the new event stream format be
+   text/event-stream; removed mention of the old format's type 
+   (application/x-dom-event-stream).
+
+
+In 2006, Anne wrote, in an e-mail I apparently lost, but which he
+later reminded me of:
+&gt;<i> 
+</I>&gt;<i> * The event-source element has no DOM interface while it has some 
+</I>&gt;<i> attributes that probably warrant one.
+</I>
+This got fixed at some point.
+
+
+&gt;<i> * The specification doesn't define when the onevent event handler is 
+</I>&gt;<i> invoked nor when the event event is dispatched. They are only defined. 
+</I>&gt;<i> It's also unclear which interface they implement, et cetera.
+</I>
+This should be fixed now.
+
+
+&gt;<i> * A problem with the event-source element is that the resource is loaded 
+</I>&gt;<i> before you can attach event listeners to the document. Perhaps the 
+</I>&gt;<i> loading should start after the load event is dispatched? Unless the 
+</I>&gt;<i> element was inserted into the document of course (that's actually also a 
+</I>&gt;<i> bit unclear).
+</I>
+If you use src=&quot;&quot;, just use onmessage=&quot;&quot; to receive the messages (and 
+only use 'message' events). Alternatively, do it dynamically.
+
+
+&gt;<i> * Since event sources can be attached using other ways than using the 
+</I>&gt;<i> event-source element the Target field should be amended to take that 
+</I>&gt;<i> into account. (Some sentences there don't make sense for an event source 
+</I>&gt;<i> attached to an object that is not an event-source element.)
+</I>
+Target is gone.
+
+
+&gt;<i> * Regarding that, I'd be interested in hearing the use case for allowing 
+</I>&gt;<i> any EventTarget to be a source for server-sent events.
+</I>
+This was requested by Opera... I'll happily drop it if it's no longer 
+required. I'd like to only make it &lt;event-source&gt; elements.
+
+
+&gt;<i> * Event namespaces throughout should be changed to match DOM Level 3 
+</I>&gt;<i> Events. That basically means that <A HREF="http://www.w3.org/2001/xml-events">http://www.w3.org/2001/xml-events</A> is 
+</I>&gt;<i> gone.
+</I>
+No mention of namespaces is left.
+
+
+&gt;<i> * Perhaps RemoteEvent should be replaced with a reference to CustomEvent
+</I>&gt;<i>   from DOM Level 3 Events which offers the same type of functionality?
+</I>
+RemoteEvent is now MessageEvent and this no longer applies.
+
+
+&gt;<i> * What happens when the event given in the Event field doesn't match the 
+</I>&gt;<i> NCName production as required by DOM Level 3 Events such as in the 
+</I>&gt;<i> example in section 7.1.7? (It uses the event &quot;stock change&quot;.)
+</I>
+Nothing.
+
+
+&gt;<i> * At the moment the BNF does need error handling because you could have 
+</I>&gt;<i> a &quot;;&quot; at the start of a line without any data following (or a new line 
+</I>&gt;<i> for that matter).
+</I>
+That would have been a comment. Now it's an ignored fied.
+
+
+&gt;<i> * It might be better to replace the BNF with something similar as the 
+</I>&gt;<i> HTML parsing specification currently has. That provides a much more 
+</I>&gt;<i> clear processing model.
+</I>
+Both are present.
+
+
+&gt;<i> * What happens for other line feed characters? Are they treated as 
+</I>&gt;<i> fields? Won't that give lots of problems for authors coding in non-Unix 
+</I>&gt;<i> formats? HTTP for example allows both.
+</I>
+CRLF, CR, and LF, are all allowed now.
+
+
+&gt;<i> * &quot;For each non-blank, non-comment line, the field name is first 
+</I>&gt;<i> taken[...]&quot; doesn't cover what happens to command lines.
+</I>
+Removed command lines.
+
+
+&gt;<i> * &quot;The ctrlKey field would be ignored[...]&quot; should probably say
+</I>&gt;<i> &quot;keyIdentifier&quot; as that's what's used in the example.
+</I>
+That section is gone now.
+
+
+On Thu, 14 Jun 2007, reed wrote:
+&gt;<i> 
+</I>&gt;<i> I was wondering how you mitigate the persistent connection limitations 
+</I>&gt;<i> described in RFCs 2068 and 2616 vs server-sent events. It seems the 
+</I>&gt;<i> former limits the laters usability.
+</I>
+This seems like an HTTP issue. I'm not sure what we can do about it.
+
+
+On Thu, 21 Jun 2007, Anne van Kesteren wrote:
+&gt;<i>
+</I>&gt;<i> If want to send XML or HTML documents from the server using server-sent 
+</I>&gt;<i> events you have to escape them in some way and then unescape them again 
+</I>&gt;<i> on the client side. For sending documents it would be more useful if you 
+</I>&gt;<i> could specify something like the length of the chunk of data and a MIME 
+</I>&gt;<i> type followed by the actual data and that on the client side you just 
+</I>&gt;<i> have an attribute on the event that gives you the DOM representation of 
+</I>&gt;<i> the document similar to what XMLHttpRequest already has. Specifying a 
+</I>&gt;<i> new format besides application/x-dom-event-stream is probably 
+</I>&gt;<i> sufficient. Something like application/x-dom-document-event-stream...
+</I>
+&quot;Escaping&quot; just consists of splitting on newlines and prefixing each 
+line with 'data: ', which is trivial. You get back a string which you can 
+process any way you like (document.innerHTML = s, parseJSON(s), whatever).
+
+
+On Fri, 3 Aug 2007, Henry Mason wrote:
+&gt;<i> 
+</I>&gt;<i> I've been working on an implementation of Server-Sent DOM Events. I ran 
+</I>&gt;<i> into a small inconsistency in the specifications as they stand. Under 
+</I>&gt;<i> section 6.2.4's &quot;Class field&quot; part:
+</I>&gt;<i> 
+</I>&gt;<i>     If the Namespace is null and the Event field is message (including
+</I>&gt;<i>     if it was not specified explicitly), then the MessageEvent interface
+</I>&gt;<i>     must be used.
+</I>&gt;<i>     Otherwise, the Event interface must be used.
+</I>&gt;<i> 
+</I>&gt;<i> I feel this should be changed and simplified to to:
+</I>&gt;<i> 
+</I>&gt;<i>     Otherwise, the MessageEvent interface must be used.
+</I>
+This is now moot as only MessageEvent can be used.
+
+
+On Thu, 16 Aug 2007, Henry Mason wrote (privately):
+&gt;<i> 
+</I>&gt;<i> Firstly, I'm not totally clear on the proper way to handle boolean event 
+</I>&gt;<i> attributes.
+</I>
+These are now all gone.
+
+
+&gt;<i> It's also not entirely sure clear to handle attributes of events which
+</I>&gt;<i> reference other nodes.
+</I>
+These are also all gone now.
+
+
+&gt;<i> There is also a particular oddity in the KeyboardEvent interface. It has 
+</I>&gt;<i> 4 boolean attributes (ctrlKey, shiftKey, altKey, metaKey) for key 
+</I>&gt;<i> modifiers, but its initializer (initKeyboardEvent) instead uses a 
+</I>&gt;<i> modifiersList argument, which is a &quot;white space separated list of 
+</I>&gt;<i> modifier key identifiers to be activated on this object.&quot; So these two 
+</I>&gt;<i> events evaluate to the same thing?
+</I>
+This is moot as you can no longer create such events now.
+
+
+On Thu, 16 Aug 2007, Henry Mason wrote (still privately):
+&gt;<i> 
+</I>&gt;<i> That sounds fine but why not use the same for Cancelable and Bubbles 
+</I>&gt;<i> while we're at it?
+</I>
+These are gone too.
+
+
+On Wed, 10 Oct 2007, Mihai Sucan wrote:
+&gt;<i> 
+</I>&gt;<i> 1. Regarding section 6.2.2. &quot;Connecting to an event stream&quot; [2] it's 
+</I>&gt;<i> defined that:
+</I>&gt;<i> 
+</I>&gt;<i> &quot;If such a resource completes loading (i.e. the entire HTTP response 
+</I>&gt;<i> body is received or the connection itself closes), the user agent should 
+</I>&gt;<i> request the event source resource again after a delay of approximately 
+</I>&gt;<i> five seconds.&quot;
+</I>&gt;<i> 
+</I>&gt;<i> The event source resource polling interval cannot be defined by Web 
+</I>&gt;<i> authors. Shouldn't this be configurable somehow? The 5 seconds delays 
+</I>&gt;<i> seems completely arbitrary.
+</I>
+This is now possible by including a field like this:
+
+   retry: 5000
+
+...which gives the retry interval in milliseconds.
+
+
+&gt;<i> 2. In section 6.2.4. &quot;Interpreting an event stream&quot; [3], there's a typo 
+</I>&gt;<i> in the definition of the Class field, first phrase:
+</I>&gt;<i> 
+</I>&gt;<i> &quot;This field gives *is* the interface used for the event, for instance 
+</I>&gt;<i> Event, UIEvent, MutationEvent, KeyboardEvent, etc. &quot;
+</I>&gt;<i> 
+</I>&gt;<i> Correction: remove &quot;is&quot;.
+</I>
+That section is gone now.
+
+
+&gt;<i> 3. Why does the specification define &quot;comments&quot; in the stream?
+</I>
+For three reasons: one to allow static streams to be commented, two, to 
+allow keepalive data to be sent without affecting anything else, and 
+three, because otherwise we'd have to define lines starting with a colon 
+in some other way, e.g. as an error, and that seemed no more useful.
+
+
+&gt;<i> Given it does, why must the UA fire the message event when a comment is 
+</I>&gt;<i> sent? There's no use to do so, other than having an event listner which 
+</I>&gt;<i> could figure out &quot;hey, something is coming from the server, maybe they 
+</I>&gt;<i> are comments&quot;.
+</I>
+Fixed. This is no longer required.
+
+
+&gt;<i> 4. The specification does not make any statements about the security 
+</I>&gt;<i> implications of SSE.
+</I>&gt;<i> 
+</I>&gt;<i> There are possibilities to flood the UA with events.
+</I>
+This is already the case with any number of mechanisms (e.g. JS timeouts 
+and DOM Events), and I wouldn't consider that a new threat.
+
+
+&gt;<i> There's also the possibility to exploit security holes
+</I>
+This is the case with anything.
+
+
+&gt;<i> or simply to crash the UA when sending specific binary data as 
+</I>&gt;<i> application/x-dom-event-stream.
+</I>
+The spec clearly indicates how all bytes are to be interpreted -- binary 
+data that doesn't fit UTF-8 will be treated as U+FFFD. However, that's 
+actually somewhat irrelevant -- the user agent should never crash. It's 
+not a security concern in the spec if the user agent crashes, since the 
+spec already requires that it not crash.
+
+
+&gt;<i> The connection should be closed/forcefully terminated, in some cases.
+</I>
+Which cases?
+
+
+&gt;<i> Regarding security, I would suggest to restrict the allowed chars in 
+</I>&gt;<i> field names to a-z, A-Z, 0-9, _ and -. This would allow the 
+</I>&gt;<i> implementation to terminate parsing the entire line earlier in cases 
+</I>&gt;<i> when garbage data is sent. If that's too limited, allow only certain 
+</I>&gt;<i> Unicode blocks (maybe from 0000 to 024F ?). [4]
+</I>
+Why not U+0000 to U+10FFFF?
+
+
+&gt;<i> For now, the spec requires UAs to support the usage of binary-named 
+</I>&gt;<i> fields and values, which is rather overkill, I'd say.
+</I>
+I don't understand your usage of the term &quot;binary&quot; here.
+
+
+&gt;<i> I haven't tested yet, but I'm quite sure existing implementations (such 
+</I>&gt;<i> as Opera) do not allow *any* field name, which would be valid within the 
+</I>&gt;<i> current spec rules.
+</I>
+This is now in fact required. :-)
+
+
+
+On Thu, 11 Oct 2007, Kornel Lesinski wrote:
+&gt;<i> 
+</I>&gt;<i> If an application requires to get each and every event only once -- for 
+</I>&gt;<i> example it's streaming log from the server, line after line, and should 
+</I>&gt;<i> not display duplicate lines and should not skip any -- in case of 
+</I>&gt;<i> network failure and automatic reconnection, it's tricky to resume events 
+</I>&gt;<i> at the right point.
+</I>&gt;<i> 
+</I>&gt;<i> Reliable resuming of event streams requires server to keeping track of 
+</I>&gt;<i> messages sent to each client, which is costly and only tells how many 
+</I>&gt;<i> were sent, not how many were sucessfully received. Alternatively server 
+</I>&gt;<i> could re-send number of messages, but that is wasteful and requires 
+</I>&gt;<i> client to filter out duplicates.
+</I>&gt;<i> 
+</I>&gt;<i> A solution to this would be for browser to trigger an event when error 
+</I>&gt;<i> occurs or before it's about to reconnect. This would allow script to 
+</I>&gt;<i> modify URL of &lt;event-source&gt; to include identifier/timestamp of last 
+</I>&gt;<i> message it has got, so the server could easily resume the stream from 
+</I>&gt;<i> the right point.
+</I>
+Something similar is now in the spec. Basically each event can include an 
+&quot;id&quot; field, and if a reconnection attempt is made, the last &quot;id&quot; field 
+received is sent back to the server along with the connection attempt.
+
+
+&gt;<i> How about adding XMLHttpRequest-alike interface to &lt;event-stream&gt;? It 
+</I>&gt;<i> could use readystatechange event to signal connection progress, 
+</I>&gt;<i> reconnections and network errors. Since it is possible to implement 
+</I>&gt;<i> &lt;event-stream&gt; using XMLHttpRequest, it might be easy for 
+</I>&gt;<i> implementations to expose it.
+</I>
+This seems excessively complex. What's the use case?
+
+
+On Fri, 12 Oct 2007, Mihai Sucan wrote:
+&gt;<i> 
+</I>&gt;<i> There should be a way to track down if server-sent events are sent from 
+</I>&gt;<i> a remote source or not. I would say to require that UAs send all the 
+</I>&gt;<i> events from remote sources with an additional property: remote, string, 
+</I>&gt;<i> set to the event source URI/IRI.
+</I>
+The event now contains the origin of the event-source.
+
+
+&gt;<i> This might seem an irrelevant, use-less property. However, this allows 
+</I>&gt;<i> authors to code Web applications which do not allow certain sensitive 
+</I>&gt;<i> events from being triggered by, possibly, malicious remote event 
+</I>&gt;<i> sources. This is just like the UA can tell if some events (like click) 
+</I>&gt;<i> were generated synthetically by scripts, or they are the direct result 
+</I>&gt;<i> of user interaction, for the purpose of allowing/disallowing popups.
+</I>
+Only synthetic events (MessageEvent events) can be created now.
+
+
+&gt;<i> (somewhat off-topic idea) Thinking along the same lines, it would be 
+</I>&gt;<i> interesting to be able to tell synthetic events apart from events 
+</I>&gt;<i> triggered by user interaction, such as clicks, just like UAs do. Should 
+</I>&gt;<i> there be something like a boolean property, 'synthetic'? This would 
+</I>&gt;<i> always be true for remote events, obviously.
+</I>
+XBL2 suggests a &quot;secure&quot; property, IIRC, but this is a topic for the DOM 
+Events spec, not HTML5.
+
+
+On Sat, 5 Jan 2008, Henry Mason wrote:
+&gt;<i>
+</I>&gt;<i> There's recently been some talk about completely removing HTML 5 section 
+</I>&gt;<i> 6.2, &quot;Server-sent DOM events&quot;. I propose that rather than remove, we 
+</I>&gt;<i> revise.
+</I>
+Done. :-)
+
+&gt;<i> The major concerns I've heard about section 6.2 include:
+</I>&gt;<i> 
+</I>&gt;<i> - Unnecessary dependency on DOM Events
+</I>
+This is reduced somewhat now, though DOM Events are still used.
+
+
+&gt;<i> - Redundancy with already existing techniques, especially XMLHttpRequest
+</I>
+Consensus seems to be that this is not similar enough to warrant removal.
+
+
+&gt;<i> - Complicated parsing of event fields
+</I>
+This is now simplified; there are only four types of field, and they are 
+all either arbitrary strings or integers.
+
+
+&gt;<i> - Inability to support cross-domain events (without the as-of-yet 
+</I>&gt;<i> unimplemented and untested Access-Control HTTP header mechanism)
+</I>
+This still relies on Access-Control, but that spec is becoming more mature 
+so that shouldn't be a problem.
+
+
+&gt;<i> - Continued problems of the 2 connection limit on HTTP server 
+</I>&gt;<i> scalability
+</I>
+I'm not sure how to fix that.
+
+
+&gt;<i> I propose that we remove support for non-message events; that is, allow only
+</I>&gt;<i> events with MessageEvent interface. This will make implementations easier, as
+</I>&gt;<i> UAs will only need to parse the &quot;Bubbles&quot;, &quot;Cancelable&quot;, and &quot;data&quot; fields.
+</I>
+Done, except I've even removed Bubbles and Cancelable. (I have, however, 
+allowed events to be named if desired, though they all use MessageEvent.)
+
+
+&gt;<i> The critically cool part, however, is that since MessageEvents store 
+</I>&gt;<i> their domain and URI origin, it will be safe to allow for cross-domain 
+</I>&gt;<i> messaging through this server-sent events.
+</I>
+The danger with cross-origin event sources isn't hostile event sources, 
+it's hostile Web pages sourcing victim event sources from origins that do 
+not expect to be exposed, e.g. intranet sites. That's what Access-Control 
+is protecting.
+
+
+On Mon, 7 Jan 2008, Anne van Kesteren wrote:
+&gt;<i>
+</I>&gt;<i> Opera also supports the &quot;Event&quot; and &quot;Target&quot; fields. I think we'd be 
+</I>&gt;<i> fine if the latter is removed, but the former is really useful as you 
+</I>&gt;<i> can then have separate handlers to deal with the incoming data. (That 
+</I>&gt;<i> they all implement the same MessageEvent interface is fine.)
+</I>
+Kept Event (renamed 'event') and dropped &quot;Target&quot;.
+
+
+On Mon, 7 Jan 2008, Dan Mosedale wrote:
+&gt;<i> Anne van Kesteren wrote:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Is there any realistic solution to this other than to use separate 
+</I>&gt;<i> &gt; domains and have cross-domain working?
+</I>&gt;<i>
+</I>&gt;<i> Simply get rid of, or significantly raise, the limit?  Standards work 
+</I>&gt;<i> related to this probably belongs (and conceivably is already happening) 
+</I>&gt;<i> in an HTTP protocol forum.  I did some poking around recently, and 
+</I>&gt;<i> browser behavior related to this limit is fairly varied, depending on 
+</I>&gt;<i> context.
+</I>
+Any luck with this?
+
+
+On Tue, 8 Jan 2008, Kornel Lesinski wrote:
+&gt;<i> 
+</I>&gt;<i> Sharing of event-source connection between many pages/windows would help 
+</I>&gt;<i> tremendously.
+</I>&gt;<i> 
+</I>&gt;<i> Currently each &lt;event-source&gt; on every page gets its own connection. 
+</I>&gt;<i> This makes use of it as standard element of page's design (e.g. live 
+</I>&gt;<i> stock ticker in a sidebar on financial portal) impractical - for every 
+</I>&gt;<i> page in every window browser would open separate connection, easily 
+</I>&gt;<i> reaching the limit.
+</I>&gt;<i> 
+</I>&gt;<i> This could be improved, if connection to event source was handled 
+</I>&gt;<i> outside of page's context, in a global pool of stream connections. 
+</I>&gt;<i> Browser would never use more than one connection to the same source and 
+</I>&gt;<i> would use one connection to trigger events on all pages that subscribe 
+</I>&gt;<i> to the given source. As a bonus, browser could also keep connection open 
+</I>&gt;<i> while user navigates between pages instead of closing and re-opening 
+</I>&gt;<i> stream connections each time.
+</I>&gt;<i> 
+</I>&gt;<i> The downside is that applications couldn't rely on seeing every event in 
+</I>&gt;<i> the source, so they couldn't rely on incremental updates. To remedy 
+</I>&gt;<i> this, an additional feature, like checkpoints in the stream and 
+</I>&gt;<i> replaying of past events would be neccessary.
+</I>
+I think we want to keep shared resources very localised, and we would 
+probably localise that to simply a shared worker environment, as e.g. 
+proposed in:
+
+   <A HREF="http://hixie.ch/specs/dom/messages/0.9">http://hixie.ch/specs/dom/messages/0.9</A>
+   <A HREF="http://hixie.ch/specs/dom/workers/0.9">http://hixie.ch/specs/dom/workers/0.9</A>
+
+We could just expose RemoteEventTarget to workers.
+
+
+On Mon, 7 Jan 2008, Stewart Brodie wrote:
+&gt;<i> 
+</I>&gt;<i> I have an implementation - it does precisely that, as I mention above.
+</I>
+Cool! What do you think of the changes here? Are they acceptable?
+
+
+&gt;<i> Removing the requirement to support anything other than MessageEvent 
+</I>&gt;<i> class of events would certainly be a tremendous simplification.  I'm not 
+</I>&gt;<i> sure whether or not it is a good idea - it would leave us needing to 
+</I>&gt;<i> perform all sorts of string parsing in our JS if we wanted to issue 
+</I>&gt;<i> other types of event.  In fact, if this simplification were to be made, 
+</I>&gt;<i> I'd probably have to retain this ability for compatibility with our 
+</I>&gt;<i> existing applications.
+</I>
+I've changed the MIME type to allow easy migration in existing 
+implementations -- just support both types independently. (Other types can 
+also be supported, e.g. for experimentation of new ideas.)
+
+
+On Thu, 21 Feb 2008, Alex Russell wrote:
+&gt;<i> 
+</I>&gt;<i> Perhaps, but server-sent events are *still* silent on the most important 
+</I>&gt;<i> points:
+</I>&gt;<i> 
+</I>&gt;<i> 	* how do you detect connection close?
+</I>
+You don't, it reconnects automatically. Do you think we should expose more 
+state here? How should we do that, given that you can register multiple 
+sources per element? I'm certainly open to suggestions. :-)
+
+Cheers,
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="056298.html">[whatwg] More ImageData issues
+</A></li>
+	<LI>Next message: <A HREF="056302.html">[whatwg] Pagination Was: article: do we really need this?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#56300">[ date ]</a>
+              <a href="thread.html#56300">[ thread ]</a>
+              <a href="subject.html#56300">[ subject ]</a>
+              <a href="author.html#56300">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

@@ -1,0 +1,182 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Storage mutex
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Storage%20mutex&In-Reply-To=%3C5dd9e5c50908260127m7d5eb690l94cb384cac00bf69%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="022319.html">
+   <LINK REL="Next"  HREF="022334.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Storage mutex</H1>
+<!--htdig_noindex-->
+    <B>Jeremy Orlow</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Storage%20mutex&In-Reply-To=%3C5dd9e5c50908260127m7d5eb690l94cb384cac00bf69%40mail.gmail.com%3E"
+       TITLE="[whatwg] Storage mutex">jorlow at chromium.org
+       </A><BR>
+    <I>Wed Aug 26 01:27:45 PDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="022319.html">[whatwg] Storage mutex
+</A></li>
+        <LI>Next message: <A HREF="022334.html">[whatwg] Storage mutex
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22320">[ date ]</a>
+              <a href="thread.html#22320">[ thread ]</a>
+              <a href="subject.html#22320">[ subject ]</a>
+              <a href="author.html#22320">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Wed, Aug 26, 2009 at 12:51 AM, Darin Fisher &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">darin at chromium.org</A>&gt; wrote:
+
+&gt;<i> On Sun, Aug 23, 2009 at 11:33 PM, Robert O'Callahan &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">robert at ocallahan.org</A>&gt;wrote:
+</I>&gt;<i>
+</I>&gt;&gt;<i> That behaviour sounds worse than what Firefox currently does, where an
+</I>&gt;&gt;<i> alert disables input to all tabs in the window (which is already pretty
+</I>&gt;&gt;<i> bad), because it willl make applications in visually unrelated tabs and
+</I>&gt;&gt;<i> windows hang.
+</I>&gt;&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> You can have script connections that span multiple tabs in multiple
+</I>&gt;<i> windows, so in order to preserve the run-to-completion semantics of
+</I>&gt;<i> JavaScript, it is important that
+</I>&gt;<i> window.{alert,confirm,prompt,showModalDialog} be modal across all windows in
+</I>&gt;<i> the browser.  This is why those APIs suck rocks, and we should never create
+</I>&gt;<i> APIs like them again.
+</I>&gt;<i>
+</I>
+I don't understand your point here.  Are you saying that the current firefox
+behavior is not correct, that releasing the storage lock on these events is
+not correct, or something else?
+
+Defining &quot;no-one else&quot; may be difficult. I haven't thought this through, to
+&gt;&gt;<i> be honest, but I think you could update the counter every time the storage
+</I>&gt;&gt;<i> mutex is released and the shared state was modified since the storage mutex
+</I>&gt;&gt;<i> was acquired. Reading the counter would acquire the storage mutex. You'd
+</I>&gt;&gt;<i> basically write
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> var counter = window.storageMutexGenerationCounter;
+</I>&gt;&gt;<i> ... do lots of stuff ...
+</I>&gt;&gt;<i> if (window.storageMutexGenerationCounter != counter) {
+</I>&gt;&gt;<i>   // abort, or refresh local state, or something
+</I>&gt;&gt;<i> }
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> I'm not sure what you'd do if you discovered an undesired lock-drop,
+</I>&gt;&gt;<i> though. If you can't write something sensible instead of &quot;abort, or
+</I>&gt;&gt;<i> something&quot;, it's not worth doing.
+</I>&gt;&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> Implementation-wise, the easiest thing to support is a boolean that becomes
+</I>&gt;<i> true when the lock is release and false when the lock is acquired.  Trying
+</I>&gt;<i> to update a counter based on modifications to the local storage backend
+</I>&gt;<i> which may be happening on another thread seems like more effort than it is
+</I>&gt;<i> worth.
+</I>&gt;<i>
+</I>
+Such a boolean could be useful, but I disagree with the assertion that the
+implementation is significantly more difficult.  I'm pretty sure both would
+be trivial in Chromium, for example.
+
+
+&gt;<i>  But, what would you call this boolean?  storageMayHaveBeenUpdated? :-P
+</I>&gt;<i>
+</I>&gt;<i> I'm struggling to find a good use case for this.
+</I>&gt;<i>
+</I>
+None of the ones I already listed seemed interesting?  If nothing else, I
+would think debugability would be a key one.  If we're going to do something
+halfway magical, we should make it possible for developers to know it
+happened, right??
+
+The getStorageUpdates name seems pretty decent to me when considering it
+&gt;<i> from the perspective of the caller.  The caller is saying that they are OK
+</I>&gt;<i> with being able to see changes made to the localStorage by &quot;other threads.&quot;
+</I>&gt;<i>  This cleverly avoids the need to talk about locks, which seems like a good
+</I>&gt;<i> thing.  It is okay for there to be no updates to storage.
+</I>&gt;<i>
+</I>
+So the use case I've had in my mind that maybe isn't clear is this:
+
+localStorage.getItem/setItem
+navigator.getStorageUpdates()
+localStorage.getItem/setItem
+
+In other words, no &quot;processing&quot; or anything between calls.
+
+If the act of calling getStorageUpdates gives the lock to everyone who's
+waiting for it before letting the caller get it again, then I guess I can
+buy this argument.  I still think yieldStorageMutex (or just about anything
+for that matter) would be a much better name, but given that no one's
+agreeing with me (on this list, anyhow) I'm just going to drop it.
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: &lt;<A HREF="http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20090826/ccbd3afa/attachment.htm">http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20090826/ccbd3afa/attachment.htm</A>&gt;
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="022319.html">[whatwg] Storage mutex
+</A></li>
+	<LI>Next message: <A HREF="022334.html">[whatwg] Storage mutex
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22320">[ date ]</a>
+              <a href="thread.html#22320">[ thread ]</a>
+              <a href="subject.html#22320">[ subject ]</a>
+              <a href="author.html#22320">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

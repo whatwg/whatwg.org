@@ -1,0 +1,546 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] How to handle multitrack media resources in HTML
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20How%20to%20handle%20multitrack%20media%20resources%20in%20HTML&In-Reply-To=%3CPine.LNX.4.64.1103302241130.19153%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="073435.html">
+   <LINK REL="Next"  HREF="073451.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] How to handle multitrack media resources in HTML</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20How%20to%20handle%20multitrack%20media%20resources%20in%20HTML&In-Reply-To=%3CPine.LNX.4.64.1103302241130.19153%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg] How to handle multitrack media resources in HTML">ian at hixie.ch
+       </A><BR>
+    <I>Thu Apr  7 23:54:14 PDT 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="073435.html">[whatwg] Ongoing work on an editing commands (execCommand())	specification
+</A></li>
+        <LI>Next message: <A HREF="073451.html">[whatwg] How to handle multitrack media resources in HTML
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#31164">[ date ]</a>
+              <a href="thread.html#31164">[ thread ]</a>
+              <a href="subject.html#31164">[ subject ]</a>
+              <a href="author.html#31164">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>
+On Thu, 10 Feb 2011, Silvia Pfeiffer wrote:
+&gt;<i> 
+</I>&gt;<i> One particular issue that hasn't had much discussion here yet is the 
+</I>&gt;<i> issue of how to deal with multitrack media resources or media resources 
+</I>&gt;<i> that have associated synchronized audio and video resources. I'm 
+</I>&gt;<i> concretely referring to such things as audio descriptions, sign language 
+</I>&gt;<i> video, and dubbed audio tracks.
+</I>&gt;<i> 
+</I>&gt;<i> We require an API that can expose such extra tracks to the user and to 
+</I>&gt;<i> JavaScript. This should be independent of whether the tracks are 
+</I>&gt;<i> actually inside the media resource or are given as separate resources, 
+</I>
+I think there's a big difference between multiple tracks inside one 
+resource and multiple tracks spread amongst multiple resources: in the 
+former case, one would need a single set of network state APIs (load 
+algorithm, ready state, network state, dimensions, buffering state, etc), 
+whereas in the second case we'd need N set of these APIs, one for each 
+media resource.
+
+Given that the current mechanism for exposing the load state of a media 
+resource is a media element (&lt;video&gt;, &lt;audio&gt;), I think it makes sense to 
+reuse these elements for loading each media resource even in a multitrack 
+scenario. Thus I do not necessarily agree that exposing extra tracks 
+should be done in a way that as independent of whether the tracks are 
+in-band or out-of-band.
+
+
+&gt;<i> but should be linked to the main media resource through markup.
+</I>
+What is a &quot;main media resource&quot;?
+
+e.g. consider youtubedoubler.com; what is the main resource?
+
+Or similarly, when watching the director's commentary track on a movie, is 
+the commentary the main track, or the movie?
+
+
+&gt;<i> I am bringing this up now because solutions may have an influence on the 
+</I>&gt;<i> inner workings of TimedTrack and the &lt;track&gt; element, so before we have 
+</I>&gt;<i> any implementations of &lt;track&gt;, we should be very certain that we are 
+</I>&gt;<i> happy with the way in which it works - in particular that &lt;track&gt; 
+</I>&gt;<i> continues to stay an empty element.
+</I>
+I don't really see why this would be related to text tracks. Those have 
+their own status framework, and interact directly with a media element. 
+Looking again at the youtubedoubler.com example, one could envisage both 
+sides having text tracks. They wouldn't be joint tracks.
+
+
+On Mon, 14 Feb 2011, Jeroen Wijering wrote:
+&gt;<i> 
+</I>&gt;<i> In terms of solutions, I lean much towards the manifest approach. The 
+</I>&gt;<i> other approaches are options that each add more elements to HTML5, 
+</I>&gt;<i> which:
+</I>&gt;<i> 
+</I>&gt;<i> * Won't work for situations outside of HTML5.
+</I>&gt;<i>
+</I>&gt;<i> * Postpone, and perhaps clash with, the addition of manifests.
+</I>
+Manifests, and indeed any solution that relies on a single media element, 
+would make it very difficult to render multiple video tracks independently 
+(e.g. side by side vs picture-in-picture). That's not to say that 
+manifests shouldn't work, but I think we'd need another solution as well.
+
+
+&gt;<i> *) The CSS styling issue can be fixed by making a conceptual change to 
+</I>&gt;<i> CSS and text tracks. Instead of styling text tracks, a single &quot;text 
+</I>&gt;<i> rendering area&quot; for each video element can be exposed and styled. Any 
+</I>&gt;<i> text tracks that are enabled push data in it, which is automatically 
+</I>&gt;<i> styled according to the video.textStyle/etc rules.
+</I>
+This wouldn't work well with positioned captions.
+
+
+&gt;<i> *) Discoverability is indeed an issue, but this can be fixed by defining 
+</I>&gt;<i> a common track API for signalling and enabling/disabling tracks:
+</I>&gt;<i>
+</I>&gt;<i> {{{
+</I>&gt;<i> interface Track {
+</I>&gt;<i>   readonly attribute DOMString kind;
+</I>&gt;<i>   readonly attribute DOMString label;
+</I>&gt;<i>   readonly attribute DOMString language;
+</I>&gt;<i> 
+</I>&gt;<i>   const unsigned short OFF = 0;
+</I>&gt;<i>   const unsigned short HIDDEN = 1;
+</I>&gt;<i>   const unsigned short SHOWING = 2;
+</I>&gt;<i>   attribute unsigned short mode;
+</I>&gt;<i> };
+</I>&gt;<i> 
+</I>&gt;<i> interface HTMLMediaElement : HTMLElement {
+</I>&gt;<i>   [...]
+</I>&gt;<i>   readonly attribute Track[] tracks;
+</I>&gt;<i> };
+</I>&gt;<i> }}}
+</I>
+There's a big difference between text tracks, audio tracks, and video 
+tracks. While it makes sense, for instance, to have text tracks enabled 
+but not showing, it makes no sense to do that with audio tracks. 
+Similarly, video tracks need their own display area, but text tracks need 
+a video track's display area. A single video area can display one video 
+(multiple overlapping videos being achieved by multiple playback areas), 
+but multiple audio and text tracks can be mixed together without any 
+difficulty (mixing in one audio channel, or positioning over one video 
+display area, respectively).
+
+So I'm not sure a single &quot;tracks&quot; API makes sense.
+
+
+On Wed, 16 Feb 2011, Eric Winkelman wrote:
+&gt;<i> 
+</I>&gt;<i> We're working with multitrack MPEG transport streams, and have an 
+</I>&gt;<i> implementation of the TimedTrack interface integrating with in-band 
+</I>&gt;<i> metadata tracks.  Our prototype uses the Metadata Cues to synchronize a 
+</I>&gt;<i> JavaScript application with a video stream using the stream's embedded 
+</I>&gt;<i> EISS signaling.  This approach is working very well so far.
+</I>&gt;<i> 
+</I>&gt;<i> The biggest issue we've faced is that there isn't an obvious way to tell 
+</I>&gt;<i> the browser application what type of information is contained within the 
+</I>&gt;<i> metadata track/cues.  The Cues can contain arbitrary text, but neither 
+</I>&gt;<i> the Cue, nor the associated TimedTrack, has functionality for specifying 
+</I>&gt;<i> the format/meaning of that text.
+</I>&gt;<i> 
+</I>&gt;<i> Our current implementation uses the Cue's @identifier for a MIME type, 
+</I>&gt;<i> and puts the associated metadata into the Cue's text field using XML.  
+</I>&gt;<i> This works, but requires the JavaScript browser application to examine 
+</I>&gt;<i> the cues to see if they contain information it understands.  It also 
+</I>&gt;<i> requires the video player to follow this convention for Metadata 
+</I>&gt;<i> TimedTracks.
+</I>&gt;<i> 
+</I>&gt;<i> Adding a @type attribute to the Cues would certainly help, though it 
+</I>&gt;<i> would still require the browser application to examine individual cues 
+</I>&gt;<i> to see if they were useful.
+</I>&gt;<i> 
+</I>&gt;<i> An alternate approach would be to add a @type attribute to the &lt;track&gt; 
+</I>&gt;<i> tag/TimedTrack that would specify the mime type for the associated cues.  
+</I>&gt;<i> This would allow a browser application to determine from the TimedTrack 
+</I>&gt;<i> whether or not it needed to process the associated cues.
+</I>
+On Thu, 17 Feb 2011, Eric Winkelman wrote:
+&gt;<i> 
+</I>&gt;<i> MPEG transport streams, as used for commercial TV, will often contain 
+</I>&gt;<i> multiple types of metadata: content advisories, ad insertion 
+</I>&gt;<i> opportunities, interactive TV application triggers, etc.  If we were 
+</I>&gt;<i> getting this information out-of-band we would, as you suggest, know how 
+</I>&gt;<i> to deal with it.  We would use multiple @kind=metadata tracks, with the 
+</I>&gt;<i> correct handler associated with each track.  In our case, however, this 
+</I>&gt;<i> information is all coming in-band.
+</I>&gt;<i> 
+</I>&gt;<i> There is information within the MPEG transport stream that identifies 
+</I>&gt;<i> the types of metadata being carried.  This lets the video player know, 
+</I>&gt;<i> for example, that the stream has a particular track with application 
+</I>&gt;<i> triggers, and another one with content advisories.  To be consistent 
+</I>&gt;<i> with the out-of-band tracks, we envision the player creating separate 
+</I>&gt;<i> TimedTrack elements for each type of metadata, and adding the associated 
+</I>&gt;<i> data as cues.  But there isn't a clear way for the player to indicate 
+</I>&gt;<i> the type of metadata it's putting into each of these TimedTrack cues.
+</I>&gt;<i> 
+</I>&gt;<i> Which brings us to the mime types.  I have an event handler on the 
+</I>&gt;<i> &lt;video&gt; tag that fires when the player creates a new metadata track, and 
+</I>&gt;<i> this handler tries to figure out what to do with the track.  Without a 
+</I>&gt;<i> type on the track, I have to set another handler on the track that fires 
+</I>&gt;<i> when the player creates a cue, and tries to figure out what to do from 
+</I>&gt;<i> the cue.  As there is no type on the cue either, I have to examine the 
+</I>&gt;<i> cue location/text to see if it contains metadata I'm able to handle.
+</I>&gt;<i> 
+</I>&gt;<i> This all works, but it requires event handlers on tracks that may have 
+</I>&gt;<i> no interest to the application.  On the player side, it depends on the 
+</I>&gt;<i> player tagging the metadata in a consistent ad-hoc way, as well as 
+</I>&gt;<i> requiring the player to create separate metadata tracks.  (We also 
+</I>&gt;<i> considered starting the cue's text with a mime type, but this has the 
+</I>&gt;<i> same basic issues.)
+</I>
+This is an interesting problem.
+
+What is the way that the MPEG streams identify these various metadata 
+streams? Is it a MIME type? Some other identifier? Is this identifier 
+separate from the track's label, or is it the track's label?
+
+
+On Mon, 28 Mar 2011, Silvia Pfeiffer wrote:
+&gt;<i> 
+</I>&gt;<i> We haven't allowed caption tracks to start with a different 
+</I>&gt;<i> startTimeOffset than the video, nor are we allowing to give them a 
+</I>&gt;<i> different playbackRate to the video.
+</I>
+It's relatively easy to do it for text tracks: you just take a text track 
+and recreate it with different timings (something that can be done in a 
+few lines of JavaScript given the API we expose). So there's no need for 
+it to be explicit.
+
+For synchronising &lt;video&gt; and &lt;audio&gt;, we should expose multiple tracks 
+starting at different offsets because it is easy to achieve yet provides 
+numerous opportunities for authors. For example, it's not uncommon to want 
+to compare two movies which have similar moments; showing such 
+similarities would require either video editing or, if we allowed offsets, 
+could be done merely by pointing to two movie files with appropriate 
+offsets.
+
+
+&gt;<i> Tracks in a multitrack resource (no matter if in-band or external files) 
+</I>&gt;<i> are rather tightly authored to cover the exact same timeline in my 
+</I>&gt;<i> experience.
+</I>
+Sure. But it would be silly to only support one use case when with minimal 
+effort we could support a vastly greater number of use cases, including 
+many we have not yet considered.
+
+This is one of those situations where not supporting something actually 
+requires more API complexity than supporting it. We are rarely faced with 
+such an opportunity.
+
+
+On Tue, 29 Mar 2011, Jer Noble wrote:
+&gt;<i> On Mar 27, 2011, at 8:01 PM, Ian Hickson wrote:
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; * playing tracks at different rates
+</I>&gt;<i> 
+</I>&gt;<i> In addition to the limitation listed above, efficient playback of tracks 
+</I>&gt;<i> at different rates will require all tracks to be played in the same 
+</I>&gt;<i> direction.
+</I>
+I've changed the MediaController feature so that he playbackRate and 
+defaultPlaybackRate features of the MediaController trump the video/audio 
+elements' features when there is a media controller. At some future date 
+we can add an attribute to the media controller that enables individual 
+rate control when set.
+
+
+On Tue, 29 Mar 2011, Silvia Pfeiffer wrote:
+&gt;<i> 
+</I>&gt;<i> Independent of the solution that we choose, we have to define what the 
+</I>&gt;<i> common timeline is for the combined resource.
+</I>
+I assume here you mean that we have to expose a &quot;currentTime&quot; for the 
+MediaController, and/or use the same clock for all combined tracks.
+
+
+&gt;<i> I think we should probably go with the mental model of what it would be 
+</I>&gt;<i> when it was really all encapsulated in a single resource. Thus, if a 
+</I>&gt;<i> slave resource is longer than the main resource, it actually changes the 
+</I>&gt;<i> duration of the combined resource. Thus, we really should have a model 
+</I>&gt;<i> for that duration. Shorter is easier to deal with since you can just 
+</I>&gt;<i> pretend it is a transparent video or silent audio where it lacks 
+</I>&gt;<i> duration.
+</I>
+I don't think it makes sense to think of a resource's length being 
+changed by another resource. I agree that it makes sense to expose the 
+overall length, but that doesn't affect the length of individual tracks in 
+the group.
+
+
+&gt;<i> Also, independent of the model, we have to have a common understanding 
+</I>&gt;<i> if the currentTime and thus a combined transport bar. By default it 
+</I>&gt;<i> makes sense to display that combined transport bar so the user has a 
+</I>&gt;<i> means to interact with the multitrack resource.
+</I>
+I've updated the spec to expose the total duration of the tracks based on 
+the currently slaved media elements, and the current position relative to 
+that total duration.
+
+One difficulty with this is how to deal with looping tracks. I'm not sure 
+what the right solution is for that. I see several obvious options; there 
+are others too:
+
+ * Have looping tracks shorter than the longest be repeated (a &quot;fill&quot; 
+   approach) -- but then how do you deal with the longest track repeating 
+   if it's not a multiple of the shorter tracks?
+
+ * Have looping happen only when all the tracks have reached the end.
+
+ * Ignore looping when you're synchronised.
+
+For now I've gone with the last one (ignore looping), mostly because I 
+don't see high-priority and compelling use cases for it.
+
+
+&gt;<i> &gt; But we can fix that in a later version. It's much harder to fix in the 
+</I>&gt;<i> &gt; case of one media element being promoted to a different state than the 
+</I>&gt;<i> &gt; others, since we already have defined what the media element API 
+</I>&gt;<i> &gt; does.)
+</I>&gt;<i> 
+</I>&gt;<i> One thing that I would really like to see is a common menu for turning 
+</I>&gt;<i> on and off tracks. This is particularly important if you have audio 
+</I>&gt;<i> description tracks, so a blind user can immediately find out if such a 
+</I>&gt;<i> track is available and activate it.
+</I>
+The spec supports turning on and off in-band audio tracks from the UA UI; 
+this gets exposed in the audioTracks attribute. I've added an event that 
+fires on that object when the set of tracks is changed.
+
+For out-of-band video tracks, the user can pause and play any track that 
+has an &lt;audio&gt; element exposing controls, so there's no need for a 
+separate menu. However, to make this easier I've changed the spec to say 
+that if there is a menu of audio resources, it should also include the 
+audio tracks from any other media elements, possibly defaulting to using 
+the name given in the &quot;title&quot; track.
+
+For &lt;video&gt; tracks I don't understand how we could do it in practice, 
+since the UA has no way to know what the page author intends in terms of 
+video element positioning. I guess we could just have the video tracks 
+positioned the way that the video stream says they should be positioned 
+and not allow the tracks to be repositioned. Is that desireable? What 
+happens if a video with a known position is enabled while a full-frame 
+video is enabled, and then the full-frame video is disabled? Should the 
+smaller one full the whole frame? Remain its size? These questions and 
+others like them are why I've left this unsupported for now.
+
+
+On Wed, 30 Mar 2011, Jer Noble wrote:
+&gt;<i> &gt;&gt;&gt; * changing any of the above while media is playing vs when it is 
+</I>&gt;<i> &gt;&gt;&gt; stopped
+</I>&gt;<i> &gt;&gt; 
+</I>&gt;<i> &gt;&gt; Modifying the media groups while the media is playing is probably 
+</I>&gt;<i> &gt;&gt; impossible to do without stalling.  The media engine may have thrown 
+</I>&gt;<i> &gt;&gt; out unneeded data from disabled tracks and may have to rebuffer that 
+</I>&gt;<i> &gt;&gt; data, even in the case of in-band tracks.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; That makes sense. There's several ways to handle this; the simplest is 
+</I>&gt;<i> &gt; probably to say that when the list of synchronised tracks is changed, 
+</I>&gt;<i> &gt; or when the individual offsets of each track or the individual 
+</I>&gt;<i> &gt; playback rates of each track are changed, the playback of the entire 
+</I>&gt;<i> &gt; group should be automatically stopped. Is that sufficient?
+</I>&gt;<i> 
+</I>&gt;<i> I would say that, instead, it would be better to treat this as similar 
+</I>&gt;<i> to seeking into an unbuffered region of a media file.  Some implementers 
+</I>&gt;<i> will handle this case better than others, so this seems to be a Quality 
+</I>&gt;<i> of Service issue.
+</I>
+That works for me.
+
+
+&gt;<i> The distinction between a master media element and a master media 
+</I>&gt;<i> controller is, in my mind, mostly a distinction without a difference.  
+</I>&gt;<i> However, a welcome addition to the media controller would be convenience 
+</I>&gt;<i> APIs for the above properties (as well as playbackState, networkState, 
+</I>&gt;<i> seekable, and buffered).
+</I>
+I'm not sure what networkState in this context. playbackState, assuming 
+you mean 'paused', is already exposed.
+
+I've added .buffered and .seekable, they exposes the intersection of the 
+slaved media elements' corresponding ranges.
+
+(For the record, .duration and .currentTime are the other two attributes I 
+added. The timeline of a MediaController is always 0 to duration, where 0 
+is the earliest possible position of each track, and the duration is the 
+difference between the earliest possible position and the duration of the 
+longest track. See below regarding offsets.)
+
+
+&gt;<i> The case for a master media element is those APIs already exist and 
+</I>&gt;<i> would simply need to be repurposed. But adding new API to the 
+</I>&gt;<i> MediaController to achieve the same functionality would, again in my 
+</I>&gt;<i> mind, eliminate the remaining distinction between a master media element 
+</I>&gt;<i> and a media controller.
+</I>
+Well there's one big difference between what a controller exposes and what 
+a media element exposes: the media element's buffered ranges, for 
+instance, might be bigger than the intersection of all the element's 
+buffered ranges.
+
+
+On Wed, 30 Mar 2011, Philip J&#228;genstedt wrote:
+&gt;<i> 
+</I>&gt;<i> Having in-band tracks change between being in sync (same offset and 
+</I>&gt;<i> rate) and being out of sync (different offset or rate) would be a major 
+</I>&gt;<i> head-ache.
+</I>
+Originally, the tracks could be offset because their .currentTime 
+attributes were advanced at a fixed rate, and the MediaController didn't 
+have any concept of the currentTime, so just changing the currentTime of 
+a media element offset the video by the difference between the old and 
+new values.
+
+Now that we have an overall .duration, it becomes kind of weird that you 
+can change the currentTime of each video in turn, and when you change the 
+first one, the controller's &quot;duration&quot; changes, and then suddenly when you 
+change the last slaved media elements's currentTime, the duration changes 
+back.
+
+On the other hand it's even more weird to have a mutable attribute which 
+you can change (the .currentTime on each track), but where the change has 
+no effect. And it seems just as confusing to have multiple attributes 
+(.currentTime on each track) where when you set one, it resets the others.
+
+But we presumably do want the attribute to return a useful value, since 
+that's an easy way to tell where a track is relative to its own starting 
+and ending points.
+
+Let's consider these options explicitly:
+
+ 1. Setting .currentTime on a media element is ignored or throws an 
+    exception when there's a controller.
+ 2. Setting .currentTime on a media element with a controller changes
+    the .currentTime on the controller.
+ 3. Setting .currentTime on a media element shifts the playback position
+    on that controller, shifting the alignment of this track against the 
+    other tracks.
+
+Option 3 seems the most intuitive from a &quot;this API actually does 
+something&quot; point of view, but it raises questions of its own:
+
+First, what happens when two elements that are not synchronised get 
+synchronised? Should they keep playing where they are currently playing, 
+or should we snap the playback position somehow? Should the order of 
+adding tracks matter?
+
+There is one reason to prefer the otherwise unintuitive snapping behaviour 
+(i.e. resetting .currentTime on the track when you join it to other 
+tracks), namely that if someone misuses the API by waiting for the tracks 
+to load and start playing and only _then_ syncs them together, they'll be 
+slightly offset from each other leading to lip sync issues and the like.
+
+Second, what happens when you change the .currentTime of a track that 
+currently is not playing because the .currentTime of the MediaController 
+is out of the range of playable content for the track? If we have a model 
+where setting .currentTime introduces an offset, then it means you can 
+only set an offset while the track's side of that offset is within the 
+currently playable region, you couldn't for example set an offset of two 
+seconds on a track that was a minute shorter than another if the Media-
+Controller was at that point playing back the content at the end of the 
+longer track, since currentTime can't go beyond duration.
+
+These questions suggest that actually using the API that option 3 would 
+give us would be quite frustrating, which is never a good sign.
+
+Even after staring at a whiteboard for a while trying to work out how to 
+make this API work, I really don't see a good way to make currentTime 
+across the MediaController and the media elements work.
+
+For now I've gone with making .currentTime on media elements throw an 
+exception when they're controlled by a controller. This is by no means 
+ideal, but it has the advantage of &quot;front-loading&quot; all the unexpected 
+behaviour: as soon as someone tries to implement a seek bar on top of this 
+they'll find the problems, rather than the confusing behaviour being 
+pushed to the edge cases.
+
+
+Finally, one issue that was raised on IRC but not mentioned in e-mail is 
+that the design decision of going with a MediaController object rather 
+than overloading HTMLMediaElement to handle both the slave and master 
+modes means that one can't reuse existing video UI scripts in a 
+multi-track environment.
+
+I looked at this, but I couldn't find a good way to make such scripts work 
+with the master/slave overloading case either. There would always be some 
+edge case that breaks, e.g. if some slave track is longer than the master, 
+or if the whole thing stalls because of a slave, or if the tracks are 
+various infinite streams with slightly different initial offsets, etc.
+
+I have, however, made sure that the MediaController API is similar enough 
+to the media element API so that the adjustments one would have to make 
+should be pretty minimal.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="073435.html">[whatwg] Ongoing work on an editing commands (execCommand())	specification
+</A></li>
+	<LI>Next message: <A HREF="073451.html">[whatwg] How to handle multitrack media resources in HTML
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#31164">[ date ]</a>
+              <a href="thread.html#31164">[ thread ]</a>
+              <a href="subject.html#31164">[ subject ]</a>
+              <a href="author.html#31164">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

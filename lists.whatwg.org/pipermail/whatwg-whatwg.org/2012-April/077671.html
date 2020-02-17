@@ -1,0 +1,160 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Fixing two security vulnerabilities in	registerProtocolHandler
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Fixing%20two%20security%20vulnerabilities%20in%0A%09registerProtocolHandler&In-Reply-To=%3CPine.LNX.4.64.1204092152160.22654%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="077670.html">
+   <LINK REL="Next"  HREF="077673.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Fixing two security vulnerabilities in	registerProtocolHandler</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Fixing%20two%20security%20vulnerabilities%20in%0A%09registerProtocolHandler&In-Reply-To=%3CPine.LNX.4.64.1204092152160.22654%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg] Fixing two security vulnerabilities in	registerProtocolHandler">ian at hixie.ch
+       </A><BR>
+    <I>Mon Apr  9 15:12:54 PDT 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="077670.html">[whatwg] Fixing two security vulnerabilities in	registerProtocolHandler
+</A></li>
+        <LI>Next message: <A HREF="077673.html">[whatwg] Fixing two security vulnerabilities in	registerProtocolHandler
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#77671">[ date ]</a>
+              <a href="thread.html#77671">[ thread ]</a>
+              <a href="subject.html#77671">[ subject ]</a>
+              <a href="author.html#77671">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Mon, 9 Apr 2012, Tyler Close wrote:
+&gt;<i> 
+</I>&gt;<i> The browser's popup blocker would block that interaction, unless you 
+</I>&gt;<i> require an additional click inside the iframe. UX people are generally 
+</I>&gt;<i> fanatical about eliminating extra user clicks.
+</I>
+I'm suggesting sending the information at the same time as you currently 
+open the window.
+
+
+&gt;<i> For RPH to be used in an offline scenario, the %s argument is put in the 
+</I>&gt;<i> URL fragment component of the RPH handler's URL.
+</I>
+It can also be put in the query or path component, if the relevant path is 
+marked as being a FALLBACK namespace.
+
+
+&gt;<i> Here's another concrete attack scenario showing how this vulnerability 
+</I>&gt;<i> could be exploited in a mailto RPH handler. Consider a site that 
+</I>&gt;<i> requires a user to confirm a security sensitive operation by sending an 
+</I>&gt;<i> email with a confirmation number in the Subject field. The site expects 
+</I>&gt;<i> this email to be signed by the user's mail software. The web page that 
+</I>&gt;<i> sets up this user interaction includes a mailto link to open a 
+</I>&gt;<i> pre-populated email editor. This mailto: link includes a subject 
+</I>&gt;<i> parameter that contains the confirmation number. The attacker has 
+</I>&gt;<i> previously setup an operation that is waiting on such an email 
+</I>&gt;<i> confirmation from the victim user. The attacker has additionally lured 
+</I>&gt;<i> the user into browsing the legitimate site in a window that the attacker 
+</I>&gt;<i> has a reference to. The attack page waits for an iframe to show up in 
+</I>&gt;<i> the legitimate site's frame hierarchy at the place where a mailto RPH 
+</I>&gt;<i> confirmation action is being done.
+</I>
+It seems highly weird to me that anyone would use a mailto: link with a 
+target=&quot;&quot; attribute, but ok.
+
+
+&gt;<i> The attack page overwrites the iframe's URL fragment with a mailto URL 
+</I>&gt;<i> that contains a subject parameter specifying the confirmation number for 
+</I>&gt;<i> the operation setup by the attacker, instead of the one that the victim 
+</I>&gt;<i> user was setting up.
+</I>&gt;<i>
+</I>&gt;<i> The user sends the email, confirming the attacker's operation, instead 
+</I>&gt;<i> of their own. From the user's perspective, they see that they are at the 
+</I>&gt;<i> legitimate web site and they setup an operation in the normal way which, 
+</I>&gt;<i> as expected, opens an email editor with a confirmation number. The user 
+</I>&gt;<i> typically never looks closely at the confirmation number, it's just some 
+</I>&gt;<i> number chosen by the legitimate web site. So, everything looks normal to 
+</I>&gt;<i> the user. From the perspective of the RPH handler page, everything also 
+</I>&gt;<i> looks normal. It opens and finds a mailto URL in the %s position in it's 
+</I>&gt;<i> URL fragment. It has no idea that the URL fragment has changed since the 
+</I>&gt;<i> legitimate site first specified it.
+</I>
+It doesn't even have any idea that there is a legit site.
+
+
+&gt;<i> We can fix this by putting the %s data in a DOM field that cannot be 
+</I>&gt;<i> overwritten by an attacker in this way.
+</I>
+That's what Web Intents does, but it doesn't really help with the 
+server-side implementations of handlers, which are the expected common 
+case here, and it doesn't even really help with the client-side 
+implementations of handlers, who have no way to know who is &quot;legit&quot;.
+
+
+&gt;<i> Consequently, the legitimate site can securely pass a confirmation 
+</I>&gt;<i> number to the RPH handler. The attacker can still navigate to the mailto 
+</I>&gt;<i> URL from one of the attacker's own pages, but can't do it from one of 
+</I>&gt;<i> the legitimate site's pages. So the attacker can't make it look like the 
+</I>&gt;<i> legitimate site is asking the user to send the confirmation email.
+</I>
+How is the mailto: handler supposed to know who is legit and who isn't?
+
+
+&gt;<i> The important thing to understand here is that a communication channel
+</I>&gt;<i> that is vulnerable to tampering can be abused in unexpected ways.
+</I>
+You don't need to tamper with the communications channel as far as I can 
+tell. If you can navigate an &lt;iframe&gt; as you describe, then even if the 
+mailto: information is put in the path or query component it would still 
+be possible to do the attack you describe. Just wait for the iframe to 
+appear and then navigate it to the mailto: handler with the parameters you 
+want. Since browsers only allow &quot;tampering&quot; with the fragment identifier, 
+the simpler solution is to just not use the fragment identifier.
+
+
+&gt;<i> Rather than quibble about how a future attacker might make use of this 
+</I>&gt;<i> vulnerability in some future application, the right thing to do is 
+</I>&gt;<i> eliminate the vulnerability.
+</I>
+I don't see how what you propose eliminates the vulnerability.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="077670.html">[whatwg] Fixing two security vulnerabilities in	registerProtocolHandler
+</A></li>
+	<LI>Next message: <A HREF="077673.html">[whatwg] Fixing two security vulnerabilities in	registerProtocolHandler
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#77671">[ date ]</a>
+              <a href="thread.html#77671">[ thread ]</a>
+              <a href="subject.html#77671">[ subject ]</a>
+              <a href="author.html#77671">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

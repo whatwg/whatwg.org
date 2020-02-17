@@ -1,0 +1,170 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] createImageData
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20createImageData&In-Reply-To=%3C8FFA587E-FB9F-4954-BFE8-B9BF2FD4EE78%40apple.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="014779.html">
+   <LINK REL="Next"  HREF="014782.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] createImageData</H1>
+<!--htdig_noindex-->
+    <B>Oliver Hunt</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20createImageData&In-Reply-To=%3C8FFA587E-FB9F-4954-BFE8-B9BF2FD4EE78%40apple.com%3E"
+       TITLE="[whatwg] createImageData">oliver at apple.com
+       </A><BR>
+    <I>Tue May 13 16:45:03 PDT 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="014779.html">[whatwg] createImageData
+</A></li>
+        <LI>Next message: <A HREF="014782.html">[whatwg] createImageData
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#14780">[ date ]</a>
+              <a href="thread.html#14780">[ thread ]</a>
+              <a href="subject.html#14780">[ subject ]</a>
+              <a href="author.html#14780">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>
+On May 13, 2008, at 4:28 PM, Vladimir Vukicevic wrote:
+
+&gt;<i>
+</I>&gt;<i> On May 13, 2008, at 4:10 PM, Oliver Hunt wrote:
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> My experience implementing this in WebKit showed a pure byte  
+</I>&gt;&gt;&gt;&gt;<i> array backing store was significantly faster than using boxed  
+</I>&gt;&gt;&gt;&gt;<i> values.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> Faster for which operation, though?  The put, or the actual  
+</I>&gt;&gt;&gt;<i> manipulation?  It's a tradeoff, really; if you're doing limited  
+</I>&gt;&gt;&gt;<i> pixel manipulation, but lots of putImageData, you can optimize  
+</I>&gt;&gt;&gt;<i> that directly by just calling putImageData once to an offscreen  
+</I>&gt;&gt;&gt;<i> canvas and then blitting that with drawImage.  If you're doing  
+</I>&gt;&gt;&gt;<i> lots of pixel manipulation but only one putImageData, I guess you  
+</I>&gt;&gt;&gt;<i> can use a JS array for your intermediate ops to avoid the checking  
+</I>&gt;&gt;&gt;<i> overhead, and set the image data pixels all at once (though again  
+</I>&gt;&gt;&gt;<i> paying the checking penalty per pixel), but having cheap  
+</I>&gt;&gt;&gt;<i> putImageData.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> Throwing the error at putImageData time lets the implementation  
+</I>&gt;&gt;&gt;<i> optimize in whatever way is most convenient/performant (either at  
+</I>&gt;&gt;&gt;<i> pixel operation time by setting an error bit in the ImageData  
+</I>&gt;&gt;&gt;<i> object which is checked by putImageData, or at putImageData time),  
+</I>&gt;&gt;&gt;<i> and is (IMO) more flexible.. given that errors are an exceptional  
+</I>&gt;&gt;&gt;<i> case, I don't think the spec should force the checking per pixel.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> I found it faster in general across quite a few tests.  I would  
+</I>&gt;&gt;<i> argue that if you are using ImageData in a way that leads to you  
+</I>&gt;&gt;<i> writing to the same pixel multiple times you should improve your  
+</I>&gt;&gt;<i> algorithms (this is just the generic over painting issue).
+</I>&gt;<i>
+</I>&gt;<i> I dunno, some kind of iterative algorithm that you want to visualize  
+</I>&gt;<i> at random timesteps.  You could keep the output in a separate array  
+</I>&gt;<i> and copy over when you want to render it.
+</I>
+I'm not sure what you mean.  By my interpretation that would require  
+more work when you validate on blit, because while you would not have  
+to validate when you copy the invalidated region of your buffer into  
+the ImageData buffer it would not need to be validated, but when you  
+then go to blit the ImageData, putImageData *must* revalidate the  
+entirety of the ImageData buffer (hmmm, i suppose the UA could try  
+tracking dirty regions in the ImageData buffer to minimise  
+revalidation? i suspect this would not be significantly better than  
+just validating on every pixel put)
+
+If you actually meant you were using the ImageData buffer as your  
+working buffer then you would possibly be doing excessive  
+revalidation, but in my experience such a case would be atypical (and  
+we're more interested in the performance of the normal case vs. edge  
+cases) and the cost of clamping, etc is dwarfed by the dispatch cost  
+just to do the assignment (at least in WebKit) so i'm not sure there  
+would a significant loss in performance anyway.
+
+&gt;<i>
+</I>&gt;<i>
+</I>&gt;&gt;<i> A very reall issue to consider though is the case where I've been  
+</I>&gt;&gt;<i> very careful to only update those pixels that need to be updated.   
+</I>&gt;&gt;<i> If the ImageData is not clamped, etc on put then *every* blit must  
+</I>&gt;&gt;<i> do a complete revalidation of the entire ImageData data buffer.
+</I>&gt;<i>
+</I>&gt;<i> Yep, that's true.
+</I>&gt;<i>
+</I>&gt;&gt;<i> I think we need a list of use cases for ImageData, off the top of  
+</I>&gt;&gt;<i> my head i can think of:
+</I>&gt;&gt;<i> * filters -- in general a single write per pixel, potentially  
+</I>&gt;&gt;<i> multiple reads
+</I>&gt;&gt;<i> * Generated images -- still arguably single write per pixel
+</I>&gt;&gt;<i> * I'm not sure what to call this -- but things like <A HREF="http://jsmsxdemo.googlepages.com/jsmsx.html">http://jsmsxdemo.googlepages.com/jsmsx.html</A>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> I honestly can't think of something that would (sanely) expect to  
+</I>&gt;&gt;<i> be writing multiple times to the same pixel between blits, but i  
+</I>&gt;&gt;<i> should note i haven't actively spent any significant time trying to  
+</I>&gt;&gt;<i> come up with these.  That said in all of the above cases the cost  
+</I>&gt;&gt;<i> of immediate clamping is technically the same as delaying the  
+</I>&gt;&gt;<i> clamp, although it also has the benefit of allowing reduced memory  
+</I>&gt;&gt;<i> usage.
+</I>&gt;<i>
+</I>&gt;<i> Yeah, those are all good use cases -- it just seems like requiring  
+</I>&gt;<i> immediate clamping is basically specifying for a specific  
+</I>&gt;<i> implementation, when the overall goal is &quot;checking for invalid  
+</I>&gt;<i> data&quot;.  Specifying that the error should come from putImageData  
+</I>&gt;<i> would give implementations more flexibility, without limiting error  
+</I>&gt;<i> checking.  (You could argue that it's easier to get a precise error  
+</I>&gt;<i> location by checking on pixel assignment, but I don't think that the  
+</I>&gt;<i> potential cost and loss of flexibility is worth it.  Once authors  
+</I>&gt;<i> know that they have an error in their data, they can take other  
+</I>&gt;<i> action to track it down.)
+</I>
+There is no implementor freedom here -- you either clamp immediately,  
+or you do not clamp immediately, if one UA does not clamp then it will  
+have different behaviour from the other UAs leading to behavioural  
+incompatibility (eg. one site may expect the values to be clamped  
+immediately, and therefore not work in UAs that don't clamp, another  
+may believe that the clamping happens later leading it to break in  
+those UAs that clamp immediately).
+
+This is not to say there's no room for implementation variation -- an  
+implementation *could* maintain the data as an array of boxed values  
+provided it performed the requisite toNumber and clamping and rounding  
+operations, or it could store as an array of unboxed types -- there  
+are potential advantages in doing it in either way.  The issue is when  
+clamping occurs, which isn't an implementation detail, it's  
+fundamental to how the data structure works.
+
+&gt;<i>    - Vlad
+</I>
+--Oliver
+
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="014779.html">[whatwg] createImageData
+</A></li>
+	<LI>Next message: <A HREF="014782.html">[whatwg] createImageData
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#14780">[ date ]</a>
+              <a href="thread.html#14780">[ thread ]</a>
+              <a href="subject.html#14780">[ subject ]</a>
+              <a href="author.html#14780">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

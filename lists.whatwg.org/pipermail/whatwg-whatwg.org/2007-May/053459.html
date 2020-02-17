@@ -1,0 +1,249 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Canvas - createRadialGradient
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Canvas%20-%20createRadialGradient&In-Reply-To=%3Cea09c0d10705041339s6ebefd72if5cb2451de97e991%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="053458.html">
+   <LINK REL="Next"  HREF="053579.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Canvas - createRadialGradient</H1>
+<!--htdig_noindex-->
+    <B>Philip Taylor</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Canvas%20-%20createRadialGradient&In-Reply-To=%3Cea09c0d10705041339s6ebefd72if5cb2451de97e991%40mail.gmail.com%3E"
+       TITLE="[whatwg] Canvas - createRadialGradient">excors+whatwg at gmail.com
+       </A><BR>
+    <I>Fri May  4 13:39:33 PDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="053458.html">[whatwg] Focus management
+</A></li>
+        <LI>Next message: <A HREF="053579.html">[whatwg] Canvas - createRadialGradient
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#53459">[ date ]</a>
+              <a href="thread.html#53459">[ thread ]</a>
+              <a href="subject.html#53459">[ subject ]</a>
+              <a href="author.html#53459">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>For radial gradients, I've been looking into what happens when the two
+circles that define the gradient are not fully overlapping (i.e. not
+one entirely inside the other) - this appears to not be implemented or
+specified accurately.
+
+I'm assuming that an insignificant number of people depend on the
+precise behaviour in any current browser for these radial gradients,
+so it won't hurt to make changes where there's currently no
+interoperability. (Please point out if I'm wrong.)
+
+
+Considering the interesting implementations:
+
+Firefox does rendering with various versions of Cairo, which seem to
+differ a lot:
+ Firefox 2.0.0.3 is sensible when (but only when) the start circle is
+entirely inside the end circle.
+ Gran Paradiso Alpha 3 is totally broken in every case.
+ Gran Paradiso Alpha 4 is always understandable. [...at least in the
+cases I've tested.]
+
+Safari (2.0.4, AppleWebKit/419) is almost (except for one case) always
+sensible. A recent nightly version (AppleWebKit/522+) is similar but
+slightly less sensible.
+
+Opera (9.20) is broken in every case (in at least two ways), so I'll
+ignore what it does.
+
+The spec (as of 2007-05-04) is sensible but wrong and possibly
+underspecified, so I'll ignore it too.
+
+
+See the examples at
+<A HREF="http://canvex.lazyilluminati.com/misc/radial/examples.html">http://canvex.lazyilluminati.com/misc/radial/examples.html</A> - the start
+circle is green, the end circle is blue, and the two circular outlines
+show their positions. (The last case defines the two stops at 0.3 and
+0.7 instead.)
+
+
+Compatibility is achieved in the case of r0 &lt; r1 with the start circle
+being completely within (and not touching) the end circle; so that one
+is easy.
+
+
+Negative radius values don't sound very useful or sensible to me, and
+they're not implemented in a useful or compatible way, so I think they
+ought to be handled as either:
+* Always take the absolute value of r0 and r1.
+or
+* Throw INDEX_SIZE_ERR when passed a negative r0 or r1 (for similarity
+with arc).
+I don't know which would be better. I'll guess the first for now,
+since it matches Firefox.
+
+
+For the touching-at-the-edge case, it is just on the edge between the
+easiest case (r0 &lt; r1, start inside end) and a weird incompatible
+case. Safari and FF3 have a weird compatible behaviour that doesn't
+match the cases on either side of this edge case. FF2 has a sensible
+and useful behaviour, but implemented a bit buggily. Possibilities to
+specify:
+
+* Safari/FF3 behaviour - replace the entire gradient with the start
+colour. Not very useful or intuitive, but it's easy enough and it
+still works when the two circles are exactly the same size and
+position.
+
+* Corrected FF2 behaviour - treat it like it's nudging the smaller
+circle inwards a tiny bit, so it's handled like the easy
+smaller-circle-inside-larger case. But then it needs another special
+rule for the same-size case (because you can never fit one circle
+entirely inside the other, and there's no intuitive behaviour there,
+but there is a reasonable degree of compatible behaviour already).
+
+For now, I'll stick with the first definition since it's a bit simpler.
+
+
+For the other cases, I believe Safari's behaviour is generally the
+best. In particular:
+
+* For the r0 &gt; r1 case, Safari has a sensible and useful behaviour
+(i.e. draw the gradient between the two circles, without caring which
+order they were defined in) and it's compatible with FF2 too. FF3's
+behaviour is not useful, but I expect it can be fixed easily (e.g. by
+swapping the start/end circles before passing them to Cairo).
+
+* For the non-totally-overlapping cases, I don't think any behaviour
+is inherently obvious. There's nothing particularly wrong about
+drawing an infinite cone (compared to e.g. clipping to one circle, or
+clipping to the two circles plus the truncated cone joining them), and
+it's easy to define, and it kind of matches the current spec. I can't
+imagine FF3's behaviour being especially useful (since if you want a
+linear gradient in the background, you could just draw one). Safari
+and FF3 should each be able to implement the other's behaviour fairly
+easily (by calculating and drawing a linear gradient, or by
+calculating a triangle and clipping - I believe the geometry isn't
+very complex). Only Safari has already shipped a sane behaviour, so
+I'd go with that one.
+
+~~~~
+
+Independent of all this, there's the issue of the colour outside the
+defined stops.
+
+In old Safari, there is a solid black stop at 0 and at 1, but they are
+overwritten if you define a stop at those points, and the outermost
+stop colours carry on forever. In new Safari it has changed to
+something similar but seemingly broken (though I haven't tried finding
+out exactly what it's doing).
+
+In Firefox (2 and 3), there are no implied stops, and the outermost
+stops carry on forever.
+
+In Opera and the spec they are transparent black just outside 0 and 1,
+but I said I was ignoring both of those.
+
+As with linear gradients
+(&lt;<A HREF="http://lists.whatwg.org/pipermail/whatwg-whatwg.org/2007-April/010743.html">http://lists.whatwg.org/pipermail/whatwg-whatwg.org/2007-April/010743.html</A>&gt;),
+Firefox's behaviour is the most powerful and sensible (in my opinion);
+and it removes the need to explicitly define different behaviour
+outside the 0..1 range for radial gradients compared to linear. That
+behaviour is still compatible with any Safari-only content which adds
+stops at 0 and 1. I'll assume that behaviour for simplicity.
+
+~~~~
+
+So, I would suggest defining something like:
+
+&lt;&lt;&lt;&lt;
+Once a gradient has been created (see below), stops must be placed
+along it to define how the colors are distributed along the gradient.
+Between each such stop, the colors and the alpha component must be
+linearly interpolated over the RGBA space to find the color to use at
+that offset. Before the lowest stop, the color of the lowest stop must
+be used. After the highest stop, the color of the highest stop must be
+used.
+
+[Clarified to &quot;linearly interpolated&quot;. Changed what happens outside
+the range of the stops - since this text is shared with linear
+gradients, I'm assuming they are both changed to be the same.]
+
+...
+
+The createRadialGradient(x0, y0, r0, x1, y1, r1) method takes six
+arguments, the first three representing the start circle with origin
+(x0, y0) and radius r0, and the last three representing the end circle
+with origin (x1, y1) and radius r1. The values are in coordinate space
+units. The method must return a radial CanvasGradient initialised with
+those two circles.
+
+If either of r0 and r1 is negative, it must be replaced by its
+absolute value before rendering.
+
+[I'll assume the function's responses to non-finite values will be
+addressed elsewhere.]
+
+Radial gradients must be rendered as follows:
+
+* If one of the start circle and end circle is enclosed within the
+other circle, and their circumferences touch in at least one point,
+then the gradient must be rendered as the color at offset 0.
+
+* Otherwise, a cone or cylinder must be created from the circles, such
+that at the circumference of the starting circle the color at offset 0
+is used, that at the circumference of the ending circle the color at
+offset 1 is used, that the circumference of a circle drawn a certain
+fraction of the way along the line between the two origins with a
+radius the same fraction of the way between the two radii has the
+color at that offset (interpolation happening as described above) for
+all offsets such that the radius of the circle at that offset is
+positive; that the end circle appear to be above the start circle, and
+that any points not described by the gradient are a transparent black.
+&gt;&gt;&gt;&gt;<i>
+</I>
+which I believe matches the implementation under the &quot;Proposed spec&quot;
+column in the earlier example page.
+
+I'll probably try writing some test cases using this suggested
+behaviour for now, and fix them later to whatever the spec eventually
+says.
+
+-- 
+Philip Taylor
+<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">excors at gmail.com</A>
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="053458.html">[whatwg] Focus management
+</A></li>
+	<LI>Next message: <A HREF="053579.html">[whatwg] Canvas - createRadialGradient
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#53459">[ date ]</a>
+              <a href="thread.html#53459">[ thread ]</a>
+              <a href="subject.html#53459">[ subject ]</a>
+              <a href="author.html#53459">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

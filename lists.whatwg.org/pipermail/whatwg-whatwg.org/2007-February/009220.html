@@ -1,0 +1,185 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Problems with DOMTokenString
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Problems%20with%20DOMTokenString&In-Reply-To=%3CCB4EF244-F385-44B2-9E8C-85A674ABD949%40apple.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="009217.html">
+   <LINK REL="Next"  HREF="009224.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Problems with DOMTokenString</H1>
+<!--htdig_noindex-->
+    <B>Maciej Stachowiak</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Problems%20with%20DOMTokenString&In-Reply-To=%3CCB4EF244-F385-44B2-9E8C-85A674ABD949%40apple.com%3E"
+       TITLE="[whatwg] Problems with DOMTokenString">mjs at apple.com
+       </A><BR>
+    <I>Fri Feb  2 08:19:31 PST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="009217.html">[whatwg] [uf-discuss] Microformats,	WebApps 1.0 and UI widgets in browsers
+</A></li>
+        <LI>Next message: <A HREF="009224.html">[whatwg] Problems with DOMTokenString
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#9220">[ date ]</a>
+              <a href="thread.html#9220">[ thread ]</a>
+              <a href="subject.html#9220">[ subject ]</a>
+              <a href="author.html#9220">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>
+I looked into DOMTokenString with keen interest, because I believe an  
+API for manipulating individual classes of an HTML element is  
+increasingly important as we see more dynamic sites that use CSS  
+styling. However, I think the design for this is not suitable as-is.
+
+Summary of DOMTokenString
+----------------------------------
+
+Web Apps 1.0 introduces the DOMTokenString interface, and uses it for  
+the className attribute on HTMLElement instead of DOMString; and on a  
+few DataGrid methods:
+
+void getCaptionClasses(in unsigned long column, in DOMTokenString  
+classes);
+   void getRowClasses(in RowSpecification row, in DOMTokenString  
+classes);
+   void getCellClasses(in RowSpecification row, in unsigned long  
+column, in DOMTokenString classes);
+
+DOMTokenString has the following interface:
+
+interface DOMTokenString : DOMString {
+   boolean has(in DOMString token);
+   void add(in DOMString token);
+   void remove(in DOMString token);
+};
+
+In addition the spec says:
+
+&quot;In the ECMAScript DOM binding, objects implementing the  
+DOMTokenString interface must stringify to the object's underlying  
+string representation.
+DOMTokenString inherits from DOMString, so in bindings where strings  
+have attributes or methods, those attributes and methods will also  
+operate on DOMTokenString objects.&quot;
+
+Issues
+-------
+
+This approach is clever and solves the long-standing need to  
+manipulate individual classes via the DOM API. There are a few  
+technical problems, however:
+
+1) In ECMAScript, the DOMString interface represents a String  
+primitive value, not a String object. There is no way to &quot;subclass&quot;  
+primitive types. (When you invoke a method on a string it actually  
+makes a wrapper for it on the fly.) There's no way to make an object  
+type appear just like a string, since the typeof operator for  
+instance will know the difference. Even to make the String methods  
+and properties work, you'd likely have to reimplement them, which is  
+annoying for implementors. Java strings are also not subclassable.
+
+2) ECMAScript strings are always immutable. This interface introduces  
+operations that mutate the string. This violates the contract of JS  
+strings - if you store one of these in an object, its value may  
+change before you can retrieve it. Java strings are also immutable.
+
+3) It seems to be implied that the DOMTokenString should be a  
+reference to, rather than a copy of the underlying attribute value.  
+Presumably doing myElement.className.add(&quot;foo&quot;) is intended to  
+actually modify the elements &quot;class&quot; attribute, and not just a  
+temporary DOMTokenString object. However, many implementations copy  
+DOM string values before returning them to JS because the underlying  
+type is not the same.
+
+4) Semantics of assigning to the className field are odd. The spec  
+says to the string value even if you provide a DOMTokenString, but  
+this is somewhat inconsistent, as presumably var someClass =  
+myElt.className does not copy. While the DOM is already full of magic  
+properties that do odd things on assignment, I'm unusure of the  
+benefit of making className one of them.
+
+I do not think the cleverness of this idea so great as to be worth  
+these problems (especially #2).
+
+Possible alternate designs
+--------------------------
+
+Alternative #1: leave className an ordinary string, but add the  
+following methods to the HTMLElement interface:
+
+void addClass(DOMString newClass);
+void removeClass(DOMString removeClass);
+bool hasClass(DOMString possibleClass);
+
+This is no more API surface area, and the semantics are much more  
+clear; methods that modify the HTMLElement's class attribute are on  
+the element itself. An additional method to get an array of the  
+tokenized class strings could also be useful, but that starts getting  
+into the territory of the other option.
+
+Alternative #2: leave the className an ordinary string, but add a new  
+readonly DOMClassList classList property with something like the  
+following interface:
+
+interface DOMClassList {
+     void add(DOMString newClass);
+     void remove(DOMString removeClass);
+     bool has(DOMString possibleClass);
+}
+
+If you add DOMString index(unsigned i) and unsigned length, you would  
+also have the ability to enumerate the classes easily, which the API  
+as currently specced lacks. Because the classList property would be  
+readonly, there would be no question of whether two elements ever  
+share a DOMClassList.
+
+I like #1 better, but either seems fine.
+
+
+In both of these alternatives, the DataGrid methods would be changed  
+to return a string instead of taking and modifing an existing  
+DOMTokenString. It is in any case highly unusual in DOM APIs for  
+getters to mutate a provided &quot;out&quot; object rather than to return a  
+value. Also the spec does not appear to provide a way to make a brand  
+new empty DOMTokenString, so these methods would otherwise only be  
+useful for altering the class of existing elements based on the  
+classes of some other elements, which seems unuseful.
+
+
+Regards,
+Maciej
+
+
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="009217.html">[whatwg] [uf-discuss] Microformats,	WebApps 1.0 and UI widgets in browsers
+</A></li>
+	<LI>Next message: <A HREF="009224.html">[whatwg] Problems with DOMTokenString
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#9220">[ date ]</a>
+              <a href="thread.html#9220">[ thread ]</a>
+              <a href="subject.html#9220">[ subject ]</a>
+              <a href="author.html#9220">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

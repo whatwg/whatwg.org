@@ -1,0 +1,151 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] postMessage: event.source allows navigation of sender
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20postMessage%3A%20event.source%20allows%20navigation%20of%20sender&In-Reply-To=%3Cdd4c8a40802070227g3c83bab6o9d18f4ff16d0f198%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="013880.html">
+   <LINK REL="Next"  HREF="013883.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] postMessage: event.source allows navigation of sender</H1>
+<!--htdig_noindex-->
+    <B>Hallvord R M Steen</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20postMessage%3A%20event.source%20allows%20navigation%20of%20sender&In-Reply-To=%3Cdd4c8a40802070227g3c83bab6o9d18f4ff16d0f198%40mail.gmail.com%3E"
+       TITLE="[whatwg] postMessage: event.source allows navigation of sender">hallvors at gmail.com
+       </A><BR>
+    <I>Thu Feb  7 02:27:34 PST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="013880.html">[whatwg] postMessage: event.source allows navigation of sender
+</A></li>
+        <LI>Next message: <A HREF="013883.html">[whatwg] postMessage: event.source allows navigation of sender
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#13882">[ date ]</a>
+              <a href="thread.html#13882">[ thread ]</a>
+              <a href="subject.html#13882">[ subject ]</a>
+              <a href="author.html#13882">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>&gt;<i> &gt; Adam Barth and Collin Jackson pointed out to me that while
+</I>&gt;<i> &gt; investigating frame navigation policies they found that a recipient of
+</I>&gt;<i> &gt; a postMessage in Opera can set event.source.location, thus navigate
+</I>&gt;<i> &gt; the sender window/document. I think this is a bug in the API itself.
+</I>&gt;<i>
+</I>&gt;<i> When one frame posts a message to another frame, the recipient frame
+</I>&gt;<i> obtains a pointer to the sender frame as the &quot;source&quot; attribute of the
+</I>&gt;<i> message event.  In Opera, this leaks the capability to navigate the
+</I>&gt;<i> sender's frame to the recipient because Opera assumes that if a script
+</I>&gt;<i> has a JavaScript pointer to a frame then that script is permitted to
+</I>&gt;<i> navigate that frame.
+</I>
+This is actually per the spec and required for web compatibility: any
+script that has a pointer to a window object can usually set its
+location property. I expect most UAs only disallow it for http-&gt;https
+communication and I know Opera is a tad stricter than the others and
+disallow it if domains do not match for https-&gt;https communication.
+
+If you have test cases that show other browsers disallowing scripts
+that have a pointer to a window object from setting location across
+domains I'd very much like to see them. Being more restrictive in
+certain cases would be nice but is in my experience not possible
+without too much breakage, so I'm very interested if you can
+demonstrate stricter policies that actually work.
+
+(Note that I am talking only about setting window.location here, not
+about e.g. targetting a named window with a window.open call - that's
+a different scenario entirely.)
+
+&gt;<i> The source attribute of the message event does not leak any privileges
+</I>&gt;<i> to the recipient in Internet Explorer, Firefox, and Safari because
+</I>&gt;<i> these browsers do not make this assumption and instead check whether
+</I>&gt;<i> the script is permitted to navigate the frame when the script assigns
+</I>&gt;<i> window.location.
+</I>
+Adam, I don't quite follow you here because I don't know any IE or
+Safari implementation of window.postMessage. I'm quite sure IE doesn't
+implement it, I  tried googling for Safari and
+postMessage/cross-document messaging but didn't find anything. As far
+as I know only Firefox 3 betas and Opera supports this, so no other
+implementations can be tested.
+
+&gt;<i> In Opera, it is difficult to obtain a JavaScript pointer to a frame
+</I>&gt;<i> because Opera prevents scripts from reading window.frames[i] across
+</I>&gt;<i> domains.  Internet Explorer, Firefox, and Safari all allow scripts to
+</I>&gt;<i> read window.frames[i] across domains.
+</I>
+We should probably fix that if there is consensus on the more liberal
+approach - though note that Opera nevertheless allows you to set
+window.frames[i].location across domain. I don't know how you tested
+&quot;allow scripts to read window.frames[i]&quot; to reach the above statement.
+If you try a simple
+
+alert(window.frames[i])
+
+you're actually calling the toString() method of the window object,
+which Opera disallows across domains so you get a security exception
+there. (Perhaps a pointless one..)
+
+&gt;<i> Other browsers do not equate having a JavaScript pointer to a frame
+</I>&gt;<i> with the ability to navigate that frame.
+</I>
+Again if you can back that up with test cases I'd love to see them :-)
+
+&gt;<i> &gt; I think this should be adressed by removing event.source entirely.
+</I>&gt;<i>
+</I>&gt;<i> Another way to resolve the issue is for Opera to match the other
+</I>&gt;<i> browsers and check whether a script is permitted to navigate a frame
+</I>&gt;<i> when that scripts assigns the frame's location.
+</I>
+But this would have to be applied only when window.location was set in
+a message event handler - that would get very messy! Alternatively we
+could pass in a &quot;fake&quot; window object that does not allow setting
+location, but that would directly contradict the spec and not be much
+cleaner. A postback function on the event object is by far the
+cleanest approach I can think of. (Apologies to the Opera and Firefox
+developers who would have to change their implementations..)
+
+&gt;<i> On Feb 7, 2008 1:45 AM, Thomas Broyer &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">t.broyer at gmail.com</A>&gt; wrote:
+</I>&gt;<i> &gt; Shouldn't event.source.location be read-only? Isn't that a direct
+</I>&gt;<i> &gt; application of the same-origin policy?
+</I>&gt;<i>
+</I>&gt;<i> Internet Explorer, Firefox, Safari, and Opera all permit a script to
+</I>&gt;<i> write window.location across domains.  This action is interpreted as a
+</I>&gt;<i> request to navigate the frame.  The browser's frame navigation policy
+</I>&gt;<i> determines whether this navigation is permitted.
+</I>
+Exactly.
+
+-- 
+Hallvord R. M. Steen
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="013880.html">[whatwg] postMessage: event.source allows navigation of sender
+</A></li>
+	<LI>Next message: <A HREF="013883.html">[whatwg] postMessage: event.source allows navigation of sender
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#13882">[ date ]</a>
+              <a href="thread.html#13882">[ thread ]</a>
+              <a href="subject.html#13882">[ subject ]</a>
+              <a href="author.html#13882">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

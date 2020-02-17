@@ -1,0 +1,176 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] &lt;video preload&gt; implementation feedback
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20%3Cvideo%20preload%3E%20implementation%20feedback&In-Reply-To=%3Cop.v0c7c51usr6mfa%40kirk%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="032942.html">
+   <LINK REL="Next"  HREF="075221.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] &lt;video preload&gt; implementation feedback</H1>
+<!--htdig_noindex-->
+    <B>Philip J&#228;genstedt</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20%3Cvideo%20preload%3E%20implementation%20feedback&In-Reply-To=%3Cop.v0c7c51usr6mfa%40kirk%3E"
+       TITLE="[whatwg] &lt;video preload&gt; implementation feedback">philipj at opera.com
+       </A><BR>
+    <I>Wed Aug 17 08:44:55 PDT 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="032942.html">[whatwg] Timing API proposal for measuring intervals
+</A></li>
+        <LI>Next message: <A HREF="075221.html">[whatwg] &lt;video preload&gt; implementation feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#32945">[ date ]</a>
+              <a href="thread.html#32945">[ thread ]</a>
+              <a href="subject.html#32945">[ subject ]</a>
+              <a href="author.html#32945">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Greetings,
+
+Opera's implementation [1] of &lt;video preload&gt; and the testsuite [2][3] has  
+been available for about a month now. While implementing this, we found  
+and reported a number of issues. [4-10] In general, it is my opinion that  
+&lt;video preload&gt; is under-defined, giving implementors more freedom than is  
+necessary or useful. We have done our best to implement and test something  
+that we feel makes sense. I'm sure that other browsers will do things  
+slightly different and that standardization will be necessary for web  
+compat down the line.
+
+I'd very much like to see feedback from other implementors. Are you happy  
+with treating autoplay and preload as &quot;just hints&quot; as in [4] or do you  
+think that we should specify them in greater detail? (This does not  
+preclude having user preferences to override the standardized defaults.)
+
+Specific issues that don't have open bugs:
+
+== Internal preload state ==
+
+We maintain an internal preload state that is not always in sync with the  
+content attribute. This internal state is what actually determines which  
+buffering mode is used. For example, if the content attribute is &quot;none&quot;  
+but the user starts playing, then the internal state is promoted to  
+&quot;auto&quot;. Since the existence and behavior of this internal state is  
+script-detectable, I think it would make sense to specify it. Any of the  
+following promotes the internal state to &quot;auto&quot;:
+
+1. The presence of autoplay forces it to &quot;auto&quot;
+2. Calling play() by script or native controls
+3. Setting currentTime by script or native controls
+
+All of these are unconditional and can only be undone by resetting the  
+internal preload state, see below.
+
+== Dynamically changing preload ==
+
+It makes no sense for a script to change preload=&quot;auto&quot; to preload=&quot;none&quot;.  
+Going from preload=&quot;auto&quot; to preload=&quot;metadata&quot; isn't nonsensical, but  
+supporting it would allow authors to toggle it continuously to work around  
+buggy buffering behavior. I'd much rather that buffering problems be fixed  
+in the browser, so I don't want to support this. Consequently, we only  
+allow the internal preload states to increase, not decrease. I understand  
+that Mozilla has done the same. Unless there are strong reasons not do, I  
+think this should be spec'd.
+
+== Resetting internal preload state ==
+
+Due to the above, it's necessary to reset the internal preload state at  
+some point. Otherwise, a script like this wouldn't work:
+
+function setSource(url) {
+   var v = document.querySelector('video');
+   v.src = url;
+   v.preload = &quot;none&quot;;
+   v.onplay = function() { v.preload = &quot;autoplay&quot;; };
+}
+
+If a previous resource was playing and preload was set to &quot;autoplay&quot; by  
+script, then we still want preload=&quot;none&quot; to apply to the new resource. To  
+solve this, we are resetting the internal preload state as part of the  
+resource selection algorithm, right before step 5 to fire the loadstart  
+event. There are various other places one could do this, but we think it  
+is important to do it in the async section so that the order of setting  
+.src and .preload does not matter.
+
+== &lt;video preload=&quot;none&quot;&gt; ==
+
+It's not possible to specify exactly how much preload=&quot;metadata&quot; and  
+preload=&quot;auto&quot; buffers and when, but this is possible for preload=&quot;none&quot;.  
+This is what we do:
+
+After step 1 of the source selection algorithm, if preload==&quot;none&quot;, set  
+networkState to IDLE, fire a suspend event and set the  
+delaying-the-load-event flag to false.
+
+[1] <A HREF="http://my.opera.com/desktopteam/blog/2011/07/14/javascript-on-a-diet">http://my.opera.com/desktopteam/blog/2011/07/14/javascript-on-a-diet</A>
+[2] <A HREF="http://w3c-test.org/html/tests/submission/Opera/preload/overview.html">http://w3c-test.org/html/tests/submission/Opera/preload/overview.html</A>
+[3] <A HREF="http://w3c-test.org/html/tests/submission/Opera/preload/runner.php">http://w3c-test.org/html/tests/submission/Opera/preload/runner.php</A>
+[4] <A HREF="http://www.w3.org/Bugs/Public/show_bug.cgi?id=11602">http://www.w3.org/Bugs/Public/show_bug.cgi?id=11602</A>
+[5] <A HREF="http://www.w3.org/Bugs/Public/show_bug.cgi?id=11981">http://www.w3.org/Bugs/Public/show_bug.cgi?id=11981</A>
+[6] <A HREF="http://www.w3.org/Bugs/Public/show_bug.cgi?id=12175">http://www.w3.org/Bugs/Public/show_bug.cgi?id=12175</A>
+[7] <A HREF="http://www.w3.org/Bugs/Public/show_bug.cgi?id=12267">http://www.w3.org/Bugs/Public/show_bug.cgi?id=12267</A>
+[8] <A HREF="http://www.w3.org/Bugs/Public/show_bug.cgi?id=12595">http://www.w3.org/Bugs/Public/show_bug.cgi?id=12595</A>
+[9] <A HREF="http://www.w3.org/Bugs/Public/show_bug.cgi?id=12596">http://www.w3.org/Bugs/Public/show_bug.cgi?id=12596</A>
+[10] <A HREF="http://www.w3.org/Bugs/Public/show_bug.cgi?id=12608">http://www.w3.org/Bugs/Public/show_bug.cgi?id=12608</A>
+
+-- 
+Philip J&#228;genstedt
+Core Developer
+Opera Software
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="032942.html">[whatwg] Timing API proposal for measuring intervals
+</A></li>
+	<LI>Next message: <A HREF="075221.html">[whatwg] &lt;video preload&gt; implementation feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#32945">[ date ]</a>
+              <a href="thread.html#32945">[ thread ]</a>
+              <a href="subject.html#32945">[ subject ]</a>
+              <a href="author.html#32945">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

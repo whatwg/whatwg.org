@@ -1,0 +1,192 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] [html5] scope chain for event handlers specified via content attributes
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20%5Bhtml5%5D%20scope%20chain%20for%20event%20handlers%20specified%20via%0A%20content%20attributes&In-Reply-To=%3C4E6A3754.10808%40mozilla.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="033144.html">
+   <LINK REL="Next"  HREF="033162.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] [html5] scope chain for event handlers specified via content attributes</H1>
+<!--htdig_noindex-->
+    <B>David Flanagan</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20%5Bhtml5%5D%20scope%20chain%20for%20event%20handlers%20specified%20via%0A%20content%20attributes&In-Reply-To=%3C4E6A3754.10808%40mozilla.com%3E"
+       TITLE="[whatwg] [html5] scope chain for event handlers specified via content attributes">dflanagan at mozilla.com
+       </A><BR>
+    <I>Fri Sep  9 08:57:08 PDT 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="033144.html">[whatwg] [html5] scope chain for event handlers specified via content attributes
+</A></li>
+        <LI>Next message: <A HREF="033162.html">[whatwg] Proposal for improved handling of '#' inside of data URIs
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#33147">[ date ]</a>
+              <a href="thread.html#33147">[ thread ]</a>
+              <a href="subject.html#33147">[ subject ]</a>
+              <a href="author.html#33147">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On 9/8/11 6:30 PM, Boris Zbarsky wrote:
+&gt;<i> On 9/8/11 8:23 PM, David Flanagan wrote:
+</I>&gt;&gt;<i> function(event) {
+</I>&gt;&gt;<i> with(event.target.ownerDocument) {
+</I>&gt;&gt;<i> with(event.target.form || {}) {
+</I>&gt;&gt;<i> with(event.target) {
+</I>&gt;&gt;<i> alert(x);
+</I>&gt;&gt;<i> }
+</I>&gt;&gt;<i> }
+</I>&gt;&gt;<i> }
+</I>&gt;&gt;<i> }
+</I>&gt;<i>
+</I>&gt;<i> This is almost exactly how Chrome implements it.  It's all sorts of 
+</I>&gt;<i> buggy.  See <A HREF="http://code.google.com/p/chromium/issues/detail?id=80911">http://code.google.com/p/chromium/issues/detail?id=80911</A>
+</I>&gt;<i>
+</I>So Chrome's but has to do with the fact that the form property is 
+spoofable.  That seems easy enough to fix even with this kind of dynamic 
+scope chain that allows the scope to match the current position of the 
+element in the document, rather that a static scope that matches the 
+position the element had when the event handler attribute was set.
+
+On the other hand, I suppose I could see a lexical scoping argument: 
+when event handler content attributes are set in an HTML document, we 
+might want them to have consistent lexical scope based on where they 
+appear in the document, even if they are later moved.  In the same way 
+that closures retain their lexical scope even when returned or passed 
+into another scope.
+
+I don't think I'm really persuaded by that argument, but on further 
+testing I see that Opera uses static scope, just as Firefox and Safari 
+do (my test doesn't work in IE, and I don't care enough to figure out 
+why).  So Chrome is the outlier here: the spec matches the majority of 
+the browsers, and I'll just accept that it is correct.
+
+Thanks for helping to clarify this, Boris.
+
+     David
+
+&gt;&gt;<i> But &#167;7.1.6.1 says that the scope chain should be initialized statically
+</I>&gt;&gt;<i> when the content attribute string is converted to a function. I'd like
+</I>&gt;&gt;<i> to check that that is intentional
+</I>&gt;<i>
+</I>&gt;<i> It's what most UAs implement, I believe... and doesn't suffer from the 
+</I>&gt;<i> sorts of issues mentioned in the bug report above.
+</I>&gt;<i>
+</I>&gt;&gt;<i> since it causes counter-intiuitive
+</I>&gt;&gt;<i> (to me) behavior if an element moves between forms or moves between
+</I>&gt;&gt;<i> documents after the event handler attribute is set.
+</I>&gt;<i>
+</I>&gt;<i> So it does.  Of course people should ideally not be using this syntax 
+</I>&gt;<i> to start with, so it's mostly there for legacy pages that don't often 
+</I>&gt;<i> do this sort of thing.
+</I>&gt;<i>
+</I>&gt;&gt;<i> My results: Firefox and Safari create the scope chain statically: when
+</I>&gt;&gt;<i> an element moves between forms, the scope chain remains the same.
+</I>&gt;&gt;<i> Chrome's scope chain is dynamic and resolves identifiers against the
+</I>&gt;&gt;<i> element's new form. Chrome's behavior seems more sensible to me. Is it
+</I>&gt;&gt;<i> correct?
+</I>&gt;<i>
+</I>&gt;<i> As implemented, no, in my opinion.  See above.
+</I>&gt;<i>
+</I>&gt;&gt;<i> (When an element moves from one document to another (via adoptNode())
+</I>&gt;&gt;<i> firefox uses dynamic scope (perhaps because it is re-creating the
+</I>&gt;&gt;<i> function?)
+</I>&gt;<i>
+</I>&gt;<i> What actually happens in this case in Firefox internally is that the 
+</I>&gt;<i> parent (in the JS_GetParent) sense of the element's JS reflection is 
+</I>&gt;<i> changed.  This was done because origin determination for JS objects 
+</I>&gt;<i> depended on the scope chain, since Spidermonkey didn't offer any other 
+</I>&gt;<i> good way to do it.
+</I>&gt;<i>
+</I>&gt;<i> With ongoing changes to Spidermonkey, this implementation detail may 
+</I>&gt;<i> change, and then we may be able to preserve static scope in general, 
+</I>&gt;<i> maybe.
+</I>&gt;<i>
+</I>&gt;<i> In any case, the behavior there is definitely an artifact of 
+</I>&gt;<i> implementation details, and not intentional.
+</I>&gt;<i>
+</I>&gt;&gt;<i> In Chrome and Safari, the event handler stops working when
+</I>&gt;&gt;<i> the element is moved from one document to another, so the test doesn't
+</I>&gt;&gt;<i> succeed there.)
+</I>&gt;<i>
+</I>&gt;<i> It's worth testing Opera and various IE versions here too.
+</I>&gt;<i>
+</I>&gt;<i> -Boris
+</I>&gt;<i>
+</I>&gt;<i>
+</I>
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="033144.html">[whatwg] [html5] scope chain for event handlers specified via content attributes
+</A></li>
+	<LI>Next message: <A HREF="033162.html">[whatwg] Proposal for improved handling of '#' inside of data URIs
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#33147">[ date ]</a>
+              <a href="thread.html#33147">[ thread ]</a>
+              <a href="subject.html#33147">[ subject ]</a>
+              <a href="author.html#33147">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

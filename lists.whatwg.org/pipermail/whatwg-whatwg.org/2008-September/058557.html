@@ -1,0 +1,273 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Dealing with UI redress vulnerabilities inherent to the	current web
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Dealing%20with%20UI%20redress%20vulnerabilities%20inherent%20to%20the%0A%09current%20web&In-Reply-To=%3CPine.LNX.4.64.0809251905400.17562%40dione.cc%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="058556.html">
+   <LINK REL="Next"  HREF="058558.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Dealing with UI redress vulnerabilities inherent to the	current web</H1>
+<!--htdig_noindex-->
+    <B>Michal Zalewski</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Dealing%20with%20UI%20redress%20vulnerabilities%20inherent%20to%20the%0A%09current%20web&In-Reply-To=%3CPine.LNX.4.64.0809251905400.17562%40dione.cc%3E"
+       TITLE="[whatwg] Dealing with UI redress vulnerabilities inherent to the	current web">lcamtuf at dione.cc
+       </A><BR>
+    <I>Thu Sep 25 10:24:04 PDT 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="058556.html">[whatwg] defining new HTTP headers
+</A></li>
+        <LI>Next message: <A HREF="058558.html">[whatwg] Dealing with UI redress vulnerabilities inherent to	the current web
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#58557">[ date ]</a>
+              <a href="thread.html#58557">[ thread ]</a>
+              <a href="subject.html#58557">[ subject ]</a>
+              <a href="author.html#58557">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Hi folks,
+
+I am posting here on the advice of Ian Hickson; I'm new to the list, so 
+please forgive me if any of this brings up long-dismissed concepts; 
+hopefully not.
+
+For a couple of months now, along with a number of my colleagues at 
+Google, we were investigating a security problem that we feel is very 
+difficult or impossible to avoid on application side, and might be best 
+addressed on HTML or HTTP level in contemporary browsers. These problems 
+had recently gained some mainstream attention, and so we hoped to discuss 
+potential solutions, and perhaps gain some traction for long-term fixes.
+
+Problem definition: a malicious page in domain A may create an IFRAME 
+pointing to an application in domain B, to which the user is currently 
+authenticated with cookies. The top-level page may then cover portions of 
+the IFRAME with other visual elements to seamlessly hide everything but a 
+single UI button in domain B, such as &quot;delete all items&quot;, &quot;click to add 
+Bob as a friend&quot;, etc. It may then provide own, misleading UI that implies 
+that the button serves a different purpose and is a part of site A, 
+inviting the user to click it. Although the examples above are naive, this 
+is clearly a problem for a good number of modern, complex web 
+applications.
+
+Practical, real-world examples of such &quot;UI redress&quot; attacks were 
+demonstrated in the past, and recently resurfaced on an OWASP conference 
+(under the name of &quot;clickjacking&quot;); some references include:
+
+  * <A HREF="http://www.thespanner.co.uk/2008/02/11/csrf-chat/">http://www.thespanner.co.uk/2008/02/11/csrf-chat/</A>
+  * <A HREF="https://www.owasp.org/index.php/OWASP_NYC_AppSec_2008_Conference">https://www.owasp.org/index.php/OWASP_NYC_AppSec_2008_Conference</A>
+  * <A HREF="http://lists.immunitysec.com/pipermail/dailydave/2008-September/005356.html">http://lists.immunitysec.com/pipermail/dailydave/2008-September/005356.html</A>
+
+We feel that current web browser designs provide no adequate tools for web 
+site owners to protect their applications against such attacks. The two 
+workarounds often employed right now are:
+
+1) Using Javascript hacks to detect that window.top != window to inhibit
+    rendering, or override window.top.location. These mechanisms work only
+    if Javascript is enabled, however, and are not guaranteed to be
+    reliable or future-safe. If the check is carried on every UI click,
+    performance penalties apply, too. Not to mention, the extra complexity
+    is just counterintuitive and weird.
+
+2) Requiring non-trivial reauthentication (captcha, password reentry) on
+    all UI actions with any potential for abuse. Although this is
+    acceptable for certain critical operations, doing so every time a
+    person adds Bob as a friend on a social networking site, or deletes a
+    single mail in a webmail system, is very impractical.
+
+Other quick fixes are easy to come up with, but in general prove 
+problematic in many usage scenarios. Based on our internal conversations, 
+we have a number of proposals for approaches to how to address the issue, 
+along with their pros and cons outlined. All these could be tweaked, 
+combined, etc.; none of them seems quite ideal.
+
+Proposed fixes:
+
+1) Create a HTTP-level (or HTTP-EQUIV) mechanism along the lines of
+    &quot;X-I-Do-Not-Want-To-Be-Framed-Across-Domains: yes&quot; that permits a web
+    page to inhibit frame rendering in potentially dangerous situations.
+
+    Pros:
+
+    - Super-simple
+
+    Cons:
+
+    - &quot;Opt-in&quot;, i.e. currently vulnerable sites remain vulnerable unless
+      action is taken
+
+    - Can't be used for cases where IFRAME content mixing has a legitimate
+      purpose (for example, cross-domain gadgets, certain types of mashups)
+
+    - Adds yet another security measure (along with cross-domain XHR, MSIE8
+      XSS filters, MSIE P3P cookie behavior, Mozilla security policies)
+      that needs to be employed correctly everywhere to work - which is
+      very unlikely to consistently happen in practice
+
+    - Along with the aforementioned security features, threatens to
+      result in HTTP header or HTML HTTP-EQUIV size bloat that some sites
+      may care about.
+
+2) Add a document-level mechanism to make &quot;if nested &lt;show this&gt; else
+    &lt;show that&gt;&quot; conditionals possible without Javascript. One proposal is
+    to do this on the level of CSS (by using either the media-dependency
+    features of CSS or special classes); another is to introduce new HTML
+    tags. This would make it possible for pages to defend themselves even
+    in environments where Javascript is disabled or limited.
+
+    Pros:
+
+    - Lightweight
+
+    - Far more fine-grained than proposal #1 (though still not perfect)
+
+    Cons:
+
+    - &quot;Opt-in&quot; (sites remain vulnerable unless action is taken)
+
+    - Might seem like an odd abuse of CSS / HTML
+
+3) Add an on-by-default mechanism that prevents UI actions to be taken
+    when a document tries to obstruct portions of a non-same-origin frame.
+    By carefully designing the mechanism, we can prevent legitimate uses
+    (such as dynamic menus that overlap with advertisements, gadgets, etc)
+    from being affected, yet achieve a high reliability in stopping
+    attacks.
+
+    [ I like this one the most myself, but we were far from reaching any
+      consensus. ]
+
+    Algorithm description:
+
+    A) Permit frames to be nested arbitrarily by default.
+
+    B) If anything is to be drawn partly or fully on top of a region
+       occupied by a nested IFRAME (in a callback from the renderer), look
+       up the parent of the obstructing visual element drawn (that is, the
+       party in charge of element's positioning). Always allow the element
+       to be drawn, but if the parent is not same-origin with the target of
+       an obstructed IFRAME, set a flag to disable UI input to that
+       obstructed IFRAME (i.e., have the browser sink all UI events from
+       now on). We may also gray out the disabled IFRAME (and maybe allow
+       CSS to customize this behavior for specific IFRAMES).
+
+    C) Treat a case where top-left corner of the IFRAME is drawn out of
+       a visible area (CSS negative margins, etc) as a special case of
+       being obstructed by the owner of a current rendering rectangle
+       (another IFRAME or window.top) and carry out the same comparison.
+
+    D) Once the obstruction is removed (say, a menu folded back), initiate
+       a security timer (500-1000 ms or so) to eventually re-enable UI
+       input to the IFRAME.
+
+    E) Cases where a non-same-origin IFRAME is newly spawned by
+       Javascript, or same-origin -&gt; non-same-origin location updates takes
+       place, should be treated as special cases of the IFRAME being
+       uncloaked, and result in UI event lockout until a security timer
+       expires.
+
+    F) Regardless of the aforementioned mechanism, do not permit an
+       IFRAME target that is not same-origin with its parent document to
+       invoke .focus() or to reposition content using URL anchors. This is
+       to make sure that the top-left corner of the page as seen by the
+       user always displays the top-left corner of the actual page.
+
+    A potential optimization for D) and E), to minimize any potential
+    impact where attacks are unlikely to succeed, is to:
+
+    - Permit a short window of opportunity (0.5 second, perhaps)
+      following initial page load, as well as possibly mouse clicks, during
+      which cross-domain IFRAMEs may be revealed with no timer penalty,
+      based on the assumption that immediate and involuntary UI actions
+      are unlikely to follow.
+
+    ...or alternatively:
+
+    - Disable UI events or initiate timeouts only if cursor is within a
+      certain radius of the uncloaked non-same-origin frame, based on the
+      same assumption.
+
+    Pros:
+
+    - Works by default
+
+    Cons:
+
+    - Moderately complex and kludgy
+
+    - In implementations, would require callbacks from the renderer to
+      detect obstruction, as opposed to making decisions without this
+      knowledge
+
+    - Further investigation is needed to verify that this doesn't break the
+      legitimate and common practice of some sites
+
+
+4) Enforce a click-to-work mechanism (resembling the Eolas patent
+    workaround) for all cross-domain IFRAMEs.
+
+    Pros:
+
+    - Works by default
+
+    - Very simple
+
+    Cons:
+
+    - May be cumbersome for users
+
+    - May not play well with gadgets, advertisements, etc.
+
+5) Rework everything we know about HTML / browser security models to
+    make it possible for domains and pages to specify very specific opt-in
+    / opt-out policies for all types of linking, referencing, such that
+    countering UI redress attacks would be just one of the cases controlled
+    by this mechanism.
+
+    Pros:
+
+    - Awesome in theory, security-wise
+
+    Cons:
+
+    - Not really going to happen any time soon
+
+Cheers,
+/mz
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="058556.html">[whatwg] defining new HTTP headers
+</A></li>
+	<LI>Next message: <A HREF="058558.html">[whatwg] Dealing with UI redress vulnerabilities inherent to	the current web
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#58557">[ date ]</a>
+              <a href="thread.html#58557">[ thread ]</a>
+              <a href="subject.html#58557">[ subject ]</a>
+              <a href="author.html#58557">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

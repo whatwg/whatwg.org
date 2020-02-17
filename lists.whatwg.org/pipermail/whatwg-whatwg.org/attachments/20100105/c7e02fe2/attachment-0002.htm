@@ -1,0 +1,71 @@
+<tt>
+It&nbsp;sounds&nbsp;tempting&nbsp;to&nbsp;say&nbsp;that&nbsp;the&nbsp;postMessage&nbsp;should&nbsp;be&nbsp;queued&nbsp;until&nbsp;the&nbsp;newly&nbsp;opened&nbsp;window&nbsp;is&nbsp;loaded,&nbsp;but&nbsp;what&nbsp;point&nbsp;in&nbsp;time&nbsp;is&nbsp;that&nbsp;exactly?&nbsp; Is&nbsp;that&nbsp;after&nbsp;the&nbsp;load&nbsp;event&nbsp;is&nbsp;dispatched&nbsp;on&nbsp;the&nbsp;newly&nbsp;opened&nbsp;window?&lt;div&gt;&lt;br&gt;<br>
+&lt;/div&gt;&lt;div&gt;Note:&nbsp;a&nbsp;newly&nbsp;opened&nbsp;window&nbsp;can&nbsp;begin&nbsp;communicating&nbsp;with&nbsp;its&nbsp;opener&nbsp;much&nbsp;earlier&nbsp;(via&nbsp;inline&nbsp;script&nbsp;execution).&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;However,&nbsp;if&nbsp;we&nbsp;try&nbsp;to&nbsp;dispatch&nbsp;the&nbsp;postMessage&nbsp;events&nbsp;before&nbsp;the&nbsp;load&nbsp;event&nbsp;then&nbsp;the&nbsp;newly&nbsp;opened&nbsp;window&nbsp;may&nbsp;not&nbsp;have&nbsp;registered&nbsp;its&nbsp;event&nbsp;handlers&nbsp;yet.&nbsp; (A&nbsp;future&nbsp;&lt;script&gt;&nbsp;tag&nbsp;may&nbsp;define&nbsp;the&nbsp;event&nbsp;handler.)&nbsp; So,&nbsp;I&nbsp;think&nbsp;we&nbsp;would&nbsp;have&nbsp;to&nbsp;delay&nbsp;until&nbsp;the&nbsp;load&nbsp;event&nbsp;for&nbsp;the&nbsp;semantics&nbsp;to&nbsp;be&nbsp;sane.&lt;/div&gt;<br>
+&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;There&nbsp;is&nbsp;perhaps&nbsp;a&nbsp;more&nbsp;critical&nbsp;issue&nbsp;that&nbsp;we&nbsp;should&nbsp;consider.&nbsp; What&nbsp;happens&nbsp;if&nbsp;the&nbsp;named&nbsp;window&nbsp;already&nbsp;exists?&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;Consider&nbsp;this&nbsp;case:&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;window.open(&quot;&lt;a&nbsp;href=&quot;http://a/&quot;&gt;http://a/&lt;/a&gt;&quot;,&nbsp;&quot;foo&quot;);&lt;/div&gt;<br>
+&lt;div&gt;...&lt;/div&gt;&lt;div&gt;var&nbsp;w&nbsp;=&nbsp;window.open(&quot;&lt;a&nbsp;href=&quot;http://b/&quot;&gt;http://b/&lt;/a&gt;&quot;,&nbsp;&quot;foo&quot;);&lt;/div&gt;&lt;div&gt;w.postMessage(&quot;bar&quot;,&nbsp;&quot;*&quot;);&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;I&nbsp;suspect&nbsp;the&nbsp;postMessage&nbsp;would&nbsp;be&nbsp;dispatched&nbsp;in&nbsp;this&nbsp;case,&nbsp;but&nbsp;the&nbsp;event&nbsp;dispatch&nbsp;would&nbsp;probably&nbsp;go&nbsp;to&nbsp;the&nbsp;document&nbsp;at&nbsp;&lt;a&nbsp;href=&quot;http://a/&quot;&gt;http://a/&lt;/a&gt;&nbsp;instead&nbsp;of&nbsp;&lt;a&nbsp;href=&quot;http://b/&quot;&gt;http://b/&lt;/a&gt;.&nbsp; This&nbsp;is&nbsp;because&nbsp;the&nbsp;browser&nbsp;has&nbsp;no&nbsp;way&nbsp;of&nbsp;knowing&nbsp;if&nbsp;&lt;a&nbsp;href=&quot;http://b/&quot;&gt;http://b/&lt;/a&gt;&nbsp;will&nbsp;actually&nbsp;be&nbsp;displayable&nbsp;content.&nbsp; It&nbsp;could&nbsp;be&nbsp;of&nbsp;a&nbsp;mime&nbsp;type&nbsp;that&nbsp;should&nbsp;just&nbsp;be&nbsp;downloaded&nbsp;(in&nbsp;which&nbsp;case&nbsp;the&nbsp;indicated&nbsp;window&nbsp;is&nbsp;not&nbsp;navigated).&lt;/div&gt;<br>
+&lt;div&gt;&lt;div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;So,&nbsp;queuing&nbsp;is&nbsp;probably&nbsp;not&nbsp;a&nbsp;good&nbsp;idea.&nbsp; Workers&nbsp;do&nbsp;not&nbsp;have&nbsp;this&nbsp;issue&nbsp;since&nbsp;they&nbsp;cannot&nbsp;be&nbsp;&quot;navigated&quot;&nbsp;like&nbsp;a&nbsp;window.&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;-Darin&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;br&gt;&lt;div&nbsp;class=&quot;gmail_quote&quot;&gt;<br>
+On&nbsp;Tue,&nbsp;Jan&nbsp;5,&nbsp;2010&nbsp;at&nbsp;8:29&nbsp;PM,&nbsp;Dirk&nbsp;Pranke&nbsp;&lt;span&nbsp;dir=&quot;ltr&quot;&gt;&lt;&lt;a&nbsp;href=&quot;mailto:dpranke@chromium.org&quot;&gt;dpranke@chromium.org&lt;/a&gt;&gt;&lt;/span&gt;&nbsp;wrote:&lt;br&gt;&lt;blockquote&nbsp;class=&quot;gmail_quote&quot;&nbsp;style=&quot;margin:0&nbsp;0&nbsp;0&nbsp;.8ex;border-left:1px&nbsp;#ccc&nbsp;solid;padding-left:1ex;&quot;&gt;<br>
+I&nbsp;understand&nbsp;the&nbsp;rationale,&nbsp;and&nbsp;the&nbsp;workaround&nbsp;you&nbsp;suggest&nbsp;does&nbsp;work,&lt;br&gt;<br>
+(I&nbsp;have&nbsp;tested&nbsp;it,&nbsp;in&nbsp;FF,&nbsp;Safari&nbsp;and&nbsp;Chrome).&nbsp;But,&nbsp;as&nbsp;Jonas&nbsp;mentioned,&lt;br&gt;<br>
+this&nbsp;isn&#39;t&nbsp;what&nbsp;we&nbsp;do&nbsp;with&nbsp;workers,&nbsp;and&nbsp;it&nbsp;feels&nbsp;counter-intuitive&nbsp;to&lt;br&gt;<br>
+me&nbsp;(I&#39;m&nbsp;having&nbsp;trouble&nbsp;thinking&nbsp;of&nbsp;other&nbsp;async&nbsp;messaging&nbsp;models&nbsp;that&lt;br&gt;<br>
+require&nbsp;an&nbsp;application-level&nbsp;handshake&nbsp;like&nbsp;this&nbsp;before&nbsp;messaging&nbsp;can&lt;br&gt;<br>
+commence).&nbsp;Are&nbsp;there&nbsp;reasons&nbsp;other&nbsp;than&nbsp;implementation&nbsp;complexity&nbsp;(an&lt;br&gt;<br>
+okay&nbsp;reason)&nbsp;or&nbsp;backwards-compatibility&nbsp;(a&nbsp;better&nbsp;reason)&nbsp;not&nbsp;to&nbsp;have&lt;br&gt;<br>
+the&nbsp;post&nbsp;work&nbsp;in&nbsp;this&nbsp;case?&nbsp;Put&nbsp;differently,&nbsp;would&nbsp;anything&nbsp;break&lt;br&gt;<br>
+(other&nbsp;than&nbsp;a&nbsp;rather&nbsp;oddly&nbsp;written&nbsp;app&nbsp;that&nbsp;explicitly&nbsp;counted&nbsp;on&nbsp;this&lt;br&gt;<br>
+behavior)&nbsp;if&nbsp;this&nbsp;did&nbsp;work?&lt;br&gt;<br>
+&lt;br&gt;<br>
+As&nbsp;an&nbsp;alternative,&nbsp;would&nbsp;it&nbsp;be&nbsp;possible&nbsp;to&nbsp;create&nbsp;an&nbsp;onChildLoad()&lt;br&gt;<br>
+event&nbsp;in&nbsp;the&nbsp;parent&nbsp;so&nbsp;that&nbsp;the&nbsp;parent&nbsp;could&nbsp;reliably&nbsp;send&nbsp;a&nbsp;message&lt;br&gt;<br>
+without&nbsp;needing&nbsp;the&nbsp;child&#39;s&nbsp;cooperation?&nbsp;These&nbsp;seems&nbsp;only&nbsp;marginally&lt;br&gt;<br>
+better&nbsp;than&nbsp;having&nbsp;the&nbsp;child&nbsp;post&nbsp;to&nbsp;the&nbsp;parent,&nbsp;so&nbsp;it&nbsp;may&nbsp;not&nbsp;be&lt;br&gt;<br>
+worth&nbsp;it&nbsp;...&lt;br&gt;<br>
+&lt;font&nbsp;color=&quot;#888888&quot;&gt;&lt;br&gt;<br>
+--&nbsp;Dirk&lt;br&gt;<br>
+&lt;/font&gt;&lt;div&nbsp;class=&quot;im&quot;&gt;&lt;br&gt;<br>
+On&nbsp;Tue,&nbsp;Jan&nbsp;5,&nbsp;2010&nbsp;at&nbsp;5:00&nbsp;PM,&nbsp;Darin&nbsp;Fisher&nbsp;&lt;&lt;a&nbsp;href=&quot;mailto:darin@chromium.org&quot;&gt;darin@chromium.org&lt;/a&gt;&gt;&nbsp;wrote:&lt;br&gt;<br>
+&lt;/div&gt;&lt;div&gt;&lt;div&gt;&lt;/div&gt;&lt;div&nbsp;class=&quot;h5&quot;&gt;&gt;&nbsp;The&nbsp;window&nbsp;doesn&#39;t&nbsp;open&nbsp;synchronously,&nbsp;so&nbsp;you&nbsp;should&nbsp;have&nbsp;to&nbsp;wait&nbsp;for&lt;br&gt;<br>
+&gt;&nbsp;&lt;a&nbsp;href=&quot;http://x/&quot;&nbsp;target=&quot;_blank&quot;&gt;http://x/&lt;/a&gt;&nbsp;to&nbsp;load&nbsp;(or&nbsp;for&nbsp;its&nbsp;document&nbsp;to&nbsp;at&nbsp;least&nbsp;be&nbsp;created)&nbsp;before&nbsp;you&lt;br&gt;<br>
+&gt;&nbsp;can&nbsp;start&nbsp;communicating&nbsp;with&nbsp;it.&lt;br&gt;<br>
+&gt;&nbsp;Note:&nbsp;If&nbsp;you&nbsp;instead&nbsp;open&nbsp;&quot;about:blank&quot;&nbsp;you&nbsp;should&nbsp;be&nbsp;able&nbsp;to&nbsp;communicate&lt;br&gt;<br>
+&gt;&nbsp;with&nbsp;it&nbsp;synchronously&nbsp;since&nbsp;&quot;about:blank&quot;&nbsp;is&nbsp;loaded&nbsp;synchronously.&nbsp; It&nbsp;is&lt;br&gt;<br>
+&gt;&nbsp;special-cased.&lt;br&gt;<br>
+&gt;&nbsp;From&nbsp;the&nbsp;newly&nbsp;opened&nbsp;window,&nbsp;you&nbsp;could&nbsp;try&nbsp;posting&nbsp;a&nbsp;message&nbsp;to&nbsp;its&nbsp;opener.&lt;br&gt;<br>
+&gt;&nbsp; The&nbsp;opener&nbsp;could&nbsp;then&nbsp;handle&nbsp;that&nbsp;event&nbsp;and&nbsp;use&nbsp;it&nbsp;as&nbsp;a&nbsp;signal&nbsp;to&nbsp;know&nbsp;that&lt;br&gt;<br>
+&gt;&nbsp;it&nbsp;can&nbsp;know&nbsp;begin&nbsp;communicating&nbsp;with&nbsp;the&nbsp;newly&nbsp;opened&nbsp;window.&lt;br&gt;<br>
+&gt;&nbsp;I&nbsp;haven&#39;t&nbsp;tested&nbsp;any&nbsp;of&nbsp;this&nbsp;;-)&lt;br&gt;<br>
+&gt;&nbsp;-Darin&lt;br&gt;<br>
+&gt;&lt;br&gt;<br>
+&gt;&nbsp;On&nbsp;Mon,&nbsp;Dec&nbsp;21,&nbsp;2009&nbsp;at&nbsp;7:24&nbsp;PM,&nbsp;Dirk&nbsp;Pranke&nbsp;&lt;&lt;a&nbsp;href=&quot;mailto:dpranke@chromium.org&quot;&gt;dpranke@chromium.org&lt;/a&gt;&gt;&nbsp;wrote:&lt;br&gt;<br>
+&gt;&gt;&lt;br&gt;<br>
+&gt;&gt;&nbsp;Hi&nbsp;all,&lt;br&gt;<br>
+&gt;&gt;&lt;br&gt;<br>
+&gt;&gt;&nbsp;In&nbsp;the&nbsp;course&nbsp;of&nbsp;testing&nbsp;something&nbsp;today,&nbsp;I&nbsp;attempted&nbsp;to&nbsp;create&nbsp;a&lt;br&gt;<br>
+&gt;&gt;&nbsp;window&nbsp;and&nbsp;immediately&nbsp;post&nbsp;a&nbsp;message&nbsp;to&nbsp;it,&nbsp;and&nbsp;was&nbsp;surprised&nbsp;that&nbsp;it&lt;br&gt;<br>
+&gt;&gt;&nbsp;didn&#39;t&nbsp;seem&nbsp;to&nbsp;work.&lt;br&gt;<br>
+&gt;&gt;&lt;br&gt;<br>
+&gt;&gt;&nbsp;E.g.:&lt;br&gt;<br>
+&gt;&gt;&lt;br&gt;<br>
+&gt;&gt;&nbsp;var&nbsp;w&nbsp;=&nbsp;window.open(&quot;&lt;a&nbsp;href=&quot;http://x&quot;&nbsp;target=&quot;_blank&quot;&gt;http://x&lt;/a&gt;&quot;);&lt;br&gt;<br>
+&gt;&gt;&nbsp;w.postMessage(&quot;hello,&nbsp;world&quot;,&nbsp;&quot;*&quot;);&lt;br&gt;<br>
+&gt;&gt;&lt;br&gt;<br>
+&gt;&gt;&nbsp;w&nbsp;never&nbsp;got&nbsp;the&nbsp;message&nbsp;-&nbsp;this&nbsp;seemed&nbsp;to&nbsp;be&nbsp;consistent&nbsp;across&nbsp;Safari,&lt;br&gt;<br>
+&gt;&gt;&nbsp;Chrome,&nbsp;and&nbsp;FF&nbsp;(all&nbsp;I&nbsp;had&nbsp;installed&nbsp;on&nbsp;my&nbsp;Mac&nbsp;at&nbsp;the&nbsp;time,&nbsp;so&lt;br&gt;<br>
+&gt;&gt;&nbsp;apologies&nbsp;to&nbsp;Opera,&nbsp;IE,&nbsp;and&nbsp;anyone&nbsp;else&nbsp;I&#39;ve&nbsp;left&nbsp;out).&lt;br&gt;<br>
+&gt;&gt;&lt;br&gt;<br>
+&gt;&gt;&nbsp;Is&nbsp;this&nbsp;supposed&nbsp;to&nbsp;work?&nbsp;If&nbsp;not,&nbsp;is&nbsp;there&nbsp;a&nbsp;reliable&nbsp;way&nbsp;for&nbsp;the&nbsp;the&lt;br&gt;<br>
+&gt;&gt;&nbsp;source&nbsp;to&nbsp;know&nbsp;when&nbsp;it&nbsp;is&nbsp;safe&nbsp;to&nbsp;send&nbsp;a&nbsp;message&nbsp;to&nbsp;the&nbsp;target?&nbsp;The&lt;br&gt;<br>
+&gt;&gt;&nbsp;only&nbsp;way&nbsp;I&nbsp;can&nbsp;think&nbsp;of&nbsp;is&nbsp;for&nbsp;the&nbsp;target&nbsp;to&nbsp;send&nbsp;a&nbsp;message&nbsp;back&nbsp;to&lt;br&gt;<br>
+&gt;&gt;&nbsp;the&nbsp;source,&nbsp;which&nbsp;only&nbsp;works&nbsp;if&nbsp;the&nbsp;target&nbsp;can&nbsp;get&nbsp;a&nbsp;reference&nbsp;to&nbsp;the&lt;br&gt;<br>
+&gt;&gt;&nbsp;source&nbsp;using&nbsp;window.opener,&nbsp;which&nbsp;may&nbsp;or&nbsp;may&nbsp;not&nbsp;be&nbsp;possible&nbsp;or&lt;br&gt;<br>
+&gt;&gt;&nbsp;desirable&nbsp;...&lt;br&gt;<br>
+&gt;&gt;&lt;br&gt;<br>
+&gt;&gt;&nbsp;If&nbsp;this&nbsp;isn&#39;t&nbsp;supposed&nbsp;to&nbsp;work,&nbsp;can&nbsp;we&nbsp;state&nbsp;this&nbsp;explicitly&nbsp;in&nbsp;the&nbsp;spec?&lt;br&gt;<br>
+&gt;&gt;&lt;br&gt;<br>
+&gt;&gt;&nbsp;--&nbsp;dirk&lt;br&gt;<br>
+&gt;&lt;br&gt;<br>
+&gt;&lt;br&gt;<br>
+&lt;/div&gt;&lt;/div&gt;&lt;/blockquote&gt;&lt;/div&gt;&lt;br&gt;&lt;/div&gt;&lt;/div&gt;&lt;/div&gt;<br>
+
+</tt>

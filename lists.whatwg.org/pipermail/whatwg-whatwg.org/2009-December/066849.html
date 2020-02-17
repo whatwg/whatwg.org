@@ -1,0 +1,122 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Passing more than JSON data to workers
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Passing%20more%20than%20JSON%20data%20to%20workers&In-Reply-To=%3CF40E1222-FD8A-4398-B6E1-DC7EEAB6B369%40monkeyman.be%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="066842.html">
+   <LINK REL="Next"  HREF="066850.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Passing more than JSON data to workers</H1>
+<!--htdig_noindex-->
+    <B>Jan Fabry</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Passing%20more%20than%20JSON%20data%20to%20workers&In-Reply-To=%3CF40E1222-FD8A-4398-B6E1-DC7EEAB6B369%40monkeyman.be%3E"
+       TITLE="[whatwg] Passing more than JSON data to workers">jan.fabry at monkeyman.be
+       </A><BR>
+    <I>Wed Dec 16 13:27:28 PST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="066842.html">[whatwg] Passing more than JSON data to workers
+</A></li>
+        <LI>Next message: <A HREF="066850.html">[whatwg] Passing more than JSON data to workers
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#66849">[ date ]</a>
+              <a href="thread.html#66849">[ thread ]</a>
+              <a href="subject.html#66849">[ subject ]</a>
+              <a href="author.html#66849">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On 16 Dec 2009, at 19:33, Drew Wilson wrote:
+
+&gt;<i> I'm not certain what a &quot;deep copy&quot; of the function means - would you need to copy the entire lexical scope of the function? For example, let's say you do this:
+</I>&gt;<i> 
+</I>&gt;<i> var foo = 1;
+</I>&gt;<i> 
+</I>&gt;<i> function setFoo(val) { foo = val; }
+</I>&gt;<i> function getFoo() { return foo; }
+</I>&gt;<i> 
+</I>&gt;<i> worker.postMessage(setFoo);
+</I>&gt;<i> worker.postMessage(getFoo);
+</I>&gt;<i> 
+</I>&gt;<i> foo = 2;
+</I>&gt;<i> 
+</I>&gt;<i> Then, from worker code, I call the copy of getFoo() - what should it return (undefined? Does it pull over a copy of foo from the original lexical scope, in which case it's 1)?
+</I>
+In my idea, the free variables get bound at the moment you call postMessage. The worker receives two different objects, they have nothing in common.
+
+After the first postMessage, the worker receives an object, that happens to be a function, bound to some invisible variable (similar to the &quot;trick&quot; to creates private variables in JS). When it is called, nothing visible happens, because the foo variable is not visible on the outside.
+
+After the second postMessage, the worker receives a new object, also a function, bound to a variable with the value 1. If you call it, it returns 1. If I call the function that the first postMessage delivered, this does not affect the function that the second passed, since they are bound to different copies of the same origin variables, and thus in effect bound to different variables.
+
+Image if we would create a JSONOnSteriods function. If you pass it anything that a regular JSON serializer can handle, it gives the same output (the regular serializer is recursive, so if you reverse the process, you have in effect created a deep copy). My JSONOnSteriods function would also be able to serialize functions (like you can do using setFoo.toString()), but also notice the free variables and bind them. If there is a client-side (userland?) function that would accept a function and return the names of the free variables, I think you could even simulate this in regular Javascript, but a solution in the VM would be less kludgy and probably much faster.
+
+But please, shoot holes in my theory, because it is nothing more than that.
+
+Greetings,
+
+Jan Fabry
+
+&gt;<i> What if foo is defined in a lexical closure that is shared by both setFoo() and getFoo() - it seems like the separate copies of setFoo() and getFoo() passed to the worker would need to reconstruct a shared closure on the worker side, which seems difficult if not impossible.
+</I>&gt;<i> 
+</I>&gt;<i> I think that some variant of data URLs and/or eval() gets you most of what you really need here without requiring extensive JS VM gymnastics.
+</I>&gt;<i> 
+</I>&gt;<i> -atw
+</I>&gt;<i> 
+</I>&gt;<i> On Wed, Dec 16, 2009 at 9:23 AM, Jan Fabry &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">jan.fabry at monkeyman.be</A>&gt; wrote:
+</I>&gt;<i> Hello,
+</I>&gt;<i> 
+</I>&gt;<i> Has it been considered to pass more than JSON data to workers? I could not find a rationale behind this in the FAQ, or in other places I looked. I understand the need for separation because of concurrency issues, but aren't there other ways to accomplish this?
+</I>&gt;<i> 
+</I>&gt;<i> (The following text was already posted to the forum, but &quot;zcorpan&quot; suggested I also post it here)
+</I>&gt;<i> [ <A HREF="http://forums.whatwg.org/viewtopic.php?t=4185">http://forums.whatwg.org/viewtopic.php?t=4185</A> ]
+</I>&gt;<i> 
+</I>&gt;<i> I am not a Javascript VM developer, so if the following does not make sense, please don't be too hard on me. A reply of &quot;Sorry, we thought about this longer than you did, and there are still cases where this is impossible&quot; is perfectly valid, but the more I can learn from this conversation, the better.
+</I>&gt;<i> 
+</I>&gt;<i> Would it be possible to do a deep copy of the function (object) you pass to the the constructor? So copy everything (or mark it for copy-on-write), but remove references to DOM elements if they exist. This way, I think you can create a parallel data structure, so the original one remains untouched (avoiding concurrency issues).
+</I>&gt;<i> 
+</I>&gt;<i> The important difference between this and the usual JSON-serializing of objects that the examples talk about, is that functions can be passed through too in an easy manner. If you have to simulate this using only Javascript, you have to somehow bind the free variables, which requires some introspection, and thus is not easy (if even possible?) to simulate in &quot;user space&quot;.
+</I>&gt;<i> 
+</I>&gt;<i> The Google Gears API seems to provide both createWorker(scriptText) and createWorkerFromUrl(scriptUrl). Why was only the URL variant retained in the Web Workers spec? With the script variant, there would have been at least a little basis for more dynamic programming.
+</I>&gt;<i> 
+</I>&gt;<i> Greetings,
+</I>&gt;<i> 
+</I>&gt;<i> Jan Fabry
+</I>&gt;<i> 
+</I>
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="066842.html">[whatwg] Passing more than JSON data to workers
+</A></li>
+	<LI>Next message: <A HREF="066850.html">[whatwg] Passing more than JSON data to workers
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#66849">[ date ]</a>
+              <a href="thread.html#66849">[ thread ]</a>
+              <a href="subject.html#66849">[ subject ]</a>
+              <a href="author.html#66849">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

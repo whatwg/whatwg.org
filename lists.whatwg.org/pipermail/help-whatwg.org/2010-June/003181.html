@@ -1,0 +1,168 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [html5] Autoplay and preload insufficient for proper video	playback.
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:help%40lists.whatwg.org?Subject=Re%3A%20%5Bhtml5%5D%20Autoplay%20and%20preload%20insufficient%20for%20proper%20video%0A%09playback.&In-Reply-To=%3CAANLkTil5gVucPTYmubJ2OAWttkcdK8_cGwNcLPckqiCO%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003180.html">
+   <LINK REL="Next"  HREF="003182.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[html5] Autoplay and preload insufficient for proper video	playback.</H1>
+<!--htdig_noindex-->
+    <B>Marques Johansson</B> 
+    <A HREF="mailto:help%40lists.whatwg.org?Subject=Re%3A%20%5Bhtml5%5D%20Autoplay%20and%20preload%20insufficient%20for%20proper%20video%0A%09playback.&In-Reply-To=%3CAANLkTil5gVucPTYmubJ2OAWttkcdK8_cGwNcLPckqiCO%40mail.gmail.com%3E"
+       TITLE="[html5] Autoplay and preload insufficient for proper video	playback.">marques at displague.com
+       </A><BR>
+    <I>Wed Jun 30 13:16:22 PDT 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003180.html">[html5] Autoplay and preload insufficient for proper video	playback.
+</A></li>
+        <LI>Next message: <A HREF="003182.html">[html5] Autoplay and preload insufficient for proper video	playback.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3181">[ date ]</a>
+              <a href="thread.html#3181">[ thread ]</a>
+              <a href="subject.html#3181">[ subject ]</a>
+              <a href="author.html#3181">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Wed, Jun 30, 2010 at 2:29 PM, Richard Kern &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/help-whatwg.org">kernrj at gmail.com</A>&gt; wrote:
+&gt;<i> If video were downloaded in sections, there could be a mechanism for telling
+</I>&gt;<i> the browser to wait for a certain number of sections to be downloaded before
+</I>&gt;<i> playback. &#160;Also, if we had the option to specify a different URL/file offset
+</I>&gt;<i> for each section, that opens a few possibilities - in Marques's case,
+</I>
+Apple's solution involves a playlist file with .ts files that each
+represent a few seconds worth of video.  I'm not a fan of cutting up
+original seemless videos when these codecs were designed with
+streaming in mind.
+
+&gt;<i> &lt;video&gt;
+</I>&gt;<i> &#160;&#160;&lt;source min_buffer=&quot;1&quot; max_buffer=&quot;2&quot;&gt;
+</I>&gt;<i> &#160;&#160; &#160; &lt;section src=&quot;URL1&quot;/&gt;
+</I>&gt;<i> &#160;&#160; &#160; &lt;section src=&quot;URL2&quot; start_offset=&quot;1000000bytes&quot;
+</I>&gt;<i> end_offset=&quot;3000000bytes&quot;&gt;
+</I>&gt;<i> &#160;&#160; &#160; &lt;section src=&quot;URL3&quot;/&gt;
+</I>&gt;<i> &#160;&#160;&lt;/source&gt;
+</I>&gt;<i> &lt;/video&gt;
+</I>&gt;<i> or
+</I>&gt;<i> video.setSection(0, URL1);
+</I>&gt;<i> video.setSection(1, URL2, 1000000, 3000000);
+</I>&gt;<i> video.setSection(2, URL3);
+</I>&gt;<i> video.setMinBufferedSections(1); &#160;//The first section must be completely
+</I>&gt;<i> downloaded before playback begins
+</I>&gt;<i> video.setMaxBufferedSections(2); &#160;//The download will not be permitted to
+</I>&gt;<i> get more than 2 sections ahead
+</I>
+Sections like these would work to splice video from different sources
+together.  My concern is with URL1 being used for each section rather
+than URL1, URL2, and URL3.
+
+My other problem with sections as you've provided them is that it
+fills the document with unnecessary nodes.  In the case of a video
+with 2-32 chapters / sections this would be fine, but realistically
+every I-frame should be a section, allowing the user to seek a video
+with very fine controls.  Needless to say, a video can have thousands
+of I-frames.
+
+I would be looking for something more like:
+&lt;source ranges maxrangelength=&quot;100000&quot;&gt;
+and
+video.setRangedAccess(true);
+video.setMaxRangeLength(100000);
+
+This would prompt the UA to send:
+
+GET <A HREF="http://example.com/video.webm">http://example.com/video.webm</A> HTTP/1.1
+Range: bytes 0-99999
+
+rather than the default behavior which seems to be
+
+GET  <A HREF="http://example.com/video.webm">http://example.com/video.webm</A> HTTP/1.1
+[ ... no range ...]
+
+or
+
+GET <A HREF="http://example.com/video.webm">http://example.com/video.webm</A> HTTP/1.1
+Range: bytes 0-
+
+The last two request methods are problems because the server has no
+choice but to send the entire document to the client or respond with a
+403 or 416 (to the Ranged request only).  These status codes are not
+recoverable by the UA; there is no retry behavior or way to specify
+what should have been different.  A 416 response can specify
+Content-Range: */fullsize, but that won't change the client's Range
+request behavior in terms of max requested range bytes.
+
+The server would rather not reply with a 200 or a 206/Content-Range:0-
+(essentially the same response) and keep the connection open for
+throttling.. Likewise, the user would rather not be charged for more
+video than they intend to watch.
+
+In the real world a 307 redirect that specifies &quot;Accept-Ranges: bytes&quot;
+will get some UAs to send a Range on the follow-up request, but the
+range will be &quot;Range: bytes 0-&quot;.  The server can also try to sneak a
+206 response to an unranged request which seems to work against the
+HTTP spec's terms.
+
+If the HTTP spec expressly allowed a 206 response to contain less data
+than requested and required the UA to follow-up with additional Ranged
+requests I wouldn't be having this conversation.  When the server
+responds with less than the full document Chrome users (and Opera Ogg
+users(but not Opera webm)) will be happy because their browser will
+continue to send Ranged GETs where the response left off.  Other
+browsers will play the content provided in the short 206 response as
+though it was a 200 or a 206 for the full length requested and stop
+there.
+
+&gt;<i> &#160;Buffering from/to a specific time is still possible, but would require
+</I>&gt;<i> metadata correlating video time to file position.
+</I>&gt;<i> Searching to a random file address may also present a problem if it is not
+</I>&gt;<i> the address of an I-frame. &#160;In this case the browser would need to continue
+</I>&gt;<i> seeking until it reaches a point it can decode from.
+</I>
+Chrome, as I have seen, fetches the beginning of a webm file and then
+a block near the end of a webm file when it is made to request the
+file with Ranges.  This seems like an obvious choice  for  &lt;video
+prefetch=&quot;metadata&quot;&gt; content but I have also seen it take this
+behavior when given the URI to the direct video (or in my case a PHP
+script that fseeks/fgets the range requested up to X bytes) which may
+be related to the &lt;video&gt; element style controls they render for
+videos with this mime-type.
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003180.html">[html5] Autoplay and preload insufficient for proper video	playback.
+</A></li>
+	<LI>Next message: <A HREF="003182.html">[html5] Autoplay and preload insufficient for proper video	playback.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3181">[ date ]</a>
+              <a href="thread.html#3181">[ thread ]</a>
+              <a href="subject.html#3181">[ subject ]</a>
+              <a href="author.html#3181">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/help-whatwg.org">More information about the Help
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

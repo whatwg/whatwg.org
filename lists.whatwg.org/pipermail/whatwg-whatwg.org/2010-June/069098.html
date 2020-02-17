@@ -1,0 +1,86 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Navigation maturation and event loops
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Navigation%20maturation%20and%20event%20loops&In-Reply-To=%3C2B307CC5A6F1D44A8FBD8E029A770BCA203EAE82%40TK5EX14MBXC115.redmond.corp.microsoft.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="069094.html">
+   <LINK REL="Next"  HREF="069099.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Navigation maturation and event loops</H1>
+<!--htdig_noindex-->
+    <B>Ben Lerner</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Navigation%20maturation%20and%20event%20loops&In-Reply-To=%3C2B307CC5A6F1D44A8FBD8E029A770BCA203EAE82%40TK5EX14MBXC115.redmond.corp.microsoft.com%3E"
+       TITLE="[whatwg] Navigation maturation and event loops">t-benle at microsoft.com
+       </A><BR>
+    <I>Wed Jun 23 10:50:58 PDT 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="069094.html">[whatwg] WebSocket error event
+</A></li>
+        <LI>Next message: <A HREF="069099.html">[whatwg] Clarification on joint session history
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#69098">[ date ]</a>
+              <a href="thread.html#69098">[ thread ]</a>
+              <a href="subject.html#69098">[ subject ]</a>
+              <a href="author.html#69098">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Hi all,
+
+I'm trying to figure out the control flow when documents are loaded and navigated, and I think there's a deadlock situation (at least as I'm currently reading the spec).
+
+Specifically:
+
+<A HREF="http://www.whatwg.org/specs/web-apps/current-work/#read-html:">http://www.whatwg.org/specs/web-apps/current-work/#read-html:</A> After creating the Document&lt;<A HREF="http://www.whatwg.org/specs/web-apps/current-work/#document">http://www.whatwg.org/specs/web-apps/current-work/#document</A>&gt; object, but before any script execution, certainly before the parser stops&lt;<A HREF="http://www.whatwg.org/specs/web-apps/current-work/#stop-parsing">http://www.whatwg.org/specs/web-apps/current-work/#stop-parsing</A>&gt;, the user agent must update the session history with the new page&lt;<A HREF="http://www.whatwg.org/specs/web-apps/current-work/#update-the-session-history-with-the-new-page">http://www.whatwg.org/specs/web-apps/current-work/#update-the-session-history-with-the-new-page</A>&gt;.&quot;
+<A HREF="http://www.whatwg.org/specs/web-apps/current-work/#update-the-session-history-with-the-new-page:">http://www.whatwg.org/specs/web-apps/current-work/#update-the-session-history-with-the-new-page:</A> ...The user agent must queue a task to ... #3: The navigation algorithm has now matured.
+<A HREF="http://www.whatwg.org/specs/web-apps/current-work/#queue-a-task:">http://www.whatwg.org/specs/web-apps/current-work/#queue-a-task:</A> &quot;When a user agent is to queue a task, it must add the given task to one of the task queues&lt;<A HREF="http://www.whatwg.org/specs/web-apps/current-work/#task-queue">http://www.whatwg.org/specs/web-apps/current-work/#task-queue</A>&gt; of the relevant event loop&lt;<A HREF="http://www.whatwg.org/specs/web-apps/current-work/#event-loop">http://www.whatwg.org/specs/web-apps/current-work/#event-loop</A>&gt;.&quot;
+<A HREF="http://www.whatwg.org/specs/web-apps/current-work/#processing-model-2:">http://www.whatwg.org/specs/web-apps/current-work/#processing-model-2:</A> &quot;An event loop&lt;<A HREF="http://www.whatwg.org/specs/web-apps/current-work/#event-loop">http://www.whatwg.org/specs/web-apps/current-work/#event-loop</A>&gt; must continually run through the following steps for as long as it exists:
+
+  1.  Run the oldest task&lt;<A HREF="http://www.whatwg.org/specs/web-apps/current-work/#concept-task">http://www.whatwg.org/specs/web-apps/current-work/#concept-task</A>&gt; on one of the event loop&lt;<A HREF="http://www.whatwg.org/specs/web-apps/current-work/#event-loop">http://www.whatwg.org/specs/web-apps/current-work/#event-loop</A>&gt;'s task queues&lt;<A HREF="http://www.whatwg.org/specs/web-apps/current-work/#task-queue">http://www.whatwg.org/specs/web-apps/current-work/#task-queue</A>&gt;, ignoring tasks whose associated Document&lt;<A HREF="http://www.whatwg.org/specs/web-apps/current-work/#document">http://www.whatwg.org/specs/web-apps/current-work/#document</A>&gt;s are not fully active&lt;<A HREF="http://www.whatwg.org/specs/web-apps/current-work/#fully-active">http://www.whatwg.org/specs/web-apps/current-work/#fully-active</A>&gt;.&quot;
+<A HREF="http://www.whatwg.org/specs/web-apps/current-work/#fully-active:">http://www.whatwg.org/specs/web-apps/current-work/#fully-active:</A> &quot;A Document&lt;<A HREF="http://www.whatwg.org/specs/web-apps/current-work/#document">http://www.whatwg.org/specs/web-apps/current-work/#document</A>&gt; is said to be fully active when it is the active document&lt;<A HREF="http://www.whatwg.org/specs/web-apps/current-work/#active-document">http://www.whatwg.org/specs/web-apps/current-work/#active-document</A>&gt; of its browsing context&lt;<A HREF="http://www.whatwg.org/specs/web-apps/current-work/#browsing-context">http://www.whatwg.org/specs/web-apps/current-work/#browsing-context</A>&gt;, and ...&quot;
+
+So if I'm reading that chain right: I need to queue a task that will mature the navigation algorithm, which will make the document the active document, except that the task will not run because the document is not yet the active document and hence not fully active.  The loophole here is the phrase &quot;relevant event loop&quot;.  Is there an event loop that is relevant and that is also associated with a fully-active document?
+
+Thanks,
+Ben Lerner
+
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: &lt;<A HREF="http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20100623/0dbbc26d/attachment-0002.htm">http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20100623/0dbbc26d/attachment-0002.htm</A>&gt;
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="069094.html">[whatwg] WebSocket error event
+</A></li>
+	<LI>Next message: <A HREF="069099.html">[whatwg] Clarification on joint session history
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#69098">[ date ]</a>
+              <a href="thread.html#69098">[ thread ]</a>
+              <a href="subject.html#69098">[ subject ]</a>
+              <a href="author.html#69098">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

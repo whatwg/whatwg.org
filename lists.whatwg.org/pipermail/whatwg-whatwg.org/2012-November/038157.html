@@ -1,0 +1,182 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Deferring javascript download and execution until after onload
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Deferring%20javascript%20download%20and%20execution%20until%0A%20after%20onload&In-Reply-To=%3CPine.LNX.4.64.1211290342280.1991%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="080443.html">
+   <LINK REL="Next"  HREF="080433.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Deferring javascript download and execution until after onload</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Deferring%20javascript%20download%20and%20execution%20until%0A%20after%20onload&In-Reply-To=%3CPine.LNX.4.64.1211290342280.1991%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg] Deferring javascript download and execution until after onload">ian at hixie.ch
+       </A><BR>
+    <I>Wed Nov 28 20:01:59 PST 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="080443.html">[whatwg] Proposal: Add window.getLastError (or modify invocation arguments of window.onerror)
+</A></li>
+        <LI>Next message: <A HREF="080433.html">[whatwg] Deferring javascript download and execution until	after onload
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#38157">[ date ]</a>
+              <a href="thread.html#38157">[ thread ]</a>
+              <a href="subject.html#38157">[ subject ]</a>
+              <a href="author.html#38157">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Mon, 17 Sep 2012, Andy Davies wrote:
+&gt;<i>
+</I>&gt;<i> The script defer attribute allows us to defer JS until after 
+</I>&gt;<i> DOMContentLoaded (?) but it will still execute before onLoad
+</I>
+Actually defer=&quot;&quot; defers to just before DOMContentLoaded, but &lt;script&gt; 
+elements with a src=&quot;&quot; attribute that are inserted into the document 
+dynamically will load between DOMContentLoaded and onload, so you can do 
+all your important loading in the DOMContentLoaded handler.
+
+You can use this pretty easily:
+
+   function loadScript(url) {
+     var script = document.createElement('script');
+     script.src = url;
+     document.appendChild(script);
+   }
+   load('mylibrary.js');
+   load('myotherlibrary.js');
+
+This can be trivially extended to, e.g., add IDs and support the script 
+being inserted by inline script in specific places:
+
+   function loadScript(url, id) {
+     var script = document.createElement('script');
+     script.src = url;
+     script.id = id;
+     var target = document.currentScript;
+     target.parentNode.insertBefore(script, target.nextSibling);
+   }
+
+   &lt;!-- at the specific place you want this script --&gt;
+   &lt;script&gt;
+     loadScript('mylibrary.js', 'mylib');
+   &lt;/script&gt;
+
+
+On Mon, 17 Sep 2012, Jonas Sicking wrote:
+&gt;<i> 
+</I>&gt;<i> There has been discussions about implementing a &quot;noexec&quot; attribute on 
+</I>&gt;<i> &lt;script&gt; which would just load the script but instead of evaluating it 
+</I>&gt;<i> as soon as it's available, simply fire the &quot;load&quot; event. There would 
+</I>&gt;<i> also be an additional .execute() function on the script which would 
+</I>&gt;<i> permit executing the script after it has been loaded.
+</I>&gt;<i> 
+</I>&gt;<i> This has mostly been discussed in a performance context where people has 
+</I>&gt;<i> expressed interest in loading scripts, while only waiting to execute it 
+</I>&gt;<i> until needed in order to avoid the costs involved in parsing and 
+</I>&gt;<i> executing the script.
+</I>
+The cost of parsing the script can be done async, even off the main thread 
+in theory, so it's a non-issue. The only cost there could be is the cost 
+of executing the script, and it's already trivial to offload that: just 
+put all the code in a function, then call the function when you're ready.
+
+
+&gt;<i> So far Hixie hasn't been interested in putting this into the spec 
+</I>&gt;<i> though, due to, as I understand it, not being convinced that it's needed 
+</I>&gt;<i> from a performance point of view.
+</I>
+It's not that it's not needed, it's that it's already possible. As far as 
+I can tell, it adds nothing for performance.
+
+
+&gt;<i> I'd personally be interested to see it implemented since people clearly 
+</I>&gt;<i> do load scripts dynamically and it would seem common for such scripts to 
+</I>&gt;<i> have dependencies on each other, which means that you have to be able to 
+</I>&gt;<i> execute them in a certain order.
+</I>
+It's already possible now to design scripts such that they don't run until 
+you call them, so you could already do this:
+
+   // library1.js
+   // depends on library2!
+   function loadLibrary1() {
+     // do everything to load library1
+   }
+
+   // library2.js
+   function loadLibrary2() {
+     // do everything to load library2
+   }
+
+   &lt;!-- index.html --&gt;
+   &lt;script src=&quot;library1.js&quot;&gt;&lt;/script&gt;
+   &lt;script src=&quot;library2.js&quot;&gt;&lt;/script&gt;
+   &lt;script&gt;
+     function loadLibraries() {
+       loadLibrary2();
+       loadLibrary1();
+     }
+   &lt;/script&gt;
+   &lt;body onload=&quot;loadLibraries()&quot;&gt;
+
+With ES6 import statements, this presumably gets even easier.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="080443.html">[whatwg] Proposal: Add window.getLastError (or modify invocation arguments of window.onerror)
+</A></li>
+	<LI>Next message: <A HREF="080433.html">[whatwg] Deferring javascript download and execution until	after onload
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#38157">[ date ]</a>
+              <a href="thread.html#38157">[ thread ]</a>
+              <a href="subject.html#38157">[ subject ]</a>
+              <a href="author.html#38157">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

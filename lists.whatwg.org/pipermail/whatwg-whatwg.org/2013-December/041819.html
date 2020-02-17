@@ -1,0 +1,215 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Guessing the fallback encoding from the top-level domain name before trying to guess from the browser localization
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Guessing%20the%20fallback%20encoding%20from%20the%20top-level%20domain%0A%20name%20before%20trying%20to%20guess%20from%20the%20browser%20localization&In-Reply-To=%3CCANXqsRJTmpzU6Tgmveu4uEXkPXvPAkNXtOvy79RSujFSXmCKTw%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="084093.html">
+   <LINK REL="Next"  HREF="041821.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Guessing the fallback encoding from the top-level domain name before trying to guess from the browser localization</H1>
+<!--htdig_noindex-->
+    <B>Henri Sivonen</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Guessing%20the%20fallback%20encoding%20from%20the%20top-level%20domain%0A%20name%20before%20trying%20to%20guess%20from%20the%20browser%20localization&In-Reply-To=%3CCANXqsRJTmpzU6Tgmveu4uEXkPXvPAkNXtOvy79RSujFSXmCKTw%40mail.gmail.com%3E"
+       TITLE="[whatwg] Guessing the fallback encoding from the top-level domain name before trying to guess from the browser localization">hsivonen at hsivonen.fi
+       </A><BR>
+    <I>Thu Dec 19 06:28:27 PST 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="084093.html">[whatwg] Add &lt;input&gt; &quot;Switch&quot; Type
+</A></li>
+        <LI>Next message: <A HREF="041821.html">[whatwg] Range.createContextualFragment in SVG contexts
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#41819">[ date ]</a>
+              <a href="thread.html#41819">[ thread ]</a>
+              <a href="subject.html#41819">[ subject ]</a>
+              <a href="author.html#41819">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>(Posted to whatwg and www-international but not cross-posted, because
+cross-posting would be against the whatwg list rules.)
+
+Currently, the main source of fallback encoding (the encoding used for
+text/html and text/plain in the absence of a site-supplied encoding
+label) is that the UI localization of the browser.
+
+Secondarily, in some cases a guess is made based on the input bytes.
+In Firefox, by default, such a guess happens for the Japanese, Russian
+and Ukrainian localizations, though it's unclear how necessary it is
+to have this feature in the Russian and Ukrainian cases. It appears
+that Safari and IE have content-based detection for Japanese
+encodings, but it's unclear to me under what conditions that detection
+code runs. Chrome seems to have content-based detection for a broader
+range of encodings. (Why?)
+
+Considering that the encoding of the content browsed is not really a
+function of the UI localization of the browser, though the two are
+often correlated, I have developed a patch for Firefox to make the
+guess based on the top-level domain name of the URL of the document
+when possible.
+
+Before deciding whether to land that patch, I'd like to get feedback
+from the broader Web standards community.
+
+Does this seem like a good idea? Good idea if the mapping details are
+tweaked? Bad idea? (Why?)
+
+# Summary of what the path does
+
+In the patch currently, the fallback is guessed from the TLD unless
+ * The URL scheme doesn't involve a host.
+ * The host is an IP address.
+ * The domain name is an ancient generic TLD (.com, .net, .org) that
+has been used all around the world.
+ * The domain name is a country TLD whose legacy encoding affiliation
+I couldn't figure out: .ba, .cy, .my. (Should .il be here in case
+there's windows-1256 legacy in addition to windows-1255 legacy?)
+
+New non-country TLDs are treated as windows-1252-affiliated, since a
+TLD is treated as windows-1252-affiliated unless it is explicitly
+listed as non-participating or explicitly listed as affiliated with a
+different legacy encoding. Also in the current patch, .me and .md are
+treated as windows-1252-affiliated, because they are sold for
+out-of-country English use. Maybe they shouldn't participate in TLD
+guessing instead?
+
+The list of TLDs that participate in the guessing and are not
+windows-1252-affiliated is currently:
+<A HREF="https://bugzilla.mozilla.org/attachment.cgi?id=8341644&amp;action=diff#a/dom/encoding/domainsfallbacks.properties_sec2">https://bugzilla.mozilla.org/attachment.cgi?id=8341644&amp;action=diff#a/dom/encoding/domainsfallbacks.properties_sec2</A>
+
+UTF-8 is never guessed, since it is not a legacy encoding. All authors
+who are doing the right thing (i.e. use UTF-8) are equally
+inconvenienced by being required to declare it just like before. This
+is about making legacy content work for users--not about making it
+easy for authors not to declare the encoding for new content.
+
+# Goals
+
+ * Reduce the effect of browser configuration (localization) on how
+the Web renders.
+
+ * Make it easier for people to read legacy content on the Web
+across-locales without having to use the Character Encoding menu.
+
+ * Address the potential use cases for Firefox's old
+never-on-by-default combined Chinese, CJK and Universal (not actually
+universal!) detectors without the downsides of heuristic detection.
+
+ * Avoid introducing new fallback encoding guesses that don't already
+result from guessing based on the browser localization.
+
+# Why is this better than what browser are currently doing?
+
+ * Currently, browsers are trying to guess a characteristic of legacy
+content. The TLD is more tightly attached to the content then the
+browser localization.
+
+# Why is this better that analyzing the content itself?
+
+ * Analyzing the content itself has to interfere with one the following:
+   - Incremental parsing/rendering of HTML
+   - Script side effects / visual appearance of the page load
+   - Inheritance of character encoding into CSS/JS
+  ...or make the guess based on an insufficient amount of input data.
+
+ * When documents contain a lot of code before human-readable text, a
+lot of bytes need to be consumed before making a decision. The TLD is
+available before seeing any content bytes at all.
+
+ * Especially for single-byte encodings, content analysis is not exact
+and could introduce mis-detections to locales that currently get by
+fine with their fallback encoding.
+
+ * A static mapping from TLDs to encodings is more
+understandable/debuggable than having guesses potentially change when
+content changes.
+
+ * This is simpler to implement than creating a truly universal
+detector (Firefox's current Universal detector is not) or vetting,
+potentially adjusting and integrating the ICU detector.
+
+# Why is this harmless?
+
+ * This only applies to non-conforming content. Any site that this
+applies to always has a way to opt out by becoming conforming (by
+declaring its encoding).
+
+ * All the possible TLD-based guesses are pre-existing browser
+locale-based guesses, so the situation faced by any site as the result
+of this feature is a situation it already faces with some existing
+browser localization.
+
+ * UTF-8 is never guessed, so this feature doesn't give anyone who
+uses UTF-8 a reason not to declare it. In that sense, this feature
+doesn't interfere with the authoring methodology sites should,
+ideally, be adhering to.
+
+# How could this be harmful?
+
+ * This could emphasize pre-existing brokenness (failure to declare
+the encoding) of sites targeted at language minorities when the legacy
+encoding for the minority language doesn't match the legacy encoding
+for the majority language of the country and 100% of the target
+audience of the site uses a browser localization that matches the
+language of the site. For example, it's *imaginable* that there exists
+a Russian-language windows-1251-encoded (but not declared) site under
+.ee that's currently always browsed with Russian browser
+localizations. More realistically, minority-language sites whose
+encoding doesn't match the dominant encoding of the country probably
+can't be relying on their audience using a particular browser
+localization and are probably more aware than most about encoding
+issues and already declare their encoding, so I'm not particularly
+worried about this scenario being a serious problem. And sites can
+always fix things by declaring their encoding.
+
+ * This could cause some breakage when unlabeled non-windows-1252
+sites are hosted under a foreign TLD, because the TLD looks cool (e.g.
+.io). However, this is a relatively new phenomenon, so one might hope
+that there's less content authored according to legacy practices
+involved.
+
+ * This probably lowers the incentive to declare the legacy encoding a little.
+
+-- 
+Henri Sivonen
+<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">hsivonen at hsivonen.fi</A>
+<A HREF="https://hsivonen.fi/">https://hsivonen.fi/</A>
+</PRE>
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="084093.html">[whatwg] Add &lt;input&gt; &quot;Switch&quot; Type
+</A></li>
+	<LI>Next message: <A HREF="041821.html">[whatwg] Range.createContextualFragment in SVG contexts
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#41819">[ date ]</a>
+              <a href="thread.html#41819">[ thread ]</a>
+              <a href="subject.html#41819">[ subject ]</a>
+              <a href="author.html#41819">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

@@ -1,0 +1,139 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] WebWorkers vs. Threads
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20WebWorkers%20vs.%20Threads&In-Reply-To=%3C200808131424.59739.pstradomski%40gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="015754.html">
+   <LINK REL="Next"  HREF="015691.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] WebWorkers vs. Threads</H1>
+<!--htdig_noindex-->
+    <B>Pawe&#322; Stradomski</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20WebWorkers%20vs.%20Threads&In-Reply-To=%3C200808131424.59739.pstradomski%40gmail.com%3E"
+       TITLE="[whatwg] WebWorkers vs. Threads">pstradomski at gmail.com
+       </A><BR>
+    <I>Wed Aug 13 05:24:59 PDT 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="015754.html">[whatwg] WebWorkers vs. Threads
+</A></li>
+        <LI>Next message: <A HREF="015691.html">[whatwg] web development approach
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#15741">[ date ]</a>
+              <a href="thread.html#15741">[ thread ]</a>
+              <a href="subject.html#15741">[ subject ]</a>
+              <a href="author.html#15741">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>W li&#347;cie Shannon z dnia &#347;roda 13 sierpnia 2008:
+
+&gt;<i> He wasn't against WebWorkers, he was, as you say,  against full
+</I>&gt;<i> threading (with all the mutexes and locks etc... exposed to the JS
+</I>&gt;<i> author). I can't find the reference site but it doesn't really matter
+</I>&gt;<i> except from the point of view that many people (including myself) aren't
+</I>&gt;<i> convinced a full pthread -like API is the way to go either. I just don't
+</I>&gt;<i> see why locking can't be transparently handled by the interpreter given
+</I>&gt;<i> that the language only interacts with true memory registers indirectly.
+</I>Such implicit/transparent/automatic locking is in fact impossible. There are 
+always cases where the developer must manually control locking. The only 
+thread-safe way to lock implicitly would be to obtain a lock when handle to 
+shared object is retrieved and released when the reference is dropped/garbage 
+collected - locking on single read/write operation is not sufficient. In 
+order to avoid deadlocks it would be neccessary to lock access globally, for 
+all possible shared variables, which is not feasible. This is also the reason 
+setTimeout/setInterval callbacks are run in the main thread - and switching 
+to coroutines would not help here.
+
+So, if we want the threads to be able to share variables directly, we need at 
+least some basic synchronization prymitives (critical sections, akin to 
+Java 'synchronized' blocks would be probably easiest).
+
+
+
+
+&gt;<i>
+</I>&gt;<i> In other news...
+</I>&gt;<i>
+</I>&gt;<i> Despite the feedback I've been given I find the examples of potential
+</I>&gt;<i> applications pretty unconvincing. Most involve creating workers to wait
+</I>&gt;<i> on or manage events like downloads or DB access. 
+</I>
+So an example from me. Suppose i need to download a few (20-30) JSON data sets 
+from some URL and then do some processing before displaying them.
+
+Na&#239;ve pseudocode:
+
+button.onclick = function() {
+   for (var i = 0; i &lt; 20; i++) {
+        synchronousRequest(i);
+   }
+
+   processData();
+
+   updateDOM();
+
+   return;
+}
+
+The problem is that with such a construct I'd block the only thread in JS, so 
+all other events will not be handled until the return statement.
+
+So, with current code, I need to do:
+
+button.onclick = function() {
+  var i = 0;
+
+  var handler = function(data) {
+     i = i+1;
+     if (i == 20) {
+         processData();
+         updateDom();
+     } else {
+         asyncRequest(i, handler);
+     }
+  }
+
+  asyncRequest(i, handler);
+}
+
+This way I do not block on network I/O, but  still block on processData. With 
+real threads I would be able to perform the data processing and then notify 
+the main thread that data is processed and ready - so the main thread would 
+only updateDOM().
+
+
+-- 
+Pawe&#322; Stradomski
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="015754.html">[whatwg] WebWorkers vs. Threads
+</A></li>
+	<LI>Next message: <A HREF="015691.html">[whatwg] web development approach
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#15741">[ date ]</a>
+              <a href="thread.html#15741">[ thread ]</a>
+              <a href="subject.html#15741">[ subject ]</a>
+              <a href="author.html#15741">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

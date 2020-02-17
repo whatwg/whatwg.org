@@ -1,0 +1,176 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Canvas in Workers
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Canvas%20in%20Workers&In-Reply-To=%3CPine.LNX.4.64.1301082240150.12992%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="080830.html">
+   <LINK REL="Next"  HREF="080832.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Canvas in Workers</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Canvas%20in%20Workers&In-Reply-To=%3CPine.LNX.4.64.1301082240150.12992%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg] Canvas in Workers">ian at hixie.ch
+       </A><BR>
+    <I>Tue Jan  8 14:49:09 PST 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="080830.html">[whatwg] Canvas in Workers
+</A></li>
+        <LI>Next message: <A HREF="080832.html">[whatwg] Canvas in Workers
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#80831">[ date ]</a>
+              <a href="thread.html#80831">[ thread ]</a>
+              <a href="subject.html#80831">[ subject ]</a>
+              <a href="author.html#80831">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Tue, 8 Jan 2013, Gregg Tavares wrote:
+&gt;<i> &gt;
+</I>&gt;<i> &gt; Supporting page flipping in 2D canvas would be fine too, but I don't 
+</I>&gt;<i> &gt; see why it would need a change to the API... you would just make 
+</I>&gt;<i> &gt; &quot;commit()&quot; flip which page was active for the context API and clear 
+</I>&gt;<i> &gt; the newly active page in one operation.
+</I>&gt;<i> 
+</I>&gt;<i> How would you choose flip vs copy with just commit?
+</I>
+An argument to the context constructor, probably.
+
+
+&gt;<i> Just to be clear we're on the same page. I want to be able to do this 
+</I>&gt;<i> (not related to workers)
+</I>&gt;<i> 
+</I>&gt;<i>    // create a 2d context that flips buffers instead of copies them
+</I>&gt;<i>    var ctx = canvas.getContext(&quot;2d&quot;, { preserveDrawingBuffer: false });
+</I>
+I would do it like this:
+
+   var ctx = new CanvasRenderingContext2D(100, 100, { mode: 'pageflip' });
+   canvas.setContext(ctx);
+
+   ctx.fillRect(10,10,10,10);
+   ctx.commit(); // implies clearRect(0,0,100,100);
+
+   // later
+   ctx.fillRect(11,11,10,10);
+   ctx.commit(); // implies clearRect(0,0,100,100);
+
+
+
+&gt;<i> But, related to workers, if CanvasProxy is truly a proxy for the canvas 
+</I>&gt;<i> then I could do this
+</I>&gt;<i> 
+</I>&gt;<i>    // create a 2d context that flips buffers instead of copies them
+</I>&gt;<i>    var ctx = canvasProxy.getContext(&quot;2d&quot;, { preserveDrawingBuffer: false });
+</I>
+CanvasProxy doesn't have getContext(), because the direct mode doesn't 
+make sense cross-process. You would do:
+
+   var ctx = new CanvasRenderingContext2D(100, 100, { mode: 'pageflip' });
+   canvasProxy.setContext(ctx);
+
+   // draw...
+
+
+&gt;<i> Agreed but that's a separate problem
+</I>
+These are all related problems that contribute to the design of the same 
+API.
+
+
+&gt;<i> Problem #1) Allow a worker to render to a canvas
+</I>&gt;<i> Problem #2) Allow a worker to render offscreen (without communicating with
+</I>&gt;<i> the main page)
+</I>&gt;<i> 
+</I>&gt;<i> I'm suggesting we only solve problem #1 for now. To do that, all we need 
+</I>&gt;<i> is CanvasProxy to truly be &quot;a proxy for the canvas&quot;.
+</I>
+I'm solving #2 now too. (Actually it's already solved in the spec.) I'm 
+happy to only discuss #1 if you want, but #2 influences the design of the 
+API for #1 so the conversation will be weird if we ignore #2.
+
+
+&gt;<i> &gt; setContext() is only needed so that you can use one context with 
+</I>&gt;<i> &gt; multiple canvases, which is primarily intended to address the WebGL 
+</I>&gt;<i> &gt; case of having one context used to render to multiple views with 
+</I>&gt;<i> &gt; different settings (the settings being themselves set on the canvas or 
+</I>&gt;<i> &gt; canvas proxy).
+</I>&gt;<i>
+</I>&gt;<i> Right, but since it doesn't doesn't seem to work for WebGL's needs why 
+</I>&gt;<i> spec it now when we can solve problem #1 today and worry about the other 
+</I>&gt;<i> problems later?
+</I>
+It seems to work fine as far as I can tell, as shown by the examples in my 
+recent e-mail.
+
+
+&gt;<i> &gt; &gt; Is there some reason that won't work?
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Well I'd rather not design something that doesn't address a known 
+</I>&gt;<i> &gt; issue and then find we have painted ourselves into a corner with 
+</I>&gt;<i> &gt; respect to that other issue. Hence trying to solve all the issues at 
+</I>&gt;<i> &gt; once, or at least solve them in a way that is compatible with future 
+</I>&gt;<i> &gt; solutions.
+</I>&gt;<i> 
+</I>&gt;<i> Agreed. I'm just trying to make forward progress.
+</I>
+At this point I'm not aware of any problems with the current proposal 
+(what's in the HTML spec plus adding setSettings() in WebGL, making the 
+WebGLRenderingContext constructable, and providing an in-worker 
+alternative destination for WebGL for when you don't want to draw to a 
+canvas, as discussed in my earlier e-mail today).
+
+
+&gt;<i> I'm wondering if we can separate the 2 issues by just making CanvasProxy 
+</I>&gt;<i> be &quot;a proxy for the canvas&quot; with the same API as Canvas.
+</I>
+That doesn't work for 2D. The original API (getContext) relies on implicit 
+commits, and we can't do implicit commits sanely in a worker. That's the 
+main reason for having a different mechanism (setContext).
+
+Anyway, I don't really understand what's wrong with the proposal that 
+addresses all the problems that have been raised at once. I don't see a 
+need to do this bit by bit when we've already got a full solution.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="080830.html">[whatwg] Canvas in Workers
+</A></li>
+	<LI>Next message: <A HREF="080832.html">[whatwg] Canvas in Workers
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#80831">[ date ]</a>
+              <a href="thread.html#80831">[ thread ]</a>
+              <a href="subject.html#80831">[ subject ]</a>
+              <a href="author.html#80831">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

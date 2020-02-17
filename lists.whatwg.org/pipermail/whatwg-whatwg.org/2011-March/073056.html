@@ -1,0 +1,230 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Session Management
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Session%20Management&In-Reply-To=%3C1299169054.4502.1%40davekok%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="073048.html">
+   <LINK REL="Next"  HREF="073129.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Session Management</H1>
+<!--htdig_noindex-->
+    <B>Dave Kok</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Session%20Management&In-Reply-To=%3C1299169054.4502.1%40davekok%3E"
+       TITLE="[whatwg] Session Management">updates at davekok.net
+       </A><BR>
+    <I>Thu Mar  3 08:17:34 PST 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="073048.html">[whatwg] Session Management
+</A></li>
+        <LI>Next message: <A HREF="073129.html">[whatwg] Session Management
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#73056">[ date ]</a>
+              <a href="thread.html#73056">[ thread ]</a>
+              <a href="subject.html#73056">[ subject ]</a>
+              <a href="author.html#73056">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Here is a more formal proposal for Session Management. Hoping to get 
+more traction.
+
+
+SCOPE
+
+The proposal is restricted solely the HTML5 spec. Though in the 
+rational HTTP and authentication are mentioned as by example.
+
+
+INTERFACE
+
+This proposal requests for an new interface to be added to HTML5 usable 
+from script. The interface is currently defined on the window global 
+object. The naming is chosen so it seems natural to co-exist with 
+sessionStorage.
+
+
+Prototype:
+window.sessionStart([string path = &quot;/&quot;, [boolean auto_end = false]]);
+
+The session start function should indicate to the UA that a new session 
+is requested by the author for the current browsing context. From this 
+point forward any session data should be associated with this session. 
+However this is only done for documents loaded from the same origin or 
+if a path is supplied for that path and sub paths of that path within 
+the current origin. The auto_end argument may be supplied if a session 
+should automatically end when the user navigates away from documents 
+within the origin[/path].
+
+
+Prototype:
+window.sessionEnd([boolean clearHistory = false]);
+
+The session end function should indicate to the UA that the current 
+session is no longer valid. The UA can now stop associating session 
+data with this session and unreference any session data associated with 
+this session. The clearHistory parameter requests the UA, if true, to 
+clear any documents within the back/forward history that have been 
+loaded between session start and session end. UA's are only encouraged 
+to do this for documents that required authentication and for which re-
+authentication is required after sessionEnd. This to prevent 
+unauthorized access to cached documents by using the back/forward 
+functionality to access information that would otherwise require
+authentication.
+
+
+Session data:
+
+What a UA considers session data in the context of this proposal is 
+for a UA to decide but at minimal it is required to include data stored 
+in the sessionStorage and cookies created through the document.cookie 
+interface without expiration and any credentials supplied through the 
+XMLHttpRequest.open function if the UA manages these. Additionally 
+a UA is encouraged to include any cookies received without expiration 
+from any source especially when made available through the 
+document.cookie interface pertaining to the current origin[/path]. Any 
+credentials that are cached for documents within origin[/path] and 
+additional resources referenced by these documents whether or not 
+within the origin[/path]. But only if the UA marks these for auto 
+cleaning when the UA itself terminates.
+
+
+Ending sessions
+
+A UA is never required to wait until the sessionEnd is called before 
+it ends a session and cleans associated data/state. But is encouraged 
+not to selectively clean session data/state while sessionEnd has not 
+been called. In others words all or nothing is preferred. A session is 
+automatically ended when a current browsing context is closed. A UA may 
+also have additional methods to force a session to end.
+
+
+RATIONAL
+
+The rational of this feature is to provide an easy method to clean 
+session data/state after it is no longer required. How and when session 
+data is cleaned when sessionStart is never called is not specified by 
+this proposal. Implementers are encouraged to ignore any calls to 
+sessionEnd if sessionStart has never been called. They may off course 
+emit a warning/notice to aid an author in debugging.
+
+Basic usage scenario:
+1. The user has navigated to a document and follows a link on which the 
+author registered a onclick event and the event handler calls 
+sessionStart. The UA now creates a new session, event handler ends and 
+the UA loads the indicated document. If this document is within the 
+scope of the session and authentication is required and no prior 
+credentials exists, it gathers these credentials either from an 
+external source or from the user and associates these with the 
+session if it intends to dispose of these automatically when the UA 
+itself terminates.
+2. The user reads, clicks, types and follows links to other documents 
+within the same origin[/path]. Possibly causing additional session data 
+to be associated with this session.
+3. The user follows a link on which to author registered a onclick 
+event handler. The event handler calls sessionEnd. The UA now 
+unreferences any session data associated with the session, event 
+handler ends and the UA loads the document indicated by the link. On a 
+side note this may very well be superior to a UA UI logout button. As 
+the author can also specify a URL to go to after the session has ended. 
+A UA UI logout button may not be able to do this in a meaningful way.
+
+
+What if's:
+1. the user follows a link, clicks on a bookmark or enters a URL 
+outside the origin[/path] for the current session. If auto_end was set 
+to true. The session is ended as in step 3 of above scenario.
+
+2. a session has been started with auto_end off and the user loads a 
+document outside the current origin[/path] which also calls 
+sessionStart. A new session is created but the old session is still 
+valid for when documents within the origin[/path] of that session are 
+loaded later on. (useful?)
+
+3. the user closes the current browsing context. The session is 
+disposed off.
+
+4. a document references a script not within the origin[/path] which 
+calls sessionStart. The call is interpreted as if called from a script 
+within origin[/path]. If sessionStart has already been called it is 
+ignored, if not a new one is created. Same for sessionEnd. (sensible?)
+
+5. the user loads a document which loads a sub document in a frame/
+iframe which also calls sessionStart. If the sub document is within the 
+same origin[/path] it is ignored (reasonable?). If not a nested session 
+is created associated with the parent session. If the parent session 
+ends the nested session does also. If the nested session ends the 
+parent session doesn't. (too much?)
+
+6. a document is loaded from a origin[/path] in the browsing context of 
+the parent session (or higher). The session is no longer nested.
+
+7. script calls the window.open function causing a new browsing context 
+in which a document is loaded for which in the current browsing context 
+a valid session would exist. Within the new browsing context no valid 
+session will exist. Thus calling sessionEnd has no effect unless 
+sessionStart had been called. Any session data that would otherwise 
+been made available to the new browsing context will still be made 
+available.
+
+8. the user bookmarks the current document for which a valid session 
+exists. The document is bookmarked as normal. If the session is ended 
+and the user uses the bookmark the get to that document. The document 
+is loaded without a valid session. If this is unacceptable to the 
+document's author this would have to be handled within the document. 
+The author could for instance set a value in sessionStorage immediately 
+after calling sessionStart and check for this on every document which 
+is expected to be part of a valid session and if it doesn't exists 
+redirect the user. Or handle this at a level lower then HTML when for 
+instance the document is retrieved through HTTP without credentials and 
+credentials would be expected for this document, if it were part of a 
+valid session, redirect the user to a document in which sessionStart 
+can be called. Basically this would put this outside the scope of this 
+proposal. Same for when the user does this by manually navigating or 
+by following a link.
+
+
+I would like to extend an open invitation to any implementers to add
+this proposal to an experimental build and hear of any findings. Any 
+feedback from authors would be well appreciated.
+
+--
+Dave Kok
+
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="073048.html">[whatwg] Session Management
+</A></li>
+	<LI>Next message: <A HREF="073129.html">[whatwg] Session Management
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#73056">[ date ]</a>
+              <a href="thread.html#73056">[ thread ]</a>
+              <a href="subject.html#73056">[ subject ]</a>
+              <a href="author.html#73056">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

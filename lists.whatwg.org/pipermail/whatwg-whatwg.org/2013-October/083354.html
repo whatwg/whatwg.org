@@ -1,0 +1,164 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Canvas in workers
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Canvas%20in%20workers&In-Reply-To=%3CCAOp6jLagL4dToFcmN8b8a_83R6x-iU_ciCLfruKjGLLrv7beMA%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="083352.html">
+   <LINK REL="Next"  HREF="083358.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Canvas in workers</H1>
+<!--htdig_noindex-->
+    <B>Robert O'Callahan</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Canvas%20in%20workers&In-Reply-To=%3CCAOp6jLagL4dToFcmN8b8a_83R6x-iU_ciCLfruKjGLLrv7beMA%40mail.gmail.com%3E"
+       TITLE="[whatwg] Canvas in workers">robert at ocallahan.org
+       </A><BR>
+    <I>Sun Oct 13 14:42:54 PDT 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="083352.html">[whatwg] Canvas in workers
+</A></li>
+        <LI>Next message: <A HREF="083358.html">[whatwg] Canvas in workers
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#83354">[ date ]</a>
+              <a href="thread.html#83354">[ thread ]</a>
+              <a href="subject.html#83354">[ subject ]</a>
+              <a href="author.html#83354">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Sun, Oct 13, 2013 at 12:12 PM, Glenn Maynard &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">glenn at zewt.org</A>&gt; wrote:
+
+&gt;<i>  On Sat, Oct 12, 2013 at 11:12 PM, Kyle Huey &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">me at kylehuey.com</A>&gt; wrote:
+</I>&gt;<i>
+</I>&gt;<i> &gt;    1. Rename CanvasProxy to WorkerCanvas and only allow it to be
+</I>&gt;<i> &gt;    transferred to workers.  I don't think we're interested in supporting
+</I>&gt;<i> &gt;    cross-origin &lt;canvas&gt; via CanvasProxy (I would be curious to hear more
+</I>&gt;<i> &gt;    about what the use cases are).
+</I>&gt;<i> &gt;
+</I>&gt;<i>
+</I>&gt;<i> You can transfer data to a worker that's cross-origin, if you have a
+</I>&gt;<i> MessagePort where the other side goes to another origin's worker (possibly
+</I>&gt;<i> given to you via eg. window.postMessage).
+</I>&gt;<i>
+</I>&gt;<i> Is the real goal here trying to limit this to threads and avoid IPC, or is
+</I>&gt;<i> this actually a cross-origin concern?
+</I>&gt;<i>
+</I>
+Basically it's simpler to have CanvasProxy/WorkerCanvas only supported on
+workers. Cross-origin isn't itself a concern.
+
+
+&gt;<i>    2. Add a worker-only WorkerCanvas constructor that takes the desired
+</I>&gt;<i> &gt;    width/height of the drawing surface.
+</I>&gt;<i> &gt;
+</I>&gt;<i>
+</I>&gt;<i> This looks like it's trying to allow entirely off-screen rendering within a
+</I>&gt;<i> Worker, which is fine, but there's no way to resize the backing store in
+</I>&gt;<i> this mode.
+</I>&gt;<i>
+</I>
+We don't have a use-case for resizing the backing store of a worker-created
+canvas.
+
+&gt;<i> simply draw in a loop without yielding.  To solve this, if commit is
+</I>&gt;<i> called
+</I>&gt;<i> &gt; and the current dimensions on the main thread don't match the dimensions
+</I>&gt;<i> of
+</I>&gt;<i> &gt; the WorkerCanvas it would fail (return false) and update the dimensions
+</I>&gt;<i> of
+</I>&gt;<i> &gt; the WorkerCanvas before returning.  This is technically a violation of
+</I>&gt;<i> &gt; run-to-completion semantics, but is needed to support workers that do not
+</I>&gt;<i> &gt; yield.
+</I>&gt;<i> &gt;
+</I>&gt;<i>
+</I>&gt;<i> This sounds like it's easy to get wrong, since it'll probably be rare.  An
+</I>&gt;<i> exception might be better, so if you don't handle it you at least get an
+</I>&gt;<i> error logged to the console.
+</I>&gt;<i>
+</I>
+Sure, that's probably better.
+
+There will be flicker issues with this.  The canvas is cleared when you
+&gt;<i> change width or height.  In the UI thread that's OK, since the author can
+</I>&gt;<i> synchronously redraw immediately after changing the size.  Here, it's
+</I>&gt;<i> likely it won't be redrawn in time, so it'll flicker whenever the size
+</I>&gt;<i> changes, especially if it's being changed smoothly.  Here's a suggestion to
+</I>&gt;<i> fix this:
+</I>&gt;<i>
+</I>&gt;<i> - When the UI thread changes Canvas.width or Canvas.height, it doesn't
+</I>&gt;<i> actually resize buffers.  Instead, it sends a message to the WorkerCanvas
+</I>&gt;<i> asking for the change.  Until the change actually happens, the Canvas
+</I>&gt;<i> continues to be composited as before.  (However, the change to .width and
+</I>&gt;<i> .height is visible on the object immediately.)
+</I>&gt;<i> - When the WorkerCanvas's event loop receives a message asking for a size
+</I>&gt;<i> change:
+</I>&gt;<i>   - Change the size of the back-buffer, and update WorkerCanvas.width and
+</I>&gt;<i> WorkerCanvas.height accordingly.
+</I>&gt;<i>   - Fire onresize on the WorkerCanvas.  The worker is expected to redraw
+</I>&gt;<i> here.  (This is where the &quot;implicit commit&quot; matters: we want to guarantee a
+</I>&gt;<i> commit here.)
+</I>&gt;<i>   - Only when the newly-redrawn buffer is committed does the front buffer's
+</I>&gt;<i> size get updated to match the back-buffer.
+</I>&gt;<i>
+</I>&gt;<i> In other words, when you change the size in the UI thread, it continues to
+</I>&gt;<i> composite the same image (possibly not filling the whole element, or being
+</I>&gt;<i> stretched) until the worker actually gets the resize and has a chance to
+</I>&gt;<i> redraw it.
+</I>&gt;<i>
+</I>&gt;<i> This also means the idea of not being able to commit because of a resize
+</I>&gt;<i> can go away, and commit() can be void, since the back-buffer size never
+</I>&gt;<i> actually changes while the worker is drawing.
+</I>&gt;<i>
+</I>
+There is the slight problem that changing both width and height would fire
+two events.
+
+A bigger problem is that your approach isn't compatible with a worker that
+draws frames in a loop without yielding. I'm uncertain how important that
+is, so I'll wait for Kyle to address that.
+
+Rob
+-- 
+Jtehsauts  tshaei dS,o n&quot; Wohfy  Mdaon  yhoaus  eanuttehrotraiitny  eovni
+le atrhtohu gthot sf oirng iyvoeu rs ihnesa.r&quot;t sS?o  Whhei csha iids  teoa
+stiheer :p atroa lsyazye,d  'mYaonu,r  &quot;sGients  uapr,e  tfaokreg iyvoeunr,
+'m aotr  atnod  sgaoy ,h o'mGee.t&quot;  uTph eann dt hwea lmka'n?  gBoutt  uIp
+waanndt  wyeonut  thoo mken.o w  *
+*
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="083352.html">[whatwg] Canvas in workers
+</A></li>
+	<LI>Next message: <A HREF="083358.html">[whatwg] Canvas in workers
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#83354">[ date ]</a>
+              <a href="thread.html#83354">[ thread ]</a>
+              <a href="subject.html#83354">[ subject ]</a>
+              <a href="author.html#83354">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

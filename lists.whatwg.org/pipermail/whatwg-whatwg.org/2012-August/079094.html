@@ -1,0 +1,147 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] StringEncoding open issues
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20StringEncoding%20open%20issues&In-Reply-To=%3CCABirCh89joixGkwziK9b4FZTvxYGMn%2BvXRhupuvW_MX8K-nz9w%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="079093.html">
+   <LINK REL="Next"  HREF="079178.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] StringEncoding open issues</H1>
+<!--htdig_noindex-->
+    <B>Glenn Maynard</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20StringEncoding%20open%20issues&In-Reply-To=%3CCABirCh89joixGkwziK9b4FZTvxYGMn%2BvXRhupuvW_MX8K-nz9w%40mail.gmail.com%3E"
+       TITLE="[whatwg] StringEncoding open issues">glenn at zewt.org
+       </A><BR>
+    <I>Mon Aug  6 17:06:05 PDT 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="079093.html">[whatwg] StringEncoding open issues
+</A></li>
+        <LI>Next message: <A HREF="079178.html">[whatwg] StringEncoding open issues
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#79094">[ date ]</a>
+              <a href="thread.html#79094">[ thread ]</a>
+              <a href="subject.html#79094">[ subject ]</a>
+              <a href="author.html#79094">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>I agree with Jonas that encoding should just use a replacement character
+(U+FFFD for Unicode encodings, '?' otherwise), and that we should put off
+other modes (eg. exceptions and user-specified replacement characters)
+until there's a clear need.
+
+My intuition is that encoding DOMString to UTF-16 should never have errors;
+if there are dangling surrogates, pass them through unchanged.  There's no
+point in using a placeholder that says &quot;an error occured here&quot;, when the
+error can be passed through in exactly the same form (not possible with eg.
+DOMString-&gt;SJIS).  I don't feel strongly about this only because outputting
+UTF-16 is so rare to begin with.
+
+On Mon, Aug 6, 2012 at 1:29 PM, Joshua Bell &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">jsbell at chromium.org</A>&gt; wrote:
+
+&gt;<i> - if the document is encoded in UTF-8, UTF-16LE or UTF-16BE and includes
+</I>&gt;<i> the byte order mark (the encoding-specific serialization of U+FEFF).
+</I>
+
+This rarely detects the wrong type, but that doesn't mean it's not the
+wrong answer.  If my input is meant to be UTF-8, and someone hands me
+BOM-marked UTF-16, I want it to fail in the same way it would if someone
+passed in SJIS.  I don't want it silently translated.
+
+On the other hand, it probably does make sense for UTF-16 to switch to
+UTF-16BE, since that's by definition the original purpose of the BOM.
+
+The convention iconv uses, which I think is a useful one, is decoding from
+&quot;UTF-16&quot; means &quot;try to figure out the encoding from the BOM, if any&quot;, and
+&quot;UTF-16LE&quot; and &quot;UTF-16BE&quot; mean &quot;always use this exact encoding&quot;.
+
+ * If one of the UTF encodings is specified AND the BOM matches then the
+&gt;<i> leading BOM character (U+FEFF) MUST NOT be emitted in the output character
+</I>&gt;<i> sequence (i.e. it is silently consumed)
+</I>&gt;<i>
+</I>
+It's a little weird that
+
+data = readFile(&quot;user-supplied-file.txt&quot;); // shortcutting for brevity
+var s = new TextDecoder(&quot;utf-16&quot;).decode(data); // or utf-8
+s = s.replace(&quot;a&quot;, &quot;b&quot;);
+var data2 = new TextEncoder(&quot;utf-16&quot;).encode(s);
+writeFile(&quot;user-supplied-file.txt&quot;, data2);
+
+causes the BOM to be quietly stripped away.  Normally if you're modifying a
+file, you want to pass through the BOM (or lack thereof) untouched.
+
+One way to deal with this could be:
+
+var decoder = new TextDecoder(&quot;utf-16&quot;);
+var s = decoder.decode(data);
+s = s.replace(&quot;a&quot;, &quot;b&quot;);
+var data2 = new TextEncoder(decoder.encoding).encode(s);
+
+where decoder.encoding is eg. &quot;UTF-16LE-BOM&quot; if a BOM was present, thus
+preserving both the BOM and (for UTF-16) endianness.  I don't actually like
+this, though, because I don't like the idea of decoder.encoding changing
+after the decoder has already been constructed.
+
+I think I agree with just stripping it, and people who want to preserve
+BOMs on write-through can jump the hoops manually (which aren't terribly
+hard).
+
+
+Another issue is &quot;new TextDecoder('ascii').encoding&quot; (and ISO-8859-1)
+giving .encoding = &quot;windows-1252&quot;.  That's strange, even when you know why
+it's happening.
+
+Is there any reason to expose the actual &quot;primary&quot; names?  It's not clear
+that the &quot;name&quot; column in the Encoding spec is even intended to be exposed
+to APIs; they look more like labels for specs to refer to internally.
+(Anne?)  If there's no pressing reason to expose this, I'd suggest that the
+.encoding attribute simply return the name that was passed to the
+constructor.
+
+It's still not ideal (it's weird that asking for ASCII gives you something
+other than ASCII in the first place), but it at least seems a bit less
+strange.  The &quot;nice&quot; fix would be to implement actual ASCII, ISO-8859-1,
+ISO-8859-9, etc. charsets, but that just means extra implementation work
+(and some charset proliferation) without use cases.
+
+-- 
+Glenn Maynard
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="079093.html">[whatwg] StringEncoding open issues
+</A></li>
+	<LI>Next message: <A HREF="079178.html">[whatwg] StringEncoding open issues
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#79094">[ date ]</a>
+              <a href="thread.html#79094">[ thread ]</a>
+              <a href="subject.html#79094">[ subject ]</a>
+              <a href="author.html#79094">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

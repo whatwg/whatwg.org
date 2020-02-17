@@ -1,0 +1,222 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg]  Counterproposal for canvas in workers
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20%20Counterproposal%20for%20canvas%20in%20workers&In-Reply-To=%3CCAGN7qDDShn87%2Bc2NteHQJPEZYC_DOWD8xt2URCW9fcs_PMaNaw%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="041147.html">
+   <LINK REL="Next"  HREF="083424.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg]  Counterproposal for canvas in workers</H1>
+<!--htdig_noindex-->
+    <B>Rik Cabanier</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20%20Counterproposal%20for%20canvas%20in%20workers&In-Reply-To=%3CCAGN7qDDShn87%2Bc2NteHQJPEZYC_DOWD8xt2URCW9fcs_PMaNaw%40mail.gmail.com%3E"
+       TITLE="[whatwg]  Counterproposal for canvas in workers">cabanier at gmail.com
+       </A><BR>
+    <I>Wed Oct 16 19:34:38 PDT 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="041147.html">[whatwg] Canvas - Somewhat inconsistent rules in the spec for drawImage
+</A></li>
+        <LI>Next message: <A HREF="083424.html">[whatwg] Counterproposal for canvas in workers
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#41148">[ date ]</a>
+              <a href="thread.html#41148">[ thread ]</a>
+              <a href="subject.html#41148">[ subject ]</a>
+              <a href="author.html#41148">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>All,
+
+I have another proposal on how we can do canvas in workers. If it's not
+practical or too complex, feel free to dismiss it. :-)
+
+When drawing to canvas, Chrome stores the drawing commands in a buffer and
+executes them when the main function returns (or access to pixel data is
+requested).
+It occurred to me that this could be re-purposed for canvas workers. A
+worker could create a list of drawing commands and if the worker is done,
+this list is executed either on the main thread or the worker or a
+compositor thread depending on what your architecture supports.
+The worker would not be allowed to read pixels or resize the canvas but all
+other operations would be allowed.
+
+The following new API's would be on the 2d context:
+
+void setTaskScript(DOMString); // takes a url that contains the script for
+the tasks
+
+Promise executeTask(DOMString id, dictionary json, boolean synchronized =
+true);
+
+An author can execute as many tasks as he wants, but there can be only 1
+task with the same id active at a time. (Calling executeTask 2 times in a
+row with the same id will drop the second task.)
+If synchronized is true, the UA will ensure that the drawing commands of
+the task are executed in order. For instance:
+
+var p1 = ctx.executeTask(&quot;drawBackground&quot;);
+
+var p2 = ctx.executeTask(&quot;drawScene&quot;);
+var p3 = ctx.executeTask(&quot;drawControls&quot;);
+
+will draw a game interface using 3 different tasks
+
+
+It is up to the UA to determine how many tasks it can run in parallel. It
+is also up to the UA on how/where the actual drawing command are resolved,
+but the commands of every task (which include the main thread) have to be
+executed atomically so there's no interleaving.
+
+Every task has access to a canvas context-like object and the dictionary
+that is passed in. It can not read pixel data or resize the canvas. Every
+task per canvas and per ID also has access to its own VM.
+
+The main thread can use the canvas as usual. Accessing pixel data or
+resizing will block until all tasks are completed.
+If 'synchronized' is set to true:
+- the canvas bitmap won't be updated until all its tasks are done
+- the tasks will execute in order
+If 'synchronized' is set to false:
+- the canvas bitmap is updated as soon as a task is ready
+- tasks can draw out of order
+
+The tasks themselves can also launch synchronized/unsynchronized subtasks
+with promises. A task is considered &quot;done&quot; if it exits and all its promises
+are fulfilled.
+
+Thoughts?
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="041147.html">[whatwg] Canvas - Somewhat inconsistent rules in the spec for drawImage
+</A></li>
+	<LI>Next message: <A HREF="083424.html">[whatwg] Counterproposal for canvas in workers
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#41148">[ date ]</a>
+              <a href="thread.html#41148">[ thread ]</a>
+              <a href="subject.html#41148">[ subject ]</a>
+              <a href="author.html#41148">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

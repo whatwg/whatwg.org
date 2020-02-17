@@ -1,0 +1,212 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Proposal for improved handling of '#' inside of data URIs
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Proposal%20for%20improved%20handling%20of%20%27%23%27%20inside%20of%20data%20URIs&In-Reply-To=%3C4E6BD35D.8010307%40mozilla.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="075420.html">
+   <LINK REL="Next"  HREF="075436.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Proposal for improved handling of '#' inside of data URIs</H1>
+<!--htdig_noindex-->
+    <B>Daniel Holbert</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Proposal%20for%20improved%20handling%20of%20%27%23%27%20inside%20of%20data%20URIs&In-Reply-To=%3C4E6BD35D.8010307%40mozilla.com%3E"
+       TITLE="[whatwg] Proposal for improved handling of '#' inside of data URIs">dholbert at mozilla.com
+       </A><BR>
+    <I>Sat Sep 10 14:15:09 PDT 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="075420.html">[whatwg] [html5] scope chain for event handlers specified via content attributes
+</A></li>
+        <LI>Next message: <A HREF="075436.html">[whatwg] Proposal for improved handling of '#' inside of data	URIs
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#33162">[ date ]</a>
+              <a href="thread.html#33162">[ thread ]</a>
+              <a href="subject.html#33162">[ subject ]</a>
+              <a href="author.html#33162">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Hi whatwg,
+
+I'm writing with a proposal to improve the handling of &quot;#&quot; in data URIs. 
+I'm particularly looking for feedback from other browser vendors, but of 
+course feedback from others is welcome as well.
+
+SUMMARY:
+========
+Browsers handle the &quot;#&quot; character in data URIs very differently, and the 
+arguably &quot;correct&quot; behavior is probably not what authors actually want in 
+many cases.
+
+This could be more intuitive/do-what-I-mean if we restricted the cases 
+under which &quot;#&quot; is treated as a fragment-ID delimiter inside of data URIs. 
+  In particular: when a &quot;#&quot; character is followed by &quot;&gt;&quot; or &quot;&lt;&quot; in a data 
+URI, I propose that we *don't* treat the &quot;#&quot; as a delimiter, and instead 
+just treat it as part of the encoded document.
+
+Now, a set of tests, to which I'll refer below:
+   <A HREF="http://people.mozilla.org/~dholbert/dataURIHashTests/tests_v1.xhtml">http://people.mozilla.org/~dholbert/dataURIHashTests/tests_v1.xhtml</A>
+
+PROBLEM:
+========
+When an author writes a data URI for a document that contains a &quot;#&quot; 
+character, she may unintentionally end up with broken results (or at least 
+inconsistently-handled results), because the &quot;#&quot; may be treated as the end 
+of the document &amp; the beginning of the URI's fragment identifier.
+
+(I believe this to be the _technically_ correct (albeit unintuitive) 
+behavior per the URI RFC [1] -- it's the behavior we've implemented in 
+Firefox 6 [2] and it's what I've described as &quot;Correct&quot; in my testcase. 
+(with quotes to indicate unintuitiveness))
+
+Technically, the author *really* should encode the &quot;#&quot; character as &quot;%23&quot;, 
+if she doesn't want it to be a delimiter.
+
+However, this gotcha is easy to overlook -- especially because Opera &amp; 
+Webkit are less strict than Firefox in this respect and will gladly accept 
+&quot;#&quot; inside data URIs under some circumstances.
+
+THE PROPOSAL &amp; HOW IT HELPS:
+============================
+We can help out the author by relaxing our fragment-ID-parsing rules a bit 
+here.
+
+Note that in cases where an author *accidentally* includes &quot;#&quot; inside 
+their data URI (e.g. &lt;body background=&quot;#f00&quot;&gt;), there almost certainly 
+will be more content following it -- in particular, there will be an 
+&lt;/html&gt;, or an &lt;/svg&gt;, or at least a &quot;&gt;&quot; (if it's inside the final tag) 
+still to come.
+
+So we can proactively check for &gt;/&lt; characters anywhere after the &quot;#&quot;, and 
+if we find them, then we can pretty safely assume that the author intended 
+for the &quot;#&quot; to be part of the document, rather than a fragment-ID delimiter.
+
+OVERVIEW OF BROWSERS' CURRENT HANDLING OF &quot;#&quot; IN DATA URIs:
+===========================================================
+url: <A HREF="http://people.mozilla.org/~dholbert/dataURIHashTests/tests_v1.xhtml">http://people.mozilla.org/~dholbert/dataURIHashTests/tests_v1.xhtml</A>
+
+  * Firefox 6+ breaks the author's expectations in my tests A &amp; B due to 
+URI parsing strictness. (But if we were to implement the above proposal, 
+we'd match the author's expectations.)  We pass test C due to correctly 
+trimming &quot;#target&quot; off of the end and scrolling to the referenced element. 
+  And we fail test D only due to a bug with over-enforcing same-origin 
+checks.[3]
+
+  * WebKit matches the author's expectations on A &amp; B -- however, that's 
+only because they don't seem to support &quot;#ref&quot; suffixes on the ends of 
+data URIs at all, so they _always_ include &quot;#&quot; in the document.  (They 
+*do* apparently support _relative_ references within data URI documents, 
+e.g. xlink:href='#greenRect' as used in test B.)  So, Webkit ends up 
+failing test C because they don't strip off the &quot;#target&quot; suffix 
+(resulting in broken XML).  They fail test D presumably for the same 
+reason.  (They also have some zooming issues on the &lt;img&gt; examples, but 
+I'm ignoring those for the purposes of this post.)
+
+  * Opera is interesting -- it can exhibit either the Firefox or WebKit 
+behaviors in tests A/B/C, depending on whether the data URI as an embedded 
+element (via iframe/img) or view it directly.  When you view it as an 
+embedded element (in my testcase), Opera matches WebKit on A/B/C 
+(including the XML parse error on C).  However, if you *directly view* the 
+data URIs (right-click on iframe, Frame|Open, focus URLbar &amp; hit enter), 
+then Opera matches Firefox.  Also, Opera passes test D.
+
+(I don't have results for IE -- I briefly tried to support it in the test, 
+but I had issues getting data URIs to work there at all.)
+
+CONCLUSION:
+===========
+So - to sum up the test-results above: webkit doesn't give &quot;#&quot; any special 
+delimiter status in data URIs, which is a bug, but probably matches what 
+authors intend a lot of the time; Opera sometimes behaves like Webkit and 
+sometimes not; and Firefox parses fragment-identifiers strictly, 
+potentially giving authors headaches and truncating content that renders 
+fine in Opera/Webkit.
+
+With my proposal here -- relaxing the situations under which &quot;#&quot; should be 
+treated as a delimiter in a data URI -- I think we'd better match author 
+expectations and improve the browser-compatibility picture.
+
+Thoughts?
+
+Thanks,
+Daniel Holbert
+Mozilla Corporation
+
+P.S. Thanks to Robert O'Callahan for coming up with this proposal a week 
+or so back.
+
+P.P.S. Browser versions that I tested (on Ubuntu 11.04 x86):
+  Firefox 6.02
+  Opera 11.51
+  Chromium 14.0.835.126 (Developer Build 99097 Linux)
+
+[1] <A HREF="https://www.ietf.org/rfc/rfc2396.txt">https://www.ietf.org/rfc/rfc2396.txt</A> See section 4.1 &amp; appendix &quot;B&quot; 
+(&quot;Parsing a URI Reference with a Regular Expression&quot;) which shows that &quot;#&quot; 
+is technically disallowed up until the #reference at the end.)
+
+[2] <A HREF="https://bugzilla.mozilla.org/show_bug.cgi?id=308590">https://bugzilla.mozilla.org/show_bug.cgi?id=308590</A>
+
+[3] <A HREF="https://bugzilla.mozilla.org/show_bug.cgi?id=686013">https://bugzilla.mozilla.org/show_bug.cgi?id=686013</A>
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="075420.html">[whatwg] [html5] scope chain for event handlers specified via content attributes
+</A></li>
+	<LI>Next message: <A HREF="075436.html">[whatwg] Proposal for improved handling of '#' inside of data	URIs
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#33162">[ date ]</a>
+              <a href="thread.html#33162">[ thread ]</a>
+              <a href="subject.html#33162">[ subject ]</a>
+              <a href="author.html#33162">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

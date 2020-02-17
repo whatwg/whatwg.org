@@ -1,0 +1,211 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] meta=&quot;encrypt&quot; tag is needed
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20meta%3D%22encrypt%22%20tag%20is%20needed&In-Reply-To=%3C4BE962E2.90103%40peda.net%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="068539.html">
+   <LINK REL="Next"  HREF="068471.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] meta=&quot;encrypt&quot; tag is needed</H1>
+<!--htdig_noindex-->
+    <B>Mikko Rantalainen</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20meta%3D%22encrypt%22%20tag%20is%20needed&In-Reply-To=%3C4BE962E2.90103%40peda.net%3E"
+       TITLE="[whatwg] meta=&quot;encrypt&quot; tag is needed">mikko.rantalainen at peda.net
+       </A><BR>
+    <I>Tue May 11 07:00:02 PDT 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="068539.html">[whatwg] meta=&quot;encrypt&quot; tag is needed
+</A></li>
+        <LI>Next message: <A HREF="068471.html">[whatwg] WebSocket: garbage collection
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#68556">[ date ]</a>
+              <a href="thread.html#68556">[ thread ]</a>
+              <a href="subject.html#68556">[ subject ]</a>
+              <a href="author.html#68556">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Juuso Hukkanen wrote:
+&gt;<i> Mikko Rantalainen wrote:
+</I>&gt;&gt;<i> Are you trying to suggest an user agent implementation of something
+</I>&gt;&gt;<i> similar to this: <A HREF="http://angel.net/~nic/passwdlet.html">http://angel.net/~nic/passwdlet.html</A> ?
+</I>&gt;<i> Thanks Mikko for linking to those passsalt generator tools.
+</I>
+In truth, I was asking to figure out if that's what you're aiming for.
+If I've understood correctly, this is the feature that you think should
+be implemented.
+
+I'm afraid that such system would not be safe and would not give all the
+protection you're looking for.
+
+Basically if you have a function
+
+f(x) = sha256(domain + userpassword)
+
+in reality you just have a SHA256 of userpassword with a custom IV
+(initialization vector). A more secure hashing method would be along the
+lines
+
+f2(x) = sha256(sha256(userpassword) + domain)
+
+where the output of sha256 is hex in ascii and &quot;+&quot; is string
+concatenating operator. This would effectively prevent use of rainbow
+tables contrary to f(x) above.
+
+However, it wouldn't still be safe to use the same password for multiple
+sites because the attack could be implemented offline against the salted
+hash. If one has possession of database of salted hashes, figuring out a
+single password is roughly equivalent processing to figuring out
+(almost) all of the passwords. The complexity of processing is only
+dependent on the length and complexity of user's password (and if it's
+something in a dictionary, it's way too simple here).
+
+Notice that the salting method described and implemented in URL above is
+safe only if it's not too widely used, or if the master password is
+complex enough for offline brute force attack. As such, it's not
+suitable for common implementation in user agents. Notice that it does
+not matter if the hash algorithm is md5 or sha1 or whatever. The problem
+is that the user's master password is the only secret and that's almost
+always too weak secret for brute force offline attack.
+
+&gt;<i> PASSSALT:
+</I>&gt;<i> ^^^^^^^^^^
+</I>&gt;<i> Attributes:
+</I>&gt;<i> &lt;meta encrypt &lt;=&gt; Identification tag for html 5.01 content for 5.01
+</I>&gt;<i> conforming UAs
+</I>
+If something like this will be ever implemented, it should definitely be
+a form input specific attribute, not a single meta element for the whole
+page.
+
+
+&gt;<i> passsalt=&quot;no|domainname&quot;
+</I>&gt;<i> ^^^^^^^^^^^^^^^^^^^^^^^
+</I>&gt;<i> 1) no &lt;=&gt; UAs should send passwords unsalted (e.g. for the sake of
+</I>&gt;<i> compatibility)
+</I>&gt;<i> 
+</I>&gt;<i> 2) yes &lt;=&gt; (default value, 5.01 conforming UAs will salt passwords using
+</I>&gt;<i> domain name)
+</I>&gt;<i> 
+</I>&gt;<i> 3) domainname &lt;=&gt; domain(+TLD), if site wants hashes salted using it's
+</I>&gt;<i> current or some another domain name
+</I>
+How about just a simple extension to input type=password field instead?
+Let's add a new attribute 'salt' with the following definition:
+
+If 'salt' is defined for input element of type 'password', it will be
+used as a string &quot;domain&quot; in the f2() function above. The output of that
+function will be transferred as form data instead of real password.
+
+This has all the security of your proposed scheme (because there's no
+safety against MitM attack, there's no point to try to include any
+external information into the hash -- including the domain name). The
+server may use domain name as the salt or any random string it prefers.
+If server uses the same salt every time, it does not ever need to know
+the actual password. On the other hand, using the same salt makes the
+database more vulnerable to offline attack if the database is ever leaked.
+
+However, the server must be coded to accept BOTH salted password and
+plain text password to support existing user agents.
+
+It could be specified that entire ascii/UTF-8 (identical) hex encoded
+sha256 output must be used as the form value. The length of inputted
+password would then be a pretty good indicator of salted and hashed
+password.
+
+
+&gt;<i> Why passsalt in html5.xx specification
+</I>&gt;<i> ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+</I>&gt;<i> 1) multi-use of same passwords is a growing security problem. A
+</I>&gt;<i> successfull stealing single sites unencrypted real person names +
+</I>&gt;<i> passwords can lead to thousands of ID theft cases.
+</I>
+It is not safe to use the same password on multiple sites, hashed or
+not. The only safe method is to use random password for every site and
+use (real, not obfuscated) encrypted local storage for real passwords.
+
+I do understand that the secure scheme is hard to implement if you're
+using multiple devices to access the service. In addition, it's not
+usable or safe on untrusted devices (but neither is any other scheme).
+
+Allowing a scheme suggested here would allow something slightly better
+than the current situation but it should be said plain and clear in the
+spec that this is not a replacement for real security.
+
+&gt;<i> 2) Voluntary salting of passwords has failed even on reputable sites.
+</I>
+The server must have knowledge of real password to use powerful salt
+(that is, the salt is not shared)
+
+&gt;<i> 3) Forcing the passwords salted is one solution. But the UA needs to
+</I>&gt;<i> know if it should send password salted or unsalted. Situation where one
+</I>&gt;<i> UA would send salted password and another unsalted is unacceptable
+</I>
+Why do you think so? If the server knows only salted version and gets
+unsalted version, it will be able to check that the password is the
+correct one. It's only a issue for the user of such user agent (the user
+agent just transferred the password in plain text).
+
+&gt;&gt;<i> You referred to &quot;alypaa.com&quot; case in your original post. Could you
+</I>&gt;&gt;<i> explain why do you think this would prevent from similar information
+</I>&gt;&gt;<i> leak in the future?
+</I>&gt;<i> 
+</I>&gt;<i> 1) Site had stored the it's email addresses and passwords in unsalted
+</I>&gt;<i> format.
+</I>&gt;<i> And as often is the case, same password had been multi-used on many sites.
+</I>&gt;<i> If the alypaa.com had only gotten salted passwords from UA, it could not
+</I>&gt;<i> have
+</I>&gt;<i> leaked out the passwords to peoples email, blog and facebook accounts.
+</I>
+The alypaa.com would have still leaked a database of hashed passwords.
+If every password uses the same salt, it does not make offline attack
+much harder if attacker accepts any broken password from database (as
+opposed to some specific password).
+
+-- 
+Mikko
+
+-------------- next part --------------
+A non-text attachment was scrubbed...
+Name: signature.asc
+Type: application/pgp-signature
+Size: 197 bytes
+Desc: OpenPGP digital signature
+URL: &lt;<A HREF="http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20100511/313591e9/attachment-0002.pgp">http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20100511/313591e9/attachment-0002.pgp</A>&gt;
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="068539.html">[whatwg] meta=&quot;encrypt&quot; tag is needed
+</A></li>
+	<LI>Next message: <A HREF="068471.html">[whatwg] WebSocket: garbage collection
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#68556">[ date ]</a>
+              <a href="thread.html#68556">[ thread ]</a>
+              <a href="subject.html#68556">[ subject ]</a>
+              <a href="author.html#68556">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

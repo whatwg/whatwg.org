@@ -1,0 +1,293 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] media elements: Relative seeking
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20media%20elements%3A%20Relative%20seeking&In-Reply-To=%3CPine.LNX.4.62.0812010755500.17414%40hixie.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017621.html">
+   <LINK REL="Next"  HREF="017632.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] media elements: Relative seeking</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20media%20elements%3A%20Relative%20seeking&In-Reply-To=%3CPine.LNX.4.62.0812010755500.17414%40hixie.dreamhostps.com%3E"
+       TITLE="[whatwg] media elements: Relative seeking">ian at hixie.ch
+       </A><BR>
+    <I>Mon Dec  1 02:28:57 PST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017621.html">[whatwg] Question regarding accessibility for img
+</A></li>
+        <LI>Next message: <A HREF="017632.html">[whatwg] media elements: Relative seeking
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17626">[ date ]</a>
+              <a href="thread.html#17626">[ thread ]</a>
+              <a href="subject.html#17626">[ subject ]</a>
+              <a href="author.html#17626">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Sun, 23 Nov 2008, Maik Merten wrote:
+&gt;<i> 
+</I>&gt;<i> currently seeking in the media elements is done by manipulating the 
+</I>&gt;<i> currentTime attribute. This expects an absolute time offset in seconds. 
+</I>&gt;<i> This works fine as long as the duration (in absolute time) of the media 
+</I>&gt;<i> file is known and doesn't work at all in other cases.
+</I>
+For non-infinite streams, the duration is defined to be known. That is, 
+the user agent is required to find the duration and set the &quot;duration&quot; 
+attribute accordingly.
+
+
+&gt;<i> Some media formats don't store the duration of the media file anywhere. 
+</I>&gt;<i> A client can only determine the duration of the media file by 
+</I>&gt;<i> byte-seeking near the end of the file and finding a timestamp near/at 
+</I>&gt;<i> the end. This isn't a problem whatsoever on local files, but in remote 
+</I>&gt;<i> setups this puts additional load on the server and the connection. If 
+</I>&gt;<i> one would like to avoid this, meaning no duration is known, seeking in 
+</I>&gt;<i> absolute time cannot work.
+</I>
+One is not allowed to avoid this per spec today, short of using a codec 
+that doesn't have this problem.
+
+
+&gt;<i> While getting the absolute duration is often a problem retrieving the 
+</I>&gt;<i> length of the media file is is no problem. I propose seeking with 
+</I>&gt;<i> relative positions, e.g. values between zero and one. This way the 
+</I>&gt;<i> client can determine if to seek in absolute time (if the duration is 
+</I>&gt;<i> known) or to just jump into to a position of the bytestream (if the 
+</I>&gt;<i> length in bytes is known).
+</I>
+You can jump to a position that's a fraction of the whole clip by setting 
+'currentTime' to a fractional multiple of 'duration'.
+
+
+&gt;<i>  - make currentTime readonly, still have it report playback position in 
+</I>&gt;<i> absolute time. This information should be available in all media formats 
+</I>&gt;<i> due to timestamps in the stream.
+</I>&gt;<i> 
+</I>&gt;<i>  - introduce a seek() method, taking a relative value ranging from zero 
+</I>&gt;<i> to one. This allows both accurate seeking if the duration is known and 
+</I>&gt;<i> less precise seeking otherwise if only the length of the file is known 
+</I>&gt;<i> in storage units. This is still way better than not being able to seek 
+</I>&gt;<i> at all.
+</I>
+Why should currentTime be readonly?
+
+
+&gt;<i>  - make duration report either the duration in absolute time (if known) 
+</I>&gt;<i> or the length of the file in storage units. This enables computation of 
+</I>&gt;<i> a relative playback position even when no duration is known, if the byte 
+</I>&gt;<i> position of the stream is known (low precision fallback - still better 
+</I>&gt;<i> than nothing at all).
+</I>
+The duration in absolute time is required to be determined before the 
+
+
+&gt;<i>  - introduce a readonly storagePosition attribute. Meant to compute a 
+</I>&gt;<i> relative position if the duration is only known in storage units.
+</I>
+We just got rid of bufferingBytes and totalBytes because browser vendors 
+want to return times only, not data based on bytes.
+
+
+On Sun, 23 Nov 2008, Eric Carlson wrote:
+&gt;<i> 
+</I>&gt;<i> Reporting the absolute time of the current sample won't help when the 
+</I>&gt;<i> first sample of the file doesn't have a timestamp of zero. It will be 
+</I>&gt;<i> even more confusing for files with portions removed or added without 
+</I>&gt;<i> fixing time stamps - for example a movie created by concatenating 
+</I>&gt;<i> different files.
+</I>
+The spec is written with the assumption that all the offsets of the 
+resource have unique timestamps, and that the timestamps are in monotonic 
+increasing order without discontinuous jumps, but it doesn't assume that 
+the initial position is zero.
+
+Should I put a requirement in the spec to the effect that discontinuous or 
+duplicate timelines must be normalised in some way?
+
+
+&gt;<i> As I noted when this subject came up a few weeks ago, the right way to 
+</I>&gt;<i> deal with media formats that don't store duration is to estimate the 
+</I>&gt;<i> duration of the whole file by extrapolating from the known, exact, 
+</I>&gt;<i> duration of the portion(s) that have been processed. While the initial 
+</I>&gt;<i> estimate won't always be correct for variable bit-rate formats, the 
+</I>&gt;<i> estimate will become more and more accurate as it is iteratively refined 
+</I>&gt;<i> by processing more media data. The spec defines the &quot;durationchange&quot; for 
+</I>&gt;<i> just exactly this scenario.
+</I>
+Indeed.
+
+
+On Mon, 24 Nov 2008, Silvia Pfeiffer wrote:
+&gt;<i> 
+</I>&gt;<i> I don't see addition of a duration attribute as much of a problem. We 
+</I>&gt;<i> have width and height for images, and sizes for fonts, too, and web 
+</I>&gt;<i> developers have learnt how to deal with these in various entities (px, 
+</I>&gt;<i> em, pt). I would not have a problem giving web developers the 
+</I>&gt;<i> opportunity to report the real duration of a video in an attribute in 
+</I>&gt;<i> either bytes or seconds (might be better called: length), which would 
+</I>&gt;<i> allow a renderer to display an accurate timeline. It is help for a 
+</I>&gt;<i> display mechanism just as width and height are.
+</I>&gt;<i> 
+</I>&gt;<i> In case of contradiction between the attribute and the actual decoded 
+</I>&gt;<i> length, a renderer can still override the length attribute at the time 
+</I>&gt;<i> the real length is known. In case of contradiction between the attribute 
+</I>&gt;<i> and the estimated length of a video, the renderer should make a call 
+</I>&gt;<i> based on the probability of the estimate being correct.
+</I>&gt;<i> 
+</I>&gt;<i> In may in fact be rather confusing to users if a video player keeps 
+</I>&gt;<i> changing the duration of a video file as it plays it back.
+</I>&gt;<i> 
+</I>&gt;<i> I think such an attribute can help get this right earlier.
+</I>
+If we had kept pixelratio=&quot;&quot;, duration=&quot;&quot; might make some sense (maybe, 
+though I am still a little skeptical). But with the removal of 
+pixelratio=&quot;&quot;, there's really no parallel for duration=&quot;&quot;. It seems to me 
+that the UAs can do a fine job estimating the duration in the cases where 
+it's necessary.
+
+Frankly, I'd rather just that the video data included the duration. It 
+seems a bit weird for a video resource to not know its own length. It 
+would be a bit like an image file not self-describing its dimensions, and 
+just having the decoder work it out based on some markers at the end of 
+each line of pixels.
+
+
+On Sun, 23 Nov 2008, Eric Carlson wrote:
+&gt;<i>
+</I>&gt;<i> In the case of a file with video or VBR audio the true duration 
+</I>&gt;<i> literally isn't actually known until *every* frame has been examined.
+</I>&gt;<i> 
+</I>&gt;<i> When would you have the UA decide to switch from the attribute to the to 
+</I>&gt;<i> the real duration? What would you have the UA do if the user seeks to 
+</I>&gt;<i> time 90 seconds when attribute says a file is 100 seconds long, but the 
+</I>&gt;<i> file actually has a duration of 80?
+</I>
+What would the UA do to know it has a duration of 80s? Would it have to 
+read the whole file?
+
+If so, why can't the UA just seek to the end (and read every frame), get 
+the duration, and just be done with it?
+
+
+On Tue, 25 Nov 2008, Silvia Pfeiffer wrote:
+&gt;<i> 
+</I>&gt;<i> The browser would need to have it's own estimate of reliability of the 
+</I>&gt;<i> length attribute. If there is a high probability that the length 
+</I>&gt;<i> attribute is wrong, e.g. we have already played beyond the given length, 
+</I>&gt;<i> or we have obviously too much data to decode for the given length, it 
+</I>&gt;<i> would ignore the length attribute. I would however hope that web 
+</I>&gt;<i> developers generally test their pages and the length attribute to make 
+</I>&gt;<i> sure the display is correct. If that data is provided through a CMS, 
+</I>&gt;<i> then the information should be correct anyway.
+</I>
+My experience with content on the Web suggests you are optimistic. :-)
+
+
+On Mon, 24 Nov 2008, Dave Singer wrote:
+&gt;<i>
+</I>&gt;<i> I don't think you mean 'relative' here, which I would take to be &quot;go 
+</I>&gt;<i> forward 10 seconds&quot;, but 'proportional', &quot;please go to 60% of the way 
+</I>&gt;<i> through&quot;.
+</I>&gt;<i> 
+</I>&gt;<i> IF we are to do this, I would have thought it would be by adding units 
+</I>&gt;<i> to the &quot;where to seek to&quot; argument:
+</I>&gt;<i> 
+</I>&gt;<i> * go to this time in NPT (normal play time, which runs from 0 to media
+</I>&gt;<i> duration)
+</I>&gt;<i> * go to this SMPTE time code
+</I>&gt;<i> * go by this relative distance in NPT times
+</I>&gt;<i> 
+</I>&gt;<i> * go to this proportional time
+</I>&gt;<i> * go to this proportional byte distance
+</I>&gt;<i> * go by this relative byte distance
+</I>
+Woah. Not in v1.
+
+
+&gt;<i> Note that proportional distances are not well defined for some streams 
+</I>&gt;<i> (e.g. indefinite ones).
+</I>&gt;<i> 
+</I>&gt;<i> We'd have to define what bytes are counted and what aren't, especially 
+</I>&gt;<i> if a URL offers a set of sub-streams only some of which a client would 
+</I>&gt;<i> normally choose to have sent to it for playing.
+</I>
+These are other good reasons not to have a byte-based seeking mechanism.
+
+
+On Tue, 25 Nov 2008, Silvia Pfeiffer wrote:
+&gt;<i> 
+</I>&gt;<i> Live streams are somewhat bad to deal with anyway, because a timeline is 
+</I>&gt;<i> badly defined on such. All you could really do is show the past and have 
+</I>&gt;<i> a &quot;continues&quot; pointer at the end. Most live streams (e.g. the recent 
+</I>&gt;<i> YouTube live concert) simply don't show a timeline and disallow people 
+</I>&gt;<i> to jump around in the presentation.
+</I>
+The API defined in the HTML5 spec seems to support such streams fine. It 
+even allows the UA to start dropping data at the start of the buffer. 
+Effectively, it works like a TiVo.
+
+
+On Tue, 25 Nov 2008, Maik Merten wrote:
+&gt;<i> 
+</I>&gt;<i> This applet does not seek to the end of the stream to retrieve a 
+</I>&gt;<i> timestamp there.
+</I>
+It should. :-)
+
+
+On Wed, 26 Nov 2008, Chris Double wrote:
+&gt;<i> 
+</I>&gt;<i> I won't be estimating the duration - the user experience of a 
+</I>&gt;<i> fluctuating duration is terrible. For now for Ogg files, I'm seeking to 
+</I>&gt;<i> the end and getting the duration. I may check for X-Content-Duration 
+</I>&gt;<i> which I believe mod_annodex and soon oggz-chop support.
+</I>
+Cool.
+
+
+&gt;<i> For the few servers that don't support seeking, duration is not 
+</I>&gt;<i> available.
+</I>
+Note that that is non-conforming at the moment. You have to have a 
+duration available (though it can be +Infinity if you think that the 
+resource is a stream, and can be an estimate, so long as you keep updating 
+it as your information gets better.)
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017621.html">[whatwg] Question regarding accessibility for img
+</A></li>
+	<LI>Next message: <A HREF="017632.html">[whatwg] media elements: Relative seeking
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17626">[ date ]</a>
+              <a href="thread.html#17626">[ thread ]</a>
+              <a href="subject.html#17626">[ subject ]</a>
+              <a href="author.html#17626">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

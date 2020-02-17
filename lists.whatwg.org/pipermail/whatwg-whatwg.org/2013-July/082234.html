@@ -1,0 +1,213 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Script preloading
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Script%20preloading&In-Reply-To=%3C0E49F827-59EE-4BCC-B310-B0E3FBFDEEB3%40gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="039960.html">
+   <LINK REL="Next"  HREF="082236.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Script preloading</H1>
+<!--htdig_noindex-->
+    <B>Kyle Simpson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Script%20preloading&In-Reply-To=%3C0E49F827-59EE-4BCC-B310-B0E3FBFDEEB3%40gmail.com%3E"
+       TITLE="[whatwg] Script preloading">getify at gmail.com
+       </A><BR>
+    <I>Tue Jul  9 13:41:53 PDT 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="039960.html">[whatwg] Script preloading
+</A></li>
+        <LI>Next message: <A HREF="082236.html">[whatwg] Script preloading
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#82234">[ date ]</a>
+              <a href="thread.html#82234">[ thread ]</a>
+              <a href="subject.html#82234">[ subject ]</a>
+              <a href="author.html#82234">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>This is a long and complicated topic with lots of &quot;history&quot;. Please bear with the length of my reply.
+
+
+&gt;<i> It seems that people want something that:
+</I>&gt;<i> 
+</I>&gt;<i> - Lets them download scripts but not execute them until needed.
+</I>&gt;<i> - Lets them have multiple interdependent scripts and have the browser
+</I>&gt;<i>   manage their ordering.
+</I>&gt;<i> - Do all this without having to modify existing scripts.
+</I>
+I think it's important to note that the primary motivation here is performance. If all I cared about was serial loading (and the performance of that was irrelevant), I could, with today's mechanisms, load one script at a time, only when I was ready to execute it, and if there were multiple scripts, do so in the &quot;correct&quot; order.
+
+The fly in in the ointment is if I need to load multiple scripts at once, specifically if those come from different locations (one is jQuery from the CDN, another is a plugin from my server), and for performance reasons I want these scripts to load in parallel, but their execution order still matters.
+
+Now, if THAT was the only concern, the &quot;new&quot; (well, 2 years old now) `async=false` (or, as I call it, &quot;ordered async&quot;) mechanism would be enough. But it's not.
+
+Because there's only one &quot;ordered async&quot; queue, which means all such scripts have to go into the same bucket, and it's all or nothing for preserving execution order. What if I want to load jQuery, then I want (in ASAP order) for 4 independent plugins to run?
+
+&quot;Ordered async&quot; will run jQuery, then each plugin in request order, which might make one small plugin wait much longer than it needs to for an earlier plugin. Here, it's a performance issue because a plugin like a calendar widget might not appear and render as early as it could otherwise, because some other non-related plugin is coming from a slow location but was requested first.
+
+Very quickly, &quot;ordered async&quot; starts to not be sufficient for various use-cases. It's like the 75% solution, but the 25% are still a concern, performance wise.
+
+
+
+&gt;<i> I must admit to not really understanding these requirements (script 
+</I>&gt;<i> execution can be made more or less free if they are designed to just 
+</I>&gt;<i> expose some functions, for example, and it's trivial to set up a script 
+</I>&gt;<i> dependency mechanism for scripts to run each other in order, and there's 
+</I>&gt;<i> no reason browsers can't parse scripts off the main thread, etc). But 
+</I>&gt;<i> since everyone else seems to think these are issues, let's ignore that.
+</I>
+In an ideal world, we could tell everyone &quot;hey, there's a new mandate, rewrite all your code by XYZ deadline. Kthxbai.&quot; That's not how it works. The fact is that the web platform and the browsers move MUCH quicker than legacy content.
+
+This is, and always has been, a question of if you think we should just wait around for years and years until every script we care about (but don't control since we didn't author it) gets rewritten, and while that's happening, web performance in this area just can't be addressed? I maintain still that we can and should fix the platform so we have more options than just &quot;tough luck&quot;.
+
+
+
+&gt;<i> The proposals I've seen so far for extending the spec's script preloading 
+</I>&gt;<i> mechanisms fall into two categories:
+</I>&gt;<i> 
+</I>&gt;<i> - provide some more control over the mechanisms already there, e.g. 
+</I>&gt;<i>   firing events at various times, adding attributes to make the script 
+</I>&gt;<i>   loading algorithm work differently, or adding methods to trigger 
+</I>&gt;<i>   particular parts of the algorithm under author control.
+</I>&gt;<i> 
+</I>&gt;<i> - provide a layer above the current algorithm that provides strong 
+</I>&gt;<i>   semantics, but that doesn't have much impact on the loading algorithm 
+</I>&gt;<i>   itself.
+</I>&gt;<i> 
+</I>&gt;<i> I'm very hesitant to do the first of these, because the algorithm is _so_ 
+</I>&gt;<i> complicated that adding anything else to it is just going to result in 
+</I>&gt;<i> bugs in browsers. There comes a point where an algorithm just becomes so 
+</I>&gt;<i> hard to accurately test that it's a lost cause.
+</I>
+Can you please elaborate on how either of the two prominent proposals that Nicholas Zakas and I detailed years ago here are insufficient in that they fall into your first category?
+
+<A HREF="http://wiki.whatwg.org/wiki/Script_Execution_Control">http://wiki.whatwg.org/wiki/Script_Execution_Control</A>
+
+My proposal was to standardize what IE4-10 did, which is to start loading a script even if it's not in the DOM, but not execute it until it's in the DOM. Then, you monitor an event to know if one or more scripts have finished this &quot;preloading&quot;, and then you can decide if and when and in what order to add the corresponding &lt;script&gt; elements to the DOM to allow &quot;execution&quot; to proceed.
+
+The spec already suggests the core of this:
+
+&quot;For performance reasons, user agents may start fetching the script as soon as the attribute is set, instead, in the hope that the element will be inserted into the document. Either way, once the element is inserted into the document, the load must have started. If the UA performs such prefetching, but the element is never inserted in the document, or the src attribute is dynamically changed, then the user agent will not execute the script, and the fetching process will have been effectively wasted.&quot;
+
+How does standardizing that suggestion (turning it from a MAY into a MUST) further complicate the loading algorithm, especially since there's over a decade of proof in IE that it works and works fine, and it's already detailed as a suggestion in the spec?
+
+True, the spec doesn't suggest the &quot;event to known when preloading completes&quot; part. IE did this with `readyState == &quot;loaded&quot;` and `onreadystatechange`. That part would need to be figured out. But again, we had prior art as PoC from IE.
+
+-----
+
+Setting aside IE's non-standard event mechanism, Nicholas' proposal was also perfectly sensible, and pretty simple. He suggested the same mechanism for execution (adding a &lt;script&gt; to the DOM), but suggested a `preload` attribute on the element to prevent auto-execution, and a `onpreload` event to notify you of loading-complete.
+
+In neither case do I see how this unduly complicates the loading algorithm? It ONLY pauses it between load and execute, under certain conditions. It doesn't change any of the order of the algorithm.
+
+
+
+
+&gt;<i> 1. Add a &quot;dependencies&quot; attribute to &lt;script&gt; that can point to other 
+</I>&gt;<i>   scripts to indicate that execution of this script should be delayed
+</I>&gt;<i>   until all other scripts that are (a) earlier in the tree order and (b) 
+</I>&gt;<i>   identified by this attribute have executed.
+</I>&gt;<i> 
+</I>&gt;<i>     &lt;script id=&quot;jquery&quot; src=&quot;jquery.js&quot; async&gt;&lt;/script&gt;
+</I>&gt;<i>     &lt;script id=&quot;shims&quot; src=&quot;shims.js&quot; async&gt;&lt;/script&gt;
+</I>&gt;<i>     &lt;script dependencies=&quot;shims jquery&quot; src=&quot;myscript.js&quot; async&gt;&lt;/script&gt;
+</I>
+I believe this solution to be infeasible for a number of important scenarios.
+
+For instance, content-management-systems (through plugins) load different items into a page independently of other plugins. Those plugins have no knowledge of the complete content/markup-structure of the page, and so they would be unable to reliably create &lt;script&gt; elements with unique ID's, without just guessing by creating really obscure ID's. Not perfect/perfectly reliable, and certainly ugly and more work for them to do. Every plugin would have to come up with its own ID-generation mechanisms. Asking for inconsistencies/problems.
+
+Moreover, this ignores some use-cases for &quot;script preloading&quot; which are basically speculative preloading. I may want to load several plugins, but not execute any of them, and then only use one of them depending on what the user does.
+
+So, the real need here is NOT just to chain a set of scripts together, but to put the author in control of pausing a script between load and execute, and then they get to decide when/if they unpause a script.
+
+
+
+
+&gt;<i> 2. Add an &quot;whenneeded&quot; boolean content attribute, a &quot;markNeeded()&quot; method,
+</I>&gt;<i>   and an internal &quot;is-needed flag&quot; (initially false) to the &lt;script&gt; 
+</I>&gt;<i>   element. When a script is about to execute, if its whenneeded=&quot;&quot; 
+</I>&gt;<i>   attribute is set, but its &quot;is-needed&quot; flag is not, then delay 
+</I>&gt;<i>   execution. Calling markNeeded() on a script that has a whenneeded 
+</I>&gt;<i>   boolean but that has not executed yet first causes the markNeeded() 
+</I>&gt;<i>   method on all the script's dependencies to be called, and then causes
+</I>&gt;<i>   this script to become ready to execute.
+</I>
+From where I stand, this solution is partially workable, sort of.
+
+It doesn't solve the &quot;I need an event to know when load is finished&quot;. If I'm waiting for a bunch of stuff to load before asking any of them to execute (in the order I want), I need a way to know that each of them are in fact fully loaded.
+
+Secondly, it seems like a bit more complex version of Nicholas' proposal, with just different names. Not sure why the complecting of API with (mostly) his same semantics.
+
+I don't actually mind if the &quot;way to get it to execute&quot; constitutes inserting a previously not-inserted element into the DOM, or if it consists of calling some new method on the already-inserted element. Those have basically the same effect.
+
+Your proposed API is more complicated, but only a little bit so. Not a deal breaker. It does override, to an extent, the above quoted part of the spec which already suggests that a/the way to separate load and execute is insertion in the DOM or not.
+
+I would still vote for an option that's the least different from what we already have.
+
+But I'd settle for anything, no matter how complex, as long as it actually solves the many use cases. Your proposed option has potential, as long as the missing &quot;event&quot; part is addressed.
+
+
+
+&gt;<i> Is there a need for delaying the download of a script as well? (If so, we 
+</I>&gt;<i> could change whenneeded=&quot;&quot; to have values, like whenneeded=&quot;execute&quot; vs 
+</I>&gt;<i> whenneeded=&quot;download&quot; or something.)
+</I>
+I think there's another effort elsewhere under the spec umbrella that's discussing some attributes for more accurate deferring of resource loading (not just scripts). No need to conflate these efforts, IMO. The effort here presently is to load something (many things) as quickly as possible, not put off loading until &quot;later&quot;.
+
+
+
+&gt;<i> Is there something this doesn't handle which it would need to handle?
+</I>
+Just one final side note on the above linked-to proposals (Zakas's and mine). Over 2 years ago, I implemented feature-detects in LABjs script loader for both of those proposals. Of course, the `readyState` one actually works in IE4-10 and works beautifully I might add. In head-to-head loading tests I've done from time to time, the IE &quot;real preloading&quot; mechanism often beats out the good-but-not-great &quot;ordered async&quot; of the other modern browsers.
+
+The `preload` one doesn't currently work of course (it's just dormant code for now), but I thought it to be a sufficiently good enough proposal, and likely enough to eventually happen, that I put in those few lines of code to LABjs, as speculative future-proofing.
+
+Now, at this point, there's an awful lot of sites on the web using that version of LABjs. My most recent estimates are that LABjs has been downloaded/deployed on the order of 10's of thousands of sites over the last several years.
+
+IF by some magical alignment of the stars, either of those proposals did finally get standardized, LABjs wouldn't have to change at all, and none of those sites would have to do anything different. They'd just automatically start getting better loading performance (on average).
+
+
+
+
+
+--Kyle
+
+
+
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="039960.html">[whatwg] Script preloading
+</A></li>
+	<LI>Next message: <A HREF="082236.html">[whatwg] Script preloading
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#82234">[ date ]</a>
+              <a href="thread.html#82234">[ thread ]</a>
+              <a href="subject.html#82234">[ subject ]</a>
+              <a href="author.html#82234">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

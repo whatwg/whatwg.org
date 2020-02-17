@@ -1,0 +1,171 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Flow Control on Websockets
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Flow%20Control%20on%20Websockets&In-Reply-To=%3Calpine.DEB.2.00.1312032352570.27766%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="041685.html">
+   <LINK REL="Next"  HREF="083961.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Flow Control on Websockets</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Flow%20Control%20on%20Websockets&In-Reply-To=%3Calpine.DEB.2.00.1312032352570.27766%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg] Flow Control on Websockets">ian at hixie.ch
+       </A><BR>
+    <I>Tue Dec  3 16:16:20 PST 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="041685.html">[whatwg] Behavior of anchor element when wrapping floated images
+</A></li>
+        <LI>Next message: <A HREF="083961.html">[whatwg] Flow Control on Websockets
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#41687">[ date ]</a>
+              <a href="thread.html#41687">[ thread ]</a>
+              <a href="subject.html#41687">[ subject ]</a>
+              <a href="author.html#41687">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Thu, 17 Oct 2013, Michael Meier wrote:
+&gt;<i> 
+</I>&gt;<i> Suppose I have a Websocket server and a WS client connected to it. The 
+</I>&gt;<i> client is a JS script in a browser offering the standard WS API. The 
+</I>&gt;<i> server produces data at a rate r1 and sends it to the client, which is 
+</I>&gt;<i> able to meaningfully process data at a rate of r2, where r1 &gt; r2.
+</I>
+What kind of data are we talking about here?
+
+I'm finding it hard to come up with data where it would make sense for the 
+server to slow down production, but where WebSocket would still be the 
+right protocol to use.
+
+If the server is generating a lot of data based on an algorithm, e.g. 
+generating the digits of pi, without using data from the client, then HTTP 
+seems like a better protocol -- just generate the data offline, and 
+download it all later.
+
+If the server is generating data in response to some real-time query, e.g. 
+the results of a search on Twitter or some such, then what is the server 
+going to do with backpressure? Drop the data on the floor? Whether the 
+client drops the data on the floor or the server drops the data on the 
+floor doesn't much affect the user, though obviously if the client is 
+dropping it then the bandwidth is being wasted.
+
+It would be helpful to have a better idea of what kind of data you were 
+thinking about.
+
+
+&gt;<i> The JS script registers an onmessage handler and is called every time 
+</I>&gt;<i> the browser receives a message from the WS. Even if the JS script is 
+</I>&gt;<i> still busy processing the received message, say over a chain of 
+</I>&gt;<i> asynchronous calls, the browser might receive the next message and call 
+</I>&gt;<i> onmessage again. For the script, there are two options to proceed. The 
+</I>&gt;<i> first option is to drop data. This might not be possible in all 
+</I>&gt;<i> applications and is also a shame, since the data has already been 
+</I>&gt;<i> transported over the network. The second option is to buffer the data. 
+</I>&gt;<i> This is not a real option, though, since it will buffer an ever 
+</I>&gt;<i> increasing amount of data because r1 &gt; r2.
+</I>
+You could just use synchronous APIs in a Worker and not return; if the UA 
+is clever, that will apply backpressure. But yeah, it's not ideal.
+
+
+&gt;<i> On the sending side of the browser, flow control seems to be possible by 
+</I>&gt;<i> using the bufferedAmount attribute to decide when to pause and resume 
+</I>&gt;<i> sending of data.
+</I>
+That doesn't tell you what the backpressure's like, only how much the user 
+agent hasn't yet sent.
+
+
+&gt;<i> Why is there such an assymetry between sending an receiving? Is it 
+</I>&gt;<i> possible to have flow control on the receiving side without resorting to 
+</I>&gt;<i> application level handshakes?
+</I>
+I've filed this bug to track this feature request, if any user agent 
+implementors want to add this, please do comment on the bug!:
+
+   <A HREF="https://www.w3.org/Bugs/Public/show_bug.cgi?id=23992">https://www.w3.org/Bugs/Public/show_bug.cgi?id=23992</A>
+
+
+On Thu, 17 Oct 2013, Nicholas Wilson wrote:
+&gt;<i> 
+</I>&gt;<i> If you're at all interested in the freshness of the data, you don't want 
+</I>&gt;<i> to use TCP as your sole flowcontrol mechanism. It's fine for bulk file 
+</I>&gt;<i> transfers, but think how many megabytes of buffering there can be - the 
+</I>&gt;<i> sum of all the send buffers of all the intermediaries along the chain. 
+</I>&gt;<i> On a low-loss network, the TCP window size will become very large. You 
+</I>&gt;<i> quickly get to a point where the server's filled up all the buffers 
+</I>&gt;<i> along the way, fine for file transfer, but potentially seconds'-worth of 
+</I>&gt;<i> latency.
+</I>
+There's presumably use cases for not-quite-real-time data where it's still 
+ok to drop some data. For example, I would expect a real-time search on 
+Google+ to not show _every_ result, just a sample at each time interval. 
+But in that example, I would expect the server to be sending data much, 
+much slower than the user agent can handle it, so the topic of this thread 
+doesn't really come up.
+
+
+&gt;<i> Your second question is whether it's possible to stop the browser 
+</I>&gt;<i> reading from the socket. Yes, just don't return from your onmessage 
+</I>&gt;<i> handler until you've actually finished handling the message. If you fire 
+</I>&gt;<i> up a new worker then tell the browser you're done, you're seeing the 
+</I>&gt;<i> inevitable result of that. You have to wait on the worker - or, if you 
+</I>&gt;<i> want to process say four messages in parallel, wait on the worker pool 
+</I>&gt;<i> until it's dropped below four active before returning.
+</I>
+That's not actually possible in many cases. Some Web APIs (e.g. channel 
+messaging) are exclusively async, even in workers.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="041685.html">[whatwg] Behavior of anchor element when wrapping floated images
+</A></li>
+	<LI>Next message: <A HREF="083961.html">[whatwg] Flow Control on Websockets
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#41687">[ date ]</a>
+              <a href="thread.html#41687">[ thread ]</a>
+              <a href="subject.html#41687">[ subject ]</a>
+              <a href="author.html#41687">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

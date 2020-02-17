@@ -1,0 +1,173 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Proposal for separating script downloads and execution
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Proposal%20for%20separating%20script%20downloads%20and%20execution&In-Reply-To=%3CBANLkTimA-U-8rG9DTDGEc3STsP%3DZeUV2hg%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="031796.html">
+   <LINK REL="Next"  HREF="031798.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Proposal for separating script downloads and execution</H1>
+<!--htdig_noindex-->
+    <B>Aryeh Gregor</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Proposal%20for%20separating%20script%20downloads%20and%20execution&In-Reply-To=%3CBANLkTimA-U-8rG9DTDGEc3STsP%3DZeUV2hg%40mail.gmail.com%3E"
+       TITLE="[whatwg] Proposal for separating script downloads and execution">Simetrical+w3c at gmail.com
+       </A><BR>
+    <I>Wed May 25 17:44:39 PDT 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="031796.html">[whatwg] Proposal for separating script downloads and execution
+</A></li>
+        <LI>Next message: <A HREF="031798.html">[whatwg] Proposal for separating script downloads and execution
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#31797">[ date ]</a>
+              <a href="thread.html#31797">[ thread ]</a>
+              <a href="subject.html#31797">[ subject ]</a>
+              <a href="author.html#31797">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Wed, May 25, 2011 at 8:05 PM, Aryeh Gregor &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">Simetrical+w3c at gmail.com</A>&gt; wrote:
+&gt;<i> There's a big conceptual difference between parsing the script and
+</I>&gt;<i> executing it. &#160;We need to be careful not to conflate the two, even if
+</I>&gt;<i> browsers don't *currently* separate them.
+</I>
+I just discussed this on IRC with jamesr, of the Chrome team:
+
+<A HREF="http://krijnhoetmer.nl/irc-logs/whatwg/20110526#l-97">http://krijnhoetmer.nl/irc-logs/whatwg/20110526#l-97</A>
+
+According to him, the parsing and compilation time of JavaScript can't
+be usefully separated from the execution.  If you have a script that
+does nothing but define a big function, and it takes some time to run,
+it's because actually creating the objects and so on is taking the
+time, not anything that can be pushed off to a background thread.  So
+I stand corrected on that point.  It seems the only thing you could
+easily separate is the download.  Notable lines:
+
+# [02:19] &lt;AryehGregor&gt; But I assume everyone does something like
+compile the whole file to bytecode first thing, at least.
+# [02:19] &lt;jamesr&gt; no
+# [02:21] &lt;jamesr&gt; the only thing we do on a chunk of script in v8
+currently before starting to execute code is to essentially brace
+match
+# [02:21] &lt;jamesr&gt; also keep in mind that evaluating the source
+&quot;function foo() { }&quot; is _executing_ code
+# [02:21] &lt;AryehGregor&gt; The assertion in that thread is that
+compilation of large amounts of causes visible lag if it has to be
+done synchronously, even if the code doesn't actually do anything
+beyond define some functions.  Is that the case in V8?
+# [02:21] &lt;jamesr&gt; that's setting a variable called 'foo' on the global object
+# [02:22] &lt;jamesr&gt; i think that assertion is based on the time spent
+executing the code
+# [02:22] &lt;jamesr&gt; i.e. assigning the global variable to 'foo' and
+dealing with all the side effects of that
+# [02:22] &lt;jamesr&gt; which you can't meaningfully pass to another thread
+# [02:22] &lt;jamesr&gt; you can brace match on another thread, but that's
+not going to buy you much
+# [02:23] &lt;jamesr&gt; i haven't jumped in on that thread because everyone
+is using slightly different terminology and it's just kind of a mess
+:<i>/
+</I># [02:24] &lt;jamesr&gt; i think what authors want is a way to download
+script but not execute it
+# [02:32] &lt;AryehGregor&gt; According to you, though, use case A was incoherent.
+# [02:33] &lt;jamesr&gt; incoherent in modern JS engines where there's not
+much of a distinction between parse and execution, yes
+
+If I understand correctly, that means all of the following key
+statements are incorrect (someone please correct me if I
+misunderstood):
+
+On Mon, May 23, 2011 at 9:35 PM, Ian Hickson &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">ian at hixie.ch</A>&gt; wrote:
+&gt;<i> The problem here seems to boil down to &quot;we want our script-heavy page to
+</I>&gt;<i> load fast without blocking UI, but browsers block the UI thread while
+</I>&gt;<i> parsing after downloading but before executing&quot;.
+</I>&gt;<i>
+</I>&gt;<i> . . .
+</I>&gt;<i>
+</I>&gt;<i> Why? The parsing doesn't have to block loading; it can all happen in the
+</I>&gt;<i> background, while the page is loading.
+</I>&gt;<i>
+</I>&gt;<i> . . .
+</I>&gt;<i>
+</I>&gt;<i> Given that script execution (as opposed to the preprocessing that occurs
+</I>&gt;<i> before execution, including parsing and compilation) can be trivially
+</I>&gt;<i> fast (e.g. by making the script do nothing but expose an object) . . .
+</I>&gt;<i>
+</I>&gt;<i> . . .
+</I>&gt;<i>
+</I>&gt;<i> Given that the time the script takes to execute is already under the
+</I>&gt;<i> control of the author, and can be trivially short . . .
+</I>&gt;<i>
+</I>&gt;<i> . . .
+</I>&gt;<i>
+</I>&gt;<i> Problem A can't be the problem being
+</I>&gt;<i> solved here, since the execution takes a trivially short time compared to
+</I>&gt;<i> the download and compiling.
+</I>
+As far as I understand it now, the actual problem here is that we want
+to be able to separate download and execution, not parsing and
+execution.  But you can already do that by putting the whole script in
+a comment, for instance, as Gmail does, so I'm not clear at this point
+on why we need another feature in actual browsers.
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="031796.html">[whatwg] Proposal for separating script downloads and execution
+</A></li>
+	<LI>Next message: <A HREF="031798.html">[whatwg] Proposal for separating script downloads and execution
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#31797">[ date ]</a>
+              <a href="thread.html#31797">[ thread ]</a>
+              <a href="subject.html#31797">[ subject ]</a>
+              <a href="author.html#31797">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

@@ -1,0 +1,138 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Flow Control on Websockets
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Flow%20Control%20on%20Websockets&In-Reply-To=%3CCAN%2BZGEkfRdou0b91DhrXrdVhfLPxU40uhOmcgLeJp8C%2B1B3VdA%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="041153.html">
+   <LINK REL="Next"  HREF="083449.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Flow Control on Websockets</H1>
+<!--htdig_noindex-->
+    <B>Nicholas Wilson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Flow%20Control%20on%20Websockets&In-Reply-To=%3CCAN%2BZGEkfRdou0b91DhrXrdVhfLPxU40uhOmcgLeJp8C%2B1B3VdA%40mail.gmail.com%3E"
+       TITLE="[whatwg] Flow Control on Websockets">nicholas at nicholaswilson.me.uk
+       </A><BR>
+    <I>Thu Oct 17 09:56:15 PDT 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="041153.html">[whatwg] Flow Control on Websockets
+</A></li>
+        <LI>Next message: <A HREF="083449.html">[whatwg] Flow Control on Websockets
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#83427">[ date ]</a>
+              <a href="thread.html#83427">[ thread ]</a>
+              <a href="subject.html#83427">[ subject ]</a>
+              <a href="author.html#83427">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Hello Michael,
+
+If you're at all interested in the freshness of the data, you don't
+want to use TCP as your sole flowcontrol mechanism. It's fine for bulk
+file transfers, but think how many megabytes of buffering there can be
+- the sum of all the send buffers of all the intermediaries along the
+chain. On a low-loss network, the TCP window size will become very
+large. You quickly get to a point where the server's filled up all the
+buffers along the way, fine for file transfer, but potentially
+seconds'-worth of latency.
+
+So, you always need an application-level windowing setup for
+interactive flows. Just sending until the socket blocks will cause a
+backlog to build up.
+
+Your second question is whether it's possible to stop the browser
+reading from the socket. Yes, just don't return from your onmessage
+handler until you've actually finished handling the message. If you
+fire up a new worker then tell the browser you're done, you're seeing
+the inevitable result of that. You have to wait on the worker - or, if
+you want to process say four messages in parallel, wait on the worker
+pool until it's dropped below four active before returning.
+
+Implementing some flow control messages is not a bad thing at all. TCP
+is there to prevent traffic disaster, not to guarantee success.
+
+Nick
+
+-----
+Nicholas Wilson: <A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">nicholas at nicholaswilson.me.uk</A>
+
+
+On 17 October 2013 17:29, Michael Meier &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">mm at sigsegv.ch</A>&gt; wrote:
+&gt;<i> Hey
+</I>&gt;<i>
+</I>&gt;<i> This message is going to be a slight rewording and generalization of a
+</I>&gt;<i> question I asked yesterday on Stack Overflow. The SO question is here:
+</I>&gt;<i> <A HREF="http://stackoverflow.com/questions/19414277/can-i-have-flow-control-on-my-websockets">http://stackoverflow.com/questions/19414277/can-i-have-flow-control-on-my-websockets</A>
+</I>&gt;<i>
+</I>&gt;<i> Suppose I have a Websocket server and a WS client connected to it. The
+</I>&gt;<i> client is a JS script in a browser offering the standard WS API. The server
+</I>&gt;<i> produces data at a rate r1 and sends it to the client, which is able to
+</I>&gt;<i> meaningfully process data at a rate of r2, where r1 &gt; r2.
+</I>&gt;<i>
+</I>&gt;<i> The JS script registers an onmessage handler and is called every time the
+</I>&gt;<i> browser receives a message from the WS. Even if the JS script is still busy
+</I>&gt;<i> processing the received message, say over a chain of asynchronous calls, the
+</I>&gt;<i> browser might receive the next message and call onmessage again. For the
+</I>&gt;<i> script, there are two options to proceed. The first option is to drop data.
+</I>&gt;<i> This might not be possible in all applications and is also a shame, since
+</I>&gt;<i> the data has already been transported over the network. The second option is
+</I>&gt;<i> to buffer the data. This is not a real option, though, since it will buffer
+</I>&gt;<i> an ever increasing amount of data because r1 &gt; r2.
+</I>&gt;<i>
+</I>&gt;<i> If the JS script had a mechanism to tell the browser not to read further
+</I>&gt;<i> data from the TCP socket underlying the WS, TCP backpressure would naturally
+</I>&gt;<i> build up to the server.
+</I>&gt;<i>
+</I>&gt;<i> On the sending side of the browser, flow control seems to be possible by
+</I>&gt;<i> using the bufferedAmount attribute to decide when to pause and resume
+</I>&gt;<i> sending of data.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> Why is there such an assymetry between sending an receiving? Is it possible
+</I>&gt;<i> to have flow control on the receiving side without resorting to application
+</I>&gt;<i> level handshakes?*
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> Cheers,
+</I>&gt;<i> Michael
+</I>&gt;<i>
+</I>&gt;<i> * Which would reimplement large parts of TCP. Which is a shame to do when
+</I>&gt;<i> already running on a TCP connection and also a Bad Idea(TM).
+</I>
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="041153.html">[whatwg] Flow Control on Websockets
+</A></li>
+	<LI>Next message: <A HREF="083449.html">[whatwg] Flow Control on Websockets
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#83427">[ date ]</a>
+              <a href="thread.html#83427">[ thread ]</a>
+              <a href="subject.html#83427">[ subject ]</a>
+              <a href="author.html#83427">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

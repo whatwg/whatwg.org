@@ -1,0 +1,114 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] LocalStorage in workers
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20LocalStorage%20in%20workers&In-Reply-To=%3C5dd9e5c50909151856j4369b36epada4e230df96304a%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="065282.html">
+   <LINK REL="Next"  HREF="065271.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] LocalStorage in workers</H1>
+<!--htdig_noindex-->
+    <B>Jeremy Orlow</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20LocalStorage%20in%20workers&In-Reply-To=%3C5dd9e5c50909151856j4369b36epada4e230df96304a%40mail.gmail.com%3E"
+       TITLE="[whatwg] LocalStorage in workers">jorlow at chromium.org
+       </A><BR>
+    <I>Tue Sep 15 18:56:44 PDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="065282.html">[whatwg] Setting .value on &lt;input type=file&gt;
+</A></li>
+        <LI>Next message: <A HREF="065271.html">[whatwg] LocalStorage in workers
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#65266">[ date ]</a>
+              <a href="thread.html#65266">[ thread ]</a>
+              <a href="subject.html#65266">[ subject ]</a>
+              <a href="author.html#65266">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>I've talked to a lot of web developers about workers and the one thing that
+they keep expressing to me is how disappointing it is to not have access to
+LocalStorage.  I tell them about the &quot;work around&quot; which is to pass a
+message back to the page (or, in the case of shared workers, any page) and
+ask it to look up the value, but this approach is uninteresting to most of
+them.  Enough so that most of them have said they'd probably just wait until
+workers were more &quot;mature&quot; (and/or WebDatabase was more widely available)
+before bothering with them.
+The problem is that LocalStorage is a synchronous interface.  When you
+access it from a normal web page, all other event loops that try to access
+it will block until either you exit your script context or call
+yieldForStorageUpdates manually.  Of course, during this time, the UI of the
+browser will be locked up and many UAs would present the user with a slow
+script dialog.  This is (hopefully) enough to keep web apps reasonably in
+check.
+
+Unfortunately, it's perfectly reasonable for a worker to run forever.  For
+example, it might calculate pi.  If, for example, that worker periodically
+saved the value of pi to localStorage (and didn't call
+yieldForStorageUpdates) then you could block your other event loops forever.
+ Even if a worker held the lock for a couple hundred milliseconds, it could
+still affect the responsiveness of a web browser in a perceivable for no
+apparent reason (from the users perspective).  For this reason, it was taken
+out of the spec.
+
+One possible solution is to add an asynchronous callback interface for
+LocalStorage into workers.  For example:
+
+function myCallback(localStorage) {
+  localStorage.accountBalance = localStorage.accountBalance + 100;
+}
+executeLocalStorageCallback(myCallback);  // TODO: Make this name better
+ :-)
+
+The interface is simple.  You can only access localStorage via a callback.
+ Any use outside of the callback is illegal and would raise an exception.
+ The callback would acquire the storage mutex during execution, but the
+worker's execution would not block during this time.  Of course, it's still
+possible for a poorly behaving worker to do large amounts of computation in
+the callback, but hopefully the fact they're executing in a callback makes
+the developer more aware of the problem.
+
+I admit that this is not a great solution and would definitely like to hear
+alternate proposals.  But, no matter what, I think we need to think
+seriously about giving workers access to LocalStorage again.
+
+J
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: &lt;<A HREF="http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20090915/35ff656d/attachment-0002.htm">http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20090915/35ff656d/attachment-0002.htm</A>&gt;
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="065282.html">[whatwg] Setting .value on &lt;input type=file&gt;
+</A></li>
+	<LI>Next message: <A HREF="065271.html">[whatwg] LocalStorage in workers
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#65266">[ date ]</a>
+              <a href="thread.html#65266">[ thread ]</a>
+              <a href="subject.html#65266">[ subject ]</a>
+              <a href="author.html#65266">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

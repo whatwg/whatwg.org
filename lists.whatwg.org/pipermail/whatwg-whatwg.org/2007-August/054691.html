@@ -1,0 +1,278 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Offline Web Apps
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Offline%20Web%20Apps&In-Reply-To=%3CPine.LNX.4.64.0708232358420.22616%40dhalsim.dreamhost.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="054702.html">
+   <LINK REL="Next"  HREF="054692.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Offline Web Apps</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Offline%20Web%20Apps&In-Reply-To=%3CPine.LNX.4.64.0708232358420.22616%40dhalsim.dreamhost.com%3E"
+       TITLE="[whatwg] Offline Web Apps">ian at hixie.ch
+       </A><BR>
+    <I>Thu Aug 23 18:42:45 PDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="054702.html">[whatwg] Answering the question... (timing of table headers issue)
+</A></li>
+        <LI>Next message: <A HREF="054692.html">[whatwg] Offline Web Apps
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#54691">[ date ]</a>
+              <a href="thread.html#54691">[ thread ]</a>
+              <a href="subject.html#54691">[ subject ]</a>
+              <a href="author.html#54691">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>
+(If you reply, please only include one of the mailing lists in your 
+reply. Thanks.)
+
+
+So I read through all the offline Web app discussions:
+
+   <A HREF="http://www.whatwg.org/issues/#filesystem">http://www.whatwg.org/issues/#filesystem</A>
+   <A HREF="http://code.google.com/apis/gears/api_localserver.html">http://code.google.com/apis/gears/api_localserver.html</A>
+   <A HREF="http://www.campd.org/stuff/Offline%20Cache.html">http://www.campd.org/stuff/Offline%20Cache.html</A>
+
+...and various others.
+
+
+USER INTERACTION SCENARIOS
+
+It seems like we are talking about the following kinds of scenarios:
+
+1. User goes to a page, then, without closing the page, goes offline
+   and uses it, then goes back online and continues to use it. The
+   page and its subresources are always at their most
+   up-to-date. Interactions with the page while offline are synced to
+   the server when going online.
+
+2. User goes to a page, then closes the browser. User restarts the
+   browser while offline, and goes to the page. User restarts the
+   browser again while online, and goes to the page. The page and its
+   subresources are always at their most up-to-date. Interactions with
+   the page while offline are synced to the server when going online.
+
+3. Same as 1 or 2, except that the user is not online for long enough
+   to fully download the updated resources. The application doesn't stop 
+   working, it is still usable the second time the user is offline.
+
+
+OTHER NEEDS
+
+We also seem to have the following requirements:
+
+ * Some way to specify what pages are needed while offline, even if
+   the page doesn't link to it.
+
+ * Some way to handle two offline Web apps both using the same
+   secondary resource, if we have some sort of versioning scheme. (So
+   you can update the two apps independently without breaking either
+   despite them using the same resource.)
+
+ * Resilience to updates -- if the page is open when you go online and
+   there's an update pending, or when you go online just as you're
+   loading the page (common with wireless networks, since you're
+   likely to take a few seconds to connect and your browser is often
+   ready beforehand) and there's an update pending.
+
+ * Resilience to broken updates. (More than the reload button?)
+
+ * There needs to be a way for the application to talk to the server
+   without talking to the offline cache.
+
+ * The API should be simple, both to authors on the client side, and
+   to authors on the server side, and to the end user, and ideally to
+   the implementors (and to me, the spec author!).
+
+
+QUESTIONS
+
+ * Does an app have to be multiple top-level pages, or can we assume
+   an app is a single page? (The idea below assumes single-page apps.)
+
+ * Do we really need a way to ignore the query parameters when
+   fetching and serving from cache when offline? (The idea below assumes 
+   not. I don't really understand the use case if the answer is yes.)
+
+ * Do we really need a way to check the status of cookies when
+   fetching pages? (The idea below assumes not, since the discussion 
+   earlier seemed to establish that wasn't necessary.)
+
+
+IDEA
+
+Ok so here's my idea based on the existing ideas, the comments on those 
+ideas, and so forth. One of my main goals was keeping everything as simple 
+as possible.
+
+My proposal is that we add a new attribute to the &lt;html&gt; element, which 
+flags that the page is a Web app that wants to be pinned for offline 
+execution and that when you next fetch the file or one of its subresources 
+while online, it should try to update all the subresources atomically.
+
+   &lt;html application&gt;
+
+This could either trigger the different behaviour automatically, or only 
+when requested by the user, or we could say this applies to any page, but 
+that the user must enable it, or we could provide an API which triggers 
+this for the page. I kind of like the explicit attribute, though.
+
+For pages that say this:
+
+ * If the page is already in cache, load the page and all its
+   resources from the cache.
+
+ * If the page is not in the cache, create a new cache for it and start 
+   storing it there. Then display it from the cache (loading 
+   incrementally, so the first load is indistinguishable to the user 
+   from any other load).
+
+ * Any resources it uses go into the cache. Different applications
+   (HTML files with &lt;html application&gt;) that use the same resources
+   (even if they are on other domains) result in multiple conceptual
+   copies in different (per-app) caches, and with updates (see below)
+   they can end up being at different revisions. This ensures that an
+   application always has one coherent set of files from the time of
+   its last update, with none of its components updating unexpectedly.
+
+   The main UA cache should always have the latest file that was fetched, 
+   so if you visit the URL directly while offline you could see a 
+   different version than the version that a particular Web app sees. Web 
+   developer tools might offer a way to pick which app cache to use when 
+   looking at files for debugging.
+
+ * The cache ignores cache expiration headers, keeping all content
+   even when it is stale, though the headers are still used when 
+   contacting the server to update data, as described below.
+
+ * Any requests other than GET always bypass the webapp cache.
+
+ * Every time a file is accessed from the cache, if you're online,
+   check that the file hasn't changed. (Possibly this could be 
+   rate-limited.) This would use normal (conditional) HTTP GET requests.
+   Possibly, also check the main app's page for changes.
+
+ * If the file has changed and is returning a 200 response, then
+   create a new cache and a browsing context in the background. Save
+   the new file to that cache, then load the main page in that
+   browsing context, saving everything to the new cache. While that
+   page is loading, the UA should indicate &quot;downloading new
+   version...&quot; somewhere. If the download succeeds, and the page has
+   an &lt;html application&gt; attribute, wait until that page is ready
+   (onload=&quot;&quot; has fired). Then, fire a &quot;newversion&quot; event at the body
+   element of the page in the browsing context that the user is
+   interacting with, passing a handle to the 'window' in the
+   background. The page has three choices:
+
+     * invoke location.reload(), which swaps in the next cache then
+       reloads the page.
+     * invoke a method to swap in the new cache without reloading,
+       in which case the author is responsible for updating running 
+       scripts, etc -- this could be dangerous, as the page could end
+       up unusable, the user could just reload... Is that good enough?
+     * ignore the event, in which case the UA shows an infobar saying 
+       there's an update available and offering the user the option of 
+       reloading the page and warning about losing any unsaved changes.
+
+   Then, blow away the background browsing context. The background
+   browsing context is useful for two things: 1. it allows for script
+   to decide which files to include as well as allowing the UA to
+   download all the images, stylesheets, etc, that it finds the page
+   using; 2. it allows for the new page to communicate to the old page
+   before the old page decides whether to self-destruct or to stay up
+   but just have its cache swapped out from under it.
+
+ * If the update fails -- that is, if there are any DNS problems, or
+   if any of the resources returned a 4xx or 5xx code, or if the UA
+   went offline while downloading pages, then the download was not
+   successful. The UA should alert the user to this fact somehow
+   (infobar maybe) -- &quot;An error occurred while updating the
+   application. (( View details )) [x]&quot; -- and then wait a few minutes
+   (or longer if it can tell it'll fail again) before trying again.
+
+ * If the update fetches a top-level page that doesn't have an &lt;html
+   application&gt; header, then inform the user, e.g. an infobar saying
+   something like &quot;This application may no longer be available. ((
+   View new page in a new window )) (( Delete application from cache
+   )) (( Keep application in cache and check for updates later ))
+   [x]&quot;. The first of these buttons would just show the background
+   browsing context in the foreground. The second would delete the
+   webapp cache and reload the page from the normal cache, and the
+   third would just not do anything special. (None of the proposals I've 
+   seen really handle the case of the Web app being no longer available.
+   This handles it for this proposal, but maybe there are better ways. 
+   Also, maybe we should do this for 404 and/or 410 responses too.)
+
+ * Modal alerts (window.alert, .prompt, etc) in the background page
+   can either raise an exception, be ignored, drop a message to a
+   console, or possibly display a message over the top of the
+   foreground app's browsing context. It doesn't really matter so long as 
+   we define it.
+
+ * When a file is fetched by the main page loading in a background
+   browsing context, the loads are conditional loads, so that files
+   that haven't changed since the previous update are directly copied
+   from the old cache.
+
+ * The user hitting Reload always blows away the cache and starts over.
+
+ * We provide not much of an API:
+
+    * a method to add a file to the cache programatically (or check it
+      for changes if it is already there; if there are changes, the
+      above procedure for updating will go into play). (Asynchronous,
+      but delays the 'load' event if called during load.)
+
+    * a method for a Window to tell if it's running normally or if
+      it's running as part of a background process updating itself.
+
+ * When you navigate away from the top-level page, the cache is closed
+   and kept for later (though UAs could still expire them if left
+   unused, like cookies, databases, etc, could be expired too).
+
+Comments?
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="054702.html">[whatwg] Answering the question... (timing of table headers issue)
+</A></li>
+	<LI>Next message: <A HREF="054692.html">[whatwg] Offline Web Apps
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#54691">[ date ]</a>
+              <a href="thread.html#54691">[ thread ]</a>
+              <a href="subject.html#54691">[ subject ]</a>
+              <a href="author.html#54691">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

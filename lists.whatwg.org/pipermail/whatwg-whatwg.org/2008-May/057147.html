@@ -1,0 +1,619 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] The &lt;iframe&gt; element and sandboxing ideas
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20The%20%3Ciframe%3E%20element%20and%20sandboxing%20ideas&In-Reply-To=%3CPine.LNX.4.62.0805210601200.12911%40hixie.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="057110.html">
+   <LINK REL="Next"  HREF="057149.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] The &lt;iframe&gt; element and sandboxing ideas</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20The%20%3Ciframe%3E%20element%20and%20sandboxing%20ideas&In-Reply-To=%3CPine.LNX.4.62.0805210601200.12911%40hixie.dreamhostps.com%3E"
+       TITLE="[whatwg] The &lt;iframe&gt; element and sandboxing ideas">ian at hixie.ch
+       </A><BR>
+    <I>Wed May 21 15:30:48 PDT 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="057110.html">[whatwg] iframe width/height
+</A></li>
+        <LI>Next message: <A HREF="057149.html">[whatwg] The &lt;iframe&gt; element and sandboxing ideas
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#57147">[ date ]</a>
+              <a href="thread.html#57147">[ thread ]</a>
+              <a href="subject.html#57147">[ subject ]</a>
+              <a href="author.html#57147">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>
+Summary:
+
+ * I've added a sandbox=&quot;&quot; attribute to &lt;iframe&gt;, which by default
+   disables a number of features and takes a space-separated list of
+   features to re-enable:
+
+     - by default, content in sandboxed browsing contexts, and any
+       browsing contexts nested in them, have a unique origin
+       (independent of the origin of their URI); this can be overriden
+       using the &quot;allow-same-origin&quot; keyword
+
+     - by default, all form controls in those browsing contexts are
+       disabled; this can be overriden using the &quot;allow-forms&quot;
+       keyword
+
+     - by default, script in those browsing contexts cannot run; this can
+       be overriden using the &quot;allow-scripts&quot; keyword
+
+     - content in those browsing contexts cannot navigate other
+       browsing contexts outside of the sandbox (seamless=&quot;&quot; below
+       overrides this)
+
+     - content in those browsing contexts cannot create new browsing
+       contexts or open modal dialogs or alerts
+
+     - all plugins in those browsing contexts are disabled
+
+ * I've added a seamless=&quot;&quot; boolean attribute to &lt;iframe&gt;, which, if
+   the content's active document's URI has the same origin as the
+   container, causes the iframe to size vertically to the bounding box
+   of the contents, and horizontally to the width of the container,
+   and which causes the initial containing block of the contents to be
+   treated as zero height. In addition, styles on the root element of
+   the content must inherit from the &lt;iframe&gt; instead of being the
+   initial values, and the style sheets that apply to the &lt;iframe&gt;
+   must also apply to the contents. In addition, any time the browsing
+   context navigates itself, the parent browsing context gets
+   navigated instead.
+
+This is all HIGHLY EXPERIMENTAL. I am looking for feedback on the general 
+approaches taken.
+
+There are various things that this doesn't address yet; e.g. there's no 
+way to force (or even allow) a non-seamless iframe to open links in the 
+parent window.
+
+
+On Thu, 9 Mar 2006, Alexey Feldgendler wrote:
+&gt;<i> 
+</I>&gt;<i> Let's imagine a blogging website that allows anybody to create a blog 
+</I>&gt;<i> which is available as <A HREF="http://www.example.com/blogs/username/.">http://www.example.com/blogs/username/.</A> Many such 
+</I>&gt;<i> sites allow various user customization, so imagine this site lets the 
+</I>&gt;<i> blog owner to supply custom HTML to display on top of the blog page. 
+</I>&gt;<i> This is primarily used by blog authors to design stylish navigation. To 
+</I>&gt;<i> make such navigation menus more attractive, the authors wish to use 
+</I>&gt;<i> JavaScript and Flash, but unrestricted JavaScript would make it possible 
+</I>&gt;<i> for the blog owner to steal visitors' session cookies.
+</I>&gt;<i> 
+</I>&gt;<i> The blog author logs in and opens some kind of customization screen:
+</I>&gt;<i> 
+</I>&gt;<i> HTML to display on top of your blog: [TEXTAREA]
+</I>&gt;<i> [SUBMIT]
+</I>&gt;<i> 
+</I>&gt;<i> So, imagine the blog author enters into the textarea:
+</I>&gt;<i> 
+</I>&gt;<i> Welcome to my blog!&lt;/sandbox&gt;&lt;a href=&quot;#&quot;
+</I>&gt;<i> onclick=&quot;alert(document.cookie)&quot;&gt;Click here&lt;/a&gt;
+</I>&gt;<i> 
+</I>&gt;<i> After submission, this code is fed to the HTML cleaner. At present, HTML 
+</I>&gt;<i> cleaners are usually complicated scripts which try to catch known quirks 
+</I>&gt;<i> of the user agents, and still they usually have security holes found one 
+</I>&gt;<i> after another. See for example 
+</I>&gt;<i> <A HREF="http://cvs.livejournal.org/browse.cgi/livejournal/cgi-bin/cleanhtml.pl.">http://cvs.livejournal.org/browse.cgi/livejournal/cgi-bin/cleanhtml.pl.</A> 
+</I>&gt;<i> With HTML 5 parsing spec, there will be one single algorithm for parsing 
+</I>&gt;<i> HTML code with well-defined error recovery. So, the HTML cleaner at the 
+</I>&gt;<i> server side runs the HTML 5 parser on the user-supplied text, which 
+</I>&gt;<i> produces the following DOM:
+</I>&gt;<i> 
+</I>&gt;<i> * Welcome to my blog!
+</I>&gt;<i> * A
+</I>&gt;<i>     href=&quot;#&quot;
+</I>&gt;<i>     onclick=&quot;alert(document.cookie)&quot;
+</I>&gt;<i>   * Click here
+</I>&gt;<i> 
+</I>&gt;<i> The &lt;/sandbox&gt; tag is ignored as an easy parse error because there is no 
+</I>&gt;<i> matching &lt;sandbox&gt; tag in the user-supplied text. After parsing, the 
+</I>&gt;<i> HTML cleaner iterates through the tree, renaming potentially unsafe 
+</I>&gt;<i> elements and attributes, producing the following:
+</I>&gt;<i> 
+</I>&gt;<i> * Welcome to my blog!
+</I>&gt;<i> * A
+</I>&gt;<i>     href=&quot;#&quot;
+</I>&gt;<i>     safe-onclick=&quot;alert(document.cookie)&quot;
+</I>&gt;<i>   * Click here
+</I>&gt;<i> 
+</I>&gt;<i> At the final stage, the HTML cleaner re-serializes the DOM into the 
+</I>&gt;<i> following code, which is saved into the database:
+</I>&gt;<i> 
+</I>&gt;<i> Welcome to my blog!&lt;a href=&quot;#&quot; 
+</I>&gt;<i> safe-onclick=&quot;alert(document.cookie)&quot;&gt;Click here&lt;/a&gt;
+</I>&gt;<i> 
+</I>&gt;<i> When the site renders the blog page, it puts the &quot;HTML for page top&quot; 
+</I>&gt;<i> inside a sandbox:
+</I>&gt;<i> 
+</I>&gt;<i> &lt;body&gt;
+</I>&gt;<i> &lt;sandbox&gt;
+</I>&gt;<i> Welcome to my blog!&lt;a href=&quot;#&quot; safe-onclick=&quot;alert(document.cookie)&quot;&gt;Click
+</I>&gt;<i> here&lt;/a&gt;
+</I>&gt;<i> &lt;/sandbox&gt;
+</I>&gt;<i> ...
+</I>&gt;<i> &lt;/body&gt;
+</I>&gt;<i> 
+</I>&gt;<i> Each blog entry is probably also contained in its own sandbox. This is 
+</I>&gt;<i> even more important on the so-called friends pages, where entries by 
+</I>&gt;<i> different authors are displayed on the same page.
+</I>&gt;<i> 
+</I>&gt;<i> When the page is rendered in a modern user agent which supports 
+</I>&gt;<i> sandboxing, the safe-onclick attribute is interpreted exactly the same 
+</I>&gt;<i> as onclick. When the user clicks the link, the event handler is 
+</I>&gt;<i> executed. Because the code is inside the sandbox, it operates on a fake 
+</I>&gt;<i> document object, so it doesn't retrieve the cookies (I think 
+</I>&gt;<i> document.cookie should just return an empty string). The visitor's 
+</I>&gt;<i> session cookies are safe.
+</I>&gt;<i> 
+</I>&gt;<i> When the page is rendered in an older user agent which doesn't support 
+</I>&gt;<i> sandboxing, the safe-onclick attribute is ignored because it is unknown. 
+</I>&gt;<i> When the user clicks the link, no event handler is executed, and the 
+</I>&gt;<i> cookies are safe again.
+</I>
+You can do this now (though it's far uglier) by taking the author's markup 
+and converting it to base64, and then stuffing it into an iframe something 
+like this:
+
+   &lt;iframe seamless sandbox=&quot;allow-scripts allow-forms&quot;
+           src=&quot;data:text/html;base64,PCFET0NUWVBFIEhUTUw%2BPHRpdGxlPjwvdGl0bGU%2BV2VsY29tZSB0byBteSBibG9nITwvc2FuZGJveD48YSBocmVmPSIjIiBvbmNsaWNrPSJhbGVydChkb2N1bWVudC5jb29raWUpIj5DbGljayBoZXJlPC9hPg0K&quot;&gt;
+   &lt;/iframe&gt;
+
+This isn't very readable, I'll grant you. I'm thinking of introducing a 
+new attribute. I haven't worked out what to call it yet, but definitely 
+not &quot;src&quot;, &quot;source&quot;, &quot;src2&quot;, &quot;content&quot;, &quot;value&quot;, or &quot;data&quot; -- maybe 
+&quot;html&quot; or &quot;doc&quot;, though neither of those are great. This attribute would 
+take a string which would then be interpreted as the source document 
+markup of an HTML document, much like the above; it would override src=&quot;&quot; 
+if it was present, allowing src=&quot;&quot; to be used for legacy UAs:
+
+   &lt;iframe seamless sandbox=&quot;allow-scripts allow-forms&quot; doc=&quot;
+     &lt;!DOCTYPE HTML&gt;
+     &lt;title&gt;&lt;/title&gt;
+     Welcome to my blog!
+     &lt;/sandbox&gt;
+     &lt;a href='#' onclick='alert(document.cookie)'&gt;Click here&lt;/a&gt;
+   &quot;&gt;&lt;/iframe&gt;
+
+(There are things we can do to make this better, e.g. make the &lt;!DOCTYPE 
+HMTL&gt; and &lt;title&gt;&lt;/title&gt; bits implicit, maybe introducing type=&quot;&quot; to say 
+whether it's HTML or XML instead of only supporting HTML, maybe saying 
+that if src=&quot;&quot; and doc=&quot;&quot; are both specified they must have identical 
+data, etc.)
+
+Comments and suggestions on this are welcome. I haven't added it to the 
+spec yet. I do agree that without this or something equivalent that we 
+don't have a solution for sandboxing embedded blog comments yet.
+
+
+On Mon, 23 Apr 2007, Jonas Sicking wrote:
+&gt;<i>
+</I>&gt;<i> The idea is basically an element like &lt;iframe&gt; but that renders the 
+</I>&gt;<i> linked page, instead of inside a square area, in flow with the main 
+</I>&gt;<i> page. This idea is really rough still, but I hope to try to implement it 
+</I>&gt;<i> in a not too distant future to solidify it a bit. One thing very much up 
+</I>&gt;<i> in the air is what the element would be called. Suggestions welcome, but 
+</I>&gt;<i> I'm using the name &lt;include&gt; below.
+</I>
+I've basically added this to &lt;iframe&gt; using the seamless=&quot;&quot; attribute.
+
+
+&gt;<i> Should the stylesheets of the outer or the inner document be used?
+</I>
+I went with &quot;yes&quot;.
+
+
+&gt;<i> When a fragment identifier is specified, should we render that element, 
+</I>&gt;<i> or its children?
+</I>
+I went with making that work the same as with normal &lt;iframe&gt;s (so likely 
+no effect if the default shrink-wrapping-to-boundary-box behaviour is in 
+effect).
+
+
+&gt;<i> Should style be inherited from the parent of the &lt;include&gt;, or from the 
+</I>&gt;<i> DOM parent in the inner document?
+</I>
+I've made inheritance happen from &lt;iframe&gt; to root element.
+
+
+&gt;<i> Should the inner DOM be rendered inside of, or in place of the &lt;include&gt;?
+</I>
+I've made this happen as with &lt;iframe&gt;.
+
+
+On Mon, 23 Apr 2007, Gervase Markham wrote:
+&gt;<i>
+</I>&gt;<i> <A HREF="https://bugzilla.mozilla.org/show_bug.cgi?id=80713">https://bugzilla.mozilla.org/show_bug.cgi?id=80713</A>
+</I>
+I've taken the notes there into account.
+
+
+On Mon, 23 Apr 2007, Jonas Sicking wrote:
+&gt;<i> 
+</I>&gt;<i> There's a big difference to that and to what I'm proposing. With what's 
+</I>&gt;<i> in bug 80713 you're still limited to a box that basically doesn't take 
+</I>&gt;<i> part of the outer page at all. For example in the table example in my 
+</I>&gt;<i> original post the headers of the table would not resize to fit the 
+</I>&gt;<i> column sizes in the &lt;include&gt;ed table.
+</I>
+Woah. That's far more radical. I have no idea how to do that. How would 
+you make the parser not generate the implied elements and switch straight 
+to the &quot;in table&quot; mode? How would you make the CSS model work with this? 
+How would you define conformance for the document fragments?
+
+
+On Thu, 26 Apr 2007, Martin Atkins wrote:
+&gt;<i> 
+</I>&gt;<i> Would documents included via &lt;include&gt; run in the security context of 
+</I>&gt;<i> the including page, as with the script technique, or would they run in 
+</I>&gt;<i> the context of the included document, as with iframes?
+</I>
+The sandbox=&quot;&quot; attribute can be specified to change it from the former to 
+the latter (and in fact, from the former to an isolated origin regardless 
+of the true origin of the document).
+
+
+On Fri, 27 Apr 2007, Jonas Sicking wrote:
+&gt;<i> 
+</I>&gt;<i> They would run in the context of the included page, just like an iframe. 
+</I>&gt;<i> The processing of &lt;include&gt; is exactly that of &lt;iframe&gt; the only 
+</I>&gt;<i> difference is in the rendering.
+</I>
+It may be worth bringing this up with the CSSWG if it really is just a 
+rendering issue.
+
+
+On Tue, 8 May 2007, Dean Edwards wrote:
+&gt;<i> 
+</I>&gt;<i> XBL has an attribute to cover inherited styles, so you're right. 
+</I>&gt;<i> Realistically, I can't see Microsoft ever implementing XBL (I hope I'm 
+</I>&gt;<i> wrong). So adding it to HTML might be the only way to achieve this 
+</I>&gt;<i> functionality.
+</I>
+Inventing a new technology that does the same as another on the basis that 
+the UAs will implement one but not the other seems dubious at best.
+
+
+&gt;<i> Kind of like an &lt;iframe&gt; but without an external source.
+</I>
+Would the doc=&quot;&quot; proposal above be enough?
+
+
+On Tue, 8 May 2007, Henri Sivonen wrote:
+&gt;<i> 
+</I>&gt;<i> I wonder if this issue could be solved on the layout/CSS level by 
+</I>&gt;<i> providing a way to make the height of an iframe depend on the actual 
+</I>&gt;<i> height of the root element of the document loaded in the iframe. That 
+</I>&gt;<i> is, would it be feasible to make the iframe contents have the layout/UI 
+</I>&gt;<i> feel of a part of the parent page while keeping the DOMs and script 
+</I>&gt;<i> security contexts separate?
+</I>
+That's pretty much what seamless=&quot;&quot; does, yes.
+
+
+On Tue, 8 May 2007, Jon Barnett wrote:
+&gt;<i> 
+</I>&gt;<i> <A HREF="http://www.w3.org/TR/css3-box/#intrinsic0">http://www.w3.org/TR/css3-box/#intrinsic0</A> (and also CSS2 10.6)
+</I>&gt;<i> Since CSS doesn't attempt to specify the intrinsic width of a document in an
+</I>&gt;<i> iframe, maybe HTML5 should specify that the intrinsic width of a document
+</I>&gt;<i> is:
+</I>&gt;<i> - if the CSS width property is specified on the html element, the margin-box
+</I>&gt;<i> of the page at that width (which may have overflow)
+</I>&gt;<i> - else, if the CSS min-width property is specified on the html element, the
+</I>&gt;<i> margin-box of the page at that width (which may have overflow)
+</I>&gt;<i> - else, the smallest width the page can have without horizontal scrolling
+</I>&gt;<i> and the intrinsic height of the document is:
+</I>&gt;<i> - if the CSS height or min-height property are set, similar to above,
+</I>&gt;<i> - else, the smallest height the page can have at the intrinsic width of the
+</I>&gt;<i> document without vertical scrolling
+</I>
+That seems overly complicated, but the spec says something similar in 
+fewer words.
+
+
+On Thu, 10 May 2007, Magnus Gasslander wrote:
+&gt;<i>
+</I>&gt;<i> I see you have done some work to prevent reflow loops with percentage 
+</I>&gt;<i> root heights &gt; 100%, but how does your patch handle an iframe document 
+</I>&gt;<i> that looks like this? (I can think of nastier testcases also, where 
+</I>&gt;<i> &quot;bottom&quot;  is embedded further down in the document)
+</I>&gt;<i> 
+</I>&gt;<i> &lt;html&gt;
+</I>&gt;<i> &lt;head&gt;
+</I>&gt;<i> &lt;/head&gt;
+</I>&gt;<i> &lt;body&gt;
+</I>&gt;<i> &lt;div style=&quot;position:absolute;bottom:-5px;&quot;&gt;This will force a scrollbar on the
+</I>&gt;<i> document&lt;/div&gt;
+</I>&gt;<i> &lt;/body&gt;
+</I>&gt;<i> &lt;/html&gt;
+</I>
+As far as I can tell, the spec handles this fine.
+
+
+On Mon, 14 May 2007, Michel Fortin wrote:
+&gt;<i> 
+</I>&gt;<i> What about encoding the content of each comment iframe in a &quot;data:&quot; URI?
+</I>
+That unfortunately isn't compatible with IE, and has rather unfortunate 
+non-trivial escaping requirements.
+
+
+On Mon, 14 May 2007, Jon Barnett wrote:
+&gt;<i> 
+</I>&gt;<i> The contents of an iframe with a data: URI source should be trusted, 
+</I>&gt;<i> unlike an iframe with an http: URI source from another domain.  A script 
+</I>&gt;<i> in an iframe with a data: URI source should, by default, be able to 
+</I>&gt;<i> communicate with the parent window.  So, that alone doesn't solve the 
+</I>&gt;<i> problem.
+</I>
+Adding sandbox=&quot;&quot; solves this (at least for new UAs).
+
+
+On Mon, 14 May 2007, Alexey Feldgendler wrote:
+&gt;<i> 
+</I>&gt;<i> Not to mention that data: URIs are ugly, wasteful (because of the BASE64 
+</I>&gt;<i> encoding), cannot be read and written by humans directly, and have 
+</I>&gt;<i> maximum length problems in some implementations.
+</I>
+Right.
+
+
+On Mon, 14 May 2007, Alexey Feldgendler wrote:
+&gt;<i> 
+</I>&gt;<i> Yes, I want the sandbox to degrade securely, as does any webmaster who 
+</I>&gt;<i> might be going to allow some user-supplied scripting while relying on 
+</I>&gt;<i> sandboxing for security. To cover its use cases, this feature must 
+</I>&gt;<i> degrade securely.
+</I>
+Degrade securely _and usefully_, or just securely (and maybe to nothing)?
+
+The latter is handled by the doc=&quot;&quot; proposal. The former may be impossible 
+without server-side filtering.
+
+
+&gt;<i> This does degrade securely, doesn't require separate HTTP requests, and
+</I>&gt;<i> maintains human readability.
+</I>&gt;<i> <A HREF="http://lists.whatwg.org/pipermail/whatwg-whatwg.org/2005-December/005301.html">http://lists.whatwg.org/pipermail/whatwg-whatwg.org/2005-December/005301.html</A>
+</I>
+This still requires server-side filtering, though.
+
+
+On Mon, 14 May 2007, Michel Fortin wrote:
+&gt;<i> 
+</I>&gt;<i> People are already struggling to remove all scripts from HTML snippets. 
+</I>&gt;<i> I don't think finding all these occurrence and replacing them is going 
+</I>&gt;<i> to be much better. Also, you'd need safe-style=&quot;&quot; and &lt;safe-style&gt; too, 
+</I>&gt;<i> since IE can embed javascript expressions into style rules. (And now 
+</I>&gt;<i> lets hope IE does not allow expression elsewhere.)
+</I>
+Indeed.
+
+
+&gt;<i> This principle could be transposed to &lt;sandbox&gt;, where it could be 
+</I>&gt;<i> defined as taking the unsafe HTML content from an attribute. And the 
+</I>&gt;<i> best part: you don't need anything else like the safe-* substitutions as 
+</I>&gt;<i> suggested earlier for &lt;sandbox&gt;:
+</I>&gt;<i> 
+</I>&gt;<i>     &lt;sandbox type=&quot;text/html&quot; content=&quot;
+</I>&gt;<i>       &lt;p&gt;&quot;Unsafe&quot; content here:&lt;/p&gt;
+</I>&gt;<i>       &lt;script&gt;
+</I>&gt;<i>         document.write(window.parent.location)
+</I>&gt;<i>       &lt;/script&gt;
+</I>&gt;<i>     &quot;&gt;
+</I>&gt;<i>        Alternative, possibly degraded but safe content for older browsers.
+</I>&gt;<i>     &lt;/sandbox&gt;
+</I>
+I think we'd want to use &lt;iframe&gt; for this, but otherwise, yes.
+
+
+On Tue, 15 May 2007, Gervase Markham wrote:
+&gt;<i> 
+</I>&gt;<i> Would you really want separate security contexts for each comment?
+</I>
+On Tue, 15 May 2007, Alexey Feldgendler wrote:
+&gt;<i> 
+</I>&gt;<i> I wouldn't want to allow people screw up others' comments, making it 
+</I>&gt;<i> look that other users wrote what they didn't write. So, yes, it's 
+</I>&gt;<i> important that any code within a comment cannot change anything but 
+</I>&gt;<i> itself. This also means that the comment should be unable to change the 
+</I>&gt;<i> header/footer around it to pretend that someone else wrote it.
+</I>
+Documents per comment are expensive, but they do seem to be what we need 
+(or maybe want) here.
+
+
+On Tue, 15 May 2007, Kristof Zelechovski wrote:
+&gt;<i>
+</I>&gt;<i> The OP probably meant that maintaining so many contexts would cause a 
+</I>&gt;<i> comparable deterioration in performance.  All user comments should be 
+</I>&gt;<i> put in one security context.
+</I>&gt;<i>
+</I>&gt;<i> With all comments grouped together in such a manner, you could even use 
+</I>&gt;<i> an inline frame.
+</I>
+While simple, this wouldn't let you do things like have trusted content 
+interleaved with comments (e.g. &quot;edit&quot; and &quot;reply&quot; links), which is 
+common.
+
+
+On Tue, 15 May 2007, Jon Barnett wrote:
+&gt;<i> 
+</I>&gt;<i> I really think comments are a bad use case.  Why would someone allow 
+</I>&gt;<i> scripts in comments in any context, much less a sandboxed one?
+</I>
+You wouldn't, but you would want to prevent scripts from running 
+altogether.
+
+
+&gt;<i> The best use case I have thought of so far is MySpace et. al., a site 
+</I>&gt;<i> where users have their own page with limited permission in the context 
+</I>&gt;<i> of the overall site.  MySpace solves this by not allowing scripts at 
+</I>&gt;<i> all, as most such web sites do.  If possible, such sites might allow a 
+</I>&gt;<i> user to insert widget scripts with limited permissions.  For this use 
+</I>&gt;<i> case, iframe isn't ideal, either, but limited scripting and styling are 
+</I>&gt;<i> desired.
+</I>
+Would the spec's current proposals work?
+
+
+On Wed, 9 May 2007, Alexey Feldgendler wrote:
+&gt;<i> On Tue, 08 May 2007 05:50:38 +0200, Ian Hickson &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">ian at hixie.ch</A>&gt; wrote:
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; This probably depends on the use cases in question. For some use 
+</I>&gt;<i> &gt; cases, the status quo is in fact the script running with full 
+</I>&gt;<i> &gt; privileges, so while not being ideal, it is indeed acceptable; in 
+</I>&gt;<i> &gt; other cases, you wouldn't want scripts to run at all if they weren't 
+</I>&gt;<i> &gt; limited in some way.
+</I>&gt;<i> 
+</I>&gt;<i> A security feature, by definition, protects the users from a certain 
+</I>&gt;<i> class of attacks. An attack needs to be only successful in one browser 
+</I>&gt;<i> to do harm. For example, a malicious advertising script which actually 
+</I>&gt;<i> steals passwords entered by users on the host page is dangerous enough 
+</I>&gt;<i> even if the attacker only succeeds in stealing passwords of just a 
+</I>&gt;<i> fraction of the users.
+</I>&gt;<i> 
+</I>&gt;<i> I can't really imagine a scenario in which sandbox restrictions could be 
+</I>&gt;<i> somehow considered optional. Wherever there is need for such 
+</I>&gt;<i> restrictions, it's unacceptable to run the script without them 
+</I>&gt;<i> implemented.
+</I>
+In some cases the sandbox would be &quot;defence in depth&quot; -- for example, in 
+all cases where user-generated content is embedded today.
+
+
+&gt;<i> The key differences from &lt;iframe&gt; are:
+</I>&gt;<i> 
+</I>&gt;<i> 1. Doesn't require loading of a separate document via a separate HTTP 
+</I>&gt;<i> request, and without the ugliness of data: URIs. If there was some 
+</I>&gt;<i> &quot;inline&quot; version of &lt;iframe&gt;, such as &lt;iframe&gt;content&lt;/iframe&gt;, that 
+</I>&gt;<i> would be just fine.
+</I>
+doc=&quot;&quot; would handle this, then...
+
+
+&gt;<i> 2. Implements the security barrier even though the inner content doesn't 
+</I>&gt;<i> come from a different domain. &lt;iframe&gt; would require a separate domain 
+</I>&gt;<i> for that.
+</I>
+sandbox=&quot;&quot; does this now.
+
+
+&gt;<i> 3. The security barrier is asymmetric, i.e. the outer scripts have 
+</I>&gt;<i> access to the inner content, but not the other way round.
+</I>
+What's the use case for this?
+
+
+&gt;<i> All attempts to treat user-submitted HTML as a string are doomed to 
+</I>&gt;<i> having such vulnerabilities. &lt;sandbox&gt; alone doesn't add much to this 
+</I>&gt;<i> problem. Just look at how complex is the HTML sanitizer in LiveJournal 
+</I>&gt;<i> which allows some user-submitted markup but not all.
+</I>
+That's one advantage of the doc=&quot;&quot; idea; it makes sanitising mostly 
+trivial compared to all other ideas for this.
+
+
+On Thu, 10 May 2007, Gervase Markham wrote:
+&gt;<i> 
+</I>&gt;<i> If attributes on closing tags were allowed, you could do:
+</I>&gt;<i> 
+</I>&gt;<i> &lt;sandbox secret=&quot;09f9...&quot;&gt;Hello World&lt;/sandbox secret=&quot;09F9...&quot;&gt;
+</I>&gt;<i> 
+</I>&gt;<i> In other words, make them match. So any inserted &lt;/sandbox&gt; tags 
+</I>&gt;<i> wouldn't close the sandbox unless they knew the secret - which they 
+</I>&gt;<i> couldn't do, because they have the chicken-and-egg problem of having to 
+</I>&gt;<i> be able to read the page first.
+</I>
+This relies on the author being able to reliably produce unpredictable 
+content, which is a very dubious responsibility to put on many authors.
+
+Also, it would make the XML guys have a fit. Then again, maybe that goes 
+in the &quot;pro&quot; column and not the &quot;con&quot; column...
+
+
+&gt;<i> <A HREF="http://www.gerv.net/security/content-restrictions/">http://www.gerv.net/security/content-restrictions/</A> , specifically the 
+</I>&gt;<i> &quot;hierarchy&quot; restriction, allows the &lt;iframe&gt; content to be isolated from 
+</I>&gt;<i> the parent.
+</I>
+It's not enirely clear what the proposal here is; as far as I can tell 
+it's an HTTP header. Is that right? Self-describing the security 
+restrictions on content works for same-site serving, but not really for 
+third-party content.
+
+
+&gt;<i> IE has the proprietary &quot;security&quot; attribute on &lt;iframe&gt; which restricts 
+</I>&gt;<i> script in various ways: 
+</I>&gt;<i> <A HREF="http://msdn2.microsoft.com/en-us/library/ms534622.aspx">http://msdn2.microsoft.com/en-us/library/ms534622.aspx</A>
+</I>
+I tried using this, but it was tied too closely to IE's own security 
+concepts to really make use of it, sadly.
+
+
+On Thu, 15 May 2008, Henri Sivonen wrote:
+&gt;<i> &gt; 
+</I>&gt;<i> &gt; Documents don't have intrinsic dimensions, and the user's default font 
+</I>&gt;<i> &gt; size is likely to vary from user to usr. How would you know what 
+</I>&gt;<i> &gt; height and width to give?
+</I>&gt;<i> 
+</I>&gt;<i> You give it the dimensions of an industry-standard ad banner size.
+</I>
+On Fri, 16 May 2008, James Justin Harrell wrote:
+&gt;<i> 
+</I>&gt;<i> The same way you would know what height and width to give to a 
+</I>&gt;<i> non-replaced element. Why should an embedded document not be able to 
+</I>&gt;<i> render as if the contents of the document were present inline in the 
+</I>&gt;<i> parent document? Backwards compatibility should probably trump better 
+</I>&gt;<i> behavior here, but why is it not possible to specify this through CSS?
+</I>&gt;<i> 
+</I>&gt;<i> I've heard of this problem multiple times. For example, 
+</I>&gt;<i> <A HREF="http://weblogs.mozillazine.org/gerv/archives/2005/02/autosizing_ifra.html">http://weblogs.mozillazine.org/gerv/archives/2005/02/autosizing_ifra.html</A>
+</I>
+I've added height/width back.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="057110.html">[whatwg] iframe width/height
+</A></li>
+	<LI>Next message: <A HREF="057149.html">[whatwg] The &lt;iframe&gt; element and sandboxing ideas
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#57147">[ date ]</a>
+              <a href="thread.html#57147">[ thread ]</a>
+              <a href="subject.html#57147">[ subject ]</a>
+              <a href="author.html#57147">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

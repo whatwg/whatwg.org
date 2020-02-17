@@ -1,0 +1,137 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Media element delaying load event
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Media%20element%20delaying%20load%20event&In-Reply-To=%3C49B05431.2090305%40pearce.org.nz%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="060952.html">
+   <LINK REL="Next"  HREF="060953.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Media element delaying load event</H1>
+<!--htdig_noindex-->
+    <B>Chris Pearce</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Media%20element%20delaying%20load%20event&In-Reply-To=%3C49B05431.2090305%40pearce.org.nz%3E"
+       TITLE="[whatwg] Media element delaying load event">chris at pearce.org.nz
+       </A><BR>
+    <I>Thu Mar  5 14:37:37 PST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="060952.html">[whatwg] Media element delaying load event
+</A></li>
+        <LI>Next message: <A HREF="060953.html">[whatwg] Example / pattern document for authors
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#60975">[ date ]</a>
+              <a href="thread.html#60975">[ thread ]</a>
+              <a href="subject.html#60975">[ subject ]</a>
+              <a href="author.html#60975">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>There's an additional problem with the current media load algorithm 
+spec, it's possible to cause two resource-selection asynchronous calls 
+to run in parallel with the following javascript:
+
+var v = document.createElement(&quot;video&quot;);
+v.src = &quot;foo.ogg&quot;;
+v.load();
+document.body.appendChild(v);
+
+The load() method will asynchronously invoke the media element's 
+resource selection algorithm, and if the resource selection algorithm 
+doesn't execute fast enough in the background to change the 
+networkState, when we add the video to the document and the networkState 
+is still NETWORK_EMPTY, the add-to-a-document code will asynchronously 
+invoke the resource selection algorithm again.
+
+I think we should either:
+
+1. Change the networkState in the load() method. This will prevent 
+another asychronous invokation of the resource selection algorithm when 
+we add the media element to a document, or
+2. never asynchronously invoke the resource selection algorithm if 
+there's another instance running, or
+3. add a guard at the start of the resource selection algorithm to abort 
+the async call if there's already another instance running.
+
+Because we have waiting in the load algorithm now, there's no need to 
+have multiple instances of the resource selection algorithm active. So 
+option 2 is probably the easiest.
+
+I still think we need to delay the load event in the load() method, 
+rather than in the resource selection algorithm, as I said in my 
+previous post.
+
+
+Thanks,
+Chris Pearce.
+
+
+On 4/03/2009 10:17 a.m., Chris Pearce wrote:
+&gt;<i> The media element spec says:
+</I>&gt;&gt;<i> If a media element
+</I>&gt;&gt;<i> &lt;<A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/video.html#media-element">http://www.whatwg.org/specs/web-apps/current-work/multipage/video.html#media-element</A>&gt;
+</I>&gt;&gt;<i> whose |networkState
+</I>&gt;&gt;<i> &lt;<A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/video.html#dom-media-networkstate">http://www.whatwg.org/specs/web-apps/current-work/multipage/video.html#dom-media-networkstate</A>&gt;|
+</I>&gt;&gt;<i> has the value |NETWORK_EMPTY
+</I>&gt;&gt;<i> &lt;<A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/video.html#dom-media-network_empty">http://www.whatwg.org/specs/web-apps/current-work/multipage/video.html#dom-media-network_empty</A>&gt;|
+</I>&gt;&gt;<i> is inserted into a document
+</I>&gt;&gt;<i> &lt;<A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/infrastructure.html#insert-an-element-into-a-document">http://www.whatwg.org/specs/web-apps/current-work/multipage/infrastructure.html#insert-an-element-into-a-document</A>&gt;,
+</I>&gt;&gt;<i> the user agent must asynchronously invoke the media element
+</I>&gt;&gt;<i> &lt;<A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/video.html#media-element">http://www.whatwg.org/specs/web-apps/current-work/multipage/video.html#media-element</A>&gt;'s
+</I>&gt;&gt;<i> resource selection algorithm
+</I>&gt;&gt;<i> &lt;<A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/video.html#concept-media-load-algorithm">http://www.whatwg.org/specs/web-apps/current-work/multipage/video.html#concept-media-load-algorithm</A>&gt;.
+</I>&gt;&gt;<i>
+</I>&gt;<i> The resource selection algorithm then goes on to set the
+</I>&gt;<i> delaying-the-load-event flag to true. Depending on how the asynchronous
+</I>&gt;<i> invocation is implemented, the document could actually complete loading
+</I>&gt;<i> during the time after the insertion of a media element, but before the
+</I>&gt;<i> resource-selection algorithm sets the delaying-the-load-event flag is
+</I>&gt;<i> set to true. This means the load event could fire during that time, even
+</I>&gt;<i> though we intended to delay the load event.
+</I>&gt;<i>
+</I>&gt;<i> Maybe we should set the delaying-the-load-event flag to true before we
+</I>&gt;<i> asynchronously call the resource-selection algorithm, and then then
+</I>&gt;<i> resource-selection algorithm can set the delaying-the-load-event flag to
+</I>&gt;<i> false if that decides it needs to wait for a src or source element child?
+</I>&gt;<i>
+</I>&gt;<i> Thanks,
+</I>&gt;<i> Chris Pearce.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="060952.html">[whatwg] Media element delaying load event
+</A></li>
+	<LI>Next message: <A HREF="060953.html">[whatwg] Example / pattern document for authors
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#60975">[ date ]</a>
+              <a href="thread.html#60975">[ thread ]</a>
+              <a href="subject.html#60975">[ subject ]</a>
+              <a href="author.html#60975">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

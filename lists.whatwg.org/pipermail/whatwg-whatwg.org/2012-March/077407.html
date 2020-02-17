@@ -1,0 +1,124 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] API for encoding/decoding ArrayBuffers into text
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20API%20for%20encoding/decoding%20ArrayBuffers%20into%20text&In-Reply-To=%3CCA%2Bc2ei_Q0q%2B4wn9DLn0hVBtZab8tNrrdM1zsCC6xWeijz%3DKfig%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="077408.html">
+   <LINK REL="Next"  HREF="077409.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] API for encoding/decoding ArrayBuffers into text</H1>
+<!--htdig_noindex-->
+    <B>Jonas Sicking</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20API%20for%20encoding/decoding%20ArrayBuffers%20into%20text&In-Reply-To=%3CCA%2Bc2ei_Q0q%2B4wn9DLn0hVBtZab8tNrrdM1zsCC6xWeijz%3DKfig%40mail.gmail.com%3E"
+       TITLE="[whatwg] API for encoding/decoding ArrayBuffers into text">jonas at sicking.cc
+       </A><BR>
+    <I>Wed Mar 21 01:27:47 PDT 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="077408.html">[whatwg] API for encoding/decoding ArrayBuffers into text
+</A></li>
+        <LI>Next message: <A HREF="077409.html">[whatwg] API for encoding/decoding ArrayBuffers into text
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#77407">[ date ]</a>
+              <a href="thread.html#77407">[ thread ]</a>
+              <a href="subject.html#77407">[ subject ]</a>
+              <a href="author.html#77407">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Tue, Mar 20, 2012 at 10:39 AM, Joshua Bell &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">jsbell at chromium.org</A>&gt; wrote:
+&gt;<i> On Tue, Mar 20, 2012 at 7:26 AM, Glenn Maynard &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">glenn at zewt.org</A>&gt; wrote:
+</I>&gt;<i>
+</I>&gt;&gt;<i> On Mon, Mar 19, 2012 at 11:52 PM, Jonas Sicking &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">jonas at sicking.cc</A>&gt; wrote:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> Why are encodings different than other parts of the API where you
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;<i> indeed have to know what works and what doesn't.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Do you memorize lists of encodings? &#160;I certainly don't. &#160;I look them up as
+</I>&gt;&gt;<i> needed.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> UTF8 is stateful, so I disagree.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> No, UTF-8 doesn't require a stateful decoder to support streaming. &#160;You
+</I>&gt;&gt;<i> decode up to the last codepoint that you can decode completely. &#160;The return
+</I>&gt;&gt;<i> values are the output data, the number of bytes output, and the number of
+</I>&gt;&gt;<i> bytes consumed; that's all you need to restart decoding later. &#160;That's the
+</I>&gt;&gt;<i> iconv(3) approach that we're probably all familiar with, which works with
+</I>&gt;&gt;<i> almost all encodings.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> ISO-2022 encodings are stateful: you have to persistently remember the
+</I>&gt;&gt;<i> character subsets activated by earlier escape sequences. &#160;An iconv-like
+</I>&gt;&gt;<i> streaming API is impossible; to support streamed decoding, you'd need to
+</I>&gt;&gt;<i> have a decoder object that the user keeps around in order to store that
+</I>&gt;&gt;<i> state. &#160;<A HREF="http://en.wikipedia.org/wiki/ISO/IEC_2022#Code_structure">http://en.wikipedia.org/wiki/ISO/IEC_2022#Code_structure</A>
+</I>&gt;&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> Which seems like it leaves us with these options:
+</I>&gt;<i>
+</I>&gt;<i> 1. Only support encodings with stateless coding (possibly down to a minimum
+</I>&gt;<i> of UTF-8)
+</I>&gt;<i> 2. Only provide an API supporting non-streaming coding (i.e. whole
+</I>&gt;<i> strings/whole buffers)
+</I>&gt;<i> 3. Expand the API to return encoder/decoder objects that capture state
+</I>
+I'm pretty sure there is consensus for supporting UTF8. UTF8 is
+stateful though can be made not stateful by not consuming all
+characters and instead forcing the caller to keep the state (in the
+form of unconsumed text).
+
+So I would rephrase your 3 options above as:
+
+1) Create an API which forces consumers to do state handling. Probably
+leading to people creating wrappers which essentially implement option
+3
+2) Don't support streaming
+3) Have encoder/decoder objects which hold state
+
+I personally don't think 1 is a good option since it's basically the
+same as 3 but just with libraries doing some of the work. We might as
+well do that work so that libraries aren't needed.
+
+This leaves us with 2 or 3. So the question is if we should support
+streaming or not. I suspect doing so would be worth it.
+
+/ Jonas
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="077408.html">[whatwg] API for encoding/decoding ArrayBuffers into text
+</A></li>
+	<LI>Next message: <A HREF="077409.html">[whatwg] API for encoding/decoding ArrayBuffers into text
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#77407">[ date ]</a>
+              <a href="thread.html#77407">[ thread ]</a>
+              <a href="subject.html#77407">[ subject ]</a>
+              <a href="author.html#77407">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

@@ -1,0 +1,277 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] using postMessage() to send to a newly-created window
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20using%20postMessage%28%29%20to%20send%20to%20a%20newly-created%20window&In-Reply-To=%3CPine.LNX.4.64.1003250105560.29348%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="025617.html">
+   <LINK REL="Next"  HREF="025624.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] using postMessage() to send to a newly-created window</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20using%20postMessage%28%29%20to%20send%20to%20a%20newly-created%20window&In-Reply-To=%3CPine.LNX.4.64.1003250105560.29348%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg] using postMessage() to send to a newly-created window">ian at hixie.ch
+       </A><BR>
+    <I>Thu Mar 25 01:31:04 PDT 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="025617.html">[whatwg] Maximum length of attribute values
+</A></li>
+        <LI>Next message: <A HREF="025624.html">[whatwg] [html5] r4868 - [giow] (1) Make seeking async since some implementations can't tell if something [...]
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#25620">[ date ]</a>
+              <a href="thread.html#25620">[ thread ]</a>
+              <a href="subject.html#25620">[ subject ]</a>
+              <a href="author.html#25620">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Mon, 21 Dec 2009, Dirk Pranke wrote:
+&gt;<i> 
+</I>&gt;<i> In the course of testing something today, I attempted to create a window 
+</I>&gt;<i> and immediately post a message to it, and was surprised that it didn't 
+</I>&gt;<i> seem to work.
+</I>&gt;<i> 
+</I>&gt;<i> E.g.:
+</I>&gt;<i> 
+</I>&gt;<i> var w = window.open(&quot;<A HREF="http://x">http://x</A>&quot;);
+</I>&gt;<i> w.postMessage(&quot;hello, world&quot;, &quot;*&quot;);
+</I>&gt;<i> 
+</I>&gt;<i> w never got the message - this seemed to be consistent across Safari,
+</I>&gt;<i> Chrome, and FF (all I had installed on my Mac at the time, so
+</I>&gt;<i> apologies to Opera, IE, and anyone else I've left out).
+</I>
+It got the message, it just got it when the window's document was 
+about:blank and before the scripts in that window were ready to receive 
+any messages.
+
+
+&gt;<i> Is this supposed to work? If not, is there a reliable way for the the 
+</I>&gt;<i> source to know when it is safe to send a message to the target?
+</I>
+If it's same-origin, the simplest solution is to wait for onload.
+
+If it's cross-origin, there is by design no mechanism to expose when the 
+page is ready short of the other site announcing it (by sending a message 
+to its opener, in this case).
+
+
+&gt;<i> If this isn't supposed to work, can we state this explicitly in the 
+</I>&gt;<i> spec?
+</I>
+Where would you like it mentioned and what would you like it to say?
+
+
+On Tue, 5 Jan 2010, Jonas Sicking wrote:
+&gt;<i> 
+</I>&gt;<i> This is a sort of suboptimal state of affairs though. Compare to 
+</I>&gt;<i> workers, which also do not load synchronously, but which you can 
+</I>&gt;<i> immediately send messages to using postMessage().
+</I>&gt;<i> 
+</I>&gt;<i> We could use a similar solution for windows postMessage as we use for 
+</I>&gt;<i> worker postMessage.
+</I>
+I assume you mean provide a mechanism by which messages are queued until 
+the page does something that causes the events to be fired?
+
+We could, but it wouldn't actually help in this particular case (since the 
+first message is sent to the about:blank document, and I presume we would 
+nuke all pending messages upon navigation).
+
+It seems relatively easy to work around the problem in the case of 
+windows (just send a message when you're ready), so I'm not sure it's 
+worth it.
+
+
+On Tue, 5 Jan 2010, Adam Barth wrote:
+&gt;<i> 
+</I>&gt;<i> The existing content would be racy because postMessage returns to the 
+</I>&gt;<i> main event loop before dispatching.  It would at least make the content 
+</I>&gt;<i> more predictable.  :)
+</I>
+Only content that tries to communicate to a document while it's loading. 
+How common is that likely to be? In the usual case, scripts only run after 
+onload, and the iframes delay onload.
+
+The risk is that anyone using addEventListener() would never get the 
+message.
+
+
+On Tue, 5 Jan 2010, Dirk Pranke wrote:
+&gt;<i>
+</I>&gt;<i> I understand the rationale, and the workaround you suggest does work, (I 
+</I>&gt;<i> have tested it, in FF, Safari and Chrome). But, as Jonas mentioned, this 
+</I>&gt;<i> isn't what we do with workers, and it feels counter-intuitive to me (I'm 
+</I>&gt;<i> having trouble thinking of other async messaging models that require an 
+</I>&gt;<i> application-level handshake like this before messaging can commence). 
+</I>&gt;<i> Are there reasons other than implementation complexity (an okay reason) 
+</I>&gt;<i> or backwards-compatibility (a better reason) not to have the post work 
+</I>&gt;<i> in this case? Put differently, would anything break (other than a rather 
+</I>&gt;<i> oddly written app that explicitly counted on this behavior) if this did 
+</I>&gt;<i> work?
+</I>
+If we changed it, it would be multiple years before IE changed to match. 
+Is it worth having IE be non-compliant for that long, rather than having 
+interoperability for that long, given that this is basically an edge case 
+and quite managable?
+
+
+&gt;<i> As an alternative, would it be possible to create an onChildLoad() event 
+</I>&gt;<i> in the parent so that the parent could reliably send a message without 
+</I>&gt;<i> needing the child's cooperation? These seems only marginally better than 
+</I>&gt;<i> having the child post to the parent, so it may not be worth it ...
+</I>
+For iframes, onload does that. For same-origin content, onload on the 
+target does that. For cross-origin cross-window content, not exposing this 
+is by design.
+
+
+On Tue, 5 Jan 2010, Darin Fisher wrote:
+&gt;<i>
+</I>&gt;<i> It sounds tempting to say that the postMessage should be queued until 
+</I>&gt;<i> the newly opened window is loaded, but what point in time is that 
+</I>&gt;<i> exactly?  Is that after the load event is dispatched on the newly opened 
+</I>&gt;<i> window?
+</I>&gt;<i> 
+</I>&gt;<i> Note: a newly opened window can begin communicating with its opener much 
+</I>&gt;<i> earlier (via inline script execution).
+</I>&gt;<i> 
+</I>&gt;<i> However, if we try to dispatch the postMessage events before the load 
+</I>&gt;<i> event then the newly opened window may not have registered its event 
+</I>&gt;<i> handlers yet. (A future &lt;script&gt; tag may define the event handler.)  
+</I>&gt;<i> So, I think we would have to delay until the load event for the 
+</I>&gt;<i> semantics to be sane.
+</I>
+Indeed, I wouldn't be a fan of waiting for a load event before sending the 
+events.
+
+
+&gt;<i> There is perhaps a more critical issue that we should consider.  What
+</I>&gt;<i> happens if the named window already exists?
+</I>&gt;<i> 
+</I>&gt;<i> Consider this case:
+</I>&gt;<i> 
+</I>&gt;<i> window.open(&quot;<A HREF="http://a/">http://a/</A>&quot;, &quot;foo&quot;);
+</I>&gt;<i> ...
+</I>&gt;<i> var w = window.open(&quot;<A HREF="http://b/">http://b/</A>&quot;, &quot;foo&quot;);
+</I>&gt;<i> w.postMessage(&quot;bar&quot;, &quot;*&quot;);
+</I>&gt;<i> 
+</I>&gt;<i> I suspect the postMessage would be dispatched in this case, but the 
+</I>&gt;<i> event dispatch would probably go to the document at <A HREF="http://a/">http://a/</A> instead of 
+</I>&gt;<i> <A HREF="http://b/.">http://b/.</A>
+</I>
+That's why you're not supposed to use &quot;*&quot;. This problem always exists -- 
+your target window could get renavigated in between your navigating it and 
+the task that sends the event being queued.
+
+
+On Wed, 6 Jan 2010, Michael A. Puls II wrote:
+&gt;<i> On Tue, 05 Jan 2010 23:29:40 -0500, Dirk Pranke &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">dpranke at chromium.org</A>&gt; 
+</I>&gt;<i> wrote:
+</I>&gt;<i> 
+</I>&gt;<i> &gt; As an alternative, would it be possible to create an onChildLoad() 
+</I>&gt;<i> &gt; event in the parent so that the parent could reliably send a message 
+</I>&gt;<i> &gt; without needing the child's cooperation? These seems only marginally 
+</I>&gt;<i> &gt; better than having the child post to the parent, so it may not be 
+</I>&gt;<i> &gt; worth it ...
+</I>&gt;<i> 
+</I>&gt;<i> In Firefox, you can do stuff like this:
+</I>&gt;<i> 
+</I>&gt;<i> var w = window.open(&quot;handler.html&quot;);
+</I>&gt;<i> w.addEventListener(&quot;DOMContentLoaded&quot;, function(e) {
+</I>&gt;<i>    var targetWin = e.target.defaultView.
+</I>&gt;<i>    targetWin.postMessage(&quot;Hello&quot;, &quot;domain&quot;);
+</I>&gt;<i> }, false);
+</I>&gt;<i> 
+</I>&gt;<i> But, I think that only works in Firefox. In Opera at least, I'm sure it 
+</I>&gt;<i> doesn't work.
+</I>
+I believe the spec unambiguously defines what should happen in that case, 
+now that everything is defined in terms of the event loop.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="025617.html">[whatwg] Maximum length of attribute values
+</A></li>
+	<LI>Next message: <A HREF="025624.html">[whatwg] [html5] r4868 - [giow] (1) Make seeking async since some implementations can't tell if something [...]
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#25620">[ date ]</a>
+              <a href="thread.html#25620">[ thread ]</a>
+              <a href="subject.html#25620">[ subject ]</a>
+              <a href="author.html#25620">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

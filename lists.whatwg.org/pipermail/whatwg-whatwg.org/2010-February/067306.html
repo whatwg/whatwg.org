@@ -1,0 +1,140 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] &lt;% text %&gt; and &lt;? text ?&gt; in corporate intranet html content
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20%3C%25%20text%20%25%3E%20and%20%3C%3F%20text%20%3F%3E%20in%20corporate%20intranet%20html%0A%20content&In-Reply-To=%3C4B724369.7030702%40mit.edu%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="067305.html">
+   <LINK REL="Next"  HREF="067307.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] &lt;% text %&gt; and &lt;? text ?&gt; in corporate intranet html content</H1>
+<!--htdig_noindex-->
+    <B>Boris Zbarsky</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20%3C%25%20text%20%25%3E%20and%20%3C%3F%20text%20%3F%3E%20in%20corporate%20intranet%20html%0A%20content&In-Reply-To=%3C4B724369.7030702%40mit.edu%3E"
+       TITLE="[whatwg] &lt;% text %&gt; and &lt;? text ?&gt; in corporate intranet html content">bzbarsky at MIT.EDU
+       </A><BR>
+    <I>Tue Feb  9 21:26:01 PST 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="067305.html">[whatwg] &lt;% text %&gt; and &lt;? text ?&gt; in corporate intranet html	content
+</A></li>
+        <LI>Next message: <A HREF="067307.html">[whatwg] &lt;% text %&gt; and &lt;? text ?&gt; in corporate intranet html	content
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#67306">[ date ]</a>
+              <a href="thread.html#67306">[ thread ]</a>
+              <a href="subject.html#67306">[ subject ]</a>
+              <a href="author.html#67306">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On 2/9/10 11:56 PM, Tab Atkins Jr. wrote:
+&gt;<i> On Tue, Feb 9, 2010 at 9:05 PM, Biju&lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">bijumaillist at gmail.com</A>&gt;  wrote:
+</I>&gt;&gt;<i> What should a user agent display when html content is...
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> &lt;html&gt;&lt;body&gt;
+</I>&gt;&gt;<i> &lt;%@ page language=&quot;java&quot; %&gt;
+</I>&gt;&gt;<i> &lt;/body&gt;&lt;/html&gt;
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> At present IE and Safari display blank
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Firefox display&lt;%@ page language=&quot;java&quot; %&gt;
+</I>
+As does Opera, and Firefox with the HTML5 parser enabled.
+
+&gt;&gt;<i> But for
+</I>&gt;&gt;<i> &lt;html&gt;&lt;body&gt;
+</I>&gt;&gt;<i> abc&lt;? echo &quot;&gt;&quot;  ?&gt;  xyz
+</I>&gt;&gt;<i> &lt;/body&gt;&lt;/html&gt;
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Firefox display...
+</I>&gt;&gt;<i> abc &quot; ?&gt;  xyz
+</I>
+As does Opera, and Firefox with the HTML5 parser enabled.
+
+&gt;<i> Can someone else with more familiarity with the parser algorithm help
+</I>&gt;<i> out here?
+</I>
+For the &quot;&lt;%@&quot; case, it looks like the state machine will go through the 
+following states:
+
+   Data state -&gt; Tag open state
+
+[1].  When encountering a '%' in the &quot;Tag open&quot; state, the specification 
+says:
+
+     Parse error. Emit a U+003C LESS-THAN SIGN character token
+     and reconsume the current input character in the data state.[2]
+
+So the state will then remain &quot;Data state&quot; until the next '&amp;' or '&lt;' or 
+EOF is seen, so the entire string up to the &lt;/body&gt; will be treated as 
+literal text.
+
+For the &quot;&lt;?&quot; case, the state transitions will be:
+
+   Data state -&gt; Tag open state -&gt; Bogus comment state
+
+[1],[2].  Then the specification says to:
+
+   Consume every character up to and including the first U+003E
+   GREATER-THAN SIGN character (&gt;) or the end of the file (EOF),
+   whichever comes first. Emit a comment token whose data is the
+   concatenation of all the characters starting from and including
+   the character that caused the state machine to switch into the bogus
+   comment state, up to and including the character immediately before
+   the last consumed character (i.e. up to the character just before the
+   U+003E or EOF character). (If the comment was started by the end of
+   the file (EOF), the token is empty.)
+
+   Switch to the data state. [3]
+
+Or in other words, stop the bogus comment at the first '&gt;' you see and 
+then start parsing normally again.  In this case, that means treating 
+everything up to the next '&lt;' or '&amp;' or EOF as literal text.
+
+So the currently-specified behavior in fact matches the observed Firefox 
+behavior (with either parser) on these simple testcases.
+
+-Boris
+
+[1] 
+<A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/tokenization.html#data-state">http://www.whatwg.org/specs/web-apps/current-work/multipage/tokenization.html#data-state</A>
+[2] 
+<A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/tokenization.html#tag-open-state">http://www.whatwg.org/specs/web-apps/current-work/multipage/tokenization.html#tag-open-state</A>
+[3] 
+<A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/tokenization.html#bogus-comment-state">http://www.whatwg.org/specs/web-apps/current-work/multipage/tokenization.html#bogus-comment-state</A>
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="067305.html">[whatwg] &lt;% text %&gt; and &lt;? text ?&gt; in corporate intranet html	content
+</A></li>
+	<LI>Next message: <A HREF="067307.html">[whatwg] &lt;% text %&gt; and &lt;? text ?&gt; in corporate intranet html	content
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#67306">[ date ]</a>
+              <a href="thread.html#67306">[ thread ]</a>
+              <a href="subject.html#67306">[ subject ]</a>
+              <a href="author.html#67306">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

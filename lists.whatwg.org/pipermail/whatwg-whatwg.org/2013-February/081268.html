@@ -1,0 +1,141 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Enabling LCD Text and antialiasing in canvas
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Enabling%20LCD%20Text%20and%20antialiasing%20in%20canvas&In-Reply-To=%3CCAPeKFTjEef6%2BM0KoJaBu6Zx2OP%3DQAPqOxv42nLswbwkHCxNqxA%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="081259.html">
+   <LINK REL="Next"  HREF="081270.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Enabling LCD Text and antialiasing in canvas</H1>
+<!--htdig_noindex-->
+    <B>Stephen White</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Enabling%20LCD%20Text%20and%20antialiasing%20in%20canvas&In-Reply-To=%3CCAPeKFTjEef6%2BM0KoJaBu6Zx2OP%3DQAPqOxv42nLswbwkHCxNqxA%40mail.gmail.com%3E"
+       TITLE="[whatwg] Enabling LCD Text and antialiasing in canvas">senorblanco at chromium.org
+       </A><BR>
+    <I>Thu Feb 21 11:12:35 PST 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="081259.html">[whatwg] Enabling LCD Text and antialiasing in canvas
+</A></li>
+        <LI>Next message: <A HREF="081270.html">[whatwg] Enabling LCD Text and antialiasing in canvas
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#81268">[ date ]</a>
+              <a href="thread.html#81268">[ thread ]</a>
+              <a href="subject.html#81268">[ subject ]</a>
+              <a href="author.html#81268">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Tue, Feb 19, 2013 at 11:31 PM, Rik Cabanier &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">cabanier at gmail.com</A>&gt; wrote:
+
+&gt;<i> So now we have:
+</I>&gt;<i> - don't do this on pinch-zoom devices
+</I>&gt;<i> - don't do this for HW accelerated canvases
+</I>&gt;<i> - don't do this if the canvas dpi doesn't match the screen
+</I>&gt;<i>
+</I>- don't do this if there are transforms
+&gt;<i> - authors will have to be very careful when using this feature since it
+</I>&gt;<i> can turn on or off or cause rendering glitches.
+</I>&gt;<i>
+</I>&gt;<i> Is it still worth pursuing this?
+</I>&gt;<i>
+</I>
+I believe it is.  Even with those constraints, there are a large number of
+applications which can benefit from text which looks as good as the native
+platform can provide.
+
+That said, I also think Robert is right that we should not spec out
+precisely when subpixel AA text will occur in any of these automatic modes,
+since:
+
+1)  there are some platforms/devices which don't do LCD text at all
+2)  It may be too restrictive for the browser implementor, e.g., they may
+be essentially required to implement deferred rendering or two backing
+stores in order to meet the resulting spec, which seems onerous
+
+Subpixel AA text aside, I still think it's worth spec'ing out mozOpaque, if
+only just for the optimization opportunities that we don't get with an
+automatic solution (e.g., putImageData).  Its implementation is fairly
+straightforward (much more so than the other options above), and it won't
+break any existing content.
+
+To me, the &quot;it breaks compositing&quot; argument falls into the &quot;doctor, it
+hurts when I do this&quot; category:  the user is specifically opting into an
+opaque backing store, and so the changes in behaviour for compositing modes
+which reference destination alpha are expected, just as they are when using
+DST_ALPHA blending modes in a WebGL context created with the &quot;alpha&quot;
+attribute set to false.
+
+Stephen
+
+
+&gt;<i>
+</I>&gt;<i> On Tue, Feb 19, 2013 at 3:40 PM, Robert O'Callahan &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">robert at ocallahan.org</A>&gt;wrote:
+</I>&gt;<i>
+</I>&gt;&gt;<i> On Tue, Feb 19, 2013 at 5:19 PM, Stephen White &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">senorblanco at chromium.org</A>&gt;wrote:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> Even with text on an opaque background, I think you still have to worry
+</I>&gt;&gt;&gt;<i> about the case of transformed canvases.  E.g., text drawn over an opaque
+</I>&gt;&gt;&gt;<i> background into a single still frame canvas, but then subsequently rotated
+</I>&gt;&gt;&gt;<i> via CSS transforms from 0 degrees through non-0.  The first frame can use
+</I>&gt;&gt;&gt;<i> subpixel AA, but then subsequent frames can't.  So I think you need to keep
+</I>&gt;&gt;&gt;<i> the command stream around (first case) or
+</I>&gt;&gt;&gt;<i> always render two buffers as soon as you draw text.  That seems like a
+</I>&gt;&gt;&gt;<i> pretty heavy burden.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> For canvas-&gt;WebGL the problem becomes pretty much intractable, since
+</I>&gt;&gt;&gt;<i> there's no way to know what a given shader will do to the pixels.  So I
+</I>&gt;&gt;&gt;<i> think you'd always have to give up and do grayscale AA in that case.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Yes, you're quite right.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Rob
+</I>&gt;&gt;<i> --
+</I>&gt;&gt;<i> Wrfhf pnyyrq gurz gbtrgure naq fnvq, &#8220;Lbh xabj gung gur ehyref bs gur
+</I>&gt;&gt;<i> Tragvyrf ybeq vg bire gurz, naq gurve uvtu bssvpvnyf rkrepvfr nhgubevgl
+</I>&gt;&gt;<i> bire gurz. Abg fb jvgu lbh. Vafgrnq, jubrire jnagf gb orpbzr terng nzbat
+</I>&gt;&gt;<i> lbh zhfg or lbhe freinag, naq jubrire jnagf gb or svefg zhfg or lbhe fynir
+</I>&gt;&gt;<i> &#8212; whfg nf gur Fba bs Zna qvq abg pbzr gb or freirq, ohg gb freir, naq gb
+</I>&gt;&gt;<i> tvir uvf yvsr nf n enafbz sbe znal.&#8221; [Znggurj 20:25-28]
+</I>&gt;&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="081259.html">[whatwg] Enabling LCD Text and antialiasing in canvas
+</A></li>
+	<LI>Next message: <A HREF="081270.html">[whatwg] Enabling LCD Text and antialiasing in canvas
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#81268">[ date ]</a>
+              <a href="thread.html#81268">[ thread ]</a>
+              <a href="subject.html#81268">[ subject ]</a>
+              <a href="author.html#81268">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

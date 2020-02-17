@@ -1,0 +1,632 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] localStorage feedback
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20localStorage%20feedback&In-Reply-To=%3CPine.LNX.4.62.0912020537520.15540%40hixie.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="066546.html">
+   <LINK REL="Next"  HREF="066552.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] localStorage feedback</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20localStorage%20feedback&In-Reply-To=%3CPine.LNX.4.62.0912020537520.15540%40hixie.dreamhostps.com%3E"
+       TITLE="[whatwg] localStorage feedback">ian at hixie.ch
+       </A><BR>
+    <I>Wed Dec  2 02:06:34 PST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="066546.html">[whatwg] createEvent() in Web Workers?
+</A></li>
+        <LI>Next message: <A HREF="066552.html">[whatwg] localStorage feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#66550">[ date ]</a>
+              <a href="thread.html#66550">[ thread ]</a>
+              <a href="subject.html#66550">[ subject ]</a>
+              <a href="author.html#66550">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>
+Summary: I haven't removed the storage mutex, but I did adjust when it is 
+released slightly to handle some cases that had been missed before.
+
+On Thu, 29 Oct 2009, Darin Fisher wrote:
+&gt;<i> On Mon, Oct 12, 2009 at 7:07 PM, Ian Hickson &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">ian at hixie.ch</A>&gt; wrote:
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; the problem here is that localStorage is a pile of global variables. 
+</I>&gt;<i> &gt; &gt; we are trying to give people global variables without giving them 
+</I>&gt;<i> &gt; &gt; tools to synchronize access to them.  the claim i've heard is that 
+</I>&gt;<i> &gt; &gt; developers are not savy enough to use those tools properly.  i agree 
+</I>&gt;<i> &gt; &gt; that developers tend to use tools without fully understanding them.  
+</I>&gt;<i> &gt; &gt; ok, but then why are we giving them global variables?
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; The global variables have implicit locks such that you can build the 
+</I>&gt;<i> &gt; tools for explicit locking on top of them:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;   // run this first, in one script block
+</I>&gt;<i> &gt;   var id = localStorage['last-id'] + 1;
+</I>&gt;<i> &gt;   localStorage['last-id'] = id;
+</I>&gt;<i> &gt;   localStorage['email-ready-' + id] = &quot;0&quot;; // &quot;begin&quot;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;   // these can run each in separate script blocks as desired
+</I>&gt;<i> &gt;   localStorage['email-subject-' + id] = subject;
+</I>&gt;<i> &gt;   localStorage['email-from-' + id] = from;
+</I>&gt;<i> &gt;   localStorage['email-to-' + id] = to;
+</I>&gt;<i> &gt;   localStorage['email-body-' + id] = body;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;   // run this last
+</I>&gt;<i> &gt;   localStorage['email-ready-' + id] = &quot;1&quot;; // &quot;commit&quot;
+</I>&gt;<i>
+</I>&gt;<i> Dividing up work like this into separate SCRIPT elements to scope the 
+</I>&gt;<i> locking seems really awkward to me.
+</I>
+Oh I agree, I'm just saying that your original point -- that we are trying 
+to give people global variables without giving them tools to synchronize 
+access to them -- is mistaken insofar as we _are_ trying to give them 
+tools to synchronise access, that's what this whole thread is basically 
+about. It just happens that those tools have unfortunate side-effects 
+(they can require synchronous blocking of other processes running code for 
+the same domain).
+
+
+&gt;<i> &gt; &gt; The current API exposes race conditions to the web.  The implicit 
+</I>&gt;<i> &gt; &gt; dropping of the storage lock is that.  In Chrome, we'll have to drop 
+</I>&gt;<i> &gt; &gt; an existing lock whenever a new lock is acquired.  That can happen 
+</I>&gt;<i> &gt; &gt; due to a variety of really odd cases (usually related to nested 
+</I>&gt;<i> &gt; &gt; loops or nested JS execution), which will be difficult for 
+</I>&gt;<i> &gt; &gt; developers to predict, especially if they are relying on third-party 
+</I>&gt;<i> &gt; &gt; JS libraries.
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; This issue seems to be discounted for reasons I do not understand.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; You can only lose the lock in very specific conditions. Those 
+</I>&gt;<i> &gt; conditions are rarely going to interact with code that actually does 
+</I>&gt;<i> &gt; storage work in a way that relies on the lock:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;  - changing document.domain
+</I>&gt;<i> &gt;  - history.back(), .forward(), .go(n)
+</I>&gt;<i> &gt;  - invoking a plugin
+</I>&gt;<i> &gt;  - alert(), confirm(), prompt(), print()
+</I>&gt;<i> &gt;  - showModalDialog()
+</I>&gt;<i> &gt;  - yieldForStorageUpdates()
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; I discussed this in more detail here: 
+</I>&gt;<i> &gt; <A HREF="http://lists.whatwg.org/htdig.cgi/whatwg-whatwg.org/2009-September/023059.html">http://lists.whatwg.org/htdig.cgi/whatwg-whatwg.org/2009-September/023059.html</A>
+</I>&gt;<i>
+</I>&gt;<i> You are right that the conditions are specific, but I don't know that 
+</I>&gt;<i> that is the exhaustive list.
+</I>
+If it's not, then we should fix it.
+
+
+&gt;<i> Rather than defining unlock points, I would implement implicit unlocking 
+</I>&gt;<i> by having any nested attempt to acquire a lock cause the existing lock 
+</I>&gt;<i> to be dropped. Nesting can happen in the cases you mention, but 
+</I>&gt;<i> depending on the UA, it may happen for other reasons too.
+</I>
+I don't think this is equivalent at all. Most of the release points are 
+points where the thread is about to hang (sync XHR, alert(), etc) and we 
+want to unlock other processes. The plugin case is about third-party code 
+causing a deadlock through undetectable thread synchronisation (e.g. where 
+a plugin causes code in another process to try to grab the lock and waits 
+for that to complete before handing control back to the UA). The nesting 
+defence only helps in the case of preventing deadlocks with two processes 
+trying to grab different domains' locks in reverse order from each other, 
+as far as I can tell, which is just a subset of the cases where it is 
+released per the spec.
+
+
+&gt;<i> This combined with the fact that most people use JS libraries means that 
+</I>&gt;<i> the coder is not going to have an easy time knowing when these specific 
+</I>&gt;<i> conditions are met.  I don't think defining a set of allowed unlock 
+</I>&gt;<i> points is sufficient to make this API not be a minefield for users.
+</I>
+I don't think anyone is arguing that this is ideal. I do think it's orders 
+of magnitude better than having the API be always racy even without any 
+libraries being involved.
+
+
+
+&gt;<i> For example, a JS library might evolve to use flash for something small 
+</I>&gt;<i> (like storage or sound) that it previously didn't use when I first 
+</I>&gt;<i> developed my code. Voila, now my storage lock is released out from under 
+</I>&gt;<i> me.
+</I>
+At least this is documentable.
+
+
+On Sat, 31 Oct 2009, Darin Fisher wrote:
+&gt;<i> 
+</I>&gt;<i> Unlock if yieldForStorageUpdates is called.
+</I>&gt;<i> Unlock when returning from script execution.
+</I>&gt;<i> Unlock if another attempt to lock occurs (any form of nesting).
+</I>&gt;<i> 
+</I>&gt;<i> In the third case, I'd probably log something to the JS console to alert 
+</I>&gt;<i> developers.
+</I>
+You'll also need to unlock for cases like alert(), prompt(), sync XHR, and 
+so on (the enumerated cases above that temporarily hang the thread).
+
+This seems like a fine implementation strategy. Please let me know if you 
+find any cases where it happens other than those in the spec though.
+
+
+&gt;<i> So, we are currently on track to support this feature without locking.  
+</I>&gt;<i> In the future, we might add locking.  I've also considered other 
+</I>&gt;<i> solutions, like copy-on-write, which could obviously lead to data loss, 
+</I>&gt;<i> but at least it would ensure stability/consistency within a scripts 
+</I>&gt;<i> execution.  I would like it if the spec were open to such 
+</I>&gt;<i> implementations.
+</I>
+The spec would either require such behaviour or not; I don't think we 
+should explicitly allow multiple different (non-interoperable) behaviours. 
+That's worse than the race conditions, IMHO.
+
+
+On Mon, 2 Nov 2009, Robert O'Callahan wrote:
+&gt;<i> 
+</I>&gt;<i> I think this would make the spec too dependent on implementation 
+</I>&gt;<i> details. If your implementation needlessly or accidentally &quot;nests&quot; 
+</I>&gt;<i> script execution --- e.g. by firing an event synchronously that should 
+</I>&gt;<i> be, or could be, asynchronous --- then you'd still conform to your spec 
+</I>&gt;<i> while the behaviour you present to authors gets quietly worse.
+</I>&gt;<i> 
+</I>&gt;<i> If your description is (or can be, after suitable modifications) 
+</I>&gt;<i> equivalent to what the spec currently says, but the equivalence is 
+</I>&gt;<i> subtle (which it would be!), then I think they should *both* be in the 
+</I>&gt;<i> spec, and the spec should say they're equivalent. Then if we find 
+</I>&gt;<i> they're not equivalent, we clearly have a bug in the spec which must be 
+</I>&gt;<i> fixed --- not carte blanche to proceed in an undesirable direction. It 
+</I>&gt;<i> would be a sort of spec-level assertion.
+</I>
+I would rather not require potentially conflicting things in the spec. 
+Historically, I've found that people tend to just ignore one of the 
+requirements (picking whichever one is most convenient for them to ignore) 
+and not report it.
+
+
+On Mon, 2 Nov 2009, Darin Fisher wrote:
+&gt;<i> 
+</I>&gt;<i> I think the spec currently calls attention to only some situations that 
+</I>&gt;<i> could lead to nesting of implicitly acquired storage locks.
+</I>&gt;<i>
+</I>&gt;<i> I previously described some other situations, which you and others 
+</I>&gt;<i> indicated should be treated as WebKit and IE bugs.  I didn't look very 
+</I>&gt;<i> far to dig those up.  After some more thought, I came up with these 
+</I>&gt;<i> additional cases that the spec doesn't cover:
+</I>&gt;<i> 
+</I>&gt;<i> 1a) Given a page (domain A) containing an iframe (domain B), have the 
+</I>&gt;<i> outer page navigate the inner frame to &quot;about:blank&quot;.  This navigation 
+</I>&gt;<i> completes synchronously, and the unload handler for the iframe runs 
+</I>&gt;<i> before the navigation request completes.  This is true of all browsers.
+</I>
+Good point. I've made the navigation algorithm release the mutex, and made 
+some related changes to make sure that all synchronous events are 
+similarly safe. (To make things easier to reason about, I also made all 
+history.go() calls and anything else that navigates the history simply 
+always release the mutex.)
+
+
+&gt;<i> 1b) Suppose the inner page has a pending XMLHttpRequest when the outer 
+</I>&gt;<i> frame navigates the inner frame.  The XHR's onabort handler would run 
+</I>&gt;<i> before the navigation to &quot;about:blank&quot; completes.
+</I>
+Per XHR2, the 'abort' event doesn't fire in this case.
+
+
+&gt;<i> 2) Set a break point in the Mozilla JS debugger.  This runs a nested 
+</I>&gt;<i> event loop each time you single step so that it can drive the rest of 
+</I>&gt;<i> the browser UI.
+</I>&gt;<i> 3) Install a Firefox extension that runs a nested event loop in response 
+</I>&gt;<i> to an event generated by content.  I debugged many Firefox crashes 
+</I>&gt;<i> resulting from extensions that do this kind of thing for various 
+</I>&gt;<i> reasons.
+</I>
+Both of these are non-conforming situations. There's a whole bunch of 
+situations that act differently under the debugger; releasing the storage 
+mutex in those cases is a UA-specific behaviour and is the least of your 
+problems as a programmer.
+
+
+&gt;<i> It seems odd to me that this behavior was put into the spec without any 
+</I>&gt;<i> implementation experience to guide it.  The only multi-process 
+</I>&gt;<i> implementations that I know of do not have a storage mutex.
+</I>
+Implementation experience _did_ guide it. In fact, that is pretty much the 
+only reason this is in the spec.
+
+
+On Tue, 3 Nov 2009, Darin Fisher wrote:
+&gt;<i> 
+</I>&gt;<i> Will we just keep amending the spec each time we find such a possible 
+</I>&gt;<i> case?
+</I>
+Yes.
+
+
+&gt;<i> I think it is far saner to say that any nesting leads to unlocking the 
+</I>&gt;<i> storage mutex.  The spec can then list cases where this nesting might 
+</I>&gt;<i> occur.
+</I>
+It wouldn't make sense to spec it that way. The spec just has one mutex, 
+it's not per-origin -- that you can implement it per-domain is an 
+optimisation that is enabled by design, but it isn't how the spec defines 
+it. So you can never block, the way the spec is written (since there's no 
+way to ever do a synchronisation of multiple processes).
+
+In addition, as mentioned above, the storage mutex is released in many 
+cases other than just those that could lead to a thread grabbing the mutex 
+on behalf of two origins at once.
+
+I guess I could add a note in the &quot;obtain the storage mutex&quot; algorithm 
+saying that if the UA implements the storage mutex per-origin, then it 
+should never be able to reach this algorithm while holding the mutex from 
+an origin different than the one it's about to try to grab. Would that 
+help? I'm not sure it makes sense to say that, though, given the lack of 
+per-origin mutexes in the spec.
+
+
+&gt;<i> &gt;&gt; 2) Set a break point in the Mozilla JS debugger.  This runs a nested 
+</I>&gt;<i> &gt;&gt; event loop each time you single step so that it can drive the rest of 
+</I>&gt;<i> &gt;&gt; the browser UI.
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; 3) Install a Firefox extension that runs a nested event loop in 
+</I>&gt;<i> &gt;&gt; response to an event generated by content.  I debugged many Firefox 
+</I>&gt;<i> &gt;&gt; crashes resulting from extensions that do this kind of thing for 
+</I>&gt;<i> &gt;&gt; various reasons.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; These are internal Mozilla issues and should not be allowed to 
+</I>&gt;<i> &gt; influence the design of the Web platform. They'll probably change for 
+</I>&gt;<i> &gt; multi-process anyway.
+</I>&gt;<i> 
+</I>&gt;<i> OK, but my point is that the spec should afford implementors with the 
+</I>&gt;<i> ability to unlock the storage mutex at other times for reasons not 
+</I>&gt;<i> mentioned in the spec.
+</I>
+How do we do that without making the mutex-free implementation correct?
+
+
+&gt;<i> OK. Please note my objection to the storage mutex.
+</I>
+I think everyone objects to the storage mutex. The problem is we have 
+nothing better. Race conditions aren't better.
+
+
+On Tue, 3 Nov 2009, Jeremy Orlow wrote:
+&gt;<i> 
+</I>&gt;<i> If we do this, we need to re-visit ways that scripts can tell whether 
+</I>&gt;<i> the lock has been dropped.  I can't remember which idea was most in 
+</I>&gt;<i> favor last time we talked about it, but a counter that increments every 
+</I>&gt;<i> time LocalStorage is unlocked sticks out in my mind.  (Scripts can check 
+</I>&gt;<i> the counter, do something that could cause unlocking, and then verify 
+</I>&gt;<i> the counter is still the same after.)
+</I>
+The counter could be a boolean -- does the event loop have the lock [for 
+the origin of the first script]. I would recommend implementing this as 
+a property window.navigator.webkitStorageUpdatesLocked which is true when 
+the lock is obtained and false when it is released. If people find it 
+useful, we can add it to the language.
+
+
+&gt;<i> Another option that just came to mind is to have some flag that says 
+</I>&gt;<i> &quot;throw an exception whenever there's been a serialization violation&quot;.
+</I>
+Could you elaborate on this?
+
+
+On Wed, 4 Nov 2009, Rob Ennals wrote:
+&gt;<i> 
+</I>&gt;<i> How about this for a solution for the localStorage mutex problem:
+</I>&gt;<i> 
+</I>&gt;<i> &quot;the user agent MAY release the storage mutex on *any* API operation 
+</I>&gt;<i> except localStorage itself&quot;
+</I>&gt;<i> 
+</I>&gt;<i> This guarantees that the common case of &quot;several storage operations in a 
+</I>&gt;<i> row with nothing in-between&quot; works, but gives the implementors the 
+</I>&gt;<i> freedom to release the storage mutex wherever else they find they need 
+</I>&gt;<i> to.
+</I>&gt;<i> 
+</I>&gt;<i> I ran this by a few people at the W3C tpac (where I am now) and everyone 
+</I>&gt;<i> I talked to seemed to think this would work.
+</I>
+On Thu, 5 Nov 2009, Jeremy Orlow wrote:
+&gt;<i>
+</I>&gt;<i> Leaving the language open might not be terribly useful to a typical web 
+</I>&gt;<i> developer since they're not going to read the spec and probably aren't 
+</I>&gt;<i> going to have a very firm idea of whether what they're doing could 
+</I>&gt;<i> unlock storage or not.  Experimentation wouldn't work very well since 
+</I>&gt;<i> each platform could be wildly different (since a lot of possible 
+</I>&gt;<i> behaviors fall between the MAY and the MAY NOT in the proposed spec).
+</I>&gt;<i> 
+</I>&gt;<i> Another concern is that the worst case performance aspects of 
+</I>&gt;<i> LocalStorage remain.  I cringe every time I think of one event loop 
+</I>&gt;<i> blocking another.
+</I>&gt;<i>
+</I>&gt;<i> But I will admit that the average time would be better--especially if 
+</I>&gt;<i> we're unlocking fairly aggressively.
+</I>
+On Sat, 7 Nov 2009, Chris Jones wrote:
+&gt;<i> 
+</I>&gt;<i> IMHO, this is actually worse than the current proposal of a global mutex 
+</I>&gt;<i> :S. This proposal makes atomicity guarantees not only library-dependent, 
+</I>&gt;<i> but browser-implementation-dependent.  For example
+</I>&gt;<i> 
+</I>&gt;<i>   a = localStorage.x()
+</I>&gt;<i>   jquery.foo()
+</I>&gt;<i>   b = localStorage.y()
+</I>&gt;<i> 
+</I>&gt;<i> If |jquery.foo()| were, say, parsing JSON or determining selector 
+</I>&gt;<i> matching, it might involve &quot;browser API calls&quot; in some browser, and in 
+</I>&gt;<i> others not.
+</I>&gt;<i> 
+</I>&gt;<i> Worse, if |jquery.foo()| involves accessing browser-managed things like 
+</I>&gt;<i> computed DOM attributes, then even in the *same* browser it might result 
+</I>&gt;<i> in sometimes needing a &quot;browser API call&quot;, and sometimes only needing a 
+</I>&gt;<i> JS-only call.  (Depending on DOM attribute cache status, if present.)
+</I>&gt;<i> 
+</I>&gt;<i> This of course of depends on the definition of &quot;browser API call&quot;, but I 
+</I>&gt;<i> interpret this as approximately meaning &quot;calling from JS to C++&quot;.
+</I>&gt;<i> 
+</I>&gt;<i> These objections are in addition to those made by Jeremy Orlow 
+</I>&gt;<i> concerning a script-managed, possibly cross-process mutex, which I also 
+</I>&gt;<i> find unpleasant.
+</I>
+On Sun, 8 Nov 2009, Adam Barth wrote:
+&gt;<i> 
+</I>&gt;<i> As I mentioned to Ian at TPAC, one way to make this more predictable is 
+</I>&gt;<i> to release the lock on *every* function call and return.  This provides 
+</I>&gt;<i> content enough atomicity to build whatever locks it needs.
+</I>
+On Mon, 9 Nov 2009, Robert O'Callahan wrote:
+&gt;<i> 
+</I>&gt;<i> Then simple refactorings that should be semantics-preserving --- like 
+</I>&gt;<i> extracting a block of code into a shared function --- would break 
+</I>&gt;<i> atomicity. This also places a new burden on JS implementations.
+</I>
+On Mon, 23 Nov 2009, Rob Ennals wrote:
+&gt;<i>
+</I>&gt;<i> The planned model is that if you don't want to lose the storage mutex 
+</I>&gt;<i> then you shouldn't call any code that you didn't write yourself. Any 
+</I>&gt;<i> external library (e.g. jquery) should be assumed to release the storage 
+</I>&gt;<i> mutex. Perhaps that should be made explicit in the spec?
+</I>&gt;<i> 
+</I>&gt;<i> We want to guarantee essential things like &quot;several localStorage ops in 
+</I>&gt;<i> a row are atomic&quot;, and make sure any language-level transformations that 
+</I>&gt;<i> people expect to be semantics preserving remain so (e.g. moving code 
+</I>&gt;<i> into a function), while still giving the browser the ability to release 
+</I>&gt;<i> the mutex whenever it might need to.
+</I>
+On Tue, 24 Nov 2009, Rob Ennals wrote:
+&gt;<i>
+</I>&gt;<i> Yes. I think that *any* DOM operation, including getElementById should 
+</I>&gt;<i> be allowed to release the storage mutex. If we start specifying 
+</I>&gt;<i> particular categories of API that do or do not release the mutex then 
+</I>&gt;<i> thing will just get confusing, or we will find that we have missed 
+</I>&gt;<i> something important.
+</I>&gt;<i> 
+</I>&gt;<i> The basic rule of thumb should be that if you want to do an atomic 
+</I>&gt;<i> storage operation then you do the following:
+</I>&gt;<i> 
+</I>&gt;<i> 1.) Gather all the data that you want to use in your storage transaction 
+</I>&gt;<i> (using whatever DOM call you need)
+</I>&gt;<i>
+</I>&gt;<i> 2.) Perform a sequence of storage operations, not interrupted by any 
+</I>&gt;<i> calls to any API or external library.
+</I>&gt;<i> 
+</I>&gt;<i> This is consistent with the way that systems programmers write 
+</I>&gt;<i> concurrent sections. You gather all your data using whatever 
+</I>&gt;<i> potentially-blocking APIs you need (e.g. opening files), and then hold 
+</I>&gt;<i> your lock for as brief a period of time as possible while doing the 
+</I>&gt;<i> updates you need.
+</I>&gt;<i> 
+</I>&gt;<i> If you run your browser in &quot;super-warnings-enabled&quot; mode then you could 
+</I>&gt;<i> have it warn you if you did anything remotely suspect between calls to 
+</I>&gt;<i> localStorage (e.g. calling a function defined by an external javascript 
+</I>&gt;<i> file or calling an API).
+</I>&gt;<i> 
+</I>&gt;<i> As you say, from a programmers point of view, it would be much nicer if 
+</I>&gt;<i> programmers could use whatever APIs they liked, without having to worry 
+</I>&gt;<i> about losing the storage mutex, however, as we have seen earlier in this 
+</I>&gt;<i> list, that isn't something that the browser vendors believe they can 
+</I>&gt;<i> implement. Some operations unavoidably *have* to release the storage 
+</I>&gt;<i> mutex, and it is surprisingly difficult to specify what operations these 
+</I>&gt;<i> are, or when they might be called.
+</I>&gt;<i> 
+</I>&gt;<i> If we are going to fix the current spec, and give users something that 
+</I>&gt;<i> they can understand, then I see little alternative but to tell them that 
+</I>&gt;<i> *all* APIs and external libraries may release the storage mutex. It 
+</I>&gt;<i> isn't perfect, but it does at least give users an invariant that they 
+</I>&gt;<i> can understand, that they can be sure will always hold, and that can be 
+</I>&gt;<i> implemented by all browsers. Moreover, it allows a programmer to do 
+</I>&gt;<i> essential basic things like implement a test and set lock.
+</I>
+On Tue, 24 Nov 2009, Jonas Sicking wrote:
+&gt;<i> 
+</I>&gt;<i> It seems to me that the only difference between what we have now (in the 
+</I>&gt;<i> spec), and your suggestion, would be that implementations could in more 
+</I>&gt;<i> cases claim to follow the spec. I.e. the only difference seems to be one 
+</I>&gt;<i> of PR for implementations. Nothing that would actually help web authors.
+</I>
+On Tue, 24 Nov 2009, Boris Zbarsky wrote:
+&gt;<i> On 11/24/09 7:46 PM, Rob Ennals wrote:
+</I>&gt;<i> &gt; E.g., I may want to write:
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; x = localStorage.bla
+</I>&gt;<i> &gt; localStorage.bla = x+1
+</I>&gt;<i> 
+</I>&gt;<i> If that's happening at global scope, the latter line involves global 
+</I>&gt;<i> variable access, which involves DOM operations (in particular, looking 
+</I>&gt;<i> for windows of that name), no?
+</I>
+On Tue, 24 Nov 2009, Rob Ennals wrote:
+&gt;<i>
+</I>&gt;<i> Yeah. Such things could be confusing. Perhaps we would want to 
+</I>&gt;<i> explicitly specify that global variable access does not release the 
+</I>&gt;<i> storage mutex (I'm assuming there is no reason you would ever want it to 
+</I>&gt;<i> do so?).
+</I>&gt;<i> 
+</I>&gt;<i> More generally, the basic principle of this proposal is to specify what 
+</I>&gt;<i> *doesn't* release the storage mutex, rather than specifying what *does*, 
+</I>&gt;<i> since previous efforts to enumerate everything that releases the storage 
+</I>&gt;<i> mutex seem to have got stuck.
+</I>
+On Tue, 24 Nov 2009, Mike Shaver wrote:
+&gt;<i>
+</I>&gt;<i> How would the browser distinguish between
+</I>&gt;<i> 
+</I>&gt;<i> storage-operation-1
+</I>&gt;<i> inadvertent-API-call
+</I>&gt;<i> storage-operation-2-that-should-be-atomic-with-1
+</I>&gt;<i> 
+</I>&gt;<i> and
+</I>&gt;<i> 
+</I>&gt;<i> storage-operation-1
+</I>&gt;<i> API-calls-to-gather-data-for-another-transaction
+</I>&gt;<i> storage-operation-2-that-is-unrelated-to-1
+</I>&gt;<i> 
+</I>&gt;<i> ?  Seems like that's a necessary distinction if it's not to just warn 
+</I>&gt;<i> all over the place uselessly!
+</I>
+On Tue, 24 Nov 2009, Rob Ennals wrote:
+&gt;<i> 
+</I>&gt;<i> I can imagine that this could get particularly noisy if you use a 
+</I>&gt;<i> library which decides to use localStorage itself, and so you aren't 
+</I>&gt;<i> aware that localStorage has been used previously elsewhere.
+</I>&gt;<i> 
+</I>&gt;<i> One simple fix to avoid these warnings would be to introduce two 
+</I>&gt;<i> functions, startAtomic and endAtomic, that a user uses to explicitly 
+</I>&gt;<i> declare what they think is atomic. startAtomic declares that you are 
+</I>&gt;<i> starting an atomic localStorage section, and returns a token. endAtomic 
+</I>&gt;<i> declares that you are ending an atomic localStorage section, and takes 
+</I>&gt;<i> the token as an argument.
+</I>&gt;<i> 
+</I>&gt;<i> All localStorage that isn't between startAtomic and endAtomic is assumed 
+</I>&gt;<i> to be part of the same atomic transaction. The only reason to use 
+</I>&gt;<i> startAtomic and endAtomic is to suppress warnings by making it clear 
+</I>&gt;<i> that things are *intended* to be part of different atomic blocks. They 
+</I>&gt;<i> would typically be used only in libraries, and not by a user's own code.
+</I>
+On Wed, 25 Nov 2009, Mike Shaver wrote:
+&gt;<i> On Wed, Nov 25, 2009 at 6:20 AM, Ian Hickson &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">ian at hixie.ch</A>&gt; wrote:
+</I>&gt;<i> &gt; Reading or writing a property on a native object doesn't do it, so
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; &#160; window['x'].document.forms['y'].value = 'foo';
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; ...doesn't release the mutex, though this (identical code) would:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; &#160; window['x'].document.forms.namedItem('y').value = 'foo';
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; ...because of namedItem() call.
+</I>&gt;<i> 
+</I>&gt;<i> I don't think that we can reasonably expect web developers to do that 
+</I>&gt;<i> kind of analysis, since they are likely to be working through libraries 
+</I>&gt;<i> and other sources of indirection.
+</I>&gt;<i> 
+</I>&gt;<i> (Especially since I bet there is a lot of documentation describing those 
+</I>&gt;<i> two cases as being entirely identical in behaviour.)
+</I>
+On Wed, 25 Nov 2009, Boris Zbarsky wrote:
+&gt;<i> On 11/25/09 6:20 AM, Ian Hickson wrote:
+</I>&gt;<i> &gt;     - script calling a method implemented in native code on a host object
+</I>&gt;<i> 
+</I>&gt;<i> If this is a MUST, this seems like a possible compat issue depending on 
+</I>&gt;<i> whether the method is native or library-provided, at the very least. 
+</I>&gt;<i> There's also been talk at least in Gecko of self-hosting some DOM 
+</I>&gt;<i> methods in JS (e.g. getElementById), at which point they will no longer 
+</I>&gt;<i> be implemented in native code.
+</I>&gt;<i> 
+</I>&gt;<i> I'm not sure this is a fatal issue (and I haven't been following this 
+</I>&gt;<i> thread closely enough in general to be sure of anything); just pointing 
+</I>&gt;<i> out that it's an issue.
+</I>
+On Wed, 25 Nov 2009, Darin Fisher wrote:
+&gt;<i> 
+</I>&gt;<i> I had a similar thought as it pertains to Chrome.  I also worry about 
+</I>&gt;<i> having to do some &quot;storage mutex&quot; processing for every native call.  
+</I>&gt;<i> That seems like unfortunate overhead.
+</I>
+On Wed, 25 Nov 2009, Jeremy Orlow wrote:
+&gt;<i> 
+</I>&gt;<i> Good point.  So even if it's a MUST, it'll be dependent on the platform. 
+</I>&gt;<i> And thus not terribly &quot;standard&quot;.
+</I>&gt;<i> 
+</I>&gt;<i> I'd say the current language is better than this proposed change.
+</I>
+I've left the spec as is, since Rob's proposal didn't get a good 
+reception.
+
+
+On Wed, 25 Nov 2009, Jeremy Orlow wrote:
+&gt;<i> 
+</I>&gt;<i> I know that we've discussed approximations of run to completion before, 
+</I>&gt;<i> but maybe it's worth one more shot:  What if on the first use of 
+</I>&gt;<i> document.cookie or local storage we took a snapshot of both and used 
+</I>&gt;<i> that during the task's execution.  All writes would be queued up until 
+</I>&gt;<i> the task finishes, at which point they'd be written to the central 
+</I>&gt;<i> version of the cookie and/or local storage.  This would provide a 
+</I>&gt;<i> consistent view of data for the duration of the task and would solve 
+</I>&gt;<i> almost all the atomicity problems except |document.cookie = 
+</I>&gt;<i> document.cookie + &quot;foo&quot;;|.  For that, I'd suggest adding a method that 
+</I>&gt;<i> allows scripts to do atomic modifications to storage within a callback.
+</I>&gt;<i> 
+</I>&gt;<i> I can understand everyone's desire to have completely serializable 
+</I>&gt;<i> semantics for local storage access and cookies (if you don't count the 
+</I>&gt;<i> servers' interaction with them), but maybe we need to go back to use 
+</I>&gt;<i> cases.  In a world with WebDatabase/WebSimpleDB, I really don't see 
+</I>&gt;<i> anyone turning to LocalStorage except for more basic uses.  Most of 
+</I>&gt;<i> which I'm guessing need consistent reads much more than serialization of 
+</I>&gt;<i> everything.
+</I>&gt;<i> 
+</I>&gt;<i> And let's be realistic.  IE has had this problem with document.cookie 
+</I>&gt;<i> for a long time.  And IE8 now has this problem with localStorage.  
+</I>&gt;<i> Given that in the best case (MS and all others implement the storage 
+</I>&gt;<i> mutex) web developers will not be able to assume localStorage and 
+</I>&gt;<i> document.cookie access is atomic for many years at a minimum, I think 
+</I>&gt;<i> we're being pretty unrealistic about how much the storage mutex is going 
+</I>&gt;<i> to improve anyone's life.  Let's come up with an approximation, give 
+</I>&gt;<i> developers a callback for atomic access, and be done with it.
+</I>
+As far as I can tell, this wouldn't remove race problems. It would in fact 
+make it impossible to avoid them, since as far as I can tell you can't 
+build a sane locking mechanism based on the above.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="066546.html">[whatwg] createEvent() in Web Workers?
+</A></li>
+	<LI>Next message: <A HREF="066552.html">[whatwg] localStorage feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#66550">[ date ]</a>
+              <a href="thread.html#66550">[ thread ]</a>
+              <a href="subject.html#66550">[ subject ]</a>
+              <a href="author.html#66550">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

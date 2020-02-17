@@ -1,0 +1,130 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] RFC: Alternatives to storage mutex for cookies and	localStorage
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20RFC%3A%20Alternatives%20to%20storage%20mutex%20for%20cookies%20and%0A%09localStorage&In-Reply-To=%3C5dd9e5c50909091857tb1aaaacqe20a8bfd6cab93d0%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="065081.html">
+   <LINK REL="Next"  HREF="065052.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] RFC: Alternatives to storage mutex for cookies and	localStorage</H1>
+<!--htdig_noindex-->
+    <B>Jeremy Orlow</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20RFC%3A%20Alternatives%20to%20storage%20mutex%20for%20cookies%20and%0A%09localStorage&In-Reply-To=%3C5dd9e5c50909091857tb1aaaacqe20a8bfd6cab93d0%40mail.gmail.com%3E"
+       TITLE="[whatwg] RFC: Alternatives to storage mutex for cookies and	localStorage">jorlow at chromium.org
+       </A><BR>
+    <I>Wed Sep  9 18:57:32 PDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="065081.html">[whatwg] RFC: Alternatives to storage mutex for cookies and localStorage
+</A></li>
+        <LI>Next message: <A HREF="065052.html">[whatwg] RFC: Alternatives to storage mutex for cookies	and	localStorage
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#65095">[ date ]</a>
+              <a href="thread.html#65095">[ thread ]</a>
+              <a href="subject.html#65095">[ subject ]</a>
+              <a href="author.html#65095">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Thu, Sep 10, 2009 at 1:59 AM, Chris Jones &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">cjones at mozilla.com</A>&gt; wrote:
+
+&gt;<i> Jeremy Orlow wrote:
+</I>&gt;<i>
+</I>&gt;&gt;<i> What failures could there be in a pesimistic/queue model?
+</I>&gt;&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> I'm trying to think of a &quot;universal failure,&quot; something that could arise in
+</I>&gt;<i> any implementation of any proposal.  I think that universal failure is
+</I>&gt;<i> &quot;exceeded localStorage space quota&quot;.  (I believe there are others, but one
+</I>&gt;<i> is enough for this discussion.)
+</I>&gt;<i>
+</I>&gt;<i> So there are really two questions: first, what happens if you detect &quot;quota
+</I>&gt;<i> exceeded&quot; in the middle of a localStorage.transaction() callback?  Are the
+</I>&gt;<i> modifications made *up to* the quota exceeded error applied to backing
+</I>&gt;<i> store?  Or are they rolled back?  This is the atomicity/consistency design
+</I>&gt;<i> decision I described: what is the unit of atomic modification (all applied
+</I>&gt;<i> or none applied).
+</I>&gt;<i>
+</I>&gt;<i> And second, can scripts be notified that the transaction failed (or was
+</I>&gt;<i> only partially applied) because of quota exceeded?
+</I>&gt;<i>
+</I>&gt;<i> AFAICT this is irrespective of sync/async/optimistic/pessimistic/queue.
+</I>&gt;<i>  Any implementation has to deal with this error somehow.
+</I>&gt;<i>
+</I>&gt;<i> In the current localStorage spec, if a setItem() fails because space is
+</I>&gt;<i> exhausted, it raises QUOTA_EXCEEDED_ERR and does *not* apply any part of the
+</I>&gt;<i> change in setItem().  That is, setItem() is atomic --- it either applies or
+</I>&gt;<i> not (not partially applied).  But modifications to localStorage *before*
+</I>&gt;<i> that failing setItem(), within the same storage mutex acquire/release set,
+</I>&gt;<i> *are* applied to backing store.
+</I>&gt;<i>
+</I>&gt;<i> In the Web Database spec, if executing a SQL statement in a Transaction
+</I>&gt;<i> would cause space quota to be exceeded, then *none* of the statements in the
+</I>&gt;<i> transaction are executed (i.e. none committed to backing store), and the
+</I>&gt;<i> Transaction fails with QUOTA_ERR.  The unit of atomicity for Web Database is
+</I>&gt;<i> that Transaction object --- either all statements in Transaction
+</I>&gt;<i> successfully execute or none do.
+</I>&gt;<i>
+</I>&gt;<i> I'm not sure whether you're proposing that modifications within a
+</I>&gt;<i> localStorage.transaction() callback are atomic (all applied or none applied)
+</I>&gt;<i> in the face of quota exceeded.  (I'm proposing that they *should* be
+</I>&gt;<i> atomic.)
+</I>&gt;<i>
+</I>&gt;<i> It sounds like you're proposing that scripts *cannot* be notified of quota
+</I>&gt;<i> exceeded.  If this is true, then there are some semantic issues I'd like to
+</I>&gt;<i> discuss.  But I want to make sure we're on the same page first :).  (I'm
+</I>&gt;<i> proposing that scripts *should* be able to be notified of this.)
+</I>
+
+The way it works right now is that an exception is thrown and that's it.  I
+think it'd be perfectly acceptable for the behavior to remain, even if it's
+inside a &quot;transaction&quot;.  In other words, I don't think the transaction
+necessarily needs to stop or anything.  I think most app developers will
+want to explicitly handle out of space errors (they're not just going to go
+away on their own), but probably won't want to explicitly deal with
+transient errors (like what you can see with optimistic transactions).
+
+I don't think quota errors should be grouped in with any atomicity
+guarantees, in other words.
+
+Are there any other examples of failures you can have within a pessimistic
+transaction?
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: &lt;<A HREF="http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20090910/8a6bd128/attachment-0002.htm">http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20090910/8a6bd128/attachment-0002.htm</A>&gt;
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="065081.html">[whatwg] RFC: Alternatives to storage mutex for cookies and localStorage
+</A></li>
+	<LI>Next message: <A HREF="065052.html">[whatwg] RFC: Alternatives to storage mutex for cookies	and	localStorage
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#65095">[ date ]</a>
+              <a href="thread.html#65095">[ thread ]</a>
+              <a href="subject.html#65095">[ subject ]</a>
+              <a href="author.html#65095">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

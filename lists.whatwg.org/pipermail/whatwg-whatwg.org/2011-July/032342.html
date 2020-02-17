@@ -1,0 +1,893 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Microdata feedback
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Microdata%20feedback&In-Reply-To=%3CPine.LNX.4.64.1107061815270.19153%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="074634.html">
+   <LINK REL="Next"  HREF="074627.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Microdata feedback</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Microdata%20feedback&In-Reply-To=%3CPine.LNX.4.64.1107061815270.19153%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg] Microdata feedback">ian at hixie.ch
+       </A><BR>
+    <I>Thu Jul  7 15:33:14 PDT 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="074634.html">[whatwg] Video feedback
+</A></li>
+        <LI>Next message: <A HREF="074627.html">[whatwg] Microdata feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#32342">[ date ]</a>
+              <a href="thread.html#32342">[ thread ]</a>
+              <a href="subject.html#32342">[ subject ]</a>
+              <a href="author.html#32342">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Wed, 8 Jun 2011, Tomasz Jamroszczak wrote:
+&gt;<i> 
+</I>&gt;<i> I've been looking into Microdata specification and it struck me, that 
+</I>&gt;<i> crawling algorithm is so complex, when it comes to expressing simple 
+</I>&gt;<i> ideas.  I think that foremost the algorithm should be described in the 
+</I>&gt;<i> specification with explanation what it's supposed to do, before steps of 
+</I>&gt;<i> what exactly is to be done are written.
+</I>
+Yeah. Turns out the algorithms involved here are quite badly broken.
+
+It was intended to expose the microdata graph as completely as possible 
+while dropping anything that would introduce a loop, at the point where 
+the first repetition would start (so A-&gt;B-&gt;C=&gt;A would break at the =), 
+in the API, in the JSON, and in the conformance rules. I didn't do a good 
+job speccing that, though!
+
+I've fixed the algorithms to make sense (I hope).
+
+
+&gt;<i> Let's see, what are the properties of Microdata item from HTML element 
+</I>&gt;<i> with id=up from following HTML:
+</I>&gt;<i> 
+</I>&gt;<i> &lt;div itemscope id=up itemprop=prop0&gt;
+</I>&gt;<i>   &lt;div itemscope id=down itemprop=prop1 itemref=&quot;up&quot;&gt;&lt;/div&gt;
+</I>&gt;<i> &lt;/div&gt;
+</I>
+The element id=up has one property, prop1, whose value is an item on the 
+element id=down. The element id=down has one property, prop0, whose value 
+is the item on the element with id=up. If you crawl from id=up, my intent 
+was to have the prop0 be dropped from the graph. If you crawl from 
+id=down, my intent was to have prop1 be dropped from the graph. In 
+addition, the document is intended to be non-conforming. If you serialise 
+it for JSON, my intent was for the item on id=up to be the &quot;top&quot; one, and 
+for it to have one property whose value is the item on id=down, which 
+would itself have no values.
+
+Note that the above would be non-conforming on its own because there are 
+no top-level microdata items in the above snippet.
+
+
+&gt;<i> I can imagine good usages of loops of Microdata items, for example &quot;John 
+</I>&gt;<i> knows Amy, Amy knows John&quot;:
+</I>&gt;<i> 
+</I>&gt;<i> &lt;div itemscope id=&quot;john&quot; itemprop&gt;
+</I>&gt;<i>   &lt;div itemprop=&quot;friends&quot; itemref=&quot;fred1 jenny2 amy1&quot;&gt;&lt;/div&gt;
+</I>&gt;<i> &lt;/div&gt;
+</I>&gt;<i>
+</I>&gt;<i> &lt;div itemscope id=&quot;amy1&quot; itemprop&gt;
+</I>&gt;<i>   &lt;div itemprop=&quot;friends&quot; itemref=&quot;john&quot;&gt;&lt;/div&gt;
+</I>&gt;<i> &lt;/div&gt;
+</I>&gt;<i> 
+</I>&gt;<i> There's loop:  jonh-&gt;amy1-&gt;john-&gt;... .
+</I>
+itemref=&quot;&quot; doesn't reference items for property values. It just references 
+an element to get a list of properties for an item.
+
+The example above is non-conforming because itemref=&quot;&quot; can only be 
+specified on an itemscope=&quot;&quot; element, itemprop=&quot;&quot; is not value without a 
+value, and there's no top-level items.
+
+The right way to do what you describe above is (provided the vocabulary 
+is defined in a way that supports this):
+
+ &lt;div itemscope itemid=&quot;<A HREF="http://example.com/john">http://example.com/john</A>&quot; itemtype=&quot;...&quot;&gt;
+   &lt;meta itemprop=&quot;friends&quot;
+         content=&quot;<A HREF="http://example.com/fred1">http://example.com/fred1</A> <A HREF="http://example.com/jenny2">http://example.com/jenny2</A> <A HREF="http://example.com/amy1">http://example.com/amy1</A>&quot;&gt;
+ &lt;/div&gt;
+
+ &lt;div itemscope itemid=&quot;<A HREF="http://example.com/amy1">http://example.com/amy1</A>&quot; itemtype=&quot;...&quot;&gt;
+   &lt;meta itemprop=&quot;friends&quot;
+         content=&quot;<A HREF="http://example.com/john">http://example.com/john</A>&quot;&gt;
+ &lt;/div&gt;
+
+
+&gt;<i> If the loop is to be excluded, and thus recursion, the same data could 
+</I>&gt;<i> be written as:
+</I>&gt;<i> 
+</I>&gt;<i> &lt;div itemscope&gt;
+</I>&gt;<i>   &lt;div itemprop=addressbook_id&gt;1&lt;/div&gt;
+</I>&gt;<i>   &lt;div itemprop=name&gt;John&lt;/div&gt;
+</I>&gt;<i>   &lt;div itemprop=knows&gt;2&lt;/div&gt;
+</I>&gt;<i> &lt;/div&gt;
+</I>&gt;<i>
+</I>&gt;<i> &lt;div itemscope&gt;
+</I>&gt;<i>   &lt;div itemprop=addressbook_id&gt;2&lt;/div&gt;
+</I>&gt;<i>   &lt;div itemprop=name&gt;Amy&lt;/div&gt;
+</I>&gt;<i>   &lt;div itemprop=knows&gt;1&lt;/div&gt;
+</I>&gt;<i> &lt;/div&gt;.
+</I>
+That's another way to do it, yes.
+
+
+&gt;<i> maybe with some &lt;meta&gt; instead of &lt;div&gt; or more verbosely:
+</I>&gt;<i> 
+</I>&gt;<i> &lt;p itemscope itemid=&quot;#john&quot; id=&quot;#john&quot;&gt;John knows &lt;a 
+</I>&gt;<i> itemprop=&quot;<A HREF="http://xmlns.com/foaf/0.1/knows">http://xmlns.com/foaf/0.1/knows</A>&quot; href=&quot;#amy&quot;&gt;Amy&lt;/a&gt;.&lt;/p&gt;
+</I>&gt;<i>
+</I>&gt;<i> &lt;p itemscope itemid=&quot;#amy&quot; id=&quot;#amy&quot;&gt;Amy knows &lt;a 
+</I>&gt;<i> itemprop=&quot;<A HREF="http://xmlns.com/foaf/0.1/knows">http://xmlns.com/foaf/0.1/knows</A>&quot; href=&quot;#john&quot;&gt;John&lt;/a&gt;.&lt;/p&gt;
+</I>
+That works too.
+
+
+&gt;<i> The problem I'm addressing revolves around meaning of link between 
+</I>&gt;<i> itemref and id attributes.  Is it meant to be a part of Microdata data 
+</I>&gt;<i> model?
+</I>
+No, it's just syntactic sugar to allow pages to use microdata without 
+having to twist their markup into a pretzel to make it work.
+
+
+&gt;<i> Or maybe it is introduced to cope with the fact that Microdata graph is 
+</I>&gt;<i> defined on top of existing data, which is something completely 
+</I>&gt;<i> different, and is meant to be rendered to the user (that is on top of 
+</I>&gt;<i> HTML tree)?
+</I>
+Right.
+
+
+&gt;<i> So the meaning of itemref attribute should also hint interpretation of 
+</I>&gt;<i> it inside the specification.
+</I>
+Done.
+
+
+On Fri, 10 Jun 2011, Philip J&#228;genstedt wrote:
+&gt;<i> 
+</I>&gt;<i> I don't think the spec needs to be giving suggestions for efficient 
+</I>&gt;<i> implementation for live collections, because we inevitable won't 
+</I>&gt;<i> implement exactly that algorithm anyway.
+</I>
+The aim wasn't to give suggestions for efficient implementations. The aim 
+was to give algorithms for which an efficient implementation existed, 
+rather than requiring something nigh on impossible to implement 
+efficiently. The aim wasn't reached, though, in that the algorithm in the 
+spec was just completely bogus. Sorry about that.
+
+
+On Tue, 28 Jun 2011, Tomasz Jamroszczak wrote:
+&gt;<i> 
+</I>&gt;<i> For sure itemRef attribute of Microdata have to stay, because it makes 
+</I>&gt;<i> possible separation of data (the Microdata item properties, the 
+</I>&gt;<i> semantics) and view (where contents of those properties should be laid 
+</I>&gt;<i> out for browser user). Without itemRef, Microdata becomes &quot;Picodata&quot;.
+</I>
+That may not be all bad. :-)
+
+You know something is done not when there's nothing new to add, but when 
+there's nothing left to remove.
+
+
+&gt;<i> But then, what to do when translating Microdata to other format, such as 
+</I>&gt;<i> stringification to JSON in Drag'n'drop?  The JSON itself is quite 
+</I>&gt;<i> primitive when it comes to stringification loops - it just throws an 
+</I>&gt;<i> exception.  We thought we'll be more flexible.  We'll make 
+</I>&gt;<i> stringification &quot;as best as possible&quot;, and cutting only the last 
+</I>&gt;<i> offending link of a cycle.  See 
+</I>&gt;<i> <A HREF="http://people.opera.com/tjamroszczak/microdata/microdata-loops.png">http://people.opera.com/tjamroszczak/microdata/microdata-loops.png</A> . 
+</I>&gt;<i> Unfortunately it means that items which belong to Microdata item loops 
+</I>&gt;<i> sometimes will lose properties, and it depends on from where the cycle 
+</I>&gt;<i> was reached (see point A1 and A2 in the image).
+</I>
+This was actually the intent of the spec originally, so it works out well 
+that this is what you've opted for!
+
+I've done the same in the spec.
+
+
+On Wed, 29 Jun 2011, Philip J&#228;genstedt wrote:
+&gt;<i> 
+</I>&gt;<i> Note also that other algorithms defined in terms of items and their 
+</I>&gt;<i> properties need to handle loopiness in some way. That's currently RDF, 
+</I>&gt;<i> vCard and iCal conversion. Perhaps something like &quot;loopy item&quot; could be 
+</I>&gt;<i> defined and those algorithms could skip loopy items wherever they occur? 
+</I>&gt;<i> Simply failing is also an acceptable solution, IMO.
+</I>
+I fixed vCard with a patch that just outputs &quot;AGENT;TYPE=VCARD:ERROR&quot; in 
+the case of a loop. (Can only happen if the input is non-conforming, so it 
+doesn't matter if the output is non-conforming.)
+
+The vEvent stuff was already loop-safe.
+
+The JSON algorithm now ends the crawl when it hits a loop, and replaces 
+the offending duplicate item with the string &quot;ERROR&quot;.
+
+The RDF algorithm preserves the loops, since doing so is possible with 
+RDF. Turns out the algorithm almost did this already, looks like it was an 
+oversight.
+
+
+
+On Wed, 8 Jun 2011, Dan Brickley wrote:
+&gt;<i> 
+</I>&gt;<i> Section '5.2.3 Names: the itemprop attribute' states something important 
+</I>&gt;<i> about Microdata's data model,
+</I>&gt;<i> 
+</I>&gt;<i> &quot;Within an item, the properties are unordered with respect to each 
+</I>&gt;<i> other, except for properties with the same name, which are ordered in 
+</I>&gt;<i> the order they are given by the algorithm that defines the properties of 
+</I>&gt;<i> an item.&quot;
+</I>
+(Which is tree order, currently, though it wasn't always so.)
+
+
+&gt;<i> ... and gives an example &quot;In the following example, the &quot;a&quot; property
+</I>&gt;<i> has the values &quot;1&quot; and &quot;2&quot;, in that order,  ...
+</I>&gt;<i>
+</I>&gt;<i> &lt;div itemscope itemref=&quot;x&quot;&gt;
+</I>&gt;<i>  &lt;p itemprop=&quot;b&quot;&gt;test&lt;/p&gt;
+</I>&gt;<i>  &lt;p itemprop=&quot;a&quot;&gt;2&lt;/p&gt;
+</I>&gt;<i> &lt;/div&gt;
+</I>&gt;<i>
+</I>&gt;<i> &lt;div id=&quot;x&quot;&gt;
+</I>&gt;<i>  &lt;p itemprop=&quot;a&quot;&gt;1&lt;/p&gt;
+</I>&gt;<i> &lt;/div&gt;&quot;
+</I>&gt;<i> 
+</I>&gt;<i> However '5.2.1 The microdata model' does not mention anything of this 
+</I>&gt;<i> data model feature. If property values (for some specific property/item 
+</I>&gt;<i> context), this should be mentioned when introducing the data model; if 
+</I>&gt;<i> only by copying or linking the above sentence (&quot;Within an item, ...&quot;).
+</I>
+I've added a brief sentence mentioning that names aren't ordered but 
+values of a name are.
+
+
+&gt;<i> Is the expectation that Microdata vocabulary authors can decide whether 
+</I>&gt;<i> such ordering is meaningful, when they define / describe their 
+</I>&gt;<i> properties?
+</I>
+Yes.
+
+
+&gt;<i> For example, in academic publishing where they care about being first 
+</I>&gt;<i> named author, the ordering of 'itemprop=&quot;author&quot;' might seem to matter.
+</I>
+Right.
+
+
+&gt;<i> 5.2.3 suggests that the ordering information is at least preserved in 
+</I>&gt;<i> Microdata's data model. If someone creates an 'author' property for 
+</I>&gt;<i> Microdata, should they state that property ordering is meaningful, or is 
+</I>&gt;<i> that not their decision?
+</I>
+They can state that the order is not meaningful.
+
+It's similar to how the order of children element nodes in an XML element 
+can be important or not, as defined by the vocabulary.
+
+
+On Sat, 11 Jun 2011, Brett Zamir wrote:
+&gt;<i> On 4/27/2011 9:06 PM, Benjamin Hawkes-Lewis wrote:
+</I>&gt;<i> &gt; On Wed, Apr 27, 2011 at 3:54 AM, Brett Zamir&lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">brettz9 at yahoo.com</A>&gt;  wrote:
+</I>&gt;<i> &gt; &gt; Thanks for the references. While this may be relevant for the likes 
+</I>&gt;<i> &gt; &gt; of blogs and other documents whose requirements for semantic density 
+</I>&gt;<i> &gt; &gt; is limited enough to allow such reshaping for practical effect and 
+</I>&gt;<i> &gt; &gt; whose content is reshapeable by the content creator (as opposed to 
+</I>&gt;<i> &gt; &gt; republishing of already completed books), for more semantically 
+</I>&gt;<i> &gt; &gt; dense content, such as the types of classical documents marked up by 
+</I>&gt;<i> &gt; &gt; TEI, it is simply not possible to expose text for each bit of 
+</I>&gt;<i> &gt; &gt; semantic information or to generate new text to meet that need. And 
+</I>&gt;<i> &gt; &gt; of course, even with microformats/microdata as it is now, the 
+</I>&gt;<i> &gt; &gt; semantic content itself is not necessarily exposed just because text 
+</I>&gt;<i> &gt; &gt; is visible on the page.
+</I>&gt;<i> &gt; &gt; 
+</I>&gt;<i> &gt; &gt; The issue of discoverability is I think more related to how it will 
+</I>&gt;<i> &gt; &gt; be consumed or may be consumed. And even if some pieces of 
+</I>&gt;<i> &gt; &gt; information are less discoverable, it does not mean that they have 
+</I>&gt;<i> &gt; &gt; no value. For such rich documents, a lot of attention is being paid 
+</I>&gt;<i> &gt; &gt; to these texts since they are themselves considered important enough 
+</I>&gt;<i> &gt; &gt; to be worth the time.
+</I>&gt;<i> &gt; &gt; 
+</I>&gt;<i> &gt; &gt; If the Declaration of Independence of the United States was marked 
+</I>&gt;<i> &gt; &gt; up with hidden information about prior emendations, their likely 
+</I>&gt;<i> &gt; &gt; reasons, etc., or about suspected authors of particular passages, or 
+</I>&gt;<i> &gt; &gt; the United Nations Declaration of Human Rights were marked up to 
+</I>&gt;<i> &gt; &gt; indicate which countries have expressed reservations 
+</I>&gt;<i> &gt; &gt; (qualifications) about which rights, while a browsing application or 
+</I>&gt;<i> &gt; &gt; query tool ought to be able (optionally) expose this hidden 
+</I>&gt;<i> &gt; &gt; information, there is no automatic need for the markup to be 
+</I>&gt;<i> &gt; &gt; polluted with extra (hidden) (and especially URI-based or other 
+</I>&gt;<i> &gt; &gt; non-textual) tags when an attribute would suffice.
+</I>&gt;<i> &gt; &gt; 
+</I>&gt;<i> &gt; &gt; For things that are truly important, there may be a great deal of 
+</I>&gt;<i> &gt; &gt; care put into building up many layers which are meant to be peeled 
+</I>&gt;<i> &gt; &gt; away, and it is worth allowing some of that information 
+</I>&gt;<i> &gt; &gt; (particularly the non-textual information, e.g., the conditions of 
+</I>&gt;<i> &gt; &gt; authorship, publisher, etc.), especially which the original 
+</I>&gt;<i> &gt; &gt; publication did not expose, to be still selectively revealed to 
+</I>&gt;<i> &gt; &gt; queries and deeper browsing.
+</I>&gt;<i> &gt; &gt; 
+</I>&gt;<i> &gt; &gt; If a site like Wikisource (the online library sister project of 
+</I>&gt;<i> &gt; &gt; Wikipedia's) would be able to offer such officially sanctioned 
+</I>&gt;<i> &gt; &gt; semantic attributes, classic texts could become enhanced in this way 
+</I>&gt;<i> &gt; &gt; over time, with the wiki exposing the hidden semantic information, 
+</I>&gt;<i> &gt; &gt; which indeed may not be as important as the visible text, but with 
+</I>&gt;<i> &gt; &gt; queries by interested to users, any problems in encoding could be 
+</I>&gt;<i> &gt; &gt; discovered just as well.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Your email challenges the principle of visible data on four different 
+</I>&gt;<i> &gt; grounds:
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; 1. You note even proponents of visible data do not always show their 
+</I>&gt;<i> &gt; data. But the microformats community only endorse hidden metadata for 
+</I>&gt;<i> &gt; annotating human-friendly visible data (e.g. &quot;mercredi prochain&quot;) with 
+</I>&gt;<i> &gt; a machine-readable equivalent (e.g. an ISO 8601 formatted date). They 
+</I>&gt;<i> &gt; do not endorse hidden metadata without visible equivalents against 
+</I>&gt;<i> &gt; which it can be cross-checked.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; 2. You imply editorial effort can offset the error-proneness of hidden 
+</I>&gt;<i> &gt; metadata. But the same extraordinary editorial effort would yield even 
+</I>&gt;<i> &gt; greater accuracy if it went towards creating visible data rather than 
+</I>&gt;<i> &gt; hidden metadata.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; 3. You claim tool-assisted queries by end-users against the hidden 
+</I>&gt;<i> &gt; metadata will reveal errors at the same rate as visible data. But this 
+</I>&gt;<i> &gt; is doubtful, in so far as many queries will obfuscate context whereas 
+</I>&gt;<i> &gt; simply reading through the text encourages serendipitous error 
+</I>&gt;<i> &gt; discovery. For example, I could issue a query asking what proportion 
+</I>&gt;<i> &gt; of the Declaration of Independence is suspected to be authored by John 
+</I>&gt;<i> &gt; Adams. A percentage answer would not reveal the odd misattributed 
+</I>&gt;<i> &gt; passage. By contrast, if I'm a scholar of the Declaration and am 
+</I>&gt;<i> &gt; reading through the text and I happen to see a suspiciously 
+</I>&gt;<i> &gt; Jeffersonian passage visibly attributed to John Adams, I'm much more 
+</I>&gt;<i> &gt; likely to notice the error.
+</I>&gt;<i>
+</I>&gt;<i> Of course a visible attribution is helpful, but one cannot possibly 
+</I>&gt;<i> visibly represent all information one might wish to add, especially if 
+</I>&gt;<i> one does not wish to clutter the view hopelessly. Meta-data can be 
+</I>&gt;<i> available to searching, and if search engines don't wish to take 
+</I>&gt;<i> advantage of it, at least individual document queries can do so.
+</I>
+The question is, will enough &quot;individual document queries&quot; do so to make 
+it worth it?
+
+Or to put it another way, is there sufficient compelling need for a way to 
+represent all the information one _might_ wish to add in a non-visible yet 
+generically processable manner?
+
+It's not clear to me that there is. What are the concrete use cases? Is 
+anyone actually interested in marking up the United Nations Declaration of 
+Human Rights in HTML to indicate which countries have expressed 
+reservations in a manner intended to be processable by tools not 
+specifically designed for that use case?
+
+One can definitely imagine that someone might want to create an 
+application specifically for marking up and exposing such information, but 
+if it's a self-contained app, the data-* feature is sufficient. The 
+question is, is anyone actually trying to write a generic app of this 
+nature right now? More, even: are enough people doing so that we need to 
+solve this problem?
+
+
+&gt;<i> &gt; 4. You assert that it is not viable to make multiple layers of rich 
+</I>&gt;<i> &gt; data visible in a single view. I'd make the counterargument that on 
+</I>&gt;<i> &gt; the web, unlike in print, it is economical to dynamically construct 
+</I>&gt;<i> &gt; different views and filters of a document and its various visible data 
+</I>&gt;<i> &gt; streams on the client, on the server, on the client, or on some 
+</I>&gt;<i> &gt; combination of the two. The HTML5 specification itself is a great 
+</I>&gt;<i> &gt; example of this. The source text is kept in a repository that stores 
+</I>&gt;<i> &gt; changes to the text, along with date and rationale. Multiple views of 
+</I>&gt;<i> &gt; this source text are then generated serverside: the source text is 
+</I>&gt;<i> &gt; carved up into multiple draft specs for W3C and a single mammoth 
+</I>&gt;<i> &gt; specification for WHATWG. The HTML spec is provided in a 
+</I>&gt;<i> &gt; browser-crashing single document view and in a multipage view. On top 
+</I>&gt;<i> &gt; of this, there is clientside filtering in the form of an in-page 
+</I>&gt;<i> &gt; control that can produce a web author view by hiding technical text 
+</I>&gt;<i> &gt; aimed at browser vendors.
+</I>&gt;<i> 
+</I>&gt;<i> Sometimes projects simply wish to make the meta-data available and let 
+</I>&gt;<i> consumers determine how to display it.
+</I>
+Which projects? Are they unable to do it today? What are their concrete 
+needs and desires? What level of user engagement are they getting?
+
+
+&gt;<i> If someone has a good idea about how to manage the display (or editing) 
+</I>&gt;<i> of meta-data, all power to them, but this does not mean that the 
+</I>&gt;<i> original document creator should be forced to create every possible use 
+</I>&gt;<i> when their interest and responsibility may simply be properly defining 
+</I>&gt;<i> the semantics in use.
+</I>
+It is not a goal of this effort to address the desires of people who 
+simply want to mark up data without a concrete use case. If anything, it 
+has been our goal to _discourage_ such authors, so as to help them focus 
+their efforts on work that has an actual immediate end-user benefit, 
+rather than merely a theoretical future payoff.
+
+
+&gt;<i> In any case, the specification has allowed in-body &lt;meta/&gt; as you point 
+</I>&gt;<i> out, so hidden meta-data is thankfully available to authors.
+</I>
+Indeed. Also, data-*=&quot;&quot; for in-page applications, and &lt;script&gt; for in-page 
+data blobs, and of course it's also possible to reference external data 
+files for processors.
+
+If these are sufficient for what people want to do, then our job is done.
+
+
+&gt;<i> &gt; If you're keen on using the TEI vocabulary to meet the Wikisource use 
+</I>&gt;<i> &gt; case, there's no particular reason why you couldn't convert Wiki 
+</I>&gt;<i> &gt; markup to TEI source text, serve TEI directly over the web, and also 
+</I>&gt;<i> &gt; generate various HTML views of visible rich data from the TEI (for 
+</I>&gt;<i> &gt; example, with XSLT). The Perseus project uses TEI and HTML in 
+</I>&gt;<i> &gt; combination a bit like that:
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; <A HREF="http://www.perseus.tufts.edu/hopper/text?doc=Perseus%3atext%3a1999.01.0199">http://www.perseus.tufts.edu/hopper/text?doc=Perseus%3atext%3a1999.01.0199</A>
+</I>&gt;<i>
+</I>&gt;<i> Thanks, but I'm not a fan of custom solutions, since, similar to the 
+</I>&gt;<i> &quot;many eyes&quot; view you are espousing for exposing meta-data visually, I 
+</I>&gt;<i> believe such solutions leave different semantic communities out of the 
+</I>&gt;<i> benefits of utilizing and contributing to general purpose solutions.
+</I>
+It isn't a &quot;custom solution&quot;. As far as I can tell, it's using TEI for its 
+intended purpose. It's a generic TEI solution.
+
+
+&gt;<i> For example, I'd like TEI to be serialized such that it can take 
+</I>&gt;<i> advantage of tools exclusive to HTML such as WYSIWYG editors, wikis 
+</I>&gt;<i> which whitelist only certain elements and attributes, etc., and have the 
+</I>&gt;<i> TEI community engaged in enhancing the same Microdata schemas (such as 
+</I>&gt;<i> those detailed on <A HREF="http://schema.org">http://schema.org</A>) available to all on the web.
+</I>
+Why? Why not use TEI tools? Why not XML tools? Or JSON tools?
+
+We can't possibly design HTML on the assumption that every other language 
+is going to be mapped to it to use its tool. That is a completely 
+unscalable solution. HTML is a generic document and application platform, 
+it's not feasible for it to be everything for every purpose. It's hard 
+enough to make it good for writing Web apps and docs, let alone making it 
+good for everything! :-)
+
+
+&gt;<i> &gt; But let's say you were determined to serve up a single HTML document 
+</I>&gt;<i> &gt; with lots of hidden metadata. None of microformats, microdata, and 
+</I>&gt;<i> &gt; RDFa were designed to do this. But both microdata and RDFa allow you 
+</I>&gt;<i> &gt; to do so in a conforming manner using the @content attribute. In 
+</I>&gt;<i> &gt; WHATWG HTML, this is restricted to the &quot;meta&quot; element, but the &quot;meta&quot; 
+</I>&gt;<i> &gt; element is now allowed amidst body text so it can apply to individual 
+</I>&gt;<i> &gt; sections of the document, rather than just the whole document. In W3C 
+</I>&gt;<i> &gt; HTML+RDFa, the @content attribute is allowed on any element.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; In other words, where your examples currently abuse the skinning layer 
+</I>&gt;<i> &gt; (&quot;display: none&quot;) to preserve logical text flow, they should actually 
+</I>&gt;<i> &gt; be using <A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">meta at content</A> instead; there is no need for &quot;ugly hacks&quot; even 
+</I>&gt;<i> &gt; if the markup becomes more verbose than you might like.
+</I>&gt;<i>
+</I>&gt;<i> I had not been aware of &lt;meta/&gt; being available in-body, thank you.
+</I>&gt;<i> 
+</I>&gt;<i> However, my item-* proposal, besides being more succinct in the case of
+</I>&gt;<i> attribute content, allows for targeted styling of elements which &lt;meta/&gt;
+</I>&gt;<i> currently would not.
+</I>&gt;<i> 
+</I>&gt;<i> For example, to take a water-damaged text (e.g., for the TEI element
+</I>&gt;<i> <A HREF="http://www.tei-c.org/release/doc/tei-p5-doc/en/html/ref-damage.html">http://www.tei-c.org/release/doc/tei-p5-doc/en/html/ref-damage.html</A> ) which in
+</I>&gt;<i> TEI could be expressed as:
+</I>&gt;<i> 
+</I>&gt;<i> &lt;damage agent=&quot;water&quot; xmlns=&quot;<A HREF="http://www.tei-c.org/ns/1.0/">http://www.tei-c.org/ns/1.0/</A>&quot;&gt;Some water damaged
+</I>&gt;<i> words&lt;/damage&gt;
+</I>&gt;<i> 
+</I>&gt;<i> might be represented currently in Microdata as:
+</I>&gt;<i> 
+</I>&gt;<i> &lt;span itemprop=&quot;damage&quot; itemscope=&quot;&quot; itemtype=&quot;<A HREF="http://www.tei-c.org/ns/1.0/">http://www.tei-c.org/ns/1.0/</A>&quot;&gt;
+</I>&gt;<i> &lt;meta itemprop=&quot;agent&quot; content=&quot;water&quot;/&gt;
+</I>&gt;<i>     Some water damaged words
+</I>&gt;<i> &lt;/span&gt;
+</I>
+It's not clear to me what the context of this is, but itemprop=&quot;damage&quot; is 
+probably wrong in the above unless this is intended to be in another item.
+
+
+&gt;<i> But there is no &quot;parent combinator&quot; selector such that the following (also
+</I>&gt;<i> cumbersome) selector would work:
+</I>&gt;<i> 
+</I>&gt;<i> span[itemprop=damage] &lt;  meta[itemprop=agent][content=water] {
+</I>&gt;<i>     text-shadow: 2px 2px 16px #2b2b2b;
+</I>&gt;<i> }
+</I>
+You really don't want to be using CSS on microdata, that way lies madness. 
+Microdata doesn't define a mapping from its properties to the elements in 
+the page. There is no semantic difference between these three lines at the 
+microdata level:
+
+   &lt;p itemscope&gt;&lt;span itemprop=a&gt;foo&lt;/span&gt;&lt;/p&gt;
+
+   &lt;p itemscope itemref=x&gt;foo&lt;/p&gt; &lt;meta id=x itemprop=a content=foo&gt;
+
+   &lt;meta id=x itemprop=a content=foo&gt; &lt;p itemscope itemref=x&gt;foo&lt;/p&gt;
+
+So if you use CSS to style this, your styles are dependent on a 
+non-semantic syntactic detail, which is very brittle.
+
+
+&gt;<i> In my item-* proposal, it would be nicely expressed as:
+</I>&gt;<i> 
+</I>&gt;<i> &lt;span itemprop=&quot;damage&quot; item-agent=&quot;water&quot; itemscope=&quot;&quot;
+</I>&gt;<i> itemtype=&quot;<A HREF="http://www.tei-c.org/ns/1.0/">http://www.tei-c.org/ns/1.0/</A>&quot;&gt;
+</I>&gt;<i>     Some water damaged words
+</I>&gt;<i> &lt;/span&gt;
+</I>&gt;<i> 
+</I>&gt;<i> which works fairly well in CSS too:
+</I>&gt;<i> 
+</I>&gt;<i> span[itemprop=damage][item-agent=water] {
+</I>&gt;<i>     text-shadow: 2px 2px 16px #2b2b2b;
+</I>&gt;<i> }
+</I>&gt;<i> 
+</I>&gt;<i> This offers a conveniently condensed syntax, while also ensuring 
+</I>&gt;<i> discoverability of the prefixed Microdata attributes.
+</I>&gt;<i> 
+</I>&gt;<i> Especially as more attributes are needed (kept simple for this example), 
+</I>&gt;<i> it becomes easier to handle (and cleaner), even if it admittedly adds a 
+</I>&gt;<i> little work to crawlers to detect this different approach.
+</I>
+I don't really understand what this is doing.
+
+
+&gt;<i> &gt; Note HTML also has other extension points that are available, 
+</I>&gt;<i> &gt; including dumping data in script elements,
+</I>&gt;<i>
+</I>&gt;<i> Not a standard approach and not likely to work in restricted 
+</I>&gt;<i> whitelisting environment.
+</I>
+It is a standard approach.
+
+
+&gt;<i> &gt; dumping data in class attributes,
+</I>&gt;<i>
+</I>&gt;<i> Suffers, as schema.org implies at <A HREF="http://schema.org/docs/faq.html#14">http://schema.org/docs/faq.html#14</A> , 
+</I>&gt;<i> from a lack of extensibility/namespacing.
+</I>
+If your problem is you want to style something, then the class=&quot;&quot; 
+attribute is exactly the way to do it. It's not clear why you need 
+extensibility or namespacing here if your problem is styling.
+
+
+&gt;<i> &gt; and mixing XHTML and other XML vocabularies in a compound document.
+</I>&gt;<i> 
+</I>&gt;<i> Suffers from a lack of support in the HTML serialization
+</I>
+Sure. HTML suffers from a lack of support in the XML serialization, too. 
+Why is that a problem?
+
+
+&gt;<i> and from a lack of a uniform means of discoverability.
+</I>
+Not sure what this means. Namespaces are quite discoverable.
+
+
+&gt;<i> &gt; Beware that even where a conforming hidden metadata mechanism is 
+</I>&gt;<i> &gt; provided, consumers of such documents may well distrust hidden 
+</I>&gt;<i> &gt; metadata that is not a machine-readable equivalent to visible data. 
+</I>&gt;<i> &gt; For example, Google say:
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; &quot;In general, Google won't display content that is not visible to the 
+</I>&gt;<i> &gt; user. In other words, don't show content to users in one way, and use 
+</I>&gt;<i> &gt; hidden text to mark up information separately for search engines and 
+</I>&gt;<i> &gt; web applications. You should mark up the text that actually appears to 
+</I>&gt;<i> &gt; your users when they visit your web pages.&quot;
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; <A HREF="http://www.google.com/support/webmasters/bin/answer.py?hl=en&amp;answer=146898">http://www.google.com/support/webmasters/bin/answer.py?hl=en&amp;answer=146898</A>
+</I>&gt;<i> 
+</I>&gt;<i> I'm skeptical that this would exclude (or need to exclude) 
+</I>&gt;<i> namespace-aware Microdata searches since the user is clearly seeking 
+</I>&gt;<i> this information explicitly.
+</I>
+Hidden information is often out of date or wrong. There's a strong 
+incentive for search tools to ignore hidden information and rely only on 
+visible data.
+
+The user doesn't want bad data, even if in practice that's what it appears 
+the user is asking for.
+
+
+On Mon, 13 Jun 2011, Brett Zamir wrote:
+&gt;<i> 
+</I>&gt;<i> With the likes of Google offering Microdata-aware searches, I think it 
+</I>&gt;<i> makes a whole lot of sense to allow rich documents such as TEI ones to 
+</I>&gt;<i> enter as regular document citizens of the web, whereby the limited 
+</I>&gt;<i> resources of such specialized semantic communities can leverage the 
+</I>&gt;<i> general purpose and better-supported services such as Google's Microdata 
+</I>&gt;<i> tool, while also having their documents editable within the likes of 
+</I>&gt;<i> WYSIWYG HTML text editors, and stored on sites such as discussion forums 
+</I>&gt;<i> or wikis where only HTML may be allowed and supported.
+</I>&gt;<i> 
+</I>&gt;<i> I think such a focus would also enable the TEI community to benefit from 
+</I>&gt;<i> reusing search-engine-recognized schemas where available, as well as 
+</I>&gt;<i> helping the web community build new schemas for the unique needs of 
+</I>&gt;<i> encoding academic texts.
+</I>
+I don't understand what you're proposing here. The schema.org microdata 
+stuff isn't generic, it's specific vocabularies.
+
+
+On Mon, 13 Jun 2011, Tab Atkins Jr. wrote:
+&gt;<i> 
+</I>&gt;<i> Additionally, while we recognize that non-visible data is sometimes 
+</I>&gt;<i> necessary to embed, we'd like to discourage its use as much as possible 
+</I>&gt;<i> (in general, non-visible data rots much faster).  One way to do that is 
+</I>&gt;<i> to make the syntax slightly cumbersome or ugly - when you really need 
+</I>&gt;<i> it, you can use it, but your aesthetic sense will keep it from being the 
+</I>&gt;<i> first tool you reach for.  So, making it easier or prettier to embed 
+</I>&gt;<i> non-visible triples is actually something we'd like to avoid if we can.
+</I>
+Indeed.
+
+
+On Wed, 22 Jun 2011, Brett Zamir wrote:
+&gt;<i>
+</I>&gt;<i> HTML could have been created without attributes too--but if one is going 
+</I>&gt;<i> to use it frequently enough, concision is a big selling point (as is 
+</I>&gt;<i> non-redundant styleability).
+</I>
+HTML is hardly concise. :-)
+
+
+&gt;<i> People who are going to go to the trouble of adding semantics which do 
+</I>&gt;<i> nothing for visual rendering are probably going to have some idea of 
+</I>&gt;<i> what they are doing.
+</I>
+Do you have data to support this?
+
+From what I can tell, it's not an accurate statement.
+
+
+&gt;<i> It could be useful to a search engine. If I remembered that some text 
+</I>&gt;<i> was water-damaged, I could specify that I only wanted to look for 
+</I>&gt;<i> water-damaged text (with the TEI itemtype).
+</I>
+Why not just search for the English text &quot;water-damaged&quot;?
+
+
+On Tue, 14 Jun 2011, Philip J&#228;genstedt wrote:
+&gt;<i>
+</I>&gt;<i> A question came up in the Schema.org discussion group today:
+</I>&gt;<i> 
+</I>&gt;<i> <A HREF="http://groups.google.com/group/schemaorg-discussion/browse_thread/thread/69b733066ae7aaaa?pli=1">http://groups.google.com/group/schemaorg-discussion/browse_thread/thread/69b733066ae7aaaa?pli=1</A>
+</I>&gt;<i> 
+</I>&gt;<i> The question was how to fix <A HREF="http://www.2gc.co.uk/a2gc-people">http://www.2gc.co.uk/a2gc-people</A> to link 
+</I>&gt;<i> together properties that were in different parts of the document into a 
+</I>&gt;<i> single item. The answer is of course to use itemref, here simplified 
+</I>&gt;<i> even further to illustrate:
+</I>&gt;<i> 
+</I>&gt;<i> &lt;div itemscope itemtype=&quot;<A HREF="http://schema.org/Organization">http://schema.org/Organization</A>&quot;&gt;
+</I>&gt;<i>  &lt;p itemprop=&quot;name&quot;&gt;2GC Active Management&lt;/p&gt;
+</I>&gt;<i>  &lt;div class=&quot;photogrid&quot;&gt;
+</I>&gt;<i>    &lt;div class=&quot;photoitem&quot; itemprop=&quot;employees&quot; itemscope itemtype=&quot;<A HREF="http://schema.org/Person">http://schema.org/Person</A>&quot; itemref=&quot;GL&quot;&gt;
+</I>&gt;<i>      &lt;img itemprop=&quot;image&quot; src=&quot;/images/GJGL.jpg&quot; alt=&quot;Gavin Lawrie - Managing Director&quot;&gt;
+</I>&gt;<i>      &lt;div itemprop=&quot;name&quot;&gt;Gavin Lawrie&lt;/div&gt;
+</I>&gt;<i>      &lt;div itemprop=&quot;jobTitle&quot;&gt;Founder &amp; Managing Director&lt;/div&gt;
+</I>&gt;<i>    &lt;/div&gt;
+</I>&gt;<i>    &lt;!-- more employees --&gt;
+</I>&gt;<i>  &lt;/div&gt;
+</I>&gt;<i>  &lt;div id=&quot;bio-display&quot; itemscope&gt;
+</I>&gt;<i>    &lt;div class=&quot;bio-text&quot; id=&quot;GL&quot;&gt;&lt;dl&gt;
+</I>&gt;<i>      &lt;dt&gt;Gavin Lawrie: Founder &amp; Managing Director&lt;/dt&gt;
+</I>&gt;<i>      &lt;dd itemprop=&quot;description&quot;&gt;Gavin is ...&lt;/dd&gt;
+</I>&gt;<i>    &lt;/dl&gt;&lt;/div&gt;
+</I>&gt;<i>    &lt;!-- more employees --&gt;
+</I>&gt;<i>  &lt;/div&gt;
+</I>&gt;<i> &lt;/div&gt;
+</I>&gt;<i> 
+</I>&gt;<i> The ugly: &lt;div id=&quot;bio-display&quot; itemscope&gt;. That itemscope is there only 
+</I>&gt;<i> to prevent the description property of the Person from applying to the 
+</I>&gt;<i> organization, and does so because the algorithm to crawl the properties 
+</I>&gt;<i> of an item stops at itemscope. This is a silly hack, because it is not 
+</I>&gt;<i> an item, and I don't expect many people would find this solution even if 
+</I>&gt;<i> they knew about the problem.
+</I>
+This solution is not really a solution, since it generates a new item.
+
+I'd suggest instead putting the top-level itemscope onto a &lt;meta&gt; element, 
+and using itemref to link to the first &lt;p&gt; and the class=&quot;photogrid&quot; &lt;div&gt;.
+
+
+&gt;<i> Should we have yet another property like &quot;itemunscope&quot; that stops the 
+</I>&gt;<i> crawl algorithm but does not create a new item?
+</I>
+It doesn't seem necessary. Just don't nest properties in items they don't 
+apply to.
+
+
+&gt;<i> Could we tweak the validity definitions so that this kind of thing would 
+</I>&gt;<i> cause validators to complain, or should we leave it completely to 
+</I>&gt;<i> vocabulary-specific validators to spot this kind of thing? (They can't 
+</I>&gt;<i> if they operate on the microdata level and not DOM level, which I think 
+</I>&gt;<i> they should.)
+</I>
+It's not clear exactly what we would make non-conforming.
+
+
+On Sun, 26 Jun 2011, John Giannandrea wrote:
+&gt;<i>
+</I>&gt;<i> In the user feedback from the schema.org proposal, which uses microdata 
+</I>&gt;<i> as its syntax, we have seen several use cases that would seem to require 
+</I>&gt;<i> multiple itemtypes per itemscope.
+</I>
+The type of an item is the vocabulary the item uses. It doesn't make sense 
+to use more than one vocabulary, as far as I can tell.
+
+If an item defined with a particular vocabulary belongs to several things 
+(e.g. a person that is a lawyer and an engineer), then you just want a new 
+property that lists the categories the item belongs to.
+
+
+&gt;<i> We suggest that itemtype be changed to allow multiple space separated 
+</I>&gt;<i> types (just like itemprop), but only if the origin domain of the types 
+</I>&gt;<i> is the same.  This would allow a vocabulary provider to allow multiple 
+</I>&gt;<i> types and to take responsibility for what the property vocabulary 
+</I>&gt;<i> definition is in the context of more than one type.
+</I>
+I like this idea, but as others have pointed out, it seems bad to 
+arbitrarily restrict this kind of extension to same-domain types. Better, 
+IMHO, to not overload itemtype=&quot;&quot; in this way, and to just use a new 
+property, as here:
+
+   &lt;div itemscope itemtype=&quot;<A HREF="http://example.com/">http://example.com/</A>&quot;&gt;
+     &lt;meta itemprop=&quot;kind&quot; content=&quot;A B&quot;&gt;
+     ...
+   &lt;/div&gt;
+
+
+On Tue, 28 Jun 2011, John Giannandrea wrote:
+&gt;<i> 
+</I>&gt;<i> Cross-origin extensions can still be handled with full URIs for the 
+</I>&gt;<i> extension properties.
+</I>
+This would prevent extension vocabularies from using short names, which 
+seems like a serious limitation. (Or it would require that vocabularies 
+define both a short and long name for each property, which would be a 
+really bad idea, IMHO. Implementations rarely handle such cases well, and 
+the microdata model doesn't define the order of multiple values if they 
+use different but equivalent names, for example. You should never have 
+multiple names with the same semantic.)
+
+
+&gt;<i> On Tue, Jun 28, 2011 at 6:53 PM, Ian Hickson &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">ian at hixie.ch</A>&gt; wrote:
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt;   &lt;div itemscope itemtype=&quot;<A HREF="http://example.com/">http://example.com/</A>&quot;&gt;
+</I>&gt;<i> &gt;     &lt;meta itemprop=&quot;kind&quot; content=&quot;A B&quot;&gt;
+</I>&gt;<i> &gt;     ...
+</I>&gt;<i> &gt;   &lt;/div&gt;
+</I>&gt;<i> 
+</I>&gt;<i> How does &quot;kind&quot; relate to &quot;type&quot;?  Would it be the case that kind 
+</I>&gt;<i> informs the short itemprop names also? Is this the same proposal as 
+</I>&gt;<i> having an itemprop=&quot;type&quot; which means the same thing as itemtype?
+</I>
+The idea here is just to have one vocabulary, and then say what categories 
+of things the item falls in.
+
+
+On Tue, 28 Jun 2011, Lin Clark wrote:
+&gt;<i>
+</I>&gt;<i> Itemtype in my example is like 'kind' in your example. You are right, it 
+</I>&gt;<i> is basically a privileged property.
+</I>&gt;<i> 
+</I>&gt;<i> Because the words type and kind are pretty synonymous (groups of things 
+</I>&gt;<i> that have common characteristics), I would think that specifying an 
+</I>&gt;<i> itemtype and then specifying a separate kind might be confusing to 
+</I>&gt;<i> users, just because of the wording.
+</I>
+&quot;itemtype&quot; gives the type of vocabulary. This is distinct from &quot;kind&quot; in 
+this example, where it gives the categories that the item belongs to.
+
+For example, &quot;itemtype&quot; could be &quot;the schema.org vocabulary&quot;, while &quot;kind&quot; 
+could be &quot;person&quot; or &quot;organisation&quot;.
+
+
+On Wed, 29 Jun 2011, Philip J&#228;genstedt wrote:
+&gt;<i> 
+</I>&gt;<i> Indeed, multiple types doesn't work at all if you want to mix different 
+</I>&gt;<i> types. I was assuming that the use case was to extend types, kind of 
+</I>&gt;<i> like <A HREF="http://schema.org/Person/Governor.">http://schema.org/Person/Governor.</A> However, it doesn't work all 
+</I>&gt;<i> that well even in that case, since there's no way to know which type is 
+</I>&gt;<i> the extension of the other and which properties exist only on the 
+</I>&gt;<i> extended type.
+</I>
+I don't really understand this use case. Can you elaborate on the problem 
+that needs solving here?
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="074634.html">[whatwg] Video feedback
+</A></li>
+	<LI>Next message: <A HREF="074627.html">[whatwg] Microdata feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#32342">[ date ]</a>
+              <a href="thread.html#32342">[ thread ]</a>
+              <a href="subject.html#32342">[ subject ]</a>
+              <a href="author.html#32342">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

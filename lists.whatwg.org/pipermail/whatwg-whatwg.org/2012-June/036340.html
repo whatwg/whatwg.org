@@ -1,0 +1,163 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Proposal for change in recommendation for loading behavior	of non-applicable stylesheets
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Proposal%20for%20change%20in%20recommendation%20for%20loading%20behavior%0A%09of%20non-applicable%20stylesheets&In-Reply-To=%3C0CF98032-E010-4A30-BB21-FC1B7405821F%40scottjehl.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="036337.html">
+   <LINK REL="Next"  HREF="078614.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Proposal for change in recommendation for loading behavior	of non-applicable stylesheets</H1>
+<!--htdig_noindex-->
+    <B>Scott Jehl</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Proposal%20for%20change%20in%20recommendation%20for%20loading%20behavior%0A%09of%20non-applicable%20stylesheets&In-Reply-To=%3C0CF98032-E010-4A30-BB21-FC1B7405821F%40scottjehl.com%3E"
+       TITLE="[whatwg] Proposal for change in recommendation for loading behavior	of non-applicable stylesheets">scott at scottjehl.com
+       </A><BR>
+    <I>Sun Jun 10 09:51:31 PDT 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="036337.html">[whatwg] Proposal to extend Microdata API specification
+</A></li>
+        <LI>Next message: <A HREF="078614.html">[whatwg] Proposal for change in recommendation for loading behavior of non-applicable stylesheets
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#36340">[ date ]</a>
+              <a href="thread.html#36340">[ thread ]</a>
+              <a href="subject.html#36340">[ subject ]</a>
+              <a href="author.html#36340">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Hello.
+
+This is a proposal for an addition to the LINK element spec that includes a recommendation for deferring the load of inapplicable stylesheets until later in the load process (thus not blocking page rendering for unnecessary styles).
+
+Some background:
+
+CSS referenced by link elements or @import has always come with the limitation that it will block page rendering until it has finished loading. In many cases, there's good reason for this behavior, as the alternative - simply letting the page render independently of stylesheet requests -- almost always results in a flash of unstyled content. However, the downside of this behavior is that ALL CSS, not just the CSS that will apply to the particular device and viewport at the time of page load, will block page rendering. This means that sites that use CSS3 media queries to deliver different styles to different browsing conditions will be delivering more and more overhead.
+
+Recently, I did some research into how browsers request CSS files via link elements with inapplicable media queries. The results were grim. Of all browsers that I tested, every one would not only request all CSS files referenced with inapplicable media types/queries, but they would also block the rendering of page content until all of those inapplicable styles were loaded.
+
+Here's the test page including a table with the test results:
+<A HREF="http://scottjehl.github.com/CSS-Download-Tests/">http://scottjehl.github.com/CSS-Download-Tests/</A>
+
+
+Proposal for change:
+
+I'd like to propose that the spec recommends that vendors defer the loading of Stylesheets referenced via inapplicable media so that they do not block page rendering. These stylesheets should probably still be requested asynchronously so that they are present in the event that their media becomes active (say, after a browser resize or orientation change), but loading them up-front slows down the user experience unnecessarily.
+
+
+Example implementation of proposed behavior:
+
+Following the research above, I created a JavaScript utility that causes browsers to load CSS in a blocking or asynchronous manner, depending on their need at load time. I'm not a fan of using JavaScript to do something like this unless we have to, but for the time being, I think it illustrates the advantages of the proposed behavior. The project readme explains further and includes demo files that log information about what files where loaded, and how, depending on device and viewport conditions: <A HREF="https://github.com/scottjehl/eCSSential#readme">https://github.com/scottjehl/eCSSential#readme</A>
+
+One very common case that this unfortunately can never solve is preventing the request of inapplicable styles that are concatenated into a single CSS file. The workaround above addresses this scenario though, and if link fetching behavior was improved in the ways suggested above, a workaround that works with concatenated files would at least be easier to produce.
+
+
+-- FURTHER SUGGESTIONS --
+
+1. Entirely preventing the request of stylesheets that may never apply
+
+It would be ideal if a device could completely restrict the download of stylesheets that it determines could never apply within its environment. For example, if a stylesheet is referenced using a (min-width: 1000px) media query, a small-screen device could decide that this stylesheet should not be fetched at all because it could never apply on its screen dimensions.  This is actually the default behavior implemented by the eCSSential workaround above for min and max height/width queries. It merely re-evaluates if an inapplicable query would apply if it were a &quot;device&quot; query instead of a viewport query, and if not, the stylesheet is not loaded at all. 
+
+The savings in HTTP weight and request counts as a result of this change can be very significant on a small screen. Of course, this behavior runs the risk of not having a stylesheet on-hand when the browser is moved to another screen. 
+
+With this edge case in mind, it would be ideal if stylesheets that could not apply on a particular device are ONLY requested in the event that their media conditions become true. In other words, if device conditions changed to make a media query apply, such as moving the browser window to another screen, the necessary stylesheets would be requested at that time.
+
+
+
+2. Reducing the amount of time that an unresponsive stylesheet can block page rendering
+
+One last suggestion. In the research above, I found that many modern browsers will prevent page rendering for upwards of 30 seconds (sometimes more) to ensure that all stylesheets have loaded. If a server is not responding for some reason, this results in a completely unusable experience.
+
+I'd like to propose that the spec recommends that stylesheets be given a timeout of a much lower maximum before rendering the page in whatever state it happens to be in. Ideally, the responsive requests would be left open or restarted so that they're given a chance to load and apply after the content is shown, but they should not block page rendering after that timeout.
+
+
+Thanks!
+
+Thank you so much for your time and consideration in these ideas. 
+If you'd like me to split them into separate emails, or even direct them to a different working group, I'd be happy to do so.
+
+Scott Jehl
+
+Filament Group, Inc.  |  scottjehl.com  |  Twitter: @scottjehl
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="036337.html">[whatwg] Proposal to extend Microdata API specification
+</A></li>
+	<LI>Next message: <A HREF="078614.html">[whatwg] Proposal for change in recommendation for loading behavior of non-applicable stylesheets
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#36340">[ date ]</a>
+              <a href="thread.html#36340">[ thread ]</a>
+              <a href="subject.html#36340">[ subject ]</a>
+              <a href="author.html#36340">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

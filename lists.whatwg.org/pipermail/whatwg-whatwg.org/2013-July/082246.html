@@ -1,0 +1,202 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Script preloading
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Script%20preloading&In-Reply-To=%3CBD2BEE95-0765-41A6-A25E-FBFE500BE42E%40gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="082242.html">
+   <LINK REL="Next"  HREF="082247.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Script preloading</H1>
+<!--htdig_noindex-->
+    <B>Kyle Simpson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Script%20preloading&In-Reply-To=%3CBD2BEE95-0765-41A6-A25E-FBFE500BE42E%40gmail.com%3E"
+       TITLE="[whatwg] Script preloading">getify at gmail.com
+       </A><BR>
+    <I>Wed Jul 10 08:39:42 PDT 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="082242.html">[whatwg] Script preloading
+</A></li>
+        <LI>Next message: <A HREF="082247.html">[whatwg] Script preloading
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#82246">[ date ]</a>
+              <a href="thread.html#82246">[ thread ]</a>
+              <a href="subject.html#82246">[ subject ]</a>
+              <a href="author.html#82246">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>&gt;<i> The IE4-10 technique is invisible to pre-parsers, if we're chasing performance here it's not good enough.
+</I>&gt;<i> ...
+</I>&gt;<i> Also invisible to preloaders.
+</I>
+I personally don't care about scripts being discoverable by pre-parsers. I have done testing and am not convinced that something appearing earlier (in markup) leads to better performance than allowing my script loading logic to load things when I want, and just relying on the browser to do that as quickly as possible.
+
+For instance, I've added like &lt;link rel=prefetch&gt; annotations for my scripts into the head of my document, and then done my normal script-based script loading as usual, and benchmarked if them being in the markup somehow magically sped up the page. I saw no appreciable increase in average page load speed in my testing.
+
+It's quite possible that this is because when I use script loading, generally speaking, I'm only loading the scripts I consider to be most critical for actual page load (not everything and the kitchen sink), so my script-based script loading during page-load usually is pretty darn quick. I &quot;defer&quot; the rest of my code that's not as critical until later (perhaps until when needed, strictly), which is something that markup alone doesn't let me do.
+
+I like the fact that I can have my bootstrapper &quot;load.js&quot; file either at the very top (and thus it starts loading them nearly immediately) if the scripts I want to load are more important than the images and stylesheets in the markup, OR I can put my load.js file at the bottom of the markup and thus give a chance for other content to start loading slightly before my scripts start loading.
+
+The fact that browsers are trying to second guess developers and look-ahead to find and prioritize certain resources is NOT something I consider a positive benefit that I'm eager to assist. I still come from a world where a developer ought to get to decide what's higher priority.
+
+There's certainly a strong pre-disposition among a lot of developers to falling in love with declarative markup-only solutions. I share no such obsession, when it comes to script loading. I think script loading is far more complex than markup is ever going to be equipped to handle.
+
+To be clear, I will not be satisfied with a markup-only approach. No matter how complex it is, it does not handle all the use-cases I care about. I feel like a broken record on these threads, because I keep talking about why markup-only is insufficient, and people keep trying to convince me they can make markup more and more complex and certainly they'll eventually convince me that markup-only is superior. The more complex you make the markup-only proposals, the more I'm convinced (and self-validated) that markup is the wrong tool for the complex use-cases I care about.
+
+-----------
+
+All that having been said, I am not trying to block a solution that would BOTH serve those who have a subset of (simpler) use-cases which are markup-centric, and those of us who care about serving more complex use-cases via code. A solution that both camps can accept is better than either camp being happy to the exclusion of the other.
+
+I would be fine if we went with a variation of Nicholas' proposal. Let me state that new proposal here:
+
+
+******************************
+Summary:
+
+1. `preload` attribute on &lt;script&gt; tags in markup, `preload` property on script elements created by code. In either case, its presence tells the browser not to execute the script once it finishes loading.
+
+2. `onpreload` event fired on any script which has `preload` attribute or property on it at the time its (pre)loading finishes (and execution is thus suppressed). Otherwise, not fired.
+
+3. To &quot;execute&quot; a script that was preloaded in code, remove the `preload` attribute or property from the element, which signals to the browser that it's OK to execute it now. If you remove it before loading finishes, the browser acts as if it was never marked as &quot;preload&quot; and continues as normal. If you remove it after preloading finishes, the browser is free to execute that script ASAP now.
+
+4. If you are doing markup-only loading, you signal to a &quot;preloaded&quot; script that its eligible for execution by putting a matching selector to it into a `fulfills` attribute on another script element. If a script finishes loading and it's already been signaled by another `fulfills`, it will run right away. Otherwise, it'll wait until some script executes that has a matching `fulfills` attribute on it.
+
+
+
+Details:
+
+The behavior of preload-but-don't-execute is controlled by the markup presence of a `preload` attribute on script tags (thus discoverable by pre-parsers), or a corresponding `preload` property in the script-based loading scenario. BOTH sides of the feature have to be implemented -- markup only is NOT enough for my needs.
+
+That attribute/property being present/set would be the only thing that signals to the browser &quot;load this script, but DON'T auto-execute it until told to do so&quot;.
+
+There would need to be an `onpreload` event which would fire for the script-based loading logic to catch and use.
+
+It continues to be wrongly asserted that the current `onload` event on scripts is sufficient. It is not. It's a chicken-and-the-egg, because `onload` is fired strictly when scripts have loaded AND executed. We need an event to tell us when it's ONLY loaded but strictly HASN'T executed yet, which makes `onload` insufficient. And no, we can't change the semantics of `onload` -- far too much legacy content relies on the confusing semantic that &quot;load&quot; means &quot;loaded and executed&quot; -- that ship sailed long ago.
+
+----
+
+It's quite clear and obvious how the `onpreload` event is useful to script-based loading. But we still need a way from code to signal to a script element that it's ok to go ahead and execute. I could invent several different ways of making that happen. Here's one:
+
+If you remove the `preload` property (using `delete` or setting to `undefined` or whatever) on a script element, that signals to the browser &quot;this script is ok to execute now&quot;. If you remove the `preload` property BEFORE the script has finished loading, then that script will behave just like it was never marked for preloading. If you remove the `preload` property AFTER it's finished preloading, then the browser knows it's ok to execute that script now.
+
+From a script-loading/loader perspective, this system is quite simple (compared to some of the other suggestions). As a script loader, I load all the scripts as `preload`, and a listen for the `onpreload` event on each of them. When each event fires, I consult the &quot;dependency chain&quot; that I'm aware of because of how the developer used the loader API, and I either execute the script right away, or I wait and execute it after I execute others.
+
+NOTE: this even lets me serve the use-case where I speculatively load 2 or 3 scripts, but I'm not sure if I'll use all of them or not. I'm not implicitly giving control of the execution over to some other automatic mechanism (like by tieing it to another script). I'm simply saying &quot;preload this one now, I'll decide later if I need to use him or not. Thanks.&quot;
+
+This mechanism gives the script-based loading 100% control of any and all script loading use-cases. No matter how complex the dependency chain may be, it can always be expressed by this system. That's a huge win from my perspective.
+
+----
+
+But what about markup-only advocates? How will they take advantage of `preload` attribute? Specifically, how will they, in markup-only, indicate when they want a preloaded script to be eligible for execution.
+
+I'm not a markup-only guy, as I've said, but I'll invent one possible simple solution for the markup-only folks:
+
+
+&lt;script id=&quot;my-script-1&quot; src=&quot;1.js&quot; preload&gt;
+   &lt;!-- 1.js preloads but doesn't execute, yet --&gt;
+
+&lt;script class=&quot;my-cool-scripts&quot; src=&quot;2.js&quot; preload&gt;
+   &lt;!-- 2.js preloads but doesn't execute, yet --&gt;
+
+
+&lt;script id=&quot;cool-script-3&quot; src=&quot;3.js&quot; fulfills=&quot;#my-script-1, .my-cool-scripts&quot; preload&gt;
+   &lt;!--
+   3.js preloads but doesn't execute, yet.
+   whenever it DOES execute, `fulfills` will signal that any selector-matching
+   script elements are now eligible for execution as well, as soon as they are ready.
+   --&gt;
+
+&lt;script src=&quot;4.js&quot; fulfills=&quot;#cool-script-3&quot;&gt;
+   &lt;!--
+   4.js loads as normal. then, AFTER it executes, it signals to #cool-script-3
+   that it's fine for it to execute now, as soon as it's ready.
+   --&gt;
+
+
+Notice that I've intentionally inverted the previously suggested markup-only paradigm. Instead of marking a script as &quot;depending on&quot; some other script, I'm marking a script as &quot;fulfilling&quot; the dependency for another preloaded script (or scripts). Why? Because it leads (in many cases) to less markup.
+
+Imagine this scenario: I load jquery.js and 4 other plugins. I could either mark the 4 plugin script tags with &quot;depends on jquery&quot;, or I could mark the one jquery element as &quot;fullfills these 4 plugins&quot;. The latter is simpler because it requires less markup in general.
+
+Does this markup-only solution fulfill 100% of script loading cases? No, not even close. But IMO it fulfills enough of them (certainly more than &lt;script&gt; currently does) that it is as much markup complication as we should invent, and should make most markup-only advocates happy most of the time.
+
+I don't think we need to make markup more and more complex to handle all the possible scenarios. I think at some point, when you want really complex loading capability, you have to cross over into script-based loading.
+
+----
+
+But, if you REALLY want to invent complex markup and keep chasing down all the various use-cases, be my guest. As long as you give me the simple script-based mechanism I described above, I ultimately don't care what the markup-only folks come up with.
+
+******************************
+
+
+
+&gt;<i> Given the above, is there a usecase that isn't catered for by &quot;dependencies&quot; and existing preloading features?
+</I>
+Yeah, consider this scenario: I want to preload &quot;1.js&quot; and &quot;2.js&quot;, but I'm not sure right now if I'll execute &quot;1.js&quot;, or &quot;2.js&quot;, or both. The user behavior will determine that. For instance, if they select tab #2 in my tab set, I'll go ahead and execute &quot;1.js&quot;, and if they scroll way down on my page, I'll execute &quot;2.js&quot;.
+
+The conditions under which a preloaded script gets executed cannot be tied ONLY to the loading of some other script. There has to be a way to tell a script &quot;just preload now, I'll let you know when it's time to execute, if ever.&quot; If we don't have a good script-based solution for that (no, markup alone is not enough), then it fails my needs.
+
+
+
+&gt;<i> Sorry to keep being Mr Use-case, but what do you need to do that isn't catered for? You can call markNeeded() when you want the script executed &amp; both a promise and the script's &quot;load&quot; event will tell you when it's done. Why would you need to know when it's downloaded but not executed?
+</I>
+No, as stated above, the `onload` event will NOT tell me when it's only loaded but not executed. `onload` only fires after execution. Chicken-and-the-egg.
+
+Where would this promise come from that I could listen to (instead of listening for an event)? Would the creation of a script element (`document.createElement(&quot;script&quot;)`) give me the promise? Would the setting of `whenneeded` property on the script element return me a promise?
+
+
+
+&gt;<i> Can you provide a comparison that shows another suggestion to be simpler than both of Hixie's proposals and match/beat it's performance?
+</I>
+Those are not the only (or even primary) concerns from where I sit. We don't just need &quot;another mechanism&quot;. We need, finally, a mechanism that lets a script loader handle 100% of whatever niche or complex use-cases it might be presented with.
+
+Most of the solutions proposed fall short in some way or another. For instance, it's impractical that a script loader could come up with unique ID's or class-names (for the `dependencies` or `fullfills` ideas) on dynamically generated script elements, because of the undue burden of searching the current DOM to make sure what you generate doesn't already exist (or the CMS case, for instance).
+
+I have provided a proposal above which serves what I want from script-based loading (serves 100% of my needs). I've also suggested a fairly simple markup approach, but since I don't care that much about markup-only approaches, you can make that as arbitrarily complex as you want, as long as you also let me have script-based loading the way I need. I think that's a fair compromise.
+
+
+
+
+--Kyle
+
+
+
+
+
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="082242.html">[whatwg] Script preloading
+</A></li>
+	<LI>Next message: <A HREF="082247.html">[whatwg] Script preloading
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#82246">[ date ]</a>
+              <a href="thread.html#82246">[ thread ]</a>
+              <a href="subject.html#82246">[ subject ]</a>
+              <a href="author.html#82246">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

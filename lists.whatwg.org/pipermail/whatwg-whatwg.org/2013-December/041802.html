@@ -1,0 +1,202 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Proposal: downsample while decoding image blobs in	createImageBitmap()
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Proposal%3A%20downsample%20while%20decoding%20image%20blobs%20in%0A%09createImageBitmap%28%29&In-Reply-To=%3C52B0ECE2.9050105%40mozilla.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="084090.html">
+   <LINK REL="Next"  HREF="084076.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Proposal: downsample while decoding image blobs in	createImageBitmap()</H1>
+<!--htdig_noindex-->
+    <B>David Flanagan</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Proposal%3A%20downsample%20while%20decoding%20image%20blobs%20in%0A%09createImageBitmap%28%29&In-Reply-To=%3C52B0ECE2.9050105%40mozilla.com%3E"
+       TITLE="[whatwg] Proposal: downsample while decoding image blobs in	createImageBitmap()">dflanagan at mozilla.com
+       </A><BR>
+    <I>Tue Dec 17 16:31:30 PST 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="084090.html">[whatwg] Media sink device selection on &lt;audio&gt;/&lt;video&gt;
+</A></li>
+        <LI>Next message: <A HREF="084076.html">[whatwg] Proposal: downsample while decoding image blobs in	createImageBitmap()
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#41802">[ date ]</a>
+              <a href="thread.html#41802">[ thread ]</a>
+              <a href="subject.html#41802">[ subject ]</a>
+              <a href="author.html#41802">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>This is a proposal for changes to ImageBitmap and createImageBitmap()
+to enable the memory-efficient display of large images on small screens.
+
+Background:
+
+The camera resolution on mobile devices has grown (and is continuing
+to grow) much faster than the screen size and memory of those
+devices. In my work with FirefoxOS, I work with devices that have
+camera sensors that can capture 5 megapixels images but have 320x480
+pixel (0.15 megapixel) screens. This means that photos from the
+camera are 33 times as large as the screen.
+
+An RGBA image format requires 4 bytes per pixels for decoded image
+data, so if I want to decode one of these 5mp images for display on my
+0.15mp screen, I have to allocate 20mb of memory. This particular
+low-end device I'm talking about has 256mb of RAM, and less than 200mb
+available for apps, so displaying a single photo requires more than
+10% of available memory.
+
+To make this work in the initial releases of FirefoxOS, we've limited
+the camera resolution to 2 or 3mp on low-memory devices and have
+ensured that our Camera app includes screen-sized EXIF preview images
+in the photos it captures. We use JavaScript to extract the EXIF
+preview from the photo and display that, when we can, instead of the
+actual image. So initial display of a photo does not actually require
+us to decode the full-size photo. But as soon as the user zooms in,
+we have do have to decode it and take the memory hit. The result is
+that on low-end FirefoxOS phones background apps (including the
+homescreen) are commonly killed while using the Gallery app.
+
+The web platform has two mechanisms for decoding images: the &lt;img&gt;
+element and the new window.createImageBitmap() function. Native
+libraries exist that can downsample an image while decoding it, but
+the web platform does not expose this feature. This is a fundamental
+shortcoming: Web apps will not be able to achieve parity with native
+photo display and processing apps until they are able to decode and
+downsample a large image into a smaller bitmap.
+
+With that as background, I'd like to propose changes to the
+createImageBitmap() factory method and also related changes to
+ImageBitmap itself.
+
+Proposal:
+
+(Note createImageBitmap() can take any ImageBitmapSource object as its
+first argument. I am primarily concerned with case where the first
+argument is a Blob and image decoding is involved, though I think that
+the changes I am proposing will also work for the various other
+ImageBitmapSource types, but obviously no image decoding will be
+required for those other types.)
+
+1) My main proposal is to add dw and dh (destination width,
+destination height) arguments to createImageBitmap() to specify the
+desired size of the resulting ImageBitmap. dw and dh could be
+restricted to be less than or equal to sw and sh, so that image
+enlargement is never required. Note that it is not necessary to
+specify that an implementation be memory efficient. Desktop
+implementations that are not memory constrained might decode in one
+step and then downsample in a separate step. It is enough here to have
+an API that allows memory-efficient implementations on devices that
+need it.
+
+2) There are times when we want to downsample and decode the entire
+image rather than a region of it, and having a string of 6 optional
+arguments to createImageBitmap() is awkward, so I'd like to suggest
+that we convert the method so that it takes an ImageBitmapSource as
+the first argument and an options Dictionary as the second argument
+to hold the various optional (sx, sy, sw, sh, dw, dh, etc.) arguments.
+
+3) Sometimes we want to decode and downsample a Blob but do not know
+the pixel size or aspect ratio of the original image, so we cannot
+specify exact dw, dh values.  My main use case here is to obtain a
+decoded image that is no bigger than necessary but maintains the
+aspect ratio of the original.  One way to get this would be to allow
+maxWidth and maxHeight properties in the options dictionary.  If those
+properties were defined, then createImageBitmap() would maintain the
+aspect ratio and create an ImageBitmap that is no wider than maxWidth
+and no higher than maxHeight.  Another, more flexible, solution would
+be to allow a size property in the dictionary. If size was omitted,
+then the dw and dh properties would be the actual size of the
+ImageBitmap, even if that resulted in distortion. If size was set to
+&quot;contain&quot;, then the image would be downsampled to be as large as
+possible while still being contained within dw and dh and while
+preserving aspect ratio. (This is equivalent to the maxWidth and
+maxHeight properties).  And if size was &quot;cover&quot;, then aspect ratio
+would be preserved, the resulting ImageBitmap would be exactly dw by
+dh pixels, but the image would be cropped along the top and bottom or
+the left and right edges to fit. Note that the names &quot;cover&quot; and
+&quot;contain&quot; come from the CSS background-size property.
+
+4) Even when we downsample an image while decoding it, we may still
+need to know the full size of the original. In a photo gallery app,
+for example, we need to know how big the original is so that we know
+how far we can allow the user to zoom in to the image. It is possible
+to determine this by parsing the image file ourselves in JavaScript,
+but it would be much more convenient if the web platform provided a
+way to determine the full size of an image without having to decode
+the entire thing at the cost of 4 bytes per pixel.  Therefore I
+propose that the ImageBitmap include fullWidth and fullHeight
+properties that specify the full size of the ImageBitmapSource from
+which it was derived.  I suspect (but do not have an explicit use case
+for) that it might also be helpful to include the sx, sy,
+sw, and sh arguments that are passed to createImageBitmap on the
+returned ImageBitmap.
+
+5) Once a large image is decoded and downsampled into a smaller
+ImageBitmap, the only thing that we can do with that ImageBitmap is to
+copy it into a Canvas, either for display to the end user (as an
+alternative to an &lt;img&gt;) or for re-encoding with Canvas.toBlob() (when
+creating thumbnails for large images). The motivation for this
+downsampling feature is memory use. But having to copy an ImageBitmap
+into a canvas in order to use it immediately doubles the amount of
+memory required. So for this reason, I also want to propose that
+ImageBitmap have a transferToCanvas() method akin to the
+transferToImageBitmap() and transferToImage() methods proposed at
+<A HREF="http://wiki.whatwg.org/wiki/WorkerCanvas.">http://wiki.whatwg.org/wiki/WorkerCanvas.</A>  transferToCanvas would
+transfer the image data into a new Canvas object and would neuter the
+ImageBitmap so that it could no longer be used.
+
+6) Finally, because image data can take up so much memory, I would
+like to propose that ImageBitmap have a release() method to explicitly
+free the memory that holds the decoded image when that decoded image
+data is no longer needed. This gives web applications more precise
+control over memory allocation without having to wait for garbage
+collection.
+
+   David Flanagan
+   FirefoxOS developer, Mozilla
+
+</PRE>
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="084090.html">[whatwg] Media sink device selection on &lt;audio&gt;/&lt;video&gt;
+</A></li>
+	<LI>Next message: <A HREF="084076.html">[whatwg] Proposal: downsample while decoding image blobs in	createImageBitmap()
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#41802">[ date ]</a>
+              <a href="thread.html#41802">[ thread ]</a>
+              <a href="subject.html#41802">[ subject ]</a>
+              <a href="author.html#41802">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

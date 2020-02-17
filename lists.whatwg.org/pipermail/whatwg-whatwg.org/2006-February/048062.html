@@ -1,0 +1,154 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg]  Script origin tracking
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20%20Script%20origin%20tracking&In-Reply-To=%3Cop.s4ptt2vb1h6og4%40pancake.feldgendler.ru%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="048059.html">
+   <LINK REL="Next"  HREF="048058.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg]  Script origin tracking</H1>
+<!--htdig_noindex-->
+    <B>Alexey Feldgendler</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20%20Script%20origin%20tracking&In-Reply-To=%3Cop.s4ptt2vb1h6og4%40pancake.feldgendler.ru%3E"
+       TITLE="[whatwg]  Script origin tracking">alexey at feldgendler.ru
+       </A><BR>
+    <I>Thu Feb  9 09:07:04 PST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="048059.html">[whatwg] cross-frame cookies
+</A></li>
+        <LI>Next message: <A HREF="048058.html">[whatwg] Forms: Submit only changed inputs
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#48062">[ date ]</a>
+              <a href="thread.html#48062">[ thread ]</a>
+              <a href="subject.html#48062">[ subject ]</a>
+              <a href="author.html#48062">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Thu, 09 Feb 2006 18:16:22 +0600, Hallvord Reiar Michaelsen Steen  
+&lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">hallvord at hallvord.com</A>&gt; wrote:
+
+&gt;&gt;&gt;<i> there is some discussion surrounding cookies and security - see this
+</I>&gt;&gt;&gt;<i> bug: <A HREF="http://bugzilla.opendarwin.org/show_bug.cgi?id=6797">http://bugzilla.opendarwin.org/show_bug.cgi?id=6797</A>
+</I>
+&gt;&gt;<i> Just blocking access to cookies of another frame isn't enough. Consider
+</I>&gt;&gt;<i> the following example:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> otherframe.document.body.addEventListener('unload', function() {
+</I>&gt;&gt;<i>      thisframe.variable = otherframe.document.cookie;
+</I>&gt;&gt;<i> }, false);
+</I>
+&gt;<i> You are perfectly right, of course. That probably means this problem
+</I>&gt;<i> can't be solved. Seems there is no way to retro-fit security here
+</I>&gt;<i> without breaking existing content.
+</I>
+What you say can be implemented, though, and it has the same underlying  
+requirement as the sandboxing approach that I wrote about before:  
+origin-tracking of every piece of script code. Here are the rules.
+
+1. Every piece of compiled script code has a so-called origin descriptor  
+attached to it. An origin descriptor points to the window/frame where the  
+script comes from, and contains information like the security domain,  
+sandbox restrictions etc. A piece of code gets a descriptor when it's  
+parsed and compiled.
+
+2. What some piece of code can do and what it cannot do is determined by  
+its origin descriptor, not by the origin descriptor of the caller, no  
+matter how the code got called (a regular function call, an event handler,  
+javascript: link activated etc).
+
+3. All code contained in an embedded or external script introduced by a  
+&lt;script&gt; element, contained in the onXXX attrubytes, or found in  
+javascript: URIs in href, src, and similar attributes AT PARSE TIME gets  
+the origin decriptor appropriate to its location. Code found in  
+stylesheets at parse time (like javascript: URIs as background-image  
+values), if compilation of such code cannot be completely avoided, also  
+gets the origin descriptor appropriate to its location.
+
+4. Anonymous functions (lambda functions) inherit the origin descriptor of  
+the code that creates them. The same applies to code passed to eval().
+
+5. Code added as &lt;script&gt; elements, assigned to onXXX, href, src (as  
+javscript: URIs) attributes, or introduced into the document by calling  
+document.write() by a script inherits that script's origin descriptor.
+
+6. Code typed as javascript: URI into the address bar or activated as a  
+bookmark gets the &quot;user input&quot; origin descriptor. What capabilities does  
+it actually mean is a topic for another discussion.
+
+This is a substantial change to how the user agent represents the data  
+internally. Not only does it require the UA to associate an origin  
+descriptor with each piece of compiled code, but also to bind a security  
+descriptor to every unparsed attribute like onXXX, href, and src, stored  
+in DOM. The latter is important. I don't exactly know how each browser  
+stores these attributes inside, but I'm afraid that many of them don't try  
+to parse the code in, say, onclick attribute, at the time it's stored in  
+DOM, but rather do it later when the event is fired.
+
+However, this approach doesn't require attributed strings: only compiled  
+scripts and some DOM attribute nodes bear origin descriptors. For example,  
+this code doesn't copy the origin descriptor from onclick of element B to  
+onclick of element A:
+
+A.onclick = B.onclick;
+
+Instead, A.onclick gets the origin descriptor of the code which contains  
+this statement.
+
+This way, both sandboxing and cookie protection could be implemented.  
+Because Gecko is the only popular open-source UA engine, I've had a look  
+at its code. Actually, Gecko's JS interpreter is already capable of  
+keeping security information associated with compiled code, and all what's  
+needed is to change the structure and propagation policy of that  
+information. The DOM code is also almost ready for origin tracking: event  
+handlers are stored in the event listener manager even when unparsed, so  
+an origin descriptor can be stored along with them. The javascript: URIs  
+require some more work, but it's definitely possible.
+
+So, my conclusion is that it's possible to implement the described origin  
+tracking in Mozilla. It's interesting to hear the opinion of Opera  
+developers about the possibility of origin tracking in Opera's scripting  
+engine.
+
+
+-- 
+Opera M2 8.5 on Debian Linux 2.6.12-1-k7
+* Origin: X-Man's Station [ICQ: 115226275] &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">alexey at feldgendler.ru</A>&gt;
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="048059.html">[whatwg] cross-frame cookies
+</A></li>
+	<LI>Next message: <A HREF="048058.html">[whatwg] Forms: Submit only changed inputs
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#48062">[ date ]</a>
+              <a href="thread.html#48062">[ thread ]</a>
+              <a href="subject.html#48062">[ subject ]</a>
+              <a href="author.html#48062">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

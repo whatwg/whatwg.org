@@ -1,0 +1,180 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] WebSRT feedback
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20WebSRT%20feedback&In-Reply-To=%3Cop.vj4td6p5sr6mfa%40philip-pc%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="071070.html">
+   <LINK REL="Next"  HREF="071075.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] WebSRT feedback</H1>
+<!--htdig_noindex-->
+    <B>Philip J&#228;genstedt</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20WebSRT%20feedback&In-Reply-To=%3Cop.vj4td6p5sr6mfa%40philip-pc%3E"
+       TITLE="[whatwg] WebSRT feedback">philipj at opera.com
+       </A><BR>
+    <I>Tue Oct  5 19:04:44 PDT 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="071070.html">[whatwg] Canvas feedback (various threads)
+</A></li>
+        <LI>Next message: <A HREF="071075.html">[whatwg] WebSRT feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#71072">[ date ]</a>
+              <a href="thread.html#71072">[ thread ]</a>
+              <a href="subject.html#71072">[ subject ]</a>
+              <a href="author.html#71072">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Over the past week I've attended 3 video-related events in New York and  
+have discussed &lt;track&gt; and WebSRT at all of them. Here's a lengthy report  
+of feedback, mine and others.
+
+At the Open Subtitles Design Summit [1], there was some discussion about  
+captioning for the HoH. I've already put this input into a related bug  
+[2], but to summarize: The default rendering for the voices syntax should  
+probably be to prefix the text cue with the name of the speaker, not to do  
+anything funny with colors or positioning. What's less clear is if it's  
+annoying to always prefix with the speaker, or if it should be done only  
+to disambiguate.
+
+For my Open Video Conference [3] presentation [4] I did a JavaScript  
+implementation of the most interesting parts of &lt;track&gt; and WebSRT to be  
+able to demo what the future might hold [5][6][7]. I have some issues with  
+the parser that are at the end of this mail.
+
+At FOMS [8] we had a session on WebSRT [9] which was extremely helpful. It  
+turns out that SRT has more syntax variations than we had thought, kindly  
+pointed out by VLC developer j-b. Even though there is no SRT spec, there  
+is a test suite of sorts [10] that I had never seen before. I'll call SRT  
+which follows the syntax implied by these tests ale5000-SRT. Apart from  
+the HTML-like markup we knew about, ale5000-SRT also has various markup on  
+the form {...} which was borrowed from SSA, as well as \h and \N for &quot;hard  
+space&quot; and line break respectively. Also in the crazy department is that  
+tags which aren't matched with an opening and closing tag should be  
+rendered as plain text. Stray &lt; should also just be displayed as text. VLC  
+actually implements most of this, as does VSFilter, which we should have  
+tested but didn't [11]. It would probably be possible to write a spec for  
+ale5000-SRT, but extensibility would be limited to matched opening and  
+closing tags, which doesn't work for the suggested voices syntax. With  
+this mess, I'd rather not extend ale5000-SRT. I can only agree with Silvia  
+that we should make WebSRT identifiable, so that different parsers can be  
+used.  So:
+
+* Add magic bytes to identify WebSRT, maybe &quot;WebSRT&quot;. (This will break  
+some existing SRT parsers.)
+* Make WebSRT always be UTF-8, since you can't reuse existing SRT files  
+anyway.
+* Note that certain ale5000-SRT syntax is not part of WebSRT, so that one  
+doesn't have to debug the parsing algorithm to learn that.
+
+Styling hooks were requested. If we only have the predefined tags (i, b,  
+...) and voices, these will most certainly be abused, e.g. resulting in  
+&lt;i&gt; being used where italics isn't wanted or &lt;v Foo&gt; being used just for  
+styling, breaking the accessibility value it has.
+
+As an aside, the idea of using an HTML parser for the cue text wasn't very  
+popular.
+
+There was also some discussion about metadata. Language is sometimes  
+necessary for the font engine to pick the right glyph. With legacy SRT the  
+encoding could be used as a hint, but if we use UTF-8 that's not possible.  
+License is also an often requested piece of metadata. I have no strong  
+opinion about how to solve this, but key-value pairs like HTTP headers  
+comes to mind.
+
+Finally, some things I think are broken in the current WebSRT parser:
+
+* Parsing of timestamps is more liberal than it needs to be. In  
+particular, treating the part after the decimal separator as an integer  
+and dividing by 1000 leads to 00:00:00.1 being interpreted as 0.001  
+seconds, which is weird. This is what e.g. VLC does, but if we need to add  
+a header we could just as well change this to make more sane.  
+Alternatively, if we want to really align with C implementations using  
+scanf, we should also handle negative numbers (00:01:-5,000 means 55  
+seconds), octal and hexadecimal.
+
+* The current syntax looks like XML or HTML but has very different  
+parsing. Voices like &lt;narrator&gt; don't create nodes at all and for tags  
+like &lt;i&gt; the paser has a whitelist and also special rules for inserting  
+&lt;rt&gt;. Unless there are strong reasons for this, then for simplicity and  
+forward compatibility, I'd much rather have the parser create an actual  
+DOM (not a tree of &quot;WebSRT Node Object&quot;) that reflects the input. If we  
+also support attributes then people who actually want to use their (silly)  
+&lt;font color=red&gt; tags can do so with CSS. This could also work as styling  
+hooks. Obviously, a WebSRT parser should create elements in another  
+namespace, we don't want e.g. &lt;img&gt; to work inside cues.
+
+* The &quot;bad cue&quot; handling is stricter than it should be. After collecting  
+an id, the next line must be a timestamp line. Otherwise, we skip  
+everything until a blank line, so in the following the parser would jump  
+to &quot;bad cue&quot; on line &quot;2&quot; and skip the whole cue.
+
+1
+2
+00:00:00.000 --&gt; 00:00:01.000
+Bla
+
+This doesn't match what most existing SRT parsers do, as they simply look  
+for timing lines and ignore everything else. If we really need to collect  
+the id instead of ignoring it like everyone else, this should be more  
+robust, so that a valid timing line always begins a new cue. Personally,  
+I'd prefer if it is simply ignored and that we use some form of in-cue  
+markup for styling hooks.
+
+* At the beginning of &quot;cue text loop&quot; (step 28) a newline should be  
+collected.
+
+[1] <A HREF="http://universalsubtitles.org/opensubtitles2010">http://universalsubtitles.org/opensubtitles2010</A>
+[2] <A HREF="http://www.w3.org/Bugs/Public/show_bug.cgi?id=10320">http://www.w3.org/Bugs/Public/show_bug.cgi?id=10320</A>
+[3] <A HREF="http://www.openvideoconference.org/">http://www.openvideoconference.org/</A>
+[4] <A HREF="http://people.opera.com/philipj/2010/10/02/ovc/">http://people.opera.com/philipj/2010/10/02/ovc/</A>
+[5] <A HREF="http://people.opera.com/philipj/2010/10/02/ovc/demos/captions.html">http://people.opera.com/philipj/2010/10/02/ovc/demos/captions.html</A>
+[6] <A HREF="http://people.opera.com/philipj/2010/10/02/ovc/demos/transcript.html">http://people.opera.com/philipj/2010/10/02/ovc/demos/transcript.html</A>
+[7] <A HREF="http://people.opera.com/philipj/2010/10/02/ovc/demos/metadata.html">http://people.opera.com/philipj/2010/10/02/ovc/demos/metadata.html</A>
+[8] <A HREF="http://www.foms-workshop.org/foms2010OVC/">http://www.foms-workshop.org/foms2010OVC/</A>
+[9] <A HREF="http://www.foms-workshop.org/foms2010OVC/pmwiki.php/Main/WebSRT">http://www.foms-workshop.org/foms2010OVC/pmwiki.php/Main/WebSRT</A>
+[10] <A HREF="http://ale5000.altervista.org/subtitles.htm">http://ale5000.altervista.org/subtitles.htm</A>
+[11] <A HREF="http://wiki.whatwg.org/wiki/SRT_research">http://wiki.whatwg.org/wiki/SRT_research</A>
+
+-- 
+Philip J&#228;genstedt
+Core Developer
+Opera Software
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="071070.html">[whatwg] Canvas feedback (various threads)
+</A></li>
+	<LI>Next message: <A HREF="071075.html">[whatwg] WebSRT feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#71072">[ date ]</a>
+              <a href="thread.html#71072">[ thread ]</a>
+              <a href="subject.html#71072">[ subject ]</a>
+              <a href="author.html#71072">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

@@ -1,0 +1,182 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Declarative unload data
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Declarative%20unload%20data&In-Reply-To=%3CPine.LNX.4.64.1211210124430.26354%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="080319.html">
+   <LINK REL="Next"  HREF="080315.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Declarative unload data</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Declarative%20unload%20data&In-Reply-To=%3CPine.LNX.4.64.1211210124430.26354%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg] Declarative unload data">ian at hixie.ch
+       </A><BR>
+    <I>Tue Nov 20 17:47:10 PST 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="080319.html">[whatwg] Forms-related feedback
+</A></li>
+        <LI>Next message: <A HREF="080315.html">[whatwg] Declarative unload data
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#38040">[ date ]</a>
+              <a href="thread.html#38040">[ thread ]</a>
+              <a href="subject.html#38040">[ subject ]</a>
+              <a href="author.html#38040">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Mon, 7 May 2012, Tab Atkins Jr. wrote:
+&gt;<i>
+</I>&gt;<i> Besides those annoying &quot;Are you sure you want to leave this page?&quot; 
+</I>&gt;<i> dialogs, the primary use of the unload events is a final, desperate 
+</I>&gt;<i> attempt to throw a message at the server, either to save some data or 
+</I>&gt;<i> release some server-held resource.
+</I>
+Do you have any examples of these I could study?
+
+How do they handle the user just closing his laptop and walking away, or 
+being on the phone and switching to a non-browser app, or entering a 
+tunnel and losing signal, or the browser crashing, or the user forgetting 
+to pay his bills and getting cut off by the ISP, or the user leaving the 
+tab open for five weeks before coming back to it, or the user's house 
+catching fire and the computer melting, or the user opening up multiple 
+copies of the tab with the same Web app and then closing the first one, 
+or if the user closes the tab by mistake and then reopens it?
+
+
+&gt;<i> However, this is tricky to do reliably, because browsers kill pending 
+</I>&gt;<i> XHRs as they unload the page. Right now, I think the most reliable 
+</I>&gt;<i> method is to create an &lt;img&gt; and set its @src, because of an old quirk 
+</I>&gt;<i> in IE that other browsers have copied which means that pending image 
+</I>&gt;<i> loads are carried to completion rather than being killed.
+</I>
+(Incidentally, this isn't specced currently; if anyone has any test cases 
+demonstrating this, please do file a bug so I can spec it.)
+
+
+&gt;<i> Can we fix this?
+</I>
+It's not entirely clear to me that it's a problem. :-)
+
+If the app just wants to save user data, the app can just show an 
+indicator of what data has been saved, or when data was last saved, or 
+whether there is unsaved data, with an explicit &quot;save now&quot; control when 
+there is unsaved data, and then save everything else asynchronously as it 
+is modified. This is then resilient to the events described above.
+
+If the app has server-side resources, then it's probably best to just keep 
+them around on a timeout, bringing them back if the page returns from the 
+dead, so that long-lived tabs don't waste resources, so that suddenly 
+suspended tabs don't waste resources, and so that tabs that are closed and 
+then resumed don't need to waste time getting the resources back.
+
+(Having said that, another way to do this is just to hold a TCP connection 
+open (e.g. using WebSocket or an &lt;iframe&gt;), and then doing the cleanup on 
+the server side when the connection dies.)
+
+
+&gt;<i> var foo = new unloadHandler('<A HREF="http://example.com/ajax">http://example.com/ajax</A>');
+</I>&gt;<i> foo.data = &quot;bar&quot;
+</I>&gt;<i> /* Now, if the page ever gets unloaded, you're guaranteed that
+</I>&gt;<i> &quot;<A HREF="http://example.com/ajax">http://example.com/ajax</A>&quot; will eventually get a request with the value
+</I>&gt;<i> &quot;bar&quot;. */
+</I>&gt;<i> 
+</I>&gt;<i> Presumably you'd be able to set other relevant XHR properties, like 
+</I>&gt;<i> un/pw and get/post and such, on the unloadhandler object.
+</I>
+This seems like a very close relation to XMLHttpRequest. My suggestion 
+would be that if we want to implement this, we implement it as a feature 
+of XHR, e.g.:
+
+   var foo = new XMLHttpRequest({ autoSendOnUnload: true });
+   foo.open('GET', '<A HREF="http://example.com/ajax">http://example.com/ajax</A>');
+   foo.addData('bar');
+
+...or some such.
+
+So I'm punting this over to Anne.
+
+
+But before we spec this, I think we should make sure that there's browser 
+vendors who want to implement it. The thread (which I haven't quoted here) 
+raised a number of serious concerns about whether it would be a good idea.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="080319.html">[whatwg] Forms-related feedback
+</A></li>
+	<LI>Next message: <A HREF="080315.html">[whatwg] Declarative unload data
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#38040">[ date ]</a>
+              <a href="thread.html#38040">[ thread ]</a>
+              <a href="subject.html#38040">[ subject ]</a>
+              <a href="author.html#38040">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

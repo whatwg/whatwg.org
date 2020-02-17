@@ -1,0 +1,138 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Script preloading, non-script dependencies
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Script%20preloading%2C%20non-script%20dependencies&In-Reply-To=%3Cop.wz7vtzrote2ec8%40aimac%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="082286.html">
+   <LINK REL="Next"  HREF="082342.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Script preloading, non-script dependencies</H1>
+<!--htdig_noindex-->
+    <B>Kornel Lesi&#324;ski</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Script%20preloading%2C%20non-script%20dependencies&In-Reply-To=%3Cop.wz7vtzrote2ec8%40aimac%3E"
+       TITLE="[whatwg] Script preloading, non-script dependencies">kornel at geekhood.net
+       </A><BR>
+    <I>Sun Jul 14 07:57:25 PDT 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="082286.html">[whatwg] Script preloading
+</A></li>
+        <LI>Next message: <A HREF="082342.html">[whatwg] Script preloading
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#82341">[ date ]</a>
+              <a href="thread.html#82341">[ thread ]</a>
+              <a href="subject.html#82341">[ subject ]</a>
+              <a href="author.html#82341">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Tue, 09 Jul 2013 20:39:45 +0100, Ian Hickson &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">ian at hixie.ch</A>&gt; wrote:
+
+&gt;<i> Would something like this, based on proposals from a variety of people in
+</I>&gt;<i> the past, work for your needs?
+</I>&gt;<i>
+</I>&gt;<i> 1. Add a &quot;dependencies&quot; attribute to &lt;script&gt; that can point to other
+</I>&gt;<i>    scripts to indicate that execution of this script should be delayed
+</I>&gt;<i>    until all other scripts that are (a) earlier in the tree order and (b)
+</I>&gt;<i>    identified by this attribute have executed.
+</I>&gt;<i>
+</I>&gt;<i>      &lt;script id=&quot;jquery&quot; src=&quot;jquery.js&quot; async&gt;&lt;/script&gt;
+</I>&gt;<i>      &lt;script id=&quot;shims&quot; src=&quot;shims.js&quot; async&gt;&lt;/script&gt;
+</I>&gt;<i>      &lt;script dependencies=&quot;shims jquery&quot; src=&quot;myscript.js&quot;  
+</I>&gt;<i> async&gt;&lt;/script&gt;
+</I>
+On a basic level it's similar to JS async module definition pattern  
+(<A HREF="https://github.com/amdjs/amdjs-api/wiki/AMD">https://github.com/amdjs/amdjs-api/wiki/AMD</A>), which is good, but may be  
+insufficient.
+
+require.js (AMD implementation) has useful concept of loader &quot;plugins&quot; for  
+dependencies (<A HREF="https://github.com/millermedeiros/requirejs-plugins">https://github.com/millermedeiros/requirejs-plugins</A>).
+A plugin is basically a function that is told to load a path and calls  
+callback when it's done.
+
+It solves two problems:
+
+1. not all dependencies are JS files, e.g. authors use plugins to load  
+template files, JSON, images, etc.
+
+     &lt;script dependencies=&quot;load_template('view.hbs')&quot; src=&quot;view.js&quot;&gt;
+     &lt;script&gt;
+         function load_template(url, callback) {
+             fetch(url).then(callback);  // in require.js result is  
+directly passed to the module.
+         }
+     &lt;/script&gt;
+
+2. not all dependencies are usefully satisfied immediately after their JS  
+file is loaded, e.g. some libraries may need asynchronous initialization.  
+In require.js it's possible to wrap initialization in a plugin that will  
+wait until it's done, so modules dependent on it can start using  
+initialized library right away.
+
+     &lt;script id=&quot;load-library&quot; src=&quot;library.js&quot; /&gt;
+     &lt;script dependencies=&quot;load-library&quot;&gt;
+         function library_initialized(callback) {
+             $library.on('ready', callback)
+         }
+     &lt;/script&gt;
+     &lt;script dependencies=&quot;library_initialized()&quot; src=&quot;use-it-now.js&quot;/&gt;
+
+
+Another common kind of dependency scripts have is presence of certain  
+element in the DOM, e.g. `dropdown-menu.js` may require `&lt;nav id=&quot;menu&quot;&gt;`  
+to be in the document _and_ have its content fully parsed before the  
+script can run.
+
+So, could &lt;script dependencies&gt; point to non-&lt;script&gt; elements?
+
+&lt;script dependencies=&quot;menu&quot; src=&quot;dropdown-menu.js&quot;/&gt;
+&lt;nav id=&quot;menu&quot;&gt;
+&lt;!-- script not run yet --&gt;
+&lt;ul&gt;...&lt;/ul&gt;
+&lt;/nav&gt;
+&lt;!-- script run at this point --&gt;
+
+It would be nice if the browser also deferred rendering of the element  
+until scripts that depend on it are run to avoid &quot;Flash of Unbehaviored  
+Content&quot; (e.g. elements listed in dependencies have display:none until  
+scripts are run).
+
+-- 
+regards, Kornel
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="082286.html">[whatwg] Script preloading
+</A></li>
+	<LI>Next message: <A HREF="082342.html">[whatwg] Script preloading
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#82341">[ date ]</a>
+              <a href="thread.html#82341">[ thread ]</a>
+              <a href="subject.html#82341">[ subject ]</a>
+              <a href="author.html#82341">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

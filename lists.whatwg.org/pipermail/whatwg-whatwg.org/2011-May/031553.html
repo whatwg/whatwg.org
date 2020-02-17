@@ -1,0 +1,317 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Canvas.getContext error handling
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Canvas.getContext%20error%20handling&In-Reply-To=%3CPine.LNX.4.64.1105120614330.19153%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="073868.html">
+   <LINK REL="Next"  HREF="073827.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Canvas.getContext error handling</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Canvas.getContext%20error%20handling&In-Reply-To=%3CPine.LNX.4.64.1105120614330.19153%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg] Canvas.getContext error handling">ian at hixie.ch
+       </A><BR>
+    <I>Wed May 11 23:42:58 PDT 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="073868.html">[whatwg] Canvas and drawWindow
+</A></li>
+        <LI>Next message: <A HREF="073827.html">[whatwg] Canvas.getContext error handling
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#31553">[ date ]</a>
+              <a href="thread.html#31553">[ thread ]</a>
+              <a href="subject.html#31553">[ subject ]</a>
+              <a href="author.html#31553">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>
+To summarise this thread:
+
+WebGL has the unfortunate problem of being likely to run into hardware 
+limitations more often that most other features, due to limited GPU
+resources. Authors need to be able to distinguish the temporary failure of 
+a context not being immediately available from the permanent failure of 3D 
+not being supported on the system at all.
+
+I think the proposal below handles this well already, with the HTML 
+specification as it stands today. I'm happy to add more editorial text to 
+the specification discussing this issue if that would help.
+
+
+On Tue, 12 Apr 2011, Kenneth Russell wrote:
+&gt;<i> 
+</I>&gt;<i> [...] a good quality WebGL implementation would like to notify the app 
+</I>&gt;<i> when the graphics card is available. In order for this to work, WebGL 
+</I>&gt;<i> would actually need to return a non-null WebGLRenderingContext, but 
+</I>&gt;<i> immediately dispatch a webglcontextlost event to the canvas.
+</I>
+This seems like the best way to go for any temporary error situation.
+
+
+&gt;<i> To sum up, in general I think that whenever getContext(&quot;webgl&quot;) returns 
+</I>&gt;<i> null, it's unrecoverable in a high quality WebGL implementation.
+</I>
+Agreed.
+
+
+On Thu, 14 Apr 2011, Cedric Vivier wrote:
+&gt;<i>
+</I>&gt;<i> Applications could detect all possible context creation failure 
+</I>&gt;<i> scenarios with something like this :
+</I>&gt;<i> 
+</I>&gt;<i> var gl = canvas.getContext(&quot;webgl&quot;);
+</I>&gt;<i> if (!gl) {
+</I>&gt;<i>     if (!window.WebGLRenderingContext) {
+</I>&gt;<i>        // Your browser does not support WebGL. Please upgrade your browser.
+</I>&gt;<i>     } else {
+</I>&gt;<i>        // WebGL could not be initialized on your setup. Please check
+</I>&gt;<i>        // that your GPU is supported and/or upgrade your drivers.
+</I>&gt;<i>     }
+</I>&gt;<i> }
+</I>&gt;<i> if (gl.isContextLost()) {
+</I>&gt;<i>     // Not enough resources to initialize WebGL. Please try closing
+</I>&gt;<i>     // tabs/programs...
+</I>&gt;<i>     // (an application can, but is not required to, listen to
+</I>&gt;<i>     // webglcontextlost and use statusMessage to give more information) 
+</I>&gt;<i> }
+</I>
+Right.
+
+
+&gt;<i> For the use case of detecting context restoration error, we could 
+</I>&gt;<i> possibly add an 'isRestorable' boolean to webglcontextlost event to 
+</I>&gt;<i> signal the app when restoration failed (and/or won't ever happen).
+</I>
+Seems reasonable.
+
+
+&gt;<i> Therefore I believe we can get rid of webglcontextcreationerror 
+</I>&gt;<i> entirely, and we do not need to throw an exception either.
+</I>
+Sounds good.
+
+
+On Tue, 12 Apr 2011, Glenn Maynard wrote:
+&gt;<i>
+</I>&gt;<i> Based on some discussion[1], it looks like a clean way to handle the 
+</I>&gt;<i> &quot;permanent failure&quot; case is: If the GPU is blacklisted, or any other 
+</I>&gt;<i> permanent error occurs, treat &quot;webgl&quot; as an unsupported context.  This 
+</I>&gt;<i> means instead of WebGL's context creation algorithm executing and 
+</I>&gt;<i> returning null, it would never be run at all; instead, step 2 of 
+</I>&gt;<i> getContext[2] would return null.
+</I>
+Indeed. I've updated the spec to mention this explicitly.
+
+
+&gt;<i> For transient errors, eg. too many open contexts, return a WebGL context 
+</I>&gt;<i> in the &quot;lost&quot; state as Kenneth described.
+</I>
+Indeed.
+
+
+&gt;<i> It was mentioned that the GPU blacklist can change as the browser runs. 
+</I>&gt;<i> That's supported with this method, since whether a context type is 
+</I>&gt;<i> &quot;supported&quot; or not can change over time.
+</I>
+Right.
+
+
+On Wed, 13 Apr 2011, Kenneth Russell wrote:
+&gt;<i> 
+</I>&gt;<i> It's essential to be able to report more detail about why context 
+</I>&gt;<i> creation failed. We have already received a lot of feedback from users 
+</I>&gt;<i> and developers of popular projects like Google Body that doing so will 
+</I>&gt;<i> reduce end user frustration and provide them a path toward getting the 
+</I>&gt;<i> content to work.
+</I>
+This is something the browser should do directly. I don't think pages 
+should be doing this, otherwise every page will have to reimplement the 
+same error reporting logic.
+
+
+On Wed, 13 Apr 2011, Glenn Maynard wrote:
+&gt;<i> 
+</I>&gt;<i> Calling canvas.getContext(&quot;webgl&quot;, {async: true}) will cause it to 
+</I>&gt;<i> *always* return an object immediately, without attempting to initialize 
+</I>&gt;<i> the underlying drawing context.  This context starts out in the &quot;lost&quot; 
+</I>&gt;<i> state. As long as WebGL is supported by the browser, getContext will 
+</I>&gt;<i> never return null, even for blacklisted GPUs.  The context is 
+</I>&gt;<i> initialized asynchronously.  On success, webglcontextrestored is fired, 
+</I>&gt;<i> as if the context had just come back from a normal context loss.  On 
+</I>&gt;<i> failure, webglcontextcreationerror is fired with a statusMessage, and 
+</I>&gt;<i> possibly a flag indicating whether it's a permanent failure (GPU 
+</I>&gt;<i> blacklisted) or a recoverable one (insufficient resources).
+</I>&gt;<i> 
+</I>&gt;<i> If {async: true} isn't specified, then an initial context failure 
+</I>&gt;<i> returns null (using the &quot;unsupported contextId&quot; approach), and there's 
+</I>&gt;<i> no interface to get an error message--people should be strongly 
+</I>&gt;<i> discouraged from using this API (deprecating it if possible).
+</I>&gt;<i> 
+</I>&gt;<i> (If it's possible to make the backwards-incompatible change to remove 
+</I>&gt;<i> sync initialization entirely, that would be good to do, but I'm assuming 
+</I>&gt;<i> it's not.)
+</I>&gt;<i> 
+</I>&gt;<i> There are other fine details (such as feature detection, and possibly 
+</I>&gt;<i> distinguishing &quot;initializing&quot; from &quot;lost&quot;), but I'll wait for people to 
+</I>&gt;<i> give their thoughts before delving in deeper.  Aside from giving a 
+</I>&gt;<i> consistent way to report errors, this allows browsers to initialize 
+</I>&gt;<i> WebGL contexts in the background.
+</I>
+It seems bad to have two modes here. Are there really 
+
+
+On Wed, 13 Apr 2011, Kenneth Russell wrote:
+&gt;<i> 
+</I>&gt;<i> Providing a programmatic status message about why WebGL initialization 
+</I>&gt;<i> failed (for example, that the user's card or driver is blacklisted) is 
+</I>&gt;<i> not a security issue.
+</I>
+It's partly a security issue and partly a privacy issue.
+
+It's a security issue because it discloses to an attacker that the user's 
+video drivers can be attacked. How much information we disclose depends on 
+how useful this is, but it is always going to be useful to some extent, 
+because it gives an attacker somewhere to start, or tells the attacker to 
+concentrate on another area.
+
+It's a privacy issue because it increases the fingerprintability of the 
+user. How bad this is depends on how many bits of information we return, 
+but at a minimum it provides one bit: has a bad driver vs does not.
+
+
+&gt;<i> First, there would be no way to issue work to the GPU to exploit any 
+</I>&gt;<i> vulnerabilities that might exist, since the app couldn't get a 
+</I>&gt;<i> WebGLRenderingContext.
+</I>
+That assumes the attacker has no other way to get the user to use 3D. One 
+might well imagine scenarios in which an attacker could use the 
+information to try to social-engineer the victim into running software 
+that usse 3D (e.g. a game that they own) in a way that they can abuse 
+(e.g. because the game renders custom models or some such).
+
+I agree that this is a minor threat. The question is how much benefit do 
+users get from having each page be able to provide a custom message 
+regarding the video card being blacklisted, instead of having the browser 
+provide that message, vs how much risk is the user taking by us exposing 
+that information to the page.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="073868.html">[whatwg] Canvas and drawWindow
+</A></li>
+	<LI>Next message: <A HREF="073827.html">[whatwg] Canvas.getContext error handling
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#31553">[ date ]</a>
+              <a href="thread.html#31553">[ thread ]</a>
+              <a href="subject.html#31553">[ subject ]</a>
+              <a href="author.html#31553">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

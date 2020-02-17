@@ -1,0 +1,154 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Use cases for Node.getElementById
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Use%20cases%20for%20Node.getElementById&In-Reply-To=%3C493C1EEC.6070805%40email.it%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017721.html">
+   <LINK REL="Next"  HREF="017717.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Use cases for Node.getElementById</H1>
+<!--htdig_noindex-->
+    <B>Calogero Alex Baldacchino</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Use%20cases%20for%20Node.getElementById&In-Reply-To=%3C493C1EEC.6070805%40email.it%3E"
+       TITLE="[whatwg] Use cases for Node.getElementById">alex.baldacchino at email.it
+       </A><BR>
+    <I>Sun Dec  7 11:07:24 PST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017721.html">[whatwg] Use cases for Node.getElementById (was: Re: Early feedback on header association algorithm)
+</A></li>
+        <LI>Next message: <A HREF="017717.html">[whatwg] Early feedback on header association algorithm
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17722">[ date ]</a>
+              <a href="thread.html#17722">[ thread ]</a>
+              <a href="subject.html#17722">[ subject ]</a>
+              <a href="author.html#17722">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Jo&#227;o Eiras ha scritto:
+&gt;<i>
+</I>&gt;<i> IMO, anyone suggesting a Node.getElementById clearly does not know 
+</I>&gt;<i> very well how getElementById is supposed to work.
+</I>&gt;<i> There are ways to transverse a DOM tree currently, either DOM 
+</I>&gt;<i> properties and methods, XPath, selectors API and such.
+</I>&gt;<i> Considering ids are required to be unique in the context of a single 
+</I>&gt;<i> document, implementations can, and do, implement id lookup using 
+</I>&gt;<i> optimized data structures like a hash table, which is much more 
+</I>&gt;<i> performant than doing transversal.
+</I>&gt;<i> So if there is a special node in a document, add an id to it and get 
+</I>&gt;<i> its reference will be performant (ideally O(1)).
+</I>
+Such a hash table cannot prevent at all the need of traversing the DOM 
+tree for the purpose of a _correct_ implementation of .getElementById. A 
+DOM tree is a live structure, so the hash table must be checked and 
+updated each time a node is removed AND each time a node is inserted, 
+for a couple of reasons, and such update may request some kind of tree 
+traversing (i.e. to compare nodes relative position). Actually, 
+getElementById is being defined as returning the _first_ element with a 
+matching ID, as a graceful degradation in case of duplicate IDs and to 
+give a better standard (= unique) definition of the expected behavior in 
+front of duplicate IDs, than what stated in DOM 3 Core (which leaves 
+such behavior unspecified -- it's said to be undefined -- and possibly 
+implementation or document specific); this means that, upon insertion of 
+a new element, this one might be the new 'first' element with a certain 
+id, so its order must be checked and the hash table updated accordingly. 
+When an element is removed, independently of the previous scenario, if 
+it was in the hash table it might be just removed from the table a well, 
+but such wouldn't work fine, because there might be a descendant, or an 
+otherwise following element with the same id: after the removal, such 
+element would pass from the 'illegal' state of being a duplicate-ID 
+element, to the 'legal' state of being the current element to be 
+returned by getElementById =&gt; the existence of such an element must be 
+checked and the hash table updated accordingly. If there are far more 
+insertions and/or removals of elements with the id attribute set, than 
+calls to getElementById, the advantage of a live hash table vs 
+traversing as needed can be quite lost; anyway, a traversal can be quite 
+fast, especially if the DOM structure is implemented as a balanced 
+binary tree (and I hope you don't wish to implement any kind of 
+non-binary tree as the base tree structure).
+
+&gt;<i>
+</I>&gt;<i> If the uniqueness requirement is removed, then getElementById looses 
+</I>&gt;<i> its whole meaning and should actually be removed from the 
+</I>&gt;<i> specification entirely, else then we would need more bloat like 
+</I>&gt;<i> getElementById or getElementListById and whatever.
+</I>
+Do you thing that getElementsByTagName and getElementsByClassName are 
+bloaty and useless too? However, my point was, and is, another (I'm not 
+for Node.getElementById - nor I am strongly against it).
+
+&gt;<i>
+</I>&gt;<i> If you really need to get the element with id in a subtree, connected 
+</I>&gt;<i> or disconnected from the main tree, one can use selectors API, DOM 
+</I>&gt;<i> transversal, XPath, etc.
+</I>
+Currently, the id uniqueness is defined such as constraining not only a 
+whole document, but also a disconnected subtree. Then, what API is such 
+constraint relevant for? If none, is it worth to declare such constraint 
+for disconnected subtrees? Or, is there any need for an API directly 
+handling IDs in disconnected subtrees?
+
+In other words, what's being constrained by the id uniqueness in a 
+disconnected subtree? A disconnected subtree may be a subtree of another 
+document, different from the one currently handled by a script; in this 
+case, the id uniqueness is relevant for the actual document containing 
+the subtree (while any other document shouldn't be affected by 
+cross-document IDs clashes). Otherwise, it may be a subtree external to 
+any document, and in such case, perhaps, it might be out of scope for 
+HTML 5 documents specification. I'm starting to think that at most it 
+might be said, for disconnected subtrees outside any actual html 
+document but consisting of html elements, that any API dealing with 
+unique identifiers in a disconnected subtree of html elements must treat 
+the value of any such element's id attribute as the element default ID 
+(the id value uniqueness being a consequence of both its nature as ID 
+property and the nature of an API methods targeting an element ID 
+property, but not imposed by the specifications, since currently there 
+is no such method in the scope of HTML 5 DOM). As a consequence, the id 
+value uniqueness might be in scope for a DOM Core specification 
+explicitly willing to handle ID properties in a disconnected (and 
+'document-less') subtree of Elements, just because the id value 
+represent (at least) the first attribute of an HTML element to be 
+evaluated looking for an ID property.
+
+Regard, Alex.
+ 
+ 
+ --
+ Caselle da 1GB, trasmetti allegati fino a 3GB e in piu' IMAP, POP3 e SMTP autenticato? GRATIS solo con Email.it <A HREF="http://www.email.it/f">http://www.email.it/f</A>
+ 
+ Sponsor:
+ Check-up finanziario di Intesa Sanpaolo. Prenotalo subito online, &#232; gratis e senza impegno.
+ Clicca qui: <A HREF="http://adv.email.it/cgi-bin/foclick.cgi?mid=8437&amp;d=7-12">http://adv.email.it/cgi-bin/foclick.cgi?mid=8437&amp;d=7-12</A>
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017721.html">[whatwg] Use cases for Node.getElementById (was: Re: Early feedback on header association algorithm)
+</A></li>
+	<LI>Next message: <A HREF="017717.html">[whatwg] Early feedback on header association algorithm
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17722">[ date ]</a>
+              <a href="thread.html#17722">[ thread ]</a>
+              <a href="subject.html#17722">[ subject ]</a>
+              <a href="author.html#17722">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

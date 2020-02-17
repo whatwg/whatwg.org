@@ -1,0 +1,173 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] WebWorkers vs. Threads
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20WebWorkers%20vs.%20Threads&In-Reply-To=%3C278fd46c0808131303l4ac3f585sdba18de36213b829%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="058018.html">
+   <LINK REL="Next"  HREF="058025.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] WebWorkers vs. Threads</H1>
+<!--htdig_noindex-->
+    <B>Aaron Boodman</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20WebWorkers%20vs.%20Threads&In-Reply-To=%3C278fd46c0808131303l4ac3f585sdba18de36213b829%40mail.gmail.com%3E"
+       TITLE="[whatwg] WebWorkers vs. Threads">aa at google.com
+       </A><BR>
+    <I>Wed Aug 13 13:03:54 PDT 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="058018.html">[whatwg] WebWorkers vs. Threads
+</A></li>
+        <LI>Next message: <A HREF="058025.html">[whatwg] WebWorkers vs. Threads
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#58019">[ date ]</a>
+              <a href="thread.html#58019">[ thread ]</a>
+              <a href="subject.html#58019">[ subject ]</a>
+              <a href="author.html#58019">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Wed, Aug 13, 2008 at 11:50 AM, Shannon &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">shannon at arc.net.au</A>&gt; wrote:
+&gt;<i> The WebWorkers implementation (scary! hide your children!!):
+</I>&gt;<i>
+</I>&gt;<i> --- worker.js ---
+</I>&gt;<i> updateGlobalLa = function (e) {
+</I>&gt;<i>  var localLa = someLongRunningFunction( e );
+</I>&gt;<i>  workerGlobalScope.port.postMessage(&quot;set la = &quot;+ localLa);
+</I>&gt;<i> }
+</I>&gt;<i> workerGlobalScope.port.AddEventListener(&quot;onmessage&quot;, updateGlobalLa, false);
+</I>&gt;<i> workerGlobalScope.port.postMessage(&quot;get la&quot;);
+</I>&gt;<i>
+</I>&gt;<i> --- main.js ---
+</I>&gt;<i> // global object or variable
+</I>&gt;<i> var la = 0;
+</I>&gt;<i>
+</I>&gt;<i> handleMessage = function(e) {
+</I>&gt;<i>  if (typeof e.match(&quot;set la&quot;))
+</I>&gt;<i>     la = parseInt(e.substr(3));
+</I>&gt;<i>  } else if (typeof e.match(&quot;get la&quot;)) {
+</I>&gt;<i>     worker.postMessage(la.toString());
+</I>&gt;<i>  }
+</I>&gt;<i> }
+</I>&gt;<i> var worker = new Worker(&quot;worker.js&quot;);
+</I>&gt;<i> worker.AddEventListener(&quot;onmessage&quot;, handleMessage, false);
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> Unlike the one-line example above we increment the global value based on
+</I>&gt;<i> some long-running calculation on its original value (rather than just add
+</I>&gt;<i> 1). This shows a more realistic use case for threading. Unfortunately our
+</I>&gt;<i> potentially dangerous one-liner is now an equally dangerous 18-line monster
+</I>&gt;<i> spread over 2 files and we STILL haven't solved the issue of another worker
+</I>&gt;<i> or the main context updating 'la' between our original postMessage query and
+</I>&gt;<i> our response.
+</I>
+You're right that if you try to use workers like threads, you end up
+with threads. A more message-passing style implementation is easier.
+In particular you would not want to allow the worker to 'get' and
+'set' individual variables, but pass it messages about work you would
+like it to perform, and have it pass back messages about the result.
+This is less flexible than threading but easier to reason about.
+
+// main.js
+var la = 0; // what is with this variable name?
+var worker = createWorker(&quot;worker.js&quot;);
+worker.port.addEventListener(&quot;message&quot;, function(e) {
+  la = parseInt(e.message);
+  alert(la);
+}, false);
+
+// worker.js
+workerGlobalScope.port.addEventListener(&quot;message&quot;, function(e) {
+  workerGlobalScope.port.sendMessage(someLongRunningFunction(parseInt(e.message)));
+}, false);
+
+A more realistic example would have the worker also doing synchronous
+IO between chunks of longRunningFunctions, and then finally passing a
+result back to the UI.
+
+&gt;<i> I should also point out that even this simple, naive and probably incorrect
+</I>&gt;<i> example still took me nearly 2 hours to write - largely due to the
+</I>&gt;<i> complexity of the WebWorkers spec and the lack of any decent examples.
+</I>&gt;<i> Honestly anyone who thinks this interface is supposed to make things easier
+</I>&gt;<i> is kidding themselves.
+</I>
+In my experience with Gears, it has not been difficult for people to
+get started with workers. Many programmers are already familiar with
+message passing style concurrency, so it is easy for them to pick up
+workers. But even when they don't, they are conceptually simple.
+
+I'm not sure what happened in your case. It is true that the spec is
+not written as a tutorial for developers, but as a rulebook for
+implementors, and this makes it hard to grok for new developers. That
+may have contributed.
+
+There are a bunch of examples that Ian has kindly written at the very
+top of the document. What was unhelpful about them?
+
+&gt;<i> Regardless of the kind of Getters/Setters/Managers/Whatever paradigm you use
+</I>&gt;<i> in your main thread you can never escape the possibility that 2 workers
+</I>&gt;<i> might want exclusive access to an essential global object (ie, DOM node or
+</I>&gt;<i> global setting). So far I have not found any real-world programming language
+</I>&gt;<i> or hardware that can do this without some kind of side-effect or programming
+</I>&gt;<i> construct (ie, locks, mutexes, semaphores, etc...). What WebWorkers is
+</I>&gt;<i> really doing is requiring the author to write their own.
+</I>
+You are thinking about this wrong. Don't try to give two chunks of
+your program concurrent access to shared state; that is impossible.
+Instead realize there is no shared state and factor your program into
+two pieces -- one to do the heavy lifting and one to manipulate the
+UI. Then create a protocol for them to communicate with message
+passing.
+
+&gt;<i> I don't think I can stress enough how many important properties and
+</I>&gt;<i> functions of a web page are ONLY available as globals. DOM nodes, style
+</I>&gt;<i> properties, event handlers, window.status ... the list goes on. These can't
+</I>&gt;<i> be duplicated because they are properties of the page all workers are
+</I>&gt;<i> sharing. Without direct access to these the only useful thing a worker can
+</I>&gt;<i> do is &quot;computation&quot; or more precisely string parsing and maths.
+</I>
+You're forgetting the ability to do synchronous IO and the ability to
+share workers between pages. Both of these benefits have been
+explained in previous messages.
+
+At this point I suspect we will have to agree to disagree. Perhaps
+keep an eye on the spec as it continues to evolve. Perhaps it will
+start to grow on you.
+
+- a
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="058018.html">[whatwg] WebWorkers vs. Threads
+</A></li>
+	<LI>Next message: <A HREF="058025.html">[whatwg] WebWorkers vs. Threads
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#58019">[ date ]</a>
+              <a href="thread.html#58019">[ thread ]</a>
+              <a href="subject.html#58019">[ subject ]</a>
+              <a href="author.html#58019">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

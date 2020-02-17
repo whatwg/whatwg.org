@@ -1,0 +1,145 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Canvas arc
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Canvas%20arc&In-Reply-To=%3Cea09c0d10707031321i758d739boebc8ba97c1d13535%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="054397.html">
+   <LINK REL="Next"  HREF="054400.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Canvas arc</H1>
+<!--htdig_noindex-->
+    <B>Philip Taylor</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Canvas%20arc&In-Reply-To=%3Cea09c0d10707031321i758d739boebc8ba97c1d13535%40mail.gmail.com%3E"
+       TITLE="[whatwg] Canvas arc">excors+whatwg at gmail.com
+       </A><BR>
+    <I>Tue Jul  3 13:21:40 PDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="054397.html">[whatwg] Canvas arcTo
+</A></li>
+        <LI>Next message: <A HREF="054400.html">[whatwg] Color attributes
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#54399">[ date ]</a>
+              <a href="thread.html#54399">[ thread ]</a>
+              <a href="subject.html#54399">[ subject ]</a>
+              <a href="author.html#54399">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>For the 'arc' function:
+
+What if startAngle = endAngle? What if endAngle &gt; 2&#960; + startAngle?
+(The endAngle = 2&#960; + startAngle case isn't interesting since
+floating-point imprecision means it will never occur.)
+
+In practice: (see the left half of
+&lt;<A HREF="http://canvex.lazyilluminati.com/misc/arc.html">http://canvex.lazyilluminati.com/misc/arc.html</A>&gt; for a (unhelpfully
+unlabelled) random collection of examples)
+
+If startAngle = endAngle:
+  Firefox (2+3), Safari (3): Nothing is drawn.
+  Opera (9.2+9.5): If anticlockwise = true, a full circle is drawn;
+otherwise, nothing is drawn.
+
+If endAngle &gt; startAngle + 2&#960;:
+  Opera is weird and buggy and would require too much effort to analyse.
+  Firefox and Safari mostly match:
+  (Assume startAngle = 0 in all the following)
+
+  If endAngle = 2&#960; + &#949; [where &#949; is a small positive real number]:
+    A full circle is drawn.
+  If endAngle = 3&#960; - &#949;:
+    If anticlockwise, 0 to -&#960; is drawn; otherwise a full circle is
+drawn, and the 0 to &#960; part is drawn twice (i.e. drawn on top of
+itself, which is visible due to antialiasing effects).
+  If endAngle = 2n&#960; - &#949; for integer n &gt; 1:
+    If anticlockwise, nothing is drawn; otherwise:
+       Firefox: A full circle is drawn twice.
+       Safari: A full circle is drawn n times.
+  (Swapping startAngle vs endAngle is equivalent to swapping clockwise
+vs anticlockwise.)
+
+So, for FF/Safari: When startAngle -&gt; endAngle is in the opposite
+direction to the (anti)clockwise flag, the two angles are treated
+modulo 2&#960; and the arc is drawn between them in the appropriate
+direction. When it's the same direction as the (anti)clockwise flag,
+Safari extends the path all the way from startAngle to endAngle (going
+round the whole circle multiple times if necessary), and Firefox does
+the same except it skips all but the first full
+going-round-the-whole-circle bit (so it goes round 1 &lt;= n &lt; 2 times,
+if abs(startAngle-endAngle) &gt; 2&#960;).
+
+It seems sensible to adopt either Firefox's or Safari's approach
+(which differ only in the amount of overdraw). It's probably easier to
+use Firefox's, so then Safari would just have to mod the angles a
+little before drawing them, because I can't see any other reason to
+choose one approach over the other, and I can't see any reason to
+choose a totally different approach.
+
+Talking about arcs is confusing when the arc is more than a full
+circle and wraps around itself and isn't really a mathematical arc any
+more, so I think it's necessary to not define the operation in terms
+of arcs. The best I can think of is:
+
+&quot;&quot;&quot;
+Let da = endAngle - startAngle.
+If anticlockwise is true, and da &gt; 0 or da &lt; -2&#960;, then let d = (da % 2&#960;) - 2&#960;.
+If anticlockwise is false, and da &lt; 0 or da &gt; 2&#960;, then let d = (da % 2&#960;) + 2&#960;.
+If neither of these cases applies, then let d = (da % 2&#960;).
+In this algorithm, the % operator is defined to have the same
+semantics as the ECMAScript % operator.
+The arc is defined by the points (radius*cos(a), radius*sin(a)) for
+all a between startAngle and startAngle + d. The points at a =
+startAngle and at a = startAngle + d are the path's start and end
+points respectively.
+&quot;&quot;&quot;
+
+(The relevance of using the ECMAScript % operator is that (-3) % 2 =
+-1, etc, so it handles negative numbers (and floating-point numbers)
+in the way that is needed here, and I can't think of a better way to
+say the same thing that's still as well-defined and not horribly
+verbose.)
+
+The right half of &lt;<A HREF="http://canvex.lazyilluminati.com/misc/arc.html">http://canvex.lazyilluminati.com/misc/arc.html</A>&gt; is
+implemented as above, and gives exactly the same behaviour as FF in
+all the cases I have tried.
+
+-- 
+Philip Taylor
+<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">excors at gmail.com</A>
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="054397.html">[whatwg] Canvas arcTo
+</A></li>
+	<LI>Next message: <A HREF="054400.html">[whatwg] Color attributes
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#54399">[ date ]</a>
+              <a href="thread.html#54399">[ thread ]</a>
+              <a href="subject.html#54399">[ subject ]</a>
+              <a href="author.html#54399">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

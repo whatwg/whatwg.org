@@ -1,0 +1,201 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Incremental rendering of forms
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Incremental%20rendering%20of%20forms&In-Reply-To=%3CPine.LNX.4.61.0408291747510.8458%40dhalsim.dreamhost.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002030.html">
+   <LINK REL="Next"  HREF="001659.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Incremental rendering of forms</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Incremental%20rendering%20of%20forms&In-Reply-To=%3CPine.LNX.4.61.0408291747510.8458%40dhalsim.dreamhost.com%3E"
+       TITLE="[whatwg] Incremental rendering of forms">ian at hixie.ch
+       </A><BR>
+    <I>Sun Aug 29 12:25:20 PDT 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002030.html">[whatwg] Incremental rendering of forms
+</A></li>
+        <LI>Next message: <A HREF="001659.html">[whatwg] Incremental rendering of forms
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2148">[ date ]</a>
+              <a href="thread.html#2148">[ thread ]</a>
+              <a href="subject.html#2148">[ subject ]</a>
+              <a href="author.html#2148">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Thu, 26 Aug 2004, [ISO-8859-1] Olav Junker Kj&#230;r wrote:
+&gt;<i> &gt; 
+</I>&gt;<i> &gt; Similar things for, e.g., looking up product part numbers while 
+</I>&gt;<i> &gt; filling up a bigger form.
+</I>&gt;<i> 
+</I>&gt;<i> This is a nice use case, and something that WF2 should indeed try to 
+</I>&gt;<i> make possible in a natural way.
+</I>&gt;<i> 
+</I>&gt;<i> If I understand correctly, you are thinking of something like this:
+</I>&gt;<i> 
+</I>&gt;<i> Enter address:  [_________]
+</I>&gt;<i> Enter postcode: [____] [Lookup]
+</I>&gt;<i> [Send]
+</I>&gt;<i> 
+</I>&gt;<i> When you click &quot;lookup&quot;, the address is sent to a postcode-lookup-server 
+</I>&gt;<i> which finds one or more possible postcodes, which (without a page 
+</I>&gt;<i> reload) is filled into (or presented as a datalist for) the postcode 
+</I>&gt;<i> field. When you click &quot;send&quot;, address and postcode are submitted to a 
+</I>&gt;<i> server, which is different than the postcode-lookup-server.
+</I>
+Yes. The main (one-form) way to implement this in WF2 is:
+
+   &lt;form action=&quot;post.cgi&quot; method=&quot;post&quot;&gt;
+    &lt;label&gt; Enter address: &lt;input name=&quot;address&quot;&gt; &lt;/label&gt;
+    &lt;label&gt; Enter postcode: &lt;input name=&quot;postcode&quot;&gt;
+     &lt;input type=&quot;submit&quot; name=&quot;lookup&quot; value=&quot;Lookup&quot;
+            action=&quot;lookup.cgi&quot; replace=&quot;values&quot;&gt;
+    &lt;/label&gt;
+    &lt;input type=&quot;submit&quot; value=&quot;Send&quot;&gt;
+   &lt;/form&gt;
+
+...where post.cgi checks to see if &quot;lookup&quot; is in the list of variables, 
+and if it is, does a lookup then returns the form as a new page (that's 
+the fallback behaviour), and lookup.cgi does a lookup and returns a 
+&lt;formdata&gt; page that updates the form on the fly.
+
+
+&gt;<i> There is several issues here. First is obviously makes sense to think of 
+</I>&gt;<i> this as two different forms, since they submit different data to 
+</I>&gt;<i> different servers and the results is handled differently.
+</I>
+It can indeed also be implemented as two forms, using the onreceived 
+event handler instead of using replace=&quot;values&quot; (this requires 
+JavaScript, and would typically only be used for much more complex cases 
+where the data isn't being placed directly into a form):
+
+   &lt;form action=&quot;lookup.cgi&quot; method=&quot;get&quot; id=&quot;lookup&quot;&gt;&lt;/form&gt;
+   &lt;form action=&quot;post.cgi&quot; method=&quot;post&quot; id=&quot;post&quot;&gt;
+    &lt;label&gt; Enter address: &lt;input name=&quot;address&quot;&gt; &lt;/label&gt;
+    &lt;label&gt; Enter postcode:
+       &lt;input name=&quot;postcode&quot;&gt;
+       &lt;input type=&quot;hidden&quot; name=&quot;lpostcode&quot; form=&quot;lookup&quot;&gt;
+       &lt;input type=&quot;submit&quot; name=&quot;lookup&quot; form=&quot;lookup&quot; value=&quot;Lookup&quot;
+              onsubmit=&quot;lpostcode.value = document.forms.post.postcode.value&quot;&gt;
+              onreceived=&quot;document.forms.post.address.value =
+                 event.receivedDocument.documentElement.firstChild.data&quot;&gt;
+    &lt;/label&gt;
+    &lt;input type=&quot;submit&quot; value=&quot;Send&quot;&gt;
+   &lt;/form&gt;
+
+...where post.cgi does the same trick for backwards compatibility 
+(checking for the presence of &quot;lookup&quot; and sending back a whole new form 
+if it is there, with the fields filled in); but lookup.cgi just returns a 
+single XML document with one element containing as its contents the 
+address as a text string.
+
+
+&gt;<i> A complication is that the address field is really part of both forms. 
+</I>
+Yeah; in the two-form case above, I handle this by copying the value over 
+when the second form is submitted.
+
+
+&gt;<i> If we want the postcode returned from the lookup-server to fill into the 
+</I>&gt;<i> postcode field, this could be done by replace=data, but (if I understand 
+</I>&gt;<i> the spec correctly) only if the postcode field is part of the *same* 
+</I>&gt;<i> form.
+</I>
+Yes (that's the first example above).
+
+
+&gt;<i> OTOH it will not work either if we have just a single form and 
+</I>&gt;<i> different action-URI's on the buttons, since the validation constraints 
+</I>&gt;<i> are different - postcode is required for one server and not the other.
+</I>
+That's a very good point.
+
+XForms handles this case by disabling the requirements before submission:
+
+   <A HREF="http://xformsinstitute.com/essentials/browse/ch10s03.php#ch10-14-fm2xml">http://xformsinstitute.com/essentials/browse/ch10s03.php#ch10-14-fm2xml</A>
+
+...(and doesn't even provide built-in support for it).
+
+
+One option would be to make the &quot;form&quot; attribute into a space-separated 
+list, and say that elements belong to all the forms that are given in the 
+list. This would require some pretty big changes to the DOM, but it would 
+work pretty well I think.
+
+Another option would be to provide a declarative way of saying &quot;this 
+hidden input control's value should just be taken from that control over 
+there when you submit&quot;, which is easier to define but feels like more of a 
+kludge and is a bit harder to use. However, it does allow us to do things 
+like this, maybe:
+
+   &lt;label&gt;x = &lt;input type=&quot;number&quot; id=&quot;theta&quot;&gt;&lt;/label&gt;
+   &lt;form action=&quot;sin.php&quot;&gt;
+    &lt;input type=&quot;hidden&quot; control=&quot;theta&quot;
+           min=&quot;-180&quot; max=&quot;180&quot; required=&quot;required&quot;&gt;
+    &lt;input type=&quot;submit&quot; value=&quot;sin(x)&quot;&gt;
+   &lt;/form&gt;
+   &lt;form action=&quot;cos.php&quot;&gt;
+    &lt;input type=&quot;hidden&quot; control=&quot;theta&quot;
+           min=&quot;0&quot; max=&quot;360&quot; required=&quot;required&quot;&gt;
+    &lt;input type=&quot;submit&quot; value=&quot;cos(x)&quot;&gt;
+   &lt;/form&gt;
+
+...which could be interesting. Basically, when you validate a 
+type=&quot;hidden&quot; control, you take the control that its control=&quot;&quot; attribute 
+points to, and use its type and value with the constraints defined on the 
+type=&quot;hidden&quot; control to find the validity of the hidden control, and if 
+you need to complain to the user, you do so using the original (not 
+hidden) control. There are problems, though, like what happens if the two 
+controls have mutually exclusive constraints, and how do you derive the UI 
+since there might be multiple conflicting constraints (as in the example 
+above, in fact).
+
+
+I'm preferring the &quot;multiple form&quot; idea here, but really a better idea 
+all round would be best.
+
+
+&gt;<i> Anyway, it's not because I'm opposed to the form-attribute in principle, 
+</I>&gt;<i> it's just that I have a strange feeling that the requests for this 
+</I>&gt;<i> feature is hiding some other not fully understood requirement.
+</I>
+That's possible.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002030.html">[whatwg] Incremental rendering of forms
+</A></li>
+	<LI>Next message: <A HREF="001659.html">[whatwg] Incremental rendering of forms
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2148">[ date ]</a>
+              <a href="thread.html#2148">[ thread ]</a>
+              <a href="subject.html#2148">[ subject ]</a>
+              <a href="author.html#2148">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

@@ -1,0 +1,175 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Flow Control on Websockets
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Flow%20Control%20on%20Websockets&In-Reply-To=%3CCAA4WUYhe8%2BnznYWH1j9F7qnWFcY7kjaoTNS6F5L0bghKkF7Wwg%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="041687.html">
+   <LINK REL="Next"  HREF="083963.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Flow Control on Websockets</H1>
+<!--htdig_noindex-->
+    <B>William Chan (&#38472;&#26234;&#26124;)</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Flow%20Control%20on%20Websockets&In-Reply-To=%3CCAA4WUYhe8%2BnznYWH1j9F7qnWFcY7kjaoTNS6F5L0bghKkF7Wwg%40mail.gmail.com%3E"
+       TITLE="[whatwg] Flow Control on Websockets">willchan at chromium.org
+       </A><BR>
+    <I>Tue Dec  3 16:40:48 PST 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="041687.html">[whatwg] Flow Control on Websockets
+</A></li>
+        <LI>Next message: <A HREF="083963.html">[whatwg] Flow Control on Websockets
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#83961">[ date ]</a>
+              <a href="thread.html#83961">[ thread ]</a>
+              <a href="subject.html#83961">[ subject ]</a>
+              <a href="author.html#83961">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Tue, Dec 3, 2013 at 4:16 PM, Ian Hickson &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">ian at hixie.ch</A>&gt; wrote:
+
+&gt;<i> On Thu, 17 Oct 2013, Michael Meier wrote:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Suppose I have a Websocket server and a WS client connected to it. The
+</I>&gt;<i> &gt; client is a JS script in a browser offering the standard WS API. The
+</I>&gt;<i> &gt; server produces data at a rate r1 and sends it to the client, which is
+</I>&gt;<i> &gt; able to meaningfully process data at a rate of r2, where r1 &gt; r2.
+</I>&gt;<i>
+</I>&gt;<i> What kind of data are we talking about here?
+</I>&gt;<i>
+</I>&gt;<i> I'm finding it hard to come up with data where it would make sense for the
+</I>&gt;<i> server to slow down production, but where WebSocket would still be the
+</I>&gt;<i> right protocol to use.
+</I>&gt;<i>
+</I>&gt;<i> If the server is generating a lot of data based on an algorithm, e.g.
+</I>&gt;<i> generating the digits of pi, without using data from the client, then HTTP
+</I>&gt;<i> seems like a better protocol -- just generate the data offline, and
+</I>&gt;<i> download it all later.
+</I>&gt;<i>
+</I>&gt;<i> If the server is generating data in response to some real-time query, e.g.
+</I>&gt;<i> the results of a search on Twitter or some such, then what is the server
+</I>&gt;<i> going to do with backpressure? Drop the data on the floor? Whether the
+</I>&gt;<i> client drops the data on the floor or the server drops the data on the
+</I>&gt;<i> floor doesn't much affect the user, though obviously if the client is
+</I>&gt;<i> dropping it then the bandwidth is being wasted.
+</I>&gt;<i>
+</I>
+Buffer the data. Read from the backend when the flow control window opens
+up. I mean, that's what would happen if there was packetloss in the
+network, leading to retransmissions, and possibly the TCP receive window
+shrunk to 0. Irrespective of whether or not the browser websocket client
+has some way to instruct the browser to stop reading from the socket,
+there's always a possibility of the receive window shrinking to 0, and the
+server *must* deal with it, in order to be a compliant TCP implementation.
+
+
+&gt;<i>
+</I>&gt;<i> It would be helpful to have a better idea of what kind of data you were
+</I>&gt;<i> thinking about.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> &gt; The JS script registers an onmessage handler and is called every time
+</I>&gt;<i> &gt; the browser receives a message from the WS. Even if the JS script is
+</I>&gt;<i> &gt; still busy processing the received message, say over a chain of
+</I>&gt;<i> &gt; asynchronous calls, the browser might receive the next message and call
+</I>&gt;<i> &gt; onmessage again. For the script, there are two options to proceed. The
+</I>&gt;<i> &gt; first option is to drop data. This might not be possible in all
+</I>&gt;<i> &gt; applications and is also a shame, since the data has already been
+</I>&gt;<i> &gt; transported over the network. The second option is to buffer the data.
+</I>&gt;<i> &gt; This is not a real option, though, since it will buffer an ever
+</I>&gt;<i> &gt; increasing amount of data because r1 &gt; r2.
+</I>&gt;<i>
+</I>&gt;<i> You could just use synchronous APIs in a Worker and not return; if the UA
+</I>&gt;<i> is clever, that will apply backpressure. But yeah, it's not ideal.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> &gt; On the sending side of the browser, flow control seems to be possible by
+</I>&gt;<i> &gt; using the bufferedAmount attribute to decide when to pause and resume
+</I>&gt;<i> &gt; sending of data.
+</I>&gt;<i>
+</I>&gt;<i> That doesn't tell you what the backpressure's like, only how much the user
+</I>&gt;<i> agent hasn't yet sent.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> &gt; Why is there such an assymetry between sending an receiving? Is it
+</I>&gt;<i> &gt; possible to have flow control on the receiving side without resorting to
+</I>&gt;<i> &gt; application level handshakes?
+</I>&gt;<i>
+</I>&gt;<i> I've filed this bug to track this feature request, if any user agent
+</I>&gt;<i> implementors want to add this, please do comment on the bug!:
+</I>&gt;<i>
+</I>&gt;<i>    <A HREF="https://www.w3.org/Bugs/Public/show_bug.cgi?id=23992">https://www.w3.org/Bugs/Public/show_bug.cgi?id=23992</A>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> On Thu, 17 Oct 2013, Nicholas Wilson wrote:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; If you're at all interested in the freshness of the data, you don't want
+</I>&gt;<i> &gt; to use TCP as your sole flowcontrol mechanism. It's fine for bulk file
+</I>&gt;<i> &gt; transfers, but think how many megabytes of buffering there can be - the
+</I>&gt;<i> &gt; sum of all the send buffers of all the intermediaries along the chain.
+</I>&gt;<i> &gt; On a low-loss network, the TCP window size will become very large. You
+</I>&gt;<i> &gt; quickly get to a point where the server's filled up all the buffers
+</I>&gt;<i> &gt; along the way, fine for file transfer, but potentially seconds'-worth of
+</I>&gt;<i> &gt; latency.
+</I>&gt;<i>
+</I>&gt;<i> There's presumably use cases for not-quite-real-time data where it's still
+</I>&gt;<i> ok to drop some data. For example, I would expect a real-time search on
+</I>&gt;<i> Google+ to not show _every_ result, just a sample at each time interval.
+</I>&gt;<i> But in that example, I would expect the server to be sending data much,
+</I>&gt;<i> much slower than the user agent can handle it, so the topic of this thread
+</I>&gt;<i> doesn't really come up.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> &gt; Your second question is whether it's possible to stop the browser
+</I>&gt;<i> &gt; reading from the socket. Yes, just don't return from your onmessage
+</I>&gt;<i> &gt; handler until you've actually finished handling the message. If you fire
+</I>&gt;<i> &gt; up a new worker then tell the browser you're done, you're seeing the
+</I>&gt;<i> &gt; inevitable result of that. You have to wait on the worker - or, if you
+</I>&gt;<i> &gt; want to process say four messages in parallel, wait on the worker pool
+</I>&gt;<i> &gt; until it's dropped below four active before returning.
+</I>&gt;<i>
+</I>&gt;<i> That's not actually possible in many cases. Some Web APIs (e.g. channel
+</I>&gt;<i> messaging) are exclusively async, even in workers.
+</I>&gt;<i>
+</I>&gt;<i> --
+</I>&gt;<i> Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+</I>&gt;<i> <A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+</I>&gt;<i> Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</I>&gt;<i>
+</I>
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="041687.html">[whatwg] Flow Control on Websockets
+</A></li>
+	<LI>Next message: <A HREF="083963.html">[whatwg] Flow Control on Websockets
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#83961">[ date ]</a>
+              <a href="thread.html#83961">[ thread ]</a>
+              <a href="subject.html#83961">[ subject ]</a>
+              <a href="author.html#83961">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

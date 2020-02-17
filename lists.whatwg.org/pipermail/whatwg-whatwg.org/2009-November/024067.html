@@ -1,0 +1,191 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] AJAX History Concerns
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20AJAX%20History%20Concerns&In-Reply-To=%3CDCFF2990-A25F-4D4B-9C8F-605312A403A1%40apple.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="024064.html">
+   <LINK REL="Next"  HREF="024057.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] AJAX History Concerns</H1>
+<!--htdig_noindex-->
+    <B>Brady Eidson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20AJAX%20History%20Concerns&In-Reply-To=%3CDCFF2990-A25F-4D4B-9C8F-605312A403A1%40apple.com%3E"
+       TITLE="[whatwg] AJAX History Concerns">beidson at apple.com
+       </A><BR>
+    <I>Thu Nov 12 09:12:19 PST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="024064.html">[whatwg] AJAX History Concerns
+</A></li>
+        <LI>Next message: <A HREF="024057.html">[whatwg] Microdata DOM API issues
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24067">[ date ]</a>
+              <a href="thread.html#24067">[ thread ]</a>
+              <a href="subject.html#24067">[ subject ]</a>
+              <a href="author.html#24067">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>
+On Nov 11, 2009, at 11:24 PM, Marius Gundersen wrote:
+
+&gt;<i> I'm not exactly sure what you mean in the first case. How is the title change hidden from the DOM? When you call document.title = &quot;new title&quot;, then the title does change in the DOM and in the UI.
+</I>
+Sure, that's my point.  You're talking about the DOM API to title, but I'm talking about the new API that says the title you pass in the function calls is &quot;purely advisory.&quot;
+
+So if you do:
+
+document.title = &quot;Old title&quot;;
+replaceState(&quot;state object&quot;, &quot;New title&quot;, &quot;<A HREF="http://example.com/index.html?2">http://example.com/index.html?2</A>&quot;);
+alert(document.title);
+
+What does the alert show?
+
+The current back/forward entry would says &quot;New title&quot; in most (all?) modern browsers.  But the actual title of the document, as exposed to the DOM, is still &quot;Old title&quot;
+
+This seems inconsistent and silly.
+
+&gt;<i> About your second question, I think you misunderstood it. As you said, it says:
+</I>&gt;<i> &quot;Then, if the current entry was removed in the previous step, the current entry must be set to the last entry for that Document object in the session history.&quot;
+</I>&gt;<i> 
+</I>&gt;<i> In other words, the last entry in the session history must now equal what was the current entry. It's just worded a bit confusingly.
+</I>
+I agree it's confusing.  I don't see how you're right here, though.
+
+Imagine the following session history.  3 documents - A, B, and C.  Each have more than one entry because they're all using this hawt new API:
+
+A1 - A2 - B1 - *B2* - B3 - C1 - C2
+
+In this scenario, B2 is the current entry.
+
+&quot;When this method is invoked, the user agent must remove from the session history all the entries from the first state object entry for that Document object up to the last entry that references that same Document object, if any.&quot;
+
+So If a script on document B calls &quot;clearState()&quot;, then quite clear, entries B1, B2, and B3 will be removed.
+
+Oh no, the current entry was removed!  So, now what is the current entry?  This is most certainly where it gets confusing:
+
+&quot;Then, if the current entry was removed in the previous step, the current entry must be set to the last entry for that Document object in the session history.&quot;
+
+The Document object in question is B.  B1, B2, and B3 were just removed.  There is no &quot;last entry for that Document object&quot; because we just removed them all.  In my original message I liberally interpreted this to mean the new current entry should be a copy of &quot;B3&quot; but without the state object because, clearly, we just &quot;removeState()&quot;ed.  Which would leave us the following:
+
+A1 - A2 - *B3* - C1 - C2
+
+I'm not saying this is correct, but it's my best following of the described procedure.  Your interpretation is that the list should be:
+
+A1 - A2 - C1 - C2 - B2
+
+That seems insane to me.  We've never given scripts the ability to arbitrarily re-order the back/forward list before, and I don't think we should start now.  Even pushState() carefully preserves the ordering of documents A - B - C.  
+
+What you're proposing is that document B can &quot;cut in line&quot; in front of document C's entries in the list.  It seems to me that malicious and/or downright rude site developers could abuse this to always keep themselves &quot;on top&quot; of the back/forward list, breaking the UI expectations of what those little left/right arrows mean.
+
+
+&gt;<i> A better way of saying it would be:
+</I>&gt;<i> 
+</I>&gt;<i> &quot;Then, if the current entry was removed in the previous step, the current entry must now be pushed onto the session history&quot;. 
+</I>
+That wording would be very clear, but I don't think that's at all what the current language is intending.  
+
+Also, if that was the actual intent and wording, I would object (see discussion above).
+
+~Brady
+
+&gt;<i> 
+</I>&gt;<i> Marius Gundersen
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> On Thu, Nov 12, 2009 at 12:48 PM, Brady Eidson &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">beidson at apple.com</A>&gt; wrote:
+</I>&gt;<i> For reference see section 6.10.2 of the spec.
+</I>&gt;<i> 
+</I>&gt;<i> In getting an implementation for pushState(), replaceState(), and clearState() going I've had a few concerns.
+</I>&gt;<i> 
+</I>&gt;<i> pushState() and replaceState():
+</I>&gt;<i> 
+</I>&gt;<i> When pushState() or replaceState() are called with a URL argument, the document's current address is changed.  This has a lot of side effects in that it is exposed to scripts and the DOM and most modern user agents would update their UI to show this.
+</I>&gt;<i> 
+</I>&gt;<i> However, this same section takes care to point out &quot;The title is purely advisory. User agents might use the title in the user interface.&quot;  Indeed, many user agents would show the title of the current page at the top of the browser window or tab, in their back/forward list, and possibly in their global persistent history.
+</I>&gt;<i> 
+</I>&gt;<i> But unlike the URL which actually changes in the Document object and is therefore exposed to the DOM, this &quot;purely advisory&quot; title change is hidden from the DOM.  I'm questioning the reasoning behind this distinction and am curious if it was intentional or not.
+</I>&gt;<i> 
+</I>&gt;<i> clearState():
+</I>&gt;<i> 
+</I>&gt;<i> The following text describes clearState():
+</I>&gt;<i> 
+</I>&gt;<i> &quot;When this method is invoked, the user agent must remove from the session history all the entries from the first state object entry for that Document object up to the last entry that references that same Document object, if any.
+</I>&gt;<i> 
+</I>&gt;<i> Then, if the current entry was removed in the previous step, the current entry must be set to the last entry for that Document object in the session history.&quot;
+</I>&gt;<i> 
+</I>&gt;<i> Imagine the following scenario:
+</I>&gt;<i> 
+</I>&gt;<i> A document has 5 state entries.
+</I>&gt;<i> They each have a different URL as follows:  <A HREF="http://www.example.com/page.html?1,">http://www.example.com/page.html?1,</A> <A HREF="http://www.example.com/page.html?2,">http://www.example.com/page.html?2,</A> <A HREF="http://www.example.com/page.html?3,">http://www.example.com/page.html?3,</A> <A HREF="http://www.example.com/page.html?4,">http://www.example.com/page.html?4,</A> and <A HREF="http://www.example.com/page.html?5">http://www.example.com/page.html?5</A>
+</I>&gt;<i> The current entry is the 3rd entry.
+</I>&gt;<i> A script calls &quot;clearState()&quot; so these entries are all cleared out, including the current entry.
+</I>&gt;<i> Since the current entry was removed, the current entry after the clearState() call is changed to be the last entry for the Document.
+</I>&gt;<i> 
+</I>&gt;<i> My reading of the spec is that after clearState() returns, the entries 1-4 will be gone completely, the state object for entry 5 will have been cleared, and entry 5 will now be the current entry.
+</I>&gt;<i> 
+</I>&gt;<i> This has the side effect of the URL for the current entry - <A HREF="http://www.example.com/page.html?5">http://www.example.com/page.html?5</A> - not matching the current URL of the document - <A HREF="http://www.example.com/page.html?3">http://www.example.com/page.html?3</A>
+</I>&gt;<i> 
+</I>&gt;<i> Is my understanding of what the current entry should be correct?
+</I>&gt;<i> If not, what am I missing?
+</I>&gt;<i> And is the disjoint between the Document's URL and the current entries URL correct?
+</I>&gt;<i> If not, what am I missing?
+</I>&gt;<i> 
+</I>&gt;<i> Thanks,
+</I>&gt;<i> ~Brady
+</I>&gt;<i> 
+</I>
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: &lt;<A HREF="http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20091112/6fbc11f2/attachment-0001.htm">http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20091112/6fbc11f2/attachment-0001.htm</A>&gt;
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="024064.html">[whatwg] AJAX History Concerns
+</A></li>
+	<LI>Next message: <A HREF="024057.html">[whatwg] Microdata DOM API issues
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24067">[ date ]</a>
+              <a href="thread.html#24067">[ thread ]</a>
+              <a href="subject.html#24067">[ subject ]</a>
+              <a href="author.html#24067">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

@@ -1,0 +1,154 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Proposal for separating script downloads and execution
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Proposal%20for%20separating%20script%20downloads%20and%20execution&In-Reply-To=%3C4D6426FA.5010507%40mit.edu%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="072882.html">
+   <LINK REL="Next"  HREF="072887.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Proposal for separating script downloads and execution</H1>
+<!--htdig_noindex-->
+    <B>Boris Zbarsky</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Proposal%20for%20separating%20script%20downloads%20and%20execution&In-Reply-To=%3C4D6426FA.5010507%40mit.edu%3E"
+       TITLE="[whatwg] Proposal for separating script downloads and execution">bzbarsky at MIT.EDU
+       </A><BR>
+    <I>Tue Feb 22 13:13:30 PST 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="072882.html">[whatwg] Proposal for separating script downloads and execution
+</A></li>
+        <LI>Next message: <A HREF="072887.html">[whatwg] Proposal for separating script downloads and execution
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#72883">[ date ]</a>
+              <a href="thread.html#72883">[ thread ]</a>
+              <a href="subject.html#72883">[ subject ]</a>
+              <a href="author.html#72883">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On 2/22/11 3:07 PM, Kyle Simpson wrote:
+&gt;<i> Look above at what Will says... he says &quot;before a URL loads&quot; in (a). I
+</I>&gt;<i> interpreted that to mean that if I make two requests in rapid fire
+</I>&gt;<i> succession, and the browser hasn't yet gotten the response headers (from
+</I>&gt;<i> the first request) to tell it not to cache, then it makes sense from an
+</I>&gt;<i> optimization standpoint that IE would see the two simultaneous URL
+</I>&gt;<i> requests as the same and assume to only load once instead of twice.
+</I>
+That's a violation of HTTP semantics, yes.  A convenient way to write 
+the code, but a violation of HTTP semantics.
+
+&gt;<i> Again, maybe I'm missing something, but the way Will describes it sounds
+</I>&gt;<i> perfectly reasonable to me. It might be slightly on the aggressive side,
+</I>&gt;<i> but I don't see how that, as described, is violating the HTTP caching
+</I>&gt;<i> semantics.
+</I>
+Trivially.  If it's not in your cache at all, you're supposed to make a 
+request to the server!  If you're not doing that, then you're not 
+implementing HTTP.
+
+&gt;<i> I don't see that those semantics imply that a browser must
+</I>&gt;<i> wait to fully receive response-headers from a first request before
+</I>&gt;<i> deciding what to do with a second request of the same URL.
+</I>
+Right.  They just imply that you need to send the second request.  Or 
+wait for the first to come and then decide whether to send it.  Or 
+_something_ that looks like what HTTP is supposed to look like.
+
+What _this_ looks like is that there's a non-HTTP cache of in-progress 
+loads that can serve to coalesce said in-progress loads.  That gives 
+behavior that's invalid per HTTP and inherently racy in a bad way.
+
+&gt;&gt;<i> Because it's the easy way to do it; we had to jump through some hoops
+</I>&gt;&gt;<i> in Gecko to make sure an async XHR stays alive until it fires its last
+</I>&gt;&gt;<i> readystate change event when no one is holding a ref to the XHR object.
+</I>&gt;<i>
+</I>&gt;<i> Right, but in that case, the XHR object has a circular reference to
+</I>&gt;<i> itself via the closure of the handler function (assuming it was an
+</I>&gt;<i> assigned anonymous or in-scope function that was assigned).
+</I>
+Sure.
+
+&gt;<i> I was just saying that in the case of actual DOM elements, when a circular
+</I>&gt;<i> reference is created between the DOM element and a JS counter-part,
+</I>&gt;<i> through the closure of a handler assigned to the element, I assumed this
+</I>&gt;<i> was enough to avoid GC.
+</I>
+Circular references can't be enough to avoid GC.  The whole point of 
+having a GC is to be able to collect entire subgraphs of the object 
+graph that are not rooted.  And you have to be able to collect cyclic 
+subgraphs; otherwise you might as well use reference counting instead of 
+a GC.
+
+&gt;<i> I recall in older IE days avoiding stuff like:
+</I>&gt;<i>
+</I>&gt;<i> var script = document.createElement(&quot;script&quot;);
+</I>&gt;<i> script.theobj = script;
+</I>&gt;<i>
+</I>&gt;<i> Because this created a circular reference, and thus a memory-leak, if
+</I>&gt;<i> you didn't forcibly unset before unload the `theobj` reference to break
+</I>&gt;<i> the circular ref.
+</I>
+Yes, that would be due to the fact that GC was used on the JS side and 
+&quot;something else&quot; on the C++ side and the expando caused the script to be 
+a GC root.  Other browsers have had similar bugs too.  Those are just 
+bugs to fix.  A GC should be able to collect the above.
+
+&gt;&gt;<i> Well... no. You could grab the ref in the onreadystatechange handler.
+</I>&gt;<i>
+</I>&gt;<i> In the most rudimentary of cases, and only assuming the
+</I>&gt;<i> `onreadystatechange` handler actually had a closure reference to the
+</I>&gt;<i> script element...
+</I>
+|<i>this| is the script element in the onreadystatechange handler, I would 
+</I>think.  So it _always_ has a reference to the script element.  Just like 
+the XHR onreadystatechange case.
+
+&gt;<i> he can't just daisy-chain off the handlers, he needs to actually have a
+</I>&gt;<i> reference kept for each script element, so that he can specifically
+</I>&gt;<i> execute each one in their proper order.
+</I>
+Yes, but it could just grab those references as the scripts load.  In 
+any way, this is a side-issue; my main question has been answered: IE 
+both shows bad memory behavior _and_ fails to implement HTTP semantics 
+for script preloads done in this way.
+
+-Boris
+
+-Boris
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="072882.html">[whatwg] Proposal for separating script downloads and execution
+</A></li>
+	<LI>Next message: <A HREF="072887.html">[whatwg] Proposal for separating script downloads and execution
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#72883">[ date ]</a>
+              <a href="thread.html#72883">[ thread ]</a>
+              <a href="subject.html#72883">[ subject ]</a>
+              <a href="author.html#72883">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

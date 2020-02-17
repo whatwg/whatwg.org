@@ -1,0 +1,171 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Combining the DedicatedWorker and SharedWorker	interfaces
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Combining%20the%20DedicatedWorker%20and%20SharedWorker%0A%09interfaces&In-Reply-To=%3C4910D080.4090509%40sicking.cc%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="059281.html">
+   <LINK REL="Next"  HREF="059296.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Combining the DedicatedWorker and SharedWorker	interfaces</H1>
+<!--htdig_noindex-->
+    <B>Jonas Sicking</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Combining%20the%20DedicatedWorker%20and%20SharedWorker%0A%09interfaces&In-Reply-To=%3C4910D080.4090509%40sicking.cc%3E"
+       TITLE="[whatwg] Combining the DedicatedWorker and SharedWorker	interfaces">jonas at sicking.cc
+       </A><BR>
+    <I>Tue Nov  4 14:45:20 PST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="059281.html">[whatwg] Combining the DedicatedWorker and SharedWorker	interfaces
+</A></li>
+        <LI>Next message: <A HREF="059296.html">[whatwg] Combining the DedicatedWorker and SharedWorker	interfaces
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#59282">[ date ]</a>
+              <a href="thread.html#59282">[ thread ]</a>
+              <a href="subject.html#59282">[ subject ]</a>
+              <a href="author.html#59282">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Jonas Sicking wrote:
+&gt;&gt;<i> Here's an example in code:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> // dedicated workers (outside)
+</I>&gt;&gt;<i> var worker = new Worker(&quot;foo.js&quot;);
+</I>&gt;&gt;<i> var port = worker.connect();
+</I>&gt;&gt;<i> port.onmessage = function() { }
+</I>&gt;&gt;<i> port.postMessage(&quot;ping&quot;);
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> // dedicated workers (inside)
+</I>&gt;&gt;<i> onconnect = function(e) {
+</I>&gt;&gt;<i>   e.port.onmessage = function(e) {
+</I>&gt;&gt;<i>     e.port.postMessage(&quot;pong&quot;);
+</I>&gt;&gt;<i>   }
+</I>&gt;&gt;<i> }
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Shared workers are exactly the same except the constructor is
+</I>&gt;&gt;<i> SharedWorker(&quot;foo.js&quot;, &quot;foo&quot;);
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Note that I do not think it is necessary to implement this all at
+</I>&gt;&gt;<i> once. For one, the SharedWorker constructor could easily be punted for
+</I>&gt;&gt;<i> future releases.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Thoughts?
+</I>&gt;<i> 
+</I>&gt;<i> My main concern is that I think this makes the most simple use case a 
+</I>&gt;<i> bit too complicated. In the case when you have a dedicated worker that 
+</I>&gt;<i> you want to offload some calculations too you need quite a bit of code 
+</I>&gt;<i> to set up that communication.
+</I>&gt;<i> 
+</I>&gt;<i> With the current API you'd do the following:
+</I>&gt;<i> 
+</I>&gt;<i> main.js:
+</I>&gt;<i> w = new Worker('worker.js');
+</I>&gt;<i> w.postMessage(17);
+</I>&gt;<i> w.onmessage = function(e) {
+</I>&gt;<i>   answer = e.data;
+</I>&gt;<i> }
+</I>&gt;<i> 
+</I>&gt;<i> worker.js:
+</I>&gt;<i> function heavyCalulation(inValue) {
+</I>&gt;<i>   ...
+</I>&gt;<i> }
+</I>&gt;<i> onmessage = function(e) {
+</I>&gt;<i>   postMessage(heavyCalculation(e.data));
+</I>&gt;<i> }
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> With the proposed API:
+</I>&gt;<i> 
+</I>&gt;<i> main.js:
+</I>&gt;<i> w = new Worker('worker.js');
+</I>&gt;<i> p = w.connect();
+</I>&gt;<i> p.postMessage(17);
+</I>&gt;<i> p.onmessage = function(e) {
+</I>&gt;<i>   answer = e.data;
+</I>&gt;<i> }
+</I>&gt;<i> 
+</I>&gt;<i> worker.js:
+</I>&gt;<i> function heavyCalulation(inValue) {
+</I>&gt;<i>   ...
+</I>&gt;<i> }
+</I>&gt;<i> onconnect = function(e) {
+</I>&gt;<i>   e.port.onmessage = function(e2) {
+</I>&gt;<i>     e.port.postMessage(heavyCalulation(e2.data));
+</I>&gt;<i>   }
+</I>&gt;<i> }
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> This complexity I feel is extra bad since I suspect the simple case is 
+</I>&gt;<i> going to be the common case (I know we disagree there). I especially 
+</I>&gt;<i> dislike the fact that you have to wait for two events, first a 'connect' 
+</I>&gt;<i> event and then the actual message event. This seems overly complex for 
+</I>&gt;<i> the simple case of simply wanting to use a single communication channel 
+</I>&gt;<i> with a dedicated worker. And even though there isn't that much more code 
+</I>&gt;<i> in my example above, it took significantly more effort to get it right 
+</I>&gt;<i> given the nested two handlers that were needed.
+</I>&gt;<i> 
+</I>&gt;<i> So I think we should keep the simple case of a dedicated worker and a 
+</I>&gt;<i> single communication channel as simple as possible. This means that I 
+</I>&gt;<i> think we should keep postMessage/onmessage available on the dedicated 
+</I>&gt;<i> worker directly, as well as the dedicated worker global scope.
+</I>&gt;<i> 
+</I>&gt;<i> As an added bonus this keeps things very similar to message passing 
+</I>&gt;<i> between windows.
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> I'm fine with removing things like 'startConversation' and the implicit 
+</I>&gt;<i> call to connect() on shared workers. 'startConversation' isn't really a 
+</I>&gt;<i> new communication mechanism, but rather a convenience method on top of 
+</I>&gt;<i> postMessage.
+</I>
+So Hixie brought up a good point on IRC, there really is only one 
+communication mechanism, which is postMessage/onmessage.
+
+I'd note that if we drop startConversation (which it seems like no-one 
+is opposing) then all proposals have two 'communication' mechanisms: 
+postMessage and connect.
+
+With Aarons proposal you have to both for a shared worker and a 
+dedicated worker use both mechanisms; first call connect() and then call 
+postMessage(). If keep postMessage on the dedicated worker the only 
+difference is that for a dedicated worker you skip the connect() and go 
+directly to postMessage.
+
+/ Jonas
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="059281.html">[whatwg] Combining the DedicatedWorker and SharedWorker	interfaces
+</A></li>
+	<LI>Next message: <A HREF="059296.html">[whatwg] Combining the DedicatedWorker and SharedWorker	interfaces
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#59282">[ date ]</a>
+              <a href="thread.html#59282">[ thread ]</a>
+              <a href="subject.html#59282">[ subject ]</a>
+              <a href="author.html#59282">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

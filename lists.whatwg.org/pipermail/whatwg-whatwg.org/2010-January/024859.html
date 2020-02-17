@@ -1,0 +1,192 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] History API, pushState(), and related feedback
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20History%20API%2C%20pushState%28%29%2C%20and%20related%20feedback&In-Reply-To=%3CPine.LNX.4.64.1001272327371.22027%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="024798.html">
+   <LINK REL="Next"  HREF="024807.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] History API, pushState(), and related feedback</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20History%20API%2C%20pushState%28%29%2C%20and%20related%20feedback&In-Reply-To=%3CPine.LNX.4.64.1001272327371.22027%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg] History API, pushState(), and related feedback">ian at hixie.ch
+       </A><BR>
+    <I>Wed Jan 27 15:46:33 PST 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="024798.html">[whatwg] History API, pushState(), and related feedback
+</A></li>
+        <LI>Next message: <A HREF="024807.html">[whatwg] Web-sockets + Web-workers to produce a P2P website or	application
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24859">[ date ]</a>
+              <a href="thread.html#24859">[ thread ]</a>
+              <a href="subject.html#24859">[ subject ]</a>
+              <a href="author.html#24859">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Fri, 22 Jan 2010, Mike Wilson wrote:
+&gt;<i> 
+</I>&gt;<i> I'll keep this short as there is more recent discussion:
+</I>&gt;<i> 2) The pageStorage object is one incarnation of [a key
+</I>&gt;<i>    value store] solving the dependency problem that appears
+</I>&gt;<i>    when different components want to save data to the single
+</I>&gt;<i>    session history state object
+</I>
+I'm really not convinced this is a problem we need to solve. There are 
+plenty of places where the Web platform doesn't cater for different parts 
+of a page being written by different people who aren't coordinating. The 
+whole DOM, for instance. Event handler attributes. All the storage APIs. 
+Cookies. URLs. Huge parts of the platform assume that you should 
+coordinate your code. I think doing so is good practice in general.
+
+
+&gt;<i> And the later part is more about general properties of
+</I>&gt;<i> API design:
+</I>&gt;<i> 3) If a key-value store is desired, then using the same API 
+</I>&gt;<i>    as the other key-value stores is a strength and not an over-
+</I>&gt;<i>    generalisation. The web doesn't need yet another API.
+</I>&gt;<i> 4) Thinking about possible future additions when choosing
+</I>&gt;<i>    names is one part (of many) of a successful design.
+</I>
+I don't understand the above points.
+
+
+&gt;<i> Let's say that we have two components, A and B, that are not aware of 
+</I>&gt;<i> each other but both want to save state to the history state.
+</I>&gt;<i> 
+</I>&gt;<i> The author could make an app-global save function that connects to all 
+</I>&gt;<i> update notifications from all components and does:
+</I>&gt;<i>
+</I>&gt;<i>   function saveItAll() {
+</I>&gt;<i>     History.replaceState({
+</I>&gt;<i>       A: A.serializeState(),
+</I>&gt;<i>       B: B.serializeState()
+</I>&gt;<i>     });
+</I>&gt;<i>   }
+</I>&gt;<i> 
+</I>&gt;<i> The above has two drawbacks:
+</I>&gt;<i> - the global function has to be maintained when components
+</I>&gt;<i>   are added or removed
+</I>&gt;<i> - even if only one component's data is updated (triggering
+</I>&gt;<i>   the save function), all component serialization has to
+</I>&gt;<i>   be executed even if not changed
+</I>&gt;<i> 
+</I>&gt;<i> Trying to fix this, we would want to set each part of the state 
+</I>&gt;<i> separately so each component can handle its own updates:
+</I>&gt;<i> 
+</I>&gt;<i>   A.saveMe: function() {...}
+</I>&gt;<i>   ...
+</I>&gt;<i>   B.saveMe: function() {...}
+</I>&gt;<i> 
+</I>&gt;<i> and no global coordination would be needed. But the problem is that when 
+</I>&gt;<i> A.saveMe wants to store its latest data, it must also have all other 
+</I>&gt;<i> data, and to be able to have the latest state we need a getter:
+</I>&gt;<i> 
+</I>&gt;<i>   A.saveMe: function() {
+</I>&gt;<i>     var data = History.getState();
+</I>&gt;<i>     data.A = A.serializeState();
+</I>&gt;<i>     History.replaceState(data);
+</I>&gt;<i>   }
+</I>&gt;<i> 
+</I>&gt;<i> With this solution components can have a loose cooperation by just 
+</I>&gt;<i> agreeing on a general data format (f ex map). Without the getter, 
+</I>&gt;<i> components can no longer use the History API directly, but instead have 
+</I>&gt;<i> to call through a wrapper that caches the latest state in a variable:
+</I>&gt;<i> 
+</I>&gt;<i>   A.saveMe: function() {
+</I>&gt;<i>     var data = MyHistoryWrapper.getState();
+</I>&gt;<i>     data.A = A.serializeState();
+</I>&gt;<i>     MyHistoryWrapper.replaceState(data);
+</I>&gt;<i>   };
+</I>&gt;<i>   MyHistoryWrapper.replaceState = function(data) {
+</I>&gt;<i>     this.cache = data;
+</I>&gt;<i>     History.replaceState(data);
+</I>&gt;<i>   };
+</I>&gt;<i> 
+</I>&gt;<i> Now components not only have to cooperate on a data format, but also on 
+</I>&gt;<i> a non-standard API.
+</I>&gt;<i> 
+</I>&gt;<i> Of course this use case had been better served by a key- value store 
+</I>&gt;<i> like pageStorage mentioned above. But having a getter takes us at least 
+</I>&gt;<i> halfway there.
+</I>
+This is just making the whole problem massively over-complicated.
+
+Just have a global function for pushing state that takes the name of the 
+module saving state, and have it keep a copy of the &quot;current&quot; state, so 
+that it can just update the current state without reserialising 
+everything, and can store the state of each module. Then when there's a 
+popstate, it can see which of the modules changed states and invoke the 
+relevant callback. This is a few dozen lines of code tops, and that's 
+including error handling and so on.
+
+Depending on exactly what you're doing, you can make it even simpler.
+
+All the components have to coordinate _anyway_ to get the URL 
+representation of the state into some sane form that all the components 
+can understand. So I really don't think the state object needs special API 
+functions to make this easier.
+
+
+&gt;<i> [...] Ie, this data is persisted on demand at a certain point in the 
+</I>&gt;<i> history entry's life cycle, just as I am suggesting for the pushState 
+</I>&gt;<i> state.
+</I>&gt;<i>
+</I>&gt;<i> With the same reasoning as for current pushState, the spec would instead 
+</I>&gt;<i> suggest that scroll position and form control values were persisted 
+</I>&gt;<i> immediately when changed, instead of at the &quot;leave history entry&quot; event.
+</I>
+The problem is that you really want the URL to always be up to date, so 
+that the user can copy it. And thus you really want to be calling 
+pushState() whenever the state changes.
+
+(The state stored in the state object shouldn't be especially hard to 
+serialise; back/forward is a UI state navigation, not a data state 
+navigation. It's not like in a word processor the user'll hit back and 
+want the page to store the whole state of the user's writings into the 
+history -- the text should be autosaving anyway. Hitting &quot;back&quot; would take 
+the user into a previous state in the application, it wouldn't affect the 
+user's work.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="024798.html">[whatwg] History API, pushState(), and related feedback
+</A></li>
+	<LI>Next message: <A HREF="024807.html">[whatwg] Web-sockets + Web-workers to produce a P2P website or	application
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24859">[ date ]</a>
+              <a href="thread.html#24859">[ thread ]</a>
+              <a href="subject.html#24859">[ subject ]</a>
+              <a href="author.html#24859">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

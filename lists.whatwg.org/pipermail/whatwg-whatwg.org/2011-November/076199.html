@@ -1,0 +1,142 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Using requestFileSystem to setup mounts
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Using%20requestFileSystem%20to%20setup%20mounts&In-Reply-To=%3CCABirCh9u%3D6sAMsJOM-BvuVENJuKE-CGZn2o%2BOL80jnKgJ1Bj-A%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="076188.html">
+   <LINK REL="Next"  HREF="076206.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Using requestFileSystem to setup mounts</H1>
+<!--htdig_noindex-->
+    <B>Glenn Maynard</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Using%20requestFileSystem%20to%20setup%20mounts&In-Reply-To=%3CCABirCh9u%3D6sAMsJOM-BvuVENJuKE-CGZn2o%2BOL80jnKgJ1Bj-A%40mail.gmail.com%3E"
+       TITLE="[whatwg] Using requestFileSystem to setup mounts">glenn at zewt.org
+       </A><BR>
+    <I>Mon Nov 21 08:45:05 PST 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="076188.html">[whatwg] Using requestFileSystem to setup mounts
+</A></li>
+        <LI>Next message: <A HREF="076206.html">[whatwg] Using requestFileSystem to setup mounts
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#76199">[ date ]</a>
+              <a href="thread.html#76199">[ thread ]</a>
+              <a href="subject.html#76199">[ subject ]</a>
+              <a href="author.html#76199">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>I wish people wouldn't randomly split threads.  This isn't a different
+conversation.
+
+On Mon, Nov 21, 2011 at 9:10 AM, Kinuko Yasuda &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">kinuko at chromium.org</A>&gt; wrote:
+
+&gt;<i> On Sun, Nov 20, 2011 at 5:54 AM, Charles Pritchard &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">chuck at jumis.com</A>&gt;
+</I>&gt;<i> wrote:
+</I>&gt;<i> &gt; input.ondrop = function(e) {
+</I>&gt;<i> &gt;  window.requestFileSystem(e.dataTransfer, 0, cb);
+</I>&gt;<i> &gt; }
+</I>&gt;<i>
+</I>&gt;<i> This looks neat, though this would do almost same as what I was
+</I>&gt;<i> assuming the internal implementation would do.  One clear benefit
+</I>&gt;<i> I found in your proposal is the code would make the fact that the UA
+</I>&gt;<i> is actually instantiating a new filesystem per drop clearer.
+</I>&gt;<i> On the other hand I'm afraid this may slightly complicate the API
+</I>&gt;<i> by overloading the requestFileSystem.
+</I>&gt;<i>
+</I>
+This API doesn't work, because you can drop multiple directories at once;
+you'd need to pass the DataTransferItem.  I don't really see the benefit to
+this approach, though.
+
+I didn't look closely enough at the DataTransferItem API before.  It looks
+like Entry can be fully supported without removing anything currently
+specced.  Add a &quot;getAsEntry&quot; method, which returns FileEntry (for kind ==
+&quot;file&quot;) or DirectoryEntry (for a new kind == &quot;directory&quot;).
+
+getAsFile would be unchanged, returning File for kind == &quot;file&quot; and null
+for anything else (including kind == &quot;directory&quot;).
+
+This is also a convenient way to expose access (a bit later on).  Add an
+async method getAsWritableEntry(onsuccess, ondenied) method.  On success,
+the callback supplies a new FileEntry or DirectoryEntry which allows write
+access.  Note that while this needs to be async, since it may ask the user
+for permission, the read-only method can be synchronous like getFile.  (In
+practice the UA would probably ask &quot;do you want to allow the page to write
+to these files&quot;, not ask for each individual file, so it doesn't ask over
+and over if the caller is requesting write access to several
+simultaneously-dropped files.)
+
+If .entries is supported the script doesn't need to touch the
+&gt;<i> .files field thus the UA does not need to populate the .files
+</I>&gt;<i> field (though I guess if the UA supports .files field it'd start
+</I>&gt;<i> populating the field before it is actually accessed).
+</I>&gt;<i>
+</I>
+I don't think .files should ever recurse directories, which makes this
+problem go away.
+
+In the drag-and-drop context it's clear that the permission and namespace
+&gt;<i> must go away once the context goes away.
+</I>
+
+The permission should be attached to the Entry object, not the browsing
+context.  If you send an Entry to a SharedWorker, the SharedWorker should
+still have access to the file if the context that sent it is closed.  If
+*all* contexts attached to the SharedWorker go away, then the worker will
+be terminated, and that's when you'll lose the permission as a side-effect
+of losing the object.
+
+This is clear and consistent, and scales cleanly to future APIs (in both
+Window and Worker) exposing Entry objects from various sources.
+
+But for more generic and
+&gt;<i> extended usage (I assume requestFileSystem(window.MOUNT) would
+</I>&gt;<i> imply more generic usage) probably we should be more careful about how
+</I>&gt;<i> long and when the filesystem lifetime should expire.  Maybe we could
+</I>&gt;<i> collect
+</I>&gt;<i> real usage with the limited mount support and then move things forward
+</I>&gt;<i> incrementally.  Wdyt?
+</I>&gt;<i>
+</I>
+I think drag-and-drop is a good next step for the API.
+
+-- 
+Glenn Maynard
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="076188.html">[whatwg] Using requestFileSystem to setup mounts
+</A></li>
+	<LI>Next message: <A HREF="076206.html">[whatwg] Using requestFileSystem to setup mounts
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#76199">[ date ]</a>
+              <a href="thread.html#76199">[ thread ]</a>
+              <a href="subject.html#76199">[ subject ]</a>
+              <a href="author.html#76199">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

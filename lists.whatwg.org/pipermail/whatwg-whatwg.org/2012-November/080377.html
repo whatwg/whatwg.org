@@ -1,0 +1,128 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Enabling LCD Text and antialiasing in canvas
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Enabling%20LCD%20Text%20and%20antialiasing%20in%20canvas&In-Reply-To=%3CCAJE5ia84pP83vHnjiirFG7ZeH%2BFCcCurAe7YvYfELWgFHXuwjA%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="080353.html">
+   <LINK REL="Next"  HREF="080385.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Enabling LCD Text and antialiasing in canvas</H1>
+<!--htdig_noindex-->
+    <B>Adam Barth</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Enabling%20LCD%20Text%20and%20antialiasing%20in%20canvas&In-Reply-To=%3CCAJE5ia84pP83vHnjiirFG7ZeH%2BFCcCurAe7YvYfELWgFHXuwjA%40mail.gmail.com%3E"
+       TITLE="[whatwg] Enabling LCD Text and antialiasing in canvas">w3c at adambarth.com
+       </A><BR>
+    <I>Sat Nov 24 19:10:29 PST 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="080353.html">[whatwg]  Enabling LCD Text and antialiasing in canvas
+</A></li>
+        <LI>Next message: <A HREF="080385.html">[whatwg] Enabling LCD Text and antialiasing in canvas
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#80377">[ date ]</a>
+              <a href="thread.html#80377">[ thread ]</a>
+              <a href="subject.html#80377">[ subject ]</a>
+              <a href="author.html#80377">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Fri, Nov 23, 2012 at 3:04 PM, Ian Hickson &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">ian at hixie.ch</A>&gt; wrote:
+&gt;<i> On Mon, 12 Nov 2012, Justin Novosad wrote:
+</I>&gt;&gt;<i> For many types of apps, DOM-based rendering is uncompetitively slow
+</I>&gt;&gt;<i> [so we should make text rendering in canvas more controllable]
+</I>&gt;<i>
+</I>&gt;<i> This seems like something we should fix, not something we should work
+</I>&gt;<i> around by having people use canvas instead. Using canvas has all kinds of
+</I>&gt;<i> terrible side-effects, like reducing the likely accessibility of the page,
+</I>&gt;<i> making searcheability much worse, etc.
+</I>&gt;<i>
+</I>&gt;<i> Also, do you have any metrics showing the magnitude of this problem on
+</I>&gt;<i> real-world sites that might consider using canvas instead?
+</I>
+The metrics I've seen show that the magnitude of this problem is
+approximately 8x (to the extent that it's sensible to represent the
+magnitude with a number).
+
+As far as I can tell, the issue really boils down to the DOM being
+retained mode and canvas being immediate mode.  As the size of the
+underlying model grows, uploading the entire model into the DOM
+becomes increasingly uncompetitive with having the application manage
+the model and drawing using immediate mode because the application can
+use application-specific knowledge to avoid having to process large
+portions of the model.
+
+I'm unsure what details I'm able to share about these experiments.
+Justin might know better what we're able to share, but the outcomes
+are roughly:
+
+1) Uploading the entire document model into DOM (say for a model that
+requires 1 million elements to represent) causes the application to
+become completely unusable.  Memory consumption goes off the charts,
+hit testing noticeably lags, etc.  We've been working to improve
+performance here, but there are limits to what we'll be able to
+achieve.  For example, DOM is always going to be a less memory
+efficient than an application-specific representation.  On some
+rendering benchmarks, a variety of browsers are able to render these
+models at about 8 fps.
+
+2) Remarkably, the current best candidate is a rendering pipeline that
+attempts to use the DOM in immediate mode.  The application performs
+some application-specific processing to determine which portions of
+the model can actually affect what's drawn on screen, and then the
+application uses innerHTML to create DOM for that portion of the
+model.  (They've experimented with a bunch of choices and innerHTML
+appears to be the fastest way to use the DOM as an immediate mode
+API.)  Using this pipeline, the application uses reasonable amounts of
+memory and hit testing, etc, aren't impacted.  This pipeline gets
+about 20 fps.
+
+3) Once they've moved from (1) to (2), you can understand why the next
+logical step is to use a real immediate mode API, like canvas or
+WebGL.  Approach (2) is totally nutty: there's no way the right design
+is to build up a giant string of markup and then run it through the
+parser for every frame.  Using canvas, the application has no trouble
+achieving 60 fps.
+
+I think the real question here is how do we want applications with
+very large models to render?  Do we really want them to upload their
+entire models into DOM?  If not, how can we provide them with a
+high-quality immediate model rendering pipeline.
+
+Adam
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="080353.html">[whatwg]  Enabling LCD Text and antialiasing in canvas
+</A></li>
+	<LI>Next message: <A HREF="080385.html">[whatwg] Enabling LCD Text and antialiasing in canvas
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#80377">[ date ]</a>
+              <a href="thread.html#80377">[ thread ]</a>
+              <a href="subject.html#80377">[ subject ]</a>
+              <a href="author.html#80377">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

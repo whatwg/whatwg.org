@@ -1,0 +1,218 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Drawing shapes on canvas
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Drawing%20shapes%20on%20canvas&In-Reply-To=%3CCAA6qSUBYx3y2at_xBDxsA%3DmdNZOcH4E6TfwLZmqqUr8HnGPH-w%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="084160.html">
+   <LINK REL="Next"  HREF="084218.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Drawing shapes on canvas</H1>
+<!--htdig_noindex-->
+    <B>Joe Gregorio</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Drawing%20shapes%20on%20canvas&In-Reply-To=%3CCAA6qSUBYx3y2at_xBDxsA%3DmdNZOcH4E6TfwLZmqqUr8HnGPH-w%40mail.gmail.com%3E"
+       TITLE="[whatwg] Drawing shapes on canvas">jcgregorio at google.com
+       </A><BR>
+    <I>Fri Jan 24 12:08:21 PST 2014</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="084160.html">[whatwg] Drawing shapes on canvas
+</A></li>
+        <LI>Next message: <A HREF="084218.html">[whatwg] Drawing shapes on canvas
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#84200">[ date ]</a>
+              <a href="thread.html#84200">[ thread ]</a>
+              <a href="subject.html#84200">[ subject ]</a>
+              <a href="author.html#84200">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Rik,
+  From the Skia perspective we have the following feedback on the proposal.
+
+  While we can see how Shape2D can be implemented, it isn't clear that it's
+  such a large performance benefit over what Path provides, so we aren't
+  opposed to Shape2D, but don't believe implementing Path should be held up
+  for the sake of Shape2D.  Path itself is a huge win for performance over
+  having only a single current default path and has utility without the need
+  for Shape2D.
+
+  In general we would like to see a layered approach to drawing objects,
+  starting with something primitive like Path, and at the most general a
+  Display List[1] that contains the full set of capabilities of
+  CanvasRenderingContext2D.  That layering could be done in two or three
+  objects, either [Path, DisplayList] or [Path, Shape2D, DisplayList]. In
+all
+  cases you can use the lower level objects to construct higher level
+objects,
+  i.e. use one or more Paths to build a Shape2D, and use Paths and Shape2Ds
+to
+  define a DisplayList.
+
+  What we'd like to see happen:
+    1. Review the Path add* methods and possibly simplify them, see below.
+    2. Keep the rest of the Path object and the Path related methods on the
+       CanvasRenderingContext2D.
+    3. If Shape2D moves forward do it by adding different versions of fill,
+       clip, etc to CanvasRenderingContext2D, such as:
+
+       void fill(optional CanvasFillRule fillRule = &quot;nonzero&quot;);
+       void fill(Path path, optional CanvasFillRule fillRule = &quot;nonzero&quot;);
+       void fill(Shape2D shape);
+
+    4. Possibly work on a DisplayList design, but only after some
+       experimentation.
+
+  We have some particular feedback on the Shape2D design that is inline
+below:
+
+[1] <A HREF="http://en.wikipedia.org/wiki/Display_list">http://en.wikipedia.org/wiki/Display_list</A>
+
+&gt;<i> All,
+</I>&gt;<i>
+</I>&gt;<i> around a year ago, I wrote a blog post [1] that introduced a new 'Shape'
+</I>&gt;<i> class that described a filled or stroked region or an area of text. Java2D
+</I>&gt;<i> has a similar concept that they call 'Area' [2].
+</I>&gt;<i>
+</I>&gt;<i> We've had some discussions but it doesn't look like there was any sort of
+</I>&gt;<i> conclusion. I'd like to pick it back up now that we have a partial
+</I>&gt;<i> implementation of the Path object and people are starting to look into
+</I>&gt;<i> extending it.
+</I>&gt;<i>
+</I>&gt;<i> I'll reiterate my proposal:
+</I>&gt;<i> 1. remove all the addxxx methods from the Path2D object [3]
+</I>&gt;<i> Path object are just containers for segments. Aggregating segments will
+</I>&gt;<i> generally not give the desired results since the segments will interact
+</I>&gt;<i> (see [1]).
+</I>&gt;<i> AddPath *could* be kept if people see a strong use case.
+</I>
+The add* methods could be simplified to:
+
+  void addPath(Path path, SVGMatrix? transformation);
+  void addPathByStrokingPath(Path path, CanvasDrawingStyles styles,
+SVGMatrix? transformation);
+  void addText(DOMString text, CanvasDrawingStyles styles, SVGMatrix?
+transformation, unrestricted double x, unrestricted double y, optional
+unrestricted double maxWidth);
+  void addTextAlongPath(DOMString text, CanvasDrawingStyles styles,
+SVGMatrix? transformation, Path path, optional unrestricted double
+maxWidth);
+
+The functionality of the addPathByStrokingText methods below can be done by
+applying the above methods.
+
+  void addPathByStrokingText(DOMString text, CanvasDrawingStyles styles,
+SVGMatrix? transformation, unrestricted double x, unrestricted double y,
+optional unrestricted double maxWidth);
+  void addPathByStrokingText(DOMString text, CanvasDrawingStyles styles,
+SVGMatrix? transformation, Path path, optional unrestricted double
+maxWidth);
+
+&gt;<i>
+</I>&gt;<i> 2. introduce a new class 'Shape2D'
+</I>&gt;<i> Interface:
+</I>&gt;<i>
+</I>&gt;<i> [Constructor,
+</I>&gt;<i>   Constructor(Path2D , CanvasWindingRule = &quot;nonzero&quot;),
+</I>&gt;<i>   Constructor(Path2D , CanvasDrawingStyles, SVGMatrix?), // strokes a path
+</I>&gt;<i>   Constructor(DomString text, CanvasDrawingStyles, SVGMatrix?,
+</I>unrestricted
+&gt;<i> double, unrestricted double, boolean isStroked = false, optional
+</I>&gt;<i> unrestricted double)]
+</I>&gt;<i> interface Shape2D{
+</I>&gt;<i>     Shape2D transform(matrix); // returns a transformed path
+</I>
+Why not do this as another constructor?
+
+  Constructor(Shape2D, SVGMatrix)
+
+&gt;<i>     Shape2D add(Shape2D); // returns a path that is the union of the 2
+</I>paths
+
+Just to clarify, add() means a union of the two shapes, with no side-effects
+resulting from winding rules of the individual path?
+
+Shape2D seems reasonable and useful just as an immutable capture of all
+&quot;coverage&quot; aspects of geometry. If add() is hard for platforms to support,
+or
+is expensive and clients don't know that, perhaps we can leave it out of
+this
+version. If we really want to have add(), why not include the full
+compliment
+of Set operations  [ diff, xor, intersect ], which are no harder to
+implement
+(afaik) once you've implemented add().
+
+&gt;<i> }
+</I>&gt;<i>
+</I>&gt;<i> This class will represent a painted area. Because it knows the winding and
+</I>&gt;<i> stroking rules, the browser will be able to do expensive math in advance.
+</I>&gt;<i> It can also cache the region on the GPU.
+</I>&gt;<i> constructors:
+</I>&gt;<i> a. default constructor that creates an empty region
+</I>&gt;<i> b. constructor that take a path and a winding rule. This represents a
+</I>&gt;<i> filled region
+</I>&gt;<i> c. constructor that takes a path, canvasDrawingStyles object and a matrix.
+</I>&gt;<i> This represent a stroked region.
+</I>&gt;<i> d. constructor that takes text + canvasDrawingStyles. This represent a
+</I>&gt;<i> region of filled or stroked text.
+</I>&gt;<i>
+</I>&gt;<i> methods:
+</I>&gt;<i> a. transform -&gt; transform the shape by the matrix and returns a new shape
+</I>&gt;<i> b. add -&gt; add the region of the shape to the current shape and return as a
+</I>&gt;<i> new shape
+</I>&gt;<i>
+</I>&gt;<i> 3. Add new methods:
+</I>fill(Shape2D)/clip(Shape2D)/isPointInShape(Shape2D,...)
+&gt;<i>
+</I>&gt;<i> 4. remove stroke(path), fill(path), clip(path), isPointInPath(path,...)
+</I>&gt;<i>
+</I>&gt;<i> 5. HitRegionOptions takes a Shape2D instead of a path + winding rule
+</I>&gt;<i>
+</I>&gt;<i> What do people think?
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> 1: <A HREF="http://blogs.adobe.com/webplatform/2013/01/31/revised-canvas-paths/">http://blogs.adobe.com/webplatform/2013/01/31/revised-canvas-paths/</A>
+</I>&gt;<i> 2: <A HREF="http://docs.oracle.com/javase/tutorial/2d/advanced/complexshapes.html">http://docs.oracle.com/javase/tutorial/2d/advanced/complexshapes.html</A>
+</I>&gt;<i> 3:
+</I>&gt;<i>
+</I><A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/the-canvas-element.html#path-objects">http://www.whatwg.org/specs/web-apps/current-work/multipage/the-canvas-element.html#path-objects</A>
+
+  Thanks,
+  -joe
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="084160.html">[whatwg] Drawing shapes on canvas
+</A></li>
+	<LI>Next message: <A HREF="084218.html">[whatwg] Drawing shapes on canvas
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#84200">[ date ]</a>
+              <a href="thread.html#84200">[ thread ]</a>
+              <a href="subject.html#84200">[ subject ]</a>
+              <a href="author.html#84200">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

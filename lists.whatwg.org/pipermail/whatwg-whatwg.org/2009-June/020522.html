@@ -1,0 +1,239 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Overriding functions in DOM Storage
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Overriding%20functions%20in%20DOM%20Storage&In-Reply-To=%3C20090621091351.GA1111%40arc.mcc.id.au%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020519.html">
+   <LINK REL="Next"  HREF="020523.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Overriding functions in DOM Storage</H1>
+<!--htdig_noindex-->
+    <B>Cameron McCormack</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Overriding%20functions%20in%20DOM%20Storage&In-Reply-To=%3C20090621091351.GA1111%40arc.mcc.id.au%3E"
+       TITLE="[whatwg] Overriding functions in DOM Storage">cam at mcc.id.au
+       </A><BR>
+    <I>Sun Jun 21 02:13:51 PDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020519.html">[whatwg] whatwg Digest, Vol 63, Issue 81
+</A></li>
+        <LI>Next message: <A HREF="020523.html">[whatwg] Overriding functions in DOM Storage
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20522">[ date ]</a>
+              <a href="thread.html#20522">[ thread ]</a>
+              <a href="subject.html#20522">[ subject ]</a>
+              <a href="author.html#20522">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Jeremy Orlow:
+&gt;<i> &gt; What is the behavior of the following supposed to be?
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; window.sessionStorage.removeItem = function(x) { alert(&quot;Wait, this works?&quot;); };
+</I>&gt;<i> &gt; window.sessionStorage.removeItem('blah');
+</I>&gt;<i> &gt; alert(typeof window.sessionStorage.removeItem);
+</I>
+Maciej Stachowiak:
+&gt;<i> DOM methods are normally overridable. That would make the Safari  
+</I>&gt;<i> behavior correct. If we want the behavior to be different in this case, 
+</I>&gt;<i> then the spec should spell that out. Perhaps part of the issue here is 
+</I>&gt;<i> that the definition of the [NameSetter] extended attribute in Web IDL 
+</I>&gt;<i> doesn't make clear whether or not name setter behavior takes precedence 
+</I>&gt;<i> over setting existing predefined attributes or methods.
+</I>
+The behaviour according to how the Web Storage and Web IDL specs are
+currently written (I&#8217;ve just done some cleanup of this) is the Safari
+behaviour:
+
+  * window.sessionStorage starts off with no indexed properties and
+    no named properties.
+
+  * window.sessionStorage.[[Put]](&quot;removeItem&quot;, function&#8230;) is called.
+
+  * In <A HREF="http://dev.w3.org/2006/webapi/WebIDL/#put,">http://dev.w3.org/2006/webapi/WebIDL/#put,</A> none of the if
+    statements in steps 1&#8211;6 will be entered, since while there is
+    a [NameCreator], there already exists a property named &quot;removeItem&quot;
+    which is not a corresponding named property.
+
+  * So the sub-steps of step 7 are run, and a regular property is
+    created on the Storage object.
+
+  * Evaluating window.sessionStorage.removeItem calls
+    window.sessionStorage.[[Get]](&quot;removeItem&quot;).
+
+  * In <A HREF="http://dev.w3.org/2006/webapi/WebIDL/#get,">http://dev.w3.org/2006/webapi/WebIDL/#get,</A> steps 1&#8211;3 in the
+    [[Get]] algorithm all evaluate to false, so the value of the regular
+    &quot;removeItem&quot; property that was just created is returned.
+
+  * The anonymous function is called, the alert(&#8220;Wait, this works?&#8221;)
+    runs.
+
+  * The [[Get]] runs again and returns the same value, and the typeof
+    evaluates to &quot;function&quot;.
+
+
+Another edge case:
+
+  // Save it away.
+  var f = Storage.prototype.removeItem;
+
+  // Just a normal property deletion...
+  delete Storage.prototype.removeItem;
+
+  // window.sessionStorage doesn&#8217;t have a &quot;removeItem&quot; property on it or
+  // in its prototype chain, so the name creator behaviour is invoked,
+  // resulting in an item in the storage list being created.
+  window.sessionStorage.removeItem = function() { alert(&quot;hi&quot;) };
+
+  // Since an item in the storage list just became available, the rules
+  // in
+  // <A HREF="http://dev.w3.org/2006/webapi/WebIDL/#indexed-and-named-properties">http://dev.w3.org/2006/webapi/WebIDL/#indexed-and-named-properties</A>
+  // come in to force, resulting in a corresponding indexed property &quot;0&quot;
+  // and a corresponding named property &quot;removeItem&quot; being created on
+  // window.sessionStorage.
+
+  // Put the original removeItem back.  The corresponding named property
+  // on window.sessionStorage remains.
+  Storage.prototype.removeItem = f;
+
+  // window.sessionStorage[[Get]](&quot;removeItem&quot;) invokes the named getter
+  // behaviour, which according to Web Storage will return the stored
+  // value, so this statement alerts &quot;hi&quot;.
+  window.sessionStorage.removeItem(&quot;blah&quot;);
+
+  // This removes the item from the storage list, since the
+  // [[Get]](&quot;clear&quot;) call returns the property from the Storage
+  // prototype (because the property exists in the prototype chain,
+  // so the named getter behaviour isn&#8217;t invoked).
+  window.sessionStorage.clear();
+
+  // Because the storage list changed, &quot;0&quot; is no longer the index of
+  // of a supported indexed property, and &quot;removeItem&quot; is no longer the
+  // name of a supported named property.  So the rules in 
+  // <A HREF="http://dev.w3.org/2006/webapi/WebIDL/#indexed-and-named-properties">http://dev.w3.org/2006/webapi/WebIDL/#indexed-and-named-properties</A>
+  // state that the corresponding indexed property
+  // window.sessionStorage[0] and the corresponding named property
+  // window.sessionStorage.removeItem are removed.
+
+  // This evaluates to the real removeItem function again.
+  window.sessionStorage.removeItem;
+
+
+A different edge case:
+
+  // Assume that the session storage object already has an entry with
+  // name &quot;removeItem&quot; and value 123 in its storage list when the page
+  // loads.  A corresponding named property won&#8217;t be created because of
+  // the rules in
+  // <A HREF="http://dev.w3.org/2006/webapi/WebIDL/#indexed-and-named-properties">http://dev.w3.org/2006/webapi/WebIDL/#indexed-and-named-properties</A>
+  // but &quot;removeItem&quot; still is the name of a supported named property.
+
+  // This evaluates to the same as Storage.prototype.removeItem, because
+  // the [NameGetter] annotation doesn&#8217;t have the OverrideBuiltins
+  // argument, and there is no corresponding named property called
+  // &quot;removeItem&quot; on window.sessionStorage.
+  window.sessionStorage.removeItem;
+
+  // Delete from the prototype.
+  delete Storage.prototype.removeItem;
+
+  // Now, the conditions in
+  // <A HREF="http://dev.w3.org/2006/webapi/WebIDL/#indexed-and-named-properties">http://dev.w3.org/2006/webapi/WebIDL/#indexed-and-named-properties</A>
+  // are triggered, since &quot;removeItem&quot; is the name of a supported named
+  // property and there isn&#8217;t a property named &quot;removeItem&quot; on
+  // window.sessionStorage or its prototype chain, and &quot;removeItem&quot;
+  // isn&#8217;t an array index property name.  So as soon as the property is
+  // deleted from Storage.prototype above, a corresponding named
+  // property &quot;removeItem&quot; (and a corresponding indexed property &quot;0&quot;)
+  // is created on window.sessionStorage.
+
+  // This evaluates to 123.
+  window.sessionStorage.removeItem;
+
+  // This calls
+  // window.sessionStorage.removeItem.[[Delete]](&quot;removeItem&quot;), which
+  // invokes the name deleter behaviour because &quot;removeItem&quot; is the name
+  // of a corresponding named property.
+  delete window.sessionStorage.removeItem;
+
+-- 
+Cameron McCormack &#8797; <A HREF="http://mcc.id.au/">http://mcc.id.au/</A>
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020519.html">[whatwg] whatwg Digest, Vol 63, Issue 81
+</A></li>
+	<LI>Next message: <A HREF="020523.html">[whatwg] Overriding functions in DOM Storage
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20522">[ date ]</a>
+              <a href="thread.html#20522">[ thread ]</a>
+              <a href="subject.html#20522">[ subject ]</a>
+              <a href="author.html#20522">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

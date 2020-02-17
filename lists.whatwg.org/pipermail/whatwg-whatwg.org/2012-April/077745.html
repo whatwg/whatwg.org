@@ -1,0 +1,220 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] [canvas] request for {create, get,	put}ImageDataHD and ctx.backingStorePixelRatio
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20%5Bcanvas%5D%20request%20for%20%7Bcreate%2C%20get%2C%0A%09put%7DImageDataHD%20and%20ctx.backingStorePixelRatio&In-Reply-To=%3CCAP0-Qpsse0d_FTgrcTpF%3DDe3qewB9fRPKmoZo%3D-jzNakNKe9fw%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="077736.html">
+   <LINK REL="Next"  HREF="077747.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] [canvas] request for {create, get,	put}ImageDataHD and ctx.backingStorePixelRatio</H1>
+<!--htdig_noindex-->
+    <B>Darin Fisher</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20%5Bcanvas%5D%20request%20for%20%7Bcreate%2C%20get%2C%0A%09put%7DImageDataHD%20and%20ctx.backingStorePixelRatio&In-Reply-To=%3CCAP0-Qpsse0d_FTgrcTpF%3DDe3qewB9fRPKmoZo%3D-jzNakNKe9fw%40mail.gmail.com%3E"
+       TITLE="[whatwg] [canvas] request for {create, get,	put}ImageDataHD and ctx.backingStorePixelRatio">darin at chromium.org
+       </A><BR>
+    <I>Mon Apr 16 14:34:33 PDT 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="077736.html">[whatwg] [canvas] request for {create, get, put}ImageDataHD and ctx.backingStorePixelRatio
+</A></li>
+        <LI>Next message: <A HREF="077747.html">[whatwg] [canvas] request for {create, get, put}ImageDataHD and ctx.backingStorePixelRatio
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#77745">[ date ]</a>
+              <a href="thread.html#77745">[ thread ]</a>
+              <a href="subject.html#77745">[ subject ]</a>
+              <a href="author.html#77745">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Mon, Apr 16, 2012 at 1:39 PM, Oliver Hunt &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">oliver at apple.com</A>&gt; wrote:
+
+&gt;<i>
+</I>&gt;<i> On Apr 16, 2012, at 1:12 PM, Darin Fisher &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">darin at chromium.org</A>&gt; wrote:
+</I>&gt;<i>
+</I>&gt;<i> Glenn summarizes my concerns exactly.  Deferred rendering is indeed the
+</I>&gt;<i> more precise issue.
+</I>&gt;<i>
+</I>&gt;<i> On Mon, Apr 16, 2012 at 12:18 PM, Oliver Hunt &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">oliver at apple.com</A>&gt; wrote:
+</I>&gt;<i>
+</I>&gt;&gt;<i> Could someone construct a demonstration of where the read back of the
+</I>&gt;&gt;<i> imagedata takes longer than a runloop cycle?
+</I>&gt;&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> I bet this would be fairly easy to demonstrate.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> Then by all means do :D
+</I>&gt;<i>
+</I>
+
+Here's an example.
+
+Take <A HREF="http://ie.microsoft.com/testdrive/Performance/FishIETank/,">http://ie.microsoft.com/testdrive/Performance/FishIETank/,</A> and apply
+the following diff (changing the draw function):
+
+BEGIN DIFF
+--- fishie.htm.orig     2012-04-16 14:23:29.224864338 -0700
++++ fishie.htm  2012-04-16 14:21:38.115489276 -0700
+@@ -177,10 +177,17 @@
+             // Draw each fish
+             for (var fishie in fish) {
+                 fish[fishie].swim();
+             }
+
++
++            if (window.read_back) {
++                var data = ctx.getImageData(0, 0, WIDTH, HEIGHT).data;
++                var x = data[0];  // force readback
++            }
++
++
+                        //draw fpsometer with the current number of fish
+             fpsMeter.Draw(fish.length);
+         }
+
+         function Fish() {
+END DIFF
+
+Running on a Mac Pro, with Chrome 19 (WebKit @r111385), with 1000 fish, I
+get 60 FPS.  Setting read_back to true (using dev tools), drops it down to
+30 FPS.
+
+Using about:tracing (a tool built into Chrome), I can see that the read
+pixels call is taking ~15 milliseconds to complete.  The implied GL flush
+takes ~11 milliseconds.
+
+The page was sized to 1400 x 1000 pixels.
+
+-Darin
+
+
+
+&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;&gt;<i> You're asking for significant additional complexity for content authors,
+</I>&gt;&gt;<i> with a regression in general case performance, it would be good to see if
+</I>&gt;&gt;<i> it's possible to create an example, even if it's not something any sensible
+</I>&gt;&gt;<i> author would do, where their is a performance improvement.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Remember, the application is only marginally better when it's not
+</I>&gt;&gt;<i> painting due to waiting for a runloop cycle than it is when blocked waiting
+</I>&gt;&gt;<i> on a graphics flush.
+</I>&gt;&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> You can do a lot of other things during this time.  For example, you can
+</I>&gt;<i> prepare the next animation frame.  You can run JavaScript garbage
+</I>&gt;<i> collection.
+</I>&gt;<i>
+</I>&gt;<i> Also, it is common for a browser thread to handle animations for multiple
+</I>&gt;<i> windows.  If you have animations going in both windows, it would be nice
+</I>&gt;<i> for those animations to update in parallel instead of being serialized.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> None of which changes the fact that your actual developer now needs more
+</I>&gt;<i> complicated code, and has slower performance.  If I'm doing purely
+</I>&gt;<i> imagedata based code then there isn't anything to defer, and so all you're
+</I>&gt;<i> doing is adding runloop latency.  The other examples you give don't really
+</I>&gt;<i> apply either.
+</I>&gt;<i>
+</I>&gt;<i> Most imagedata both code i've seen is not GC heavy, if you're performing
+</I>&gt;<i> animations using css animations, etc then I believe that the browser is
+</I>&gt;<i> already able to hoist them onto another thread.  If you have animations in
+</I>&gt;<i> multiple windows then chrome doesn't have a problem because those windows
+</I>&gt;<i> are a separate process, and if you're not, then all you're doing is
+</I>&gt;<i> allowing one runloop of work (which may or may not be enough to get a paint
+</I>&gt;<i> done) before you start processing your ImageData.  I'm really not sure what
+</I>&gt;<i> it is that you're doing with your ImageData such that it takes so much less
+</I>&gt;<i> time than the canvas work, but it seems remarkable that there's some
+</I>&gt;<i> operation you can perform in JS over all the data returned that takes less
+</I>&gt;<i> time that the latency introduced by an async API.
+</I>&gt;<i>
+</I>&gt;<i> --Oliver
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> -Darin
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Also, if the argument is wrt deferred rendering rather than GPU copyback,
+</I>&gt;&gt;<i> can we drop GPU related arguments from this thread?
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> --Oliver
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> On Apr 16, 2012, at 12:10 PM, Glenn Maynard &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">glenn at zewt.org</A>&gt; wrote:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> On Mon, Apr 16, 2012 at 1:59 PM, Oliver Hunt &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">oliver at apple.com</A>&gt; wrote:
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> I don't understand why adding a runloop cycle to any read seems like
+</I>&gt;&gt;&gt;<i> something that would introduce a much more noticable delay than a memcopy.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> The use case is deferred rendering.  Canvas drawing calls don't need to
+</I>&gt;&gt;<i> complete synchronously (before the drawing call returns); they can be
+</I>&gt;&gt;<i> queued, so API calls return immediately and the actual draws can happen in
+</I>&gt;&gt;<i> a thread or on the GPU.  This is exactly like OpenGL's pipelining model
+</I>&gt;&gt;<i> (and might well be implemented using it, on some platforms).
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> The problem is that if you have a bunch of that work pipelined, and you
+</I>&gt;&gt;<i> perform a synchronous readback, you have to flush the queue.  In OpenGL
+</I>&gt;&gt;<i> terms, you have to call glFinish().  That might take long enough to cause a
+</I>&gt;&gt;<i> visible UI hitch.  By making the readback asynchronous, you can defer the
+</I>&gt;&gt;<i> actual operation until the operations before it have been completed, so you
+</I>&gt;&gt;<i> avoid any such blocking in the UI thread.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>  I also don't understand what makes reading from the GPU so expensive
+</I>&gt;&gt;&gt;<i> that adding a runloop cycle is necessary for good perf, but it's
+</I>&gt;&gt;&gt;<i> unnecessary for a write.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> It has nothing to do with how expensive the GPU read is, and everything
+</I>&gt;&gt;<i> to do with the need to flush the pipeline.  Writes don't need to do this;
+</I>&gt;&gt;<i> they simply queue, like any other drawing operation.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> --
+</I>&gt;&gt;<i> Glenn Maynard
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="077736.html">[whatwg] [canvas] request for {create, get, put}ImageDataHD and ctx.backingStorePixelRatio
+</A></li>
+	<LI>Next message: <A HREF="077747.html">[whatwg] [canvas] request for {create, get, put}ImageDataHD and ctx.backingStorePixelRatio
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#77745">[ date ]</a>
+              <a href="thread.html#77745">[ thread ]</a>
+              <a href="subject.html#77745">[ subject ]</a>
+              <a href="author.html#77745">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

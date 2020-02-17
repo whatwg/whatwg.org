@@ -1,0 +1,155 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Couple comments on Database storage spec.
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Couple%20comments%20on%20Database%20storage%20spec.&In-Reply-To=%3CPine.LNX.4.62.0710170711000.19595%40hixie.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="012641.html">
+   <LINK REL="Next"  HREF="012764.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Couple comments on Database storage spec.</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Couple%20comments%20on%20Database%20storage%20spec.&In-Reply-To=%3CPine.LNX.4.62.0710170711000.19595%40hixie.dreamhostps.com%3E"
+       TITLE="[whatwg] Couple comments on Database storage spec.">ian at hixie.ch
+       </A><BR>
+    <I>Wed Oct 17 00:33:22 PDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="012641.html">[whatwg] Couple comments on Database storage spec.
+</A></li>
+        <LI>Next message: <A HREF="012764.html">[whatwg] Couple comments on Database storage spec.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#12755">[ date ]</a>
+              <a href="thread.html#12755">[ thread ]</a>
+              <a href="subject.html#12755">[ subject ]</a>
+              <a href="author.html#12755">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Fri, 5 Oct 2007, Scott Hess wrote:
+&gt;<i>
+</I>&gt;<i> It may be worthwhile for Database to export a quote(arg) function, which 
+</I>&gt;<i> will quote the argument in the appropriate manner for use in 
+</I>&gt;<i> constructing a statement.  This is useful for cases where it is 
+</I>&gt;<i> challenging to reduce something to a static SQL statement with bind 
+</I>&gt;<i> parameters.  [A common case for this is something like &quot;SELECT rowid 
+</I>&gt;<i> FROM t WHERE c IN (...)&quot;, and you want to replace ... with an 
+</I>&gt;<i> appropriately quoted comma-separated array.]
+</I>
+   var q = &quot;&quot;;
+   for each (var i in array)
+     q += (q == &quot;&quot; ? &quot;&quot; : &quot;, &quot;) + &quot;?&quot;;
+   executeSql('SELECT rowid FROM t WHERE c IN (' + q + ')', array, ...);
+
+You'd have to do pretty much the same thing with quote(), except the above 
+is safer. Does that remove the need for quote()?
+
+
+&gt;<i> I didn't fully understand how things would be ordered if there were 
+</I>&gt;<i> multiple executeSql() trees open on a given Database object.  For 
+</I>&gt;<i> instance:
+</I>&gt;<i> 
+</I>&gt;<i>   executeSql('sql1', function (args) {
+</I>&gt;<i>     executeSql('sql2', function (args) {
+</I>&gt;<i>       executeSql('sql3', function (args) {
+</I>&gt;<i>       });
+</I>&gt;<i>     });
+</I>&gt;<i>     executeSql('sql4', function (args) {
+</I>&gt;<i>     });
+</I>&gt;<i>   });
+</I>&gt;<i>   executeSql('sql5', function (args) {
+</I>&gt;<i>   });
+</I>&gt;<i> 
+</I>&gt;<i> I _think_ the spec implies 1, 5, 2, 4, 3 is the order (breadth-first).
+</I>
+There are two transactions there. One is 1,2,4,3, the other is 5. (So 
+yes, you are correct.)
+
+
+&gt;<i> In section 4.11.4, would it be worthwhile to indicate that an empty 
+</I>&gt;<i> result set would have rows which was exactly an empty array? Currently, 
+</I>&gt;<i> it indicates that in case of failure rows must return null, but I could 
+</I>&gt;<i> see an implementor returning null for an empty result set, also.  
+</I>&gt;<i> [Maybe I'm reading too much in, here.]
+</I>
+This is explicit now.
+
+
+&gt;<i> Should rowsAffected be expected to return 0 in case of a SELECT
+</I>&gt;<i> statement, or should it return the length of rows array?
+</I>
+Explicitly noted this as zero.
+
+
+&gt;<i> As a general comment, we've had some arguments within Gears about 
+</I>&gt;<i> whether we should use the same function for both update queries and 
+</I>&gt;<i> data-returning queries.  Right now, everything goes through execute(), 
+</I>&gt;<i> and if the query returned no data (such as &quot;INSERT ...&quot;), you get a 
+</I>&gt;<i> ResultSet which doesn't need to be closed and where many functions throw 
+</I>&gt;<i> exceptions.  Likewise, if you call &quot;SELECT ...&quot;, then sections of the 
+</I>&gt;<i> results which make sense for updates (insertId, rowsAffected) make no 
+</I>&gt;<i> sense.  One suggestion within Gears was to have two functions:
+</I>&gt;<i> 
+</I>&gt;<i>   ResultSet query(sql, [arg, ...]);
+</I>&gt;<i>   int do(sql, [arg, ...]);
+</I>&gt;<i> 
+</I>&gt;<i> The first would return a ResultSet which needed to be closed, the second 
+</I>&gt;<i> would return the number of rows changed by the query.  The main thing is 
+</I>&gt;<i> that what you do with your results would always depend on the API 
+</I>&gt;<i> function you called, rather than the SQL statement you passed. You could 
+</I>&gt;<i> still do query(&quot;INSERT...&quot;) or do(&quot;SELECT...&quot;), but the return values 
+</I>&gt;<i> would still be a ResultSet you needed to close, and 0, respectively.
+</I>&gt;<i>
+</I>&gt;<i> The Database storage spec does away with the Gears ResultSet.close() 
+</I>&gt;<i> issue, but I think the idea still has merit.  It could potentially do 
+</I>&gt;<i> away with the ResultSet entirely, the different types of SQL query could 
+</I>&gt;<i> have callbacks accepting the right few arguments directly.
+</I>
+I'm not really sure I understand what would be different in the spec 
+version of the API (given the lack of a close() method). There aren't that 
+many APIs on SQLResultSet, and I don't really see what's wrong with 
+insertId raising exceptions unless something was inserted, or rowsAffected 
+being zero unless something was affected, or rows being null unless 
+something was returned. What's the advantage of being able to do
+
+   do('SELECT ...')
+
+...? And if you can do query('UPDATE ...'), why do we need do()?
+
+Cheers,
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="012641.html">[whatwg] Couple comments on Database storage spec.
+</A></li>
+	<LI>Next message: <A HREF="012764.html">[whatwg] Couple comments on Database storage spec.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#12755">[ date ]</a>
+              <a href="thread.html#12755">[ thread ]</a>
+              <a href="subject.html#12755">[ subject ]</a>
+              <a href="author.html#12755">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

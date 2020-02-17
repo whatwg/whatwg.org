@@ -1,0 +1,174 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Using Web Workers without external files
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Using%20Web%20Workers%20without%20external%20files&In-Reply-To=%3C4ABCC510.4050107%40gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023195.html">
+   <LINK REL="Next"  HREF="023200.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Using Web Workers without external files</H1>
+<!--htdig_noindex-->
+    <B>Jonathan Cook</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Using%20Web%20Workers%20without%20external%20files&In-Reply-To=%3C4ABCC510.4050107%40gmail.com%3E"
+       TITLE="[whatwg] Using Web Workers without external files">jonathan.j5.cook at gmail.com
+       </A><BR>
+    <I>Fri Sep 25 06:26:40 PDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023195.html">[whatwg] Using Web Workers without external files
+</A></li>
+        <LI>Next message: <A HREF="023200.html">[whatwg] Using Web Workers without external files
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23198">[ date ]</a>
+              <a href="thread.html#23198">[ thread ]</a>
+              <a href="subject.html#23198">[ subject ]</a>
+              <a href="author.html#23198">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>I think that Workers should retain the same-origin policy.  There is no 
+reason to use an &quot;ugly hack&quot; to bring in source from another domain, 
+there is a really &quot;normal&quot; way to do it given the current spec.
+
+If there exists the need for a worker that runs cross-domain code 
+(whether that code is &quot;worker&quot; code or library code or whatever), the 
+Worker has access to XmlHttpRequest.  Using XmlHttpRequest rather than 
+allowing the Worker to go cross-domain gives the programmer a place to 
+(attempt to) check or sandbox the code before the code is executed.
+
+The &quot;externalStub.js&quot; example of an &quot;ugly hack&quot; is just this same style 
+with an implied load of the external source via XHR by the script 
+executing in the window context.  Rewrite it as:
+
+&lt;script type=&quot;text/javascript&quot;&gt;
+var loaderWorker = new Worker(&quot;loader.js&quot;);
+loaderWorker.post({load: &quot;<A HREF="http://www.foo.com/bar.js">http://www.foo.com/bar.js</A>&quot;, check: &quot;md5&quot;, 
+hash: &quot;...&quot;, sandbox: true});
+&lt;/script&gt;
+
+Maybe it doesn't look so ugly now?
+
+Even though this seems like a big PITA right now, as we move farther 
+along the web-as-application path, the security implications of all this 
+distributed code and what to trust and when to trust it are going to 
+come back and bite us.  Same origin is really the only mechanism we have 
+right now to establish any kind of trust and shouldn't be taken lightly.
+
+Regards,
+Jonathan 'J5' Cook
+
+Simon Pieters wrote:
+&gt;<i> On Wed, 23 Sep 2009 23:40:41 +0200, Jonas Sicking &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">jonas at sicking.cc</A>&gt; 
+</I>&gt;<i> wrote:
+</I>&gt;<i>
+</I>&gt;&gt;<i> You can also work around it by doing something like this:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> test.html:
+</I>&gt;&gt;<i> &lt;!DOCTYPE html&gt;
+</I>&gt;&gt;<i> &lt;html&gt;
+</I>&gt;&gt;<i> &lt;head&gt;&lt;title&gt;example&lt;/title&gt;
+</I>&gt;&gt;<i> &lt;script&gt;
+</I>&gt;&gt;<i> str = &quot;&lt;script to evaluate&gt;&quot;;
+</I>&gt;&gt;<i> w = new Worker(&quot;externalStub.js&quot;);
+</I>&gt;&gt;<i> w.postMessage(str);
+</I>&gt;&gt;<i> &lt;/script&gt;
+</I>&gt;&gt;<i> &lt;/html&gt;
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> externalStub.js:
+</I>&gt;&gt;<i> onmessage = function(e) { eval(e.data); }
+</I>&gt;<i>
+</I>&gt;<i> Ah, yep. Still requires an external file, but it could be the same for 
+</I>&gt;<i> different uses. Or it could be combined with my hack:
+</I>&gt;<i>
+</I>&gt;<i>    &lt;!--
+</I>&gt;<i>    onmessage = function(e) { eval(e.data); }
+</I>&gt;<i>    /*
+</I>&gt;<i>    --&gt;
+</I>&gt;<i>    &lt;!DOCTYPE html&gt;
+</I>&gt;<i>    &lt;script&gt;
+</I>&gt;<i>    str = &quot;...script to evaluate...&quot;;
+</I>&gt;<i>    w = new Worker(&quot;&quot;);
+</I>&gt;<i>    w.postMessage(str);
+</I>&gt;<i>    &lt;/script&gt;
+</I>&gt;<i>    &lt;!--
+</I>&gt;<i>    */
+</I>&gt;<i>    //--&gt;
+</I>&gt;<i>
+</I>&gt;<i> or even:
+</I>&gt;<i>
+</I>&gt;<i>    &lt;!--
+</I>&gt;<i>    onmessage = function(e) { eval(e.data); }
+</I>&gt;<i>    /*
+</I>&gt;<i>    --&gt;
+</I>&gt;<i>    &lt;!DOCTYPE html&gt;
+</I>&gt;<i>    &lt;script type=text/x-worker id=worker&gt;
+</I>&gt;<i>    ...script to evaluate...
+</I>&gt;<i>    &lt;/script&gt;
+</I>&gt;<i>    &lt;script&gt;
+</I>&gt;<i>    str = document.getElementById('worker').text;
+</I>&gt;<i>    w = new Worker(&quot;&quot;);
+</I>&gt;<i>    w.postMessage(str);
+</I>&gt;<i>    &lt;/script&gt;
+</I>&gt;<i>    &lt;!--
+</I>&gt;<i>    */
+</I>&gt;<i>    //--&gt;
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;&gt;<i> What's the use case?
+</I>&gt;<i>
+</I>&gt;<i> As I said:
+</I>&gt;<i>
+</I>&gt;&gt;&gt;<i> This would allow easier testing, mashups, small standalone apps, and 
+</I>&gt;&gt;&gt;<i> so forth.
+</I>&gt;<i>
+</I>&gt;<i> In particular, though, I suspect that people will work around this 
+</I>&gt;<i> limitation by one of the means we've come up with so far, or maybe 
+</I>&gt;<i> people with come up with even uglier workarounds. If we remove the 
+</I>&gt;<i> limitation, people will have no reason to come up with ugly hacks but 
+</I>&gt;<i> instead use the obvious supported way to do it, and it will be easier 
+</I>&gt;<i> to debug and follow code.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;&gt;<i> I think making data: urls is an ok solution,
+</I>&gt;&gt;<i> unless the usecases are compelling enough that we think it's something
+</I>&gt;&gt;<i> that people will do a lot.
+</I>&gt;<i>
+</I>&gt;<i> Yeah, I think supporting data: URLs would be good.
+</I>&gt;<i>
+</I>
+</PRE>
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023195.html">[whatwg] Using Web Workers without external files
+</A></li>
+	<LI>Next message: <A HREF="023200.html">[whatwg] Using Web Workers without external files
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23198">[ date ]</a>
+              <a href="thread.html#23198">[ thread ]</a>
+              <a href="subject.html#23198">[ subject ]</a>
+              <a href="author.html#23198">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

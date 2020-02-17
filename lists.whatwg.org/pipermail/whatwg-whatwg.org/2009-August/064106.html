@@ -1,0 +1,211 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] BWTP for WebSocket transfer protocol
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20BWTP%20for%20WebSocket%20transfer%20protocol&In-Reply-To=%3C4A7D6248.8060309%40mortbay.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="064101.html">
+   <LINK REL="Next"  HREF="064194.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] BWTP for WebSocket transfer protocol</H1>
+<!--htdig_noindex-->
+    <B>Greg Wilkins</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20BWTP%20for%20WebSocket%20transfer%20protocol&In-Reply-To=%3C4A7D6248.8060309%40mortbay.com%3E"
+       TITLE="[whatwg] BWTP for WebSocket transfer protocol">gregw at mortbay.com
+       </A><BR>
+    <I>Sat Aug  8 04:32:24 PDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="064101.html">[whatwg] BWTP for WebSocket transfer protocol
+</A></li>
+        <LI>Next message: <A HREF="064194.html">[whatwg] BWTP for WebSocket transfer protocol
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#64106">[ date ]</a>
+              <a href="thread.html#64106">[ thread ]</a>
+              <a href="subject.html#64106">[ subject ]</a>
+              <a href="author.html#64106">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Jonas Sicking wrote:
+&gt;<i> On Fri, Aug 7, 2009 at 10:07 PM, Greg Wilkins&lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">gregw at mortbay.com</A>&gt; wrote:
+</I>
+&gt;<i> Out of curiosity, what advantages do you see with having a declared
+</I>&gt;<i> content-type? I can think of a few, but wanted to know which ones you
+</I>&gt;<i> had in mind.
+</I>
+There are several reasons and use-cases.
+
+Firstly, it's always good to be self describing, so that assumptions
+can be checked and errors/incompatibilities quickly discovered.
+
+I also dislike the &quot;favoured son&quot; status of utf-8 in the websocket
+protocol proposal.  Who's to say that other charsets might not be
+better for some purposes or that utf-8 might be replaced in the
+lifespan of the protocol.
+
+While not supported by the current js API, I can see imagine uses
+for a stream of media datagrams (sound bites or chat room avatars).
+It would be good to be able to mix JPG, PNG etc in the same stream.
+
+Currently with XHR in JS, the browser can use the content type
+to parse a response into XML DOM, HTML, JSON etc.   I can imagine
+extensions to the websocket API that would use similar capabilities.
+
+
+&gt;<i> Also, what do you mean by &quot;orderly close&quot;?
+</I>
+Currently one of the pain points in HTTP is that a server can
+close a connection at any time.  So browsers need to be careful
+when reusing an idle connection as the server might close it
+just as a new message is sent - then the browser does not know
+if the message was received or not, so we get the different
+handling for POST vs GET (idempotency etc.).
+
+So what I proposed in BWTP is to support an orderly close
+interaction, so that a client, server OR intermediary can
+initiate a close of the connection without losing any
+in transit messages.
+
+Of course, connections can still fail without orderly
+close - but that will be seen as a real failure rather
+than a happenstance of normal operation.
+
+
+
+
+&gt;<i> As far as specification style (BNF or not), I personally don't really
+</I>&gt;<i> care there, as long as it's well defined how to handle all possible
+</I>&gt;<i> inputs, valid or invalid.
+</I>
+
+One aspect of the websocket protocol spec that I don't like, is
+how it specifies the protocol as an algorithm that is step
+by step and includes exact hex pattern of some of the messages.
+eg
+
+
+   6.   Send the following bytes to the remote side (the server):
+
+        47 45 54 20
+
+        Send the /resource name/ value, encoded as US-ASCII.
+
+        20 48 54 54 50 2f 31 2e  31 0d 0a 55 70 67 72 61
+        64 65 3a 20 57 65 62 53  6f 63 6b 65 74 0d 0a 43
+        6f 6e 6e 65 63 74 69 6f  6e 3a 20 55 70 67 72 61
+        64 65 0d 0a
+
+   7.   Send the following bytes:
+
+        48 6f 73 74 3a 20
+
+        Send the /host/ value, encoded as US-ASCII.
+
+        0d 0a
+
+   8.   Send the following bytes:
+
+        4f 72 69 67 69 6e 3a 20
+
+
+
+which represents
+
+  GET &lt;resource name&gt; HTTP/1.1
+  Upgrade: WebSocket
+  Connection: Upgrade
+  Host: &lt;host&gt;
+  Origin:
+
+But it represents that exactly and does not allow
+variation that is perfectly legal HTTP.
+
+It would allow a server to reject a message
+simply because it's headers are ordered differently
+or if a just LF was sent instead of CRLF
+or if there ever is a HTTP/1.2
+or if some extra white space is included in the headers
+
+So a server could reject:
+
+  GET &lt;resource name&gt; HTTP/1.1
+  Host:&lt;host&gt;
+  Connection:Upgrade
+  Upgrade:WebSocket
+  Origin:
+
+and a human debugger who is used to normal HTTP is going to
+be very very confused why their legal HTTP request is
+being rejected.
+
+This strikes me as an unreasonable restriction to
+have in the specification.  BNF specifications
+can be a lot more forgiving.
+
+It is also really hard to tell what the websocket
+algorithm specifies.  Can you tell me if
+3.2 Data Framing and 4.3 Data framing specify the
+same framing or not?   The text is not the
+same - so potentially the framing is different?
+
+What if a client/server produces a legal
+byte stream but that uses a different algorithm to
+that specified (eg the bytes are buffered rather
+that &quot;sent&quot; at each step).   Is that client/server
+considered compliant to the specification?
+
+Sorry for ranting, but I think the language and
+style used by a specification is really important.
+
+
+&gt;<i> Other than that I largely agree.
+</I>
+Cool!
+
+cheers
+
+
+
+
+
+
+
+
+
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="064101.html">[whatwg] BWTP for WebSocket transfer protocol
+</A></li>
+	<LI>Next message: <A HREF="064194.html">[whatwg] BWTP for WebSocket transfer protocol
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#64106">[ date ]</a>
+              <a href="thread.html#64106">[ thread ]</a>
+              <a href="subject.html#64106">[ subject ]</a>
+              <a href="author.html#64106">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

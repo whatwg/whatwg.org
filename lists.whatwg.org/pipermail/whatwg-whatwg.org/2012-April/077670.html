@@ -1,0 +1,165 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Fixing two security vulnerabilities in	registerProtocolHandler
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Fixing%20two%20security%20vulnerabilities%20in%0A%09registerProtocolHandler&In-Reply-To=%3CCAKvcKKnuXB9s6Tz2hMMExjrj-DS%3DbZ_t2Mfmz7Yyvme%3DJeDbFg%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="077658.html">
+   <LINK REL="Next"  HREF="077671.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Fixing two security vulnerabilities in	registerProtocolHandler</H1>
+<!--htdig_noindex-->
+    <B>Tyler Close</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Fixing%20two%20security%20vulnerabilities%20in%0A%09registerProtocolHandler&In-Reply-To=%3CCAKvcKKnuXB9s6Tz2hMMExjrj-DS%3DbZ_t2Mfmz7Yyvme%3DJeDbFg%40mail.gmail.com%3E"
+       TITLE="[whatwg] Fixing two security vulnerabilities in	registerProtocolHandler">tyler.close at gmail.com
+       </A><BR>
+    <I>Mon Apr  9 14:50:56 PDT 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="077658.html">[whatwg] Fixing two security vulnerabilities in	registerProtocolHandler
+</A></li>
+        <LI>Next message: <A HREF="077671.html">[whatwg] Fixing two security vulnerabilities in	registerProtocolHandler
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#77670">[ date ]</a>
+              <a href="thread.html#77670">[ thread ]</a>
+              <a href="subject.html#77670">[ subject ]</a>
+              <a href="author.html#77670">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Sat, Apr 7, 2012 at 10:17 AM, Ian Hickson &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">ian at hixie.ch</A>&gt; wrote:
+&gt;&gt;<i> &gt; In the case of window.open, it's true that the opener could have
+</I>&gt;&gt;<i> &gt; navigated by the time you try to communicate back. That's a general
+</I>&gt;&gt;<i> &gt; problem with window.open(), though; it's not specific to
+</I>&gt;&gt;<i> &gt; register*Handler(). The solution is to not use window.open(), which is
+</I>&gt;&gt;<i> &gt; in any case bad UI.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> A top-level window is the only context in which you can ask the user to
+</I>&gt;&gt;<i> engage in security-sensitive interaction, like entering a password, or
+</I>&gt;&gt;<i> making a selection that must not be vulnerable to clickjacking.
+</I>&gt;<i>
+</I>&gt;<i> Then, again, we should fix this at the window.open() level, not the
+</I>&gt;<i> handler level. It's not a problem specific to register*Handler().
+</I>&gt;<i>
+</I>&gt;<i> The simplest way to address this, which doesn't require any spec changes,
+</I>&gt;<i> is for the opener to tell the window what origin to use, e.g. by opening
+</I>&gt;<i> an iframe to do the work and then having the iframe pop up the window,
+</I>
+The browser's popup blocker would block that interaction, unless you
+require an additional click inside the iframe. UX people are generally
+fanatical about eliminating extra user clicks.
+
+&gt;&gt;<i> &gt;&gt; &gt; For such an example, you can just use a fallback section in the
+</I>&gt;&gt;<i> &gt;&gt; &gt; appcache manifest. (Or a fragment identifier, indeed.)
+</I>&gt;&gt;<i> &gt;&gt;
+</I>&gt;&gt;<i> &gt;&gt; Right, the obvious thing to do is use the fragment identifier, but
+</I>&gt;&gt;<i> &gt;&gt; that's got some security problems. With a small tweak we can make
+</I>&gt;&gt;<i> &gt;&gt; this safe and easy.
+</I>&gt;&gt;<i> &gt;
+</I>&gt;&gt;<i> &gt; I don't understand the security problem. Could you give a concrete
+</I>&gt;&gt;<i> &gt; example of an attack scenario?
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> It is well-understood that URL fragment messaging is vulnerable to
+</I>&gt;&gt;<i> tampering between windows or frames in the browser. Boris already posted
+</I>&gt;&gt;<i> further clarifying this point and you seemed to understand. I don't know
+</I>&gt;&gt;<i> what you're confused about.
+</I>&gt;<i>
+</I>&gt;<i> I agree that there are ways to use Web technologies that are unsafe. For
+</I>&gt;<i> example, you could just allow people to inject arbitrary markup into your
+</I>&gt;<i> page.
+</I>&gt;<i>
+</I>&gt;<i> What I do not understand here is what the attack scenario is that is
+</I>&gt;<i> specific to register*Handler(), if there is one.
+</I>
+For RPH to be used in an offline scenario, the %s argument is put in
+the URL fragment component of the RPH handler's URL. This means the
+client page is sending data to the RPH handler using URL fragment
+messaging. So: offline RPH uses URL fragment messaging. URL fragment
+messaging is vulnerable to tampering. So, I'm asking that we provide a
+tamper-proof channel for the client to send data to the RPH handler:
+namely a new DOM field.
+
+Here's another concrete attack scenario showing how this vulnerability
+could be exploited in a mailto RPH handler. Consider a site that
+requires a user to confirm a security sensitive operation by sending
+an email with a confirmation number in the Subject field. The site
+expects this email to be signed by the user's mail software. The web
+page that sets up this user interaction includes a mailto link to open
+a pre-populated email editor. This mailto: link includes a subject
+parameter that contains the confirmation number. The attacker has
+previously setup an operation that is waiting on such an email
+confirmation from the victim user. The attacker has additionally lured
+the user into browsing the legitimate site in a window that the
+attacker has a reference to. The attack page waits for an iframe to
+show up in the legitimate site's frame hierarchy at the place where a
+mailto RPH confirmation action is being done. The attack page
+overwrites the iframe's URL fragment with a mailto URL that contains a
+subject parameter specifying the confirmation number for the operation
+setup by the attacker, instead of the one that the victim user was
+setting up. The user sends the email, confirming the attacker's
+operation, instead of their own. From the user's perspective, they see
+that they are at the legitimate web site and they setup an operation
+in the normal way which, as expected, opens an email editor with a
+confirmation number. The user typically never looks closely at the
+confirmation number, it's just some number chosen by the legitimate
+web site. So, everything looks normal to the user. From the
+perspective of the RPH handler page, everything also looks normal. It
+opens and finds a mailto URL in the %s position in it's URL fragment.
+It has no idea that the URL fragment has changed since the legitimate
+site first specified it. We can fix this by putting the %s data in a
+DOM field that cannot be overwritten by an attacker in this way.
+Consequently, the legitimate site can securely pass a confirmation
+number to the RPH handler. The attacker can still navigate to the
+mailto URL from one of the attacker's own pages, but can't do it from
+one of the legitimate site's pages. So the attacker can't make it look
+like the legitimate site is asking the user to send the confirmation
+email.
+
+The important thing to understand here is that a communication channel
+that is vulnerable to tampering can be abused in unexpected ways.
+Rather than quibble about how a future attacker might make use of this
+vulnerability in some future application, the right thing to do is
+eliminate the vulnerability. It's never a good idea to create an API
+that relies on a channel vulnerable to tampering, especially when
+there's no cost to replacing the vulnerable channel. It's an easy fix
+to specify and implement and it also makes the API easier to use,
+since the RPH handler no longer needs to parse the URL fragment in its
+window.location.hash to find the %s data.
+
+--Tyler
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="077658.html">[whatwg] Fixing two security vulnerabilities in	registerProtocolHandler
+</A></li>
+	<LI>Next message: <A HREF="077671.html">[whatwg] Fixing two security vulnerabilities in	registerProtocolHandler
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#77670">[ date ]</a>
+              <a href="thread.html#77670">[ thread ]</a>
+              <a href="subject.html#77670">[ subject ]</a>
+              <a href="author.html#77670">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

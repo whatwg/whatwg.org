@@ -1,0 +1,131 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Proposal for a tab visibility API
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Proposal%20for%20a%20tab%20visibility%20API&In-Reply-To=%3C561A8D0C-6AFB-4386-A947-D00E42C804ED%40apple.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="071754.html">
+   <LINK REL="Next"  HREF="071679.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Proposal for a tab visibility API</H1>
+<!--htdig_noindex-->
+    <B>Maciej Stachowiak</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Proposal%20for%20a%20tab%20visibility%20API&In-Reply-To=%3C561A8D0C-6AFB-4386-A947-D00E42C804ED%40apple.com%3E"
+       TITLE="[whatwg] Proposal for a tab visibility API">mjs at apple.com
+       </A><BR>
+    <I>Wed Dec  8 22:48:49 PST 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="071754.html">[whatwg] Proposal for a tab visibility API
+</A></li>
+        <LI>Next message: <A HREF="071679.html">[whatwg] Proposal for a tab visibility API
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#71674">[ date ]</a>
+              <a href="thread.html#71674">[ thread ]</a>
+              <a href="subject.html#71674">[ subject ]</a>
+              <a href="author.html#71674">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>
+On Dec 8, 2010, at 11:47 AM, Alex Komoroske wrote:
+
+&gt;<i> Hi all,
+</I>&gt;<i> 
+</I>&gt;<i> On the Chromium team we&#8217;ve identified a couple of use cases that we&#8217;d like to address with a simple API, and we&#8217;d love your feedback.
+</I>&gt;<i> 
+</I>&gt;<i> In particular, there is currently no good way for a web page to detect that it is a background tab and is thus completely invisible to the user, although some heuristics do exist (like detecting mousemove events).  In the future, there may be cases where such detection is even more important, for example in the prerendering feature (<A HREF="http://code.google.com/p/chromium/issues/detail?id=61745">http://code.google.com/p/chromium/issues/detail?id=61745</A>)  that Chromium is currently in the early stages of experimentation with.
+</I>&gt;<i> 
+</I>&gt;<i> ==Use cases==
+</I>&gt;<i> * A streaming video site doesn&#8217;t want to start the video until the user actually views the tab for the first time (i.e. video shouldn&#8217;t start automatically if a user opens the tab in the background).
+</I>
+This use case can be handled without help from the page. In Safari, video (whether through media elements or plugins) won't start playing when a user opens a tab in the background, until the user switches to that tab.
+
+&gt;<i> * A page wants to detect when it is moving into or out of the back-forward cache.
+</I>
+This use case is already handled with events specific to the back/forward cache (pagehide and pageshow).
+
+That leaves the following use cases:
+
+&gt;<i> * A puzzle game has a timer that keeps track of how long the user has taken to solve the puzzle.  It wants to pause the timer when the user has hidden the tab.
+</I>&gt;<i> * A web app that uses polling to fetch dynamic content can pause polling when it knows the page is hidden from the user.
+</I>&gt;<i> * A page wants to detect when it is being prerendered so it can behave appropriately.
+</I>
+I am not sure what the third needs exactly, but it seems like first two could be better served with an API that sets a timer which will only fire when the page is visible. That kind of API might be easier to use right, and avoids the need for JS to run when switching tabs, just to cancel and restart timers.
+
+Also I wonder if pagehide and pageshow could be broadened to help the prerendering use case. It seems a bit speculative to make API just so Web pages can find out about an experimental feature being used.
+
+Regards,
+Maciej
+
+&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> With these use-cases in mind, there are a number of requirements.
+</I>&gt;<i> 
+</I>&gt;<i> ==Requirements==
+</I>&gt;<i> * Easy for developers to write scripts that fall back on old behaviors for browsers that do not implement this API
+</I>&gt;<i> * Ability to query the document&#8217;s current visibility state
+</I>&gt;<i> * Events fired when the document transitions between visibility states
+</I>&gt;<i> * Ability for browser vendors to add new visibility states in the future
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> ==Strawman API==
+</I>&gt;<i> What follows is a proposed API that fits the requirements.  Note that another route would be to attempt a mostly-compatible extension of Mozilla&#8217;s existing pageshow and pagehide events, which would not necessarily be perfectly backwards compatible.
+</I>&gt;<i> 
+</I>&gt;<i> =document.visibility=
+</I>&gt;<i> A read-only property that returns a string, one of:
+</I>&gt;<i> * &#8220;visible&#8221; : the tab is focused in its window
+</I>&gt;<i> * &#8220;hidden&#8221; : the tab is backgrounded within its window
+</I>&gt;<i> * &#8220;prerender&#8221; : the tab is currently being loaded in an off-screen tab, and may never be shown to the user.
+</I>&gt;<i> * &#8220;cache&#8221; : the tab is currently in the back-forward-cache.  Note that in Mozilla&#8217;s current implementation, document.visibility would never actually be &#8220;cache&#8221; because Javascript cannot execute when in the cache.
+</I>&gt;<i> 
+</I>&gt;<i> In the future, the list of possible values may be extended.  Of these states in this list, all except &#8220;visible&#8221; are considered to be hidden.  Developers can use the existence of this property to know that they can rely on the rest of this API, too.
+</I>&gt;<i> 
+</I>&gt;<i> =document.isVisible=
+</I>&gt;<i> A simple convenience read-only property that returns a boolean. Returns true if document.visibility&#8217;s current value is in the set of visibility states considered to be visible (for the first iteration of this API, that would only include the &#8220;visible&#8221; state).
+</I>&gt;<i> 
+</I>&gt;<i> =visibilitychanged=
+</I>&gt;<i> A simple event, fired at the document object immediately after document.visibility transitions between visibility states.  The event has a property, fromState, that is set to the value of document.visibility just before it was changed to the current value.  Note that visibility has nothing to do with whether the document&#8217;s contents have fully loaded or not, which implies that for any given visibility transition event, onload may or may not have already fired.
+</I>&gt;<i> 
+</I>&gt;<i> Thoughts or comments are welcome.
+</I>&gt;<i> 
+</I>&gt;<i> --Alex Komoroske
+</I>
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: &lt;<A HREF="http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20101208/124f95a2/attachment-0002.htm">http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20101208/124f95a2/attachment-0002.htm</A>&gt;
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="071754.html">[whatwg] Proposal for a tab visibility API
+</A></li>
+	<LI>Next message: <A HREF="071679.html">[whatwg] Proposal for a tab visibility API
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#71674">[ date ]</a>
+              <a href="thread.html#71674">[ thread ]</a>
+              <a href="subject.html#71674">[ subject ]</a>
+              <a href="author.html#71674">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

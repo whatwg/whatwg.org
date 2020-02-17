@@ -1,0 +1,353 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] AppCache-related e-mails
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20AppCache-related%20e-mails&In-Reply-To=%3CCAHpoE%3Dirx0MVLZwvJRCyB3Rc%2BqNOb6dTF%3DGJyPjmk__7Hz6VUg%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="074581.html">
+   <LINK REL="Next"  HREF="074570.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] AppCache-related e-mails</H1>
+<!--htdig_noindex-->
+    <B>Michael Nordman</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20AppCache-related%20e-mails&In-Reply-To=%3CCAHpoE%3Dirx0MVLZwvJRCyB3Rc%2BqNOb6dTF%3DGJyPjmk__7Hz6VUg%40mail.gmail.com%3E"
+       TITLE="[whatwg] AppCache-related e-mails">michaeln at google.com
+       </A><BR>
+    <I>Fri Jul  1 12:33:34 PDT 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="074581.html">[whatwg] Extending HTML 5 video for adaptive streaming
+</A></li>
+        <LI>Next message: <A HREF="074570.html">[whatwg] AppCache-related e-mails
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#32288">[ date ]</a>
+              <a href="thread.html#32288">[ thread ]</a>
+              <a href="subject.html#32288">[ subject ]</a>
+              <a href="author.html#32288">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>A common request that maybe we can agree upon is the ability to list the
+manifests that are cached and to delete them via script. Something like...
+  String[] window.applicationCache.getManifests();  // returns appcache
+manifest for the origin
+  void window.applicationCache.deleteManifest(manifestUrl);
+
+I think it's clear from this discussion (and others) that the overall
+appcache feature set leaves something to be desired, but it's less clear how
+to best satisfy the &quot;desirements&quot;. Until there is some clarity, it's hard to
+see how the community is going to make progress. Personally, I think whats
+needed to move things forward is for browser vendors to do some independent
+innovating to see what works and what doesn't work.
+
+&gt;&gt;<i> @Hixie... any idea when the appcache feature set will be up for a growth
+</I>&gt;&gt;<i> spurt? I think there's an appetite for another round of features in the
+</I>&gt;&gt;<i> offline app developers that i communicate with. There's been some recent
+</I>&gt;&gt;<i> interest here in pursuing a means of programatically producing a
+</I>&gt;&gt;<i> response instead of just returning static content.
+</I>&gt;<i>
+</I>&gt;<i> Who implements it currently? Is there a test suite? Those are the main
+</I>&gt;<i> things that would gate a dramatic addition of new features.
+</I>
+Well, nobody yet; but I have a roadmap in mind that builds up to that. Much
+of the discussion in this thread has been on the second item. Mobile
+developers are particularly interested 2 to avoid HTTP cache churn and the
+cost of HTTP cache validation. In this roadmap, you can see that it would
+also allow pages vended from servers to make use of &quot;executable intercept
+handlers&quot;.
+
+
+-1. [DONE] Support for cross-origin HTTPS resources.
+<A HREF="http://code.google.com/p/chromium/issues/detail?id=69594">http://code.google.com/p/chromium/issues/detail?id=69594</A>
+
+0. [DONE] A means of not invoking the fallback resource for some error
+responses that would generally result in the fallback resource being
+returned. An additional response header would suite they're needs...
+something like...
+x-chromium-appcache-fallback-override: disallow-fallback
+If a response header is present with that value, the fallback response would
+not be returned.
+<A HREF="http://code.google.com/p/chromium/issues/detail?id=82066">http://code.google.com/p/chromium/issues/detail?id=82066</A>
+
+1. [UNDER CONFUSING DISCUSSION] Allow a syntax to associate a page with an
+application cache, but does
+not add that page to the cache. A common feature request also mentioned on
+the whatwg list, but it's not getting any engagement from other browser
+vendors or the spec writer (which is kind of frustrating). The premise is to
+allow pages vended from a server to take advantage of the resources in an
+application cache when loading subresources. A perfectly reasonable
+request, &lt;http useManifest='x'&gt;.
+
+2. Introduce a new manifest file section to INTERCEPT requests into a prefix
+matched url namespace and satisfy them with a cached resource. The resulting
+page would be free to interpret the location url and act accordingly based
+on the path and query elements beyond the prefix matched url string. This
+section would be similar to the FALLBACK section in that prefix matching is
+involved, but different in that instead of being used only in the case of a
+network/server error, the cached INTERCEPT resource would be used
+immediately w/o first going to the server.
+  INTERCEPT:
+  urlprefix redirect newlocationurl
+  urlprefix return cachedresourceurl
+
+Here's where the INTERCEPT namespace could fit into the changes to the
+network model.
+   if (url is EXPLICITLY_CACHED)  // exact match
+     return cached_response;
+   if (url is in NETWORK namespace) // prefix match
+     return network_response_as_usual;
+   if (url is in INTERCEPT namespace) // prefix match &lt;---- this is the new
+section
+     return handle_intercepted_request_accordingly
+   if (url is in FALLBACK namespace) // prefix match
+     return network_response_but_fallback_where_needed;
+   if (ONLINE_WILDCARD)
+     return network_response;
+   otherwise
+     return synthesized_error_response;
+
+3. Allow an INTERCEPT cached resources to be &quot;executable&quot;. Instead of simply
+returning the cached resource or redirect in response to the request, load
+it into a
+background worker context (if not already loaded) and invoke a function in
+that context to asynchronously compute response headers and body based on
+the request headers (including cookie) and body. The background worker would
+have access to various local storage facilities (fileSystem, indexed/sqlDBs)
+as well as the ability to make network requests via XHR.
+  INTERCEPT:
+  urlprefix execute cachedexecutableresourceurl
+
+4. Create a syntax to allow FALLBACK resources to be similarly executable in
+a background worker context.
+
+5. Some kind of auto-update policy where the appcache is refreshed w/o the
+app running.
+
+There are a couple of features that are not on this list that I want to call
+out:
+
+* The ability to add(url) and remove(url) the appcache is not on the list.
+FileSystem urls cover a lot of this already, and the ability to cache adhoc
+resources and later load them via http urls could be composed out of the
+filesystem and executable handlers. Although having add(url) and remove(url)
+could probably make for a friendlier API, so maybe this should be squeezed
+somewhere inbetween 1 and 3. Or maybe an intercept handler directive could
+bind a url prefix to a directory in the origins FileSystem?
+   INTERCEPT:
+   urlprefix filesystem_temp /path/to/dir/in/temp/web_file_system
+   urlprefix filesystem_pers /path/to/dir/in/persistent/...
+
+* A Gears-like 'querymatching' capability is not on the list, executable
+handlers subsume that in a much better way.
+
+
+
+On Thu, Jun 30, 2011 at 8:22 PM, Felix Halim &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">felix.halim at gmail.com</A>&gt; wrote:
+
+&gt;<i> On Fri, Jul 1, 2011 at 12:40 AM, timeless &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">timeless at gmail.com</A>&gt; wrote:
+</I>&gt;<i> &gt; It's possible to build a main page so that it can update its content
+</I>&gt;<i> &gt; using a subresource. You can use iframes, javascript (including json),
+</I>&gt;<i> &gt; xmlhttprequests, or other things to do this.
+</I>&gt;<i>
+</I>&gt;<i> Those are another option besides using localStorage.
+</I>&gt;<i> Again, those things requires restructuring your website.
+</I>&gt;<i> I'm looking for a solution that doesn't require modifying anything
+</I>&gt;<i> except adding a manifest.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> &gt; Nothing requires you to have a monolythic main page which is incapable
+</I>&gt;<i> &gt; of dynamically updating itself. ... If I visit your page on May 1st
+</I>&gt;<i> &gt; and sit there for two months, does your page really just want to
+</I>&gt;<i> &gt; continue to show me the same content when I glance at it on July 1st?
+</I>&gt;<i> &gt; It can show other content if it wants to, and in order to save
+</I>&gt;<i> &gt; bandwidth costs, it should avoid resending the framework which
+</I>&gt;<i> &gt; shouldn't be changing. Once your page works well for this case, it
+</I>&gt;<i> &gt; should work well for app-cache.
+</I>&gt;<i>
+</I>&gt;<i> As I said before, separating dynamic from the static will work,
+</I>&gt;<i> however, if we don't have &quot;pageStorage&quot;, even we have a clean dynamic
+</I>&gt;<i> separation, it will quickly run out of space if we use &quot;localStorage&quot;
+</I>&gt;<i> since the localStorage quota is per domain.
+</I>&gt;<i>
+</I>&gt;<i> Let's see an example:
+</I>&gt;<i>
+</I>&gt;<i> I have a dynamic page with this url:
+</I>&gt;<i>
+</I>&gt;<i> <A HREF="http://bla/page?id=10">http://bla/page?id=10</A>
+</I>&gt;<i>
+</I>&gt;<i> The content inside is changing very frequently, lets say every hour.
+</I>&gt;<i> Of course, I want the browser to cache the latest version.
+</I>&gt;<i> So, it seemed that AppCache is a perfect fit...
+</I>&gt;<i>
+</I>&gt;<i> I then add the manifest to enable the App Cache, and what do I get?
+</I>&gt;<i>
+</I>&gt;<i> Everytime I open that URL every hour, I ALWAYS see the STALE version
+</I>&gt;<i> (the 1 hour late version). Then few seconds (or minutes) later (depend
+</I>&gt;<i> on when the AppCache gets updated), I refresh, then I got the latest
+</I>&gt;<i> content. Annoying, right?
+</I>&gt;<i>
+</I>&gt;<i> In this case, I better off NOT to use App Cache, since it brings the
+</I>&gt;<i> old content everytime.
+</I>&gt;<i>
+</I>&gt;<i> This is why most people says please &quot;DON'T cache the main page&quot;.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> Now, let see the alternative: I build a framework to separate the
+</I>&gt;<i> dynamic from the static.
+</I>&gt;<i> I have to make it so that only ONE MAIN PAGE get cached by the app cache.
+</I>&gt;<i> So, my URL can NO LONGER BE:
+</I>&gt;<i>
+</I>&gt;<i> <A HREF="http://bla/page?id=10">http://bla/page?id=10</A>
+</I>&gt;<i>
+</I>&gt;<i> But it has to change to:
+</I>&gt;<i>
+</I>&gt;<i> <A HREF="http://bla/page#!id=10">http://bla/page#!id=10</A>
+</I>&gt;<i>
+</I>&gt;<i> Why do I have to do this? it's because if I DON'T, then each page will
+</I>&gt;<i> be stored on different App Cache, and the &quot;stale by one&quot; still occurs!
+</I>&gt;<i> That is,
+</I>&gt;<i>
+</I>&gt;<i> <A HREF="http://bla/page?id=10">http://bla/page?id=10</A>
+</I>&gt;<i>
+</I>&gt;<i> and
+</I>&gt;<i>
+</I>&gt;<i> <A HREF="http://bla/page?id=11">http://bla/page?id=11</A>
+</I>&gt;<i>
+</I>&gt;<i> Will be on DIFFERENT AppCache!
+</I>&gt;<i>
+</I>&gt;<i> In that case, my cleanly separated static and dynamic will have no effect!
+</I>&gt;<i> Because all the statics get duplicated for each App Cache.
+</I>&gt;<i> It will be the same as if I don't have the framework!
+</I>&gt;<i>
+</I>&gt;<i> So, to make the AppCache only cache one static framework, I have to
+</I>&gt;<i> make my page such that it is served under ONE url:
+</I>&gt;<i>
+</I>&gt;<i> <A HREF="http://bla/page">http://bla/page</A>
+</I>&gt;<i>
+</I>&gt;<i> Then take the &quot;#!id=10&quot; as non url (or ajax bookmark). This way, the
+</I>&gt;<i> AppCache will only cache ONE of my static framework, and MANY dynamic
+</I>&gt;<i> content inside it.
+</I>&gt;<i>
+</I>&gt;<i> Guess what? All the incoming links from other blogs are now broken!
+</I>&gt;<i> Of course I can make a redirect, but redirect is AGAINST making the web
+</I>&gt;<i> faster!
+</I>&gt;<i>
+</I>&gt;<i> I think Facebook did the #! thing a while ago, then they abandoned it, why?
+</I>&gt;<i>
+</I>&gt;<i> Ok now I'm happy with my framework and the redirect, and guess what?
+</I>&gt;<i> Soon, I have other pages with #!id=11, #!id=12, ...,  #!id=10000.
+</I>&gt;<i> All of them are important and I wan't to cache them and I uses the
+</I>&gt;<i> localStorage (or indexedDB) to cache the dynamic content of those
+</I>&gt;<i> pages.
+</I>&gt;<i> Note that even though the dynamic content is &quot;dynamic&quot; it doesn't mean
+</I>&gt;<i> that:
+</I>&gt;<i>
+</I>&gt;<i> <A HREF="http://bla/page?id=10">http://bla/page?id=10</A>
+</I>&gt;<i>
+</I>&gt;<i> has &quot;shared&quot; data with
+</I>&gt;<i>
+</I>&gt;<i> <A HREF="http://bla/page?id=11">http://bla/page?id=11</A>
+</I>&gt;<i>
+</I>&gt;<i> It can be totally different unrelated dynamic content. id=10 dynamic
+</I>&gt;<i> content is entirely different from id=11 dynamic content. However,
+</I>&gt;<i> since I use localStorage to cache the dynamic content, ALL OF THEM are
+</I>&gt;<i> limited to the quota of my domain. My 5MB localStorage domain quota
+</I>&gt;<i> will quickly run out of space.
+</I>&gt;<i>
+</I>&gt;<i> If only I can store the dynamic content into a pageStorage (assuming
+</I>&gt;<i> different URL -&gt; including the shebang bookmark has different
+</I>&gt;<i> pageStorage), then I won't be running out of storage if I keep one
+</I>&gt;<i> page within 5MB. So
+</I>&gt;<i>
+</I>&gt;<i> <A HREF="http://bla/page#!id=10">http://bla/page#!id=10</A>
+</I>&gt;<i>
+</I>&gt;<i> has 5 MB pageStorage quota, and
+</I>&gt;<i>
+</I>&gt;<i> <A HREF="http://bla/page#!id=11">http://bla/page#!id=11</A>
+</I>&gt;<i>
+</I>&gt;<i> also has 5 MB pageStorage quota, etc...
+</I>&gt;<i>
+</I>&gt;<i> Then I would be very happy with the new framework.
+</I>&gt;<i> Since it will store very compact static App and very compact dynamic
+</I>&gt;<i> content.
+</I>&gt;<i> It's a win win for everyone, nothing is wasted.
+</I>&gt;<i>
+</I>&gt;<i> But, if I don't have pageStorage quota, my beautifully separated the
+</I>&gt;<i> dynamic from the static framework will be useless since the
+</I>&gt;<i> localStorage DOMAIN QUOTA will kill me.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> So, we have seen how the AppCache fails to satisfy certain usecase and
+</I>&gt;<i> how pageStorage is needed to make the alternative solution works.
+</I>&gt;<i>
+</I>&gt;<i> Here, I propose a solution:  AppCache should COMPLEMENT HTTP Cache so
+</I>&gt;<i> that &quot;the main page is not cached&quot; (you know this is not literally
+</I>&gt;<i> what it means).
+</I>&gt;<i>
+</I>&gt;<i> With that solution, I don't have to do ANYTHING on my original site to
+</I>&gt;<i> make it work (except adding a manifest to my original page). I can
+</I>&gt;<i> still use the old url:
+</I>&gt;<i>
+</I>&gt;<i> <A HREF="http://bla/page?id=10">http://bla/page?id=10</A>
+</I>&gt;<i>
+</I>&gt;<i> It will cache AND SHOW the latest page to the users (just like normal
+</I>&gt;<i> web page with HTTP Cache). Then will show the latest cache if the
+</I>&gt;<i> network or the server is offline (and perhaps give notification
+</I>&gt;<i> header). That's ALL I NEED. This guarantees that my website will still
+</I>&gt;<i> be available when the user goes offline.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> All these discussions only begs to add one feature to AppCache:
+</I>&gt;<i> - Only show the cache when the network / server is offline, otherwise,
+</I>&gt;<i> show the online version of the page.
+</I>&gt;<i>
+</I>&gt;<i> The current AppCache doesn't care whether the network/server is online
+</I>&gt;<i> or offline, it BLINDLY shows the cache everytime. This is good for the
+</I>&gt;<i> default, however, we should HAVE an option to not show the cache if we
+</I>&gt;<i> are ONLINE (this is what people meant when they say &quot;DON&quot;T CACHE THE
+</I>&gt;<i> MAIN PAGE&quot;).
+</I>&gt;<i>
+</I>&gt;<i> Felix Halim
+</I>&gt;<i>
+</I></PRE>
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="074581.html">[whatwg] Extending HTML 5 video for adaptive streaming
+</A></li>
+	<LI>Next message: <A HREF="074570.html">[whatwg] AppCache-related e-mails
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#32288">[ date ]</a>
+              <a href="thread.html#32288">[ thread ]</a>
+              <a href="subject.html#32288">[ subject ]</a>
+              <a href="author.html#32288">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

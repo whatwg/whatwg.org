@@ -1,0 +1,166 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [html5] HTML5 Offline Web Applications
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:help%40lists.whatwg.org?Subject=Re%3A%20%5Bhtml5%5D%20HTML5%20Offline%20Web%20Applications&In-Reply-To=%3C306b33460809301749r2056972fr17605daea2d3d7e1%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   
+   
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[html5] HTML5 Offline Web Applications</H1>
+<!--htdig_noindex-->
+    <B>Philip Tucker</B> 
+    <A HREF="mailto:help%40lists.whatwg.org?Subject=Re%3A%20%5Bhtml5%5D%20HTML5%20Offline%20Web%20Applications&In-Reply-To=%3C306b33460809301749r2056972fr17605daea2d3d7e1%40mail.gmail.com%3E"
+       TITLE="[html5] HTML5 Offline Web Applications">ptucker at google.com
+       </A><BR>
+    <I>Tue Sep 30 17:49:22 PDT 2008</I>
+    <P><UL>
+        
+        
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1434">[ date ]</a>
+              <a href="thread.html#1434">[ thread ]</a>
+              <a href="subject.html#1434">[ subject ]</a>
+              <a href="author.html#1434">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>I'd like to offer more justification for Michael Nordman's &quot;scriptlet&quot;
+proposal.
+We've spent the last year or so modifying an existing online application to
+make it work offline. A secondary motivation was application speed. We used
+Google Gears to enable this. Although we had some success, we also had
+challenges. Here are some of the big ones:
+
+   1. *Significant architecture change*. Our web pages are built on the
+   server without much concern for separation of application logic and user
+   data. User data is usually just &quot;baked in&quot; to the page. In captured/offline
+   mode, we have to serve a generic page that can fill in user data via
+   javascript. This required changing the online application in significant
+   ways just to support offline functionality. And, it required forking the
+   code in many places, leading to maintenance difficulties.
+   2. *All-or-nothing captured mode*; i.e., once a URL is captured, it is
+   always served from offline cache. This means if we encounter a bug in the
+   offline app, it's not easy to fall back to the online app. We could serve
+   the offline app off a different URL space, but that makes for harsh
+   transitions between online and offline mode; e.g., on a flaky connection.
+   3. *Single sign-on was hard*.
+
+How I think Michael's proposal addresses these:
+
+   1. Some applications have cleaner separation of app and user data than
+   others, but one consistent point of clean separation common to all web apps
+   is the HTTP layer, between client and server. Michael's proposal would allow
+   applications a hook at precisely this point. Most client javascript could
+   remain unchanged. XHR servlets would be replaced with client side
+   scriptlets. Server-side templates could be fairly easily migrated to
+   client-side counterparts that populate the template from a local data store.
+   2. These scriptlets could also offer a failure mode that would fall
+   through to the online app.
+   3. We had to jump through all kinds of hoops to get single sign-on to
+   work. We have to have 2 separate manifests containing all our app URLs, one
+   protected by a cookie and one not. This proposal wouldn't completely ease
+   this problem, but if we're executing a script before the page is loaded we
+   have more options for redirecting to another page when not authenticated,
+   more similar to the way most online authentication schemes work.
+
+Also, there are some cases where Javascript simply is not powerful enough.
+An example we hit recently is dynamic data in the header (e.g., meta tags,
+styles). We have many cases where these change dynamically. There are ways
+to get around this (put the dynamic page in an iframe, construct HTML in
+javascript, and writer it into the iframe), but I think it's clear that this
+is not a great solution. This is processing that should happen before the
+page is handed to the browser.
+
+- Philip
+
+&gt;<i> *Scriptlets - or dynamic namespace-handlers [new idea]*
+</I>&gt;<i>
+</I>&gt;<i> Something we wrestled with in the process of putting together the Gears
+</I>&gt;<i> LocalServer was the distinction between intercepting requests for urls and
+</I>&gt;<i> identifying the appropiate cached resource for that request. We ended up
+</I>&gt;<i> with a declarative manifest file, similar to but different from what is
+</I>&gt;<i> contained in this spec. This wasn't an altogether satisfying answer. The
+</I>&gt;<i> expressiveness of the language to match/filter requested urls is limited
+</I>in
+&gt;<i> Gears and this spec shares that same characterization.
+</I>&gt;<i>
+</I>&gt;<i> Something else we've wrestled with in Gears was having to do awkward
+</I>&gt;<i> redesigns in corners of a web application in order to 'take it offline',
+</I>&gt;<i> single-sign-on for example. In general, anywhere an application relies on
+</I>&gt;<i> HTTP features more than HTML to influence navigation or conditional
+</I>resource
+&gt;<i> loading, it's difficult to address with a static cache.
+</I>&gt;<i>
+</I>&gt;<i> So I'd like to propose extending this spec to incorporate 'dynamically
+</I>&gt;<i> generated responses'. I think this capability fits into this corner of the
+</I>&gt;<i> HTML5 spec because this is most directly useful in the &quot;Offline Web
+</I>&gt;<i> Application&quot; scenario. The basic idea is to execute application code
+</I>&gt;<i> (script) to produce responses to intercepted resource loads. The
+</I>application
+&gt;<i> code is executed in the background and can formulate a response
+</I>&gt;<i> asynchronously.
+</I>&gt;<i>
+</I>&gt;<i> Some handwaving where this could hang off of this spec
+</I>&gt;<i> * Modify namespace-handlers entries to have an attitional attribute to
+</I>&gt;<i> indicate that they are to be executed rather than returned
+</I>&gt;<i>
+</I>&gt;<i> And some handwaving at what a scriptlet can do...
+</I>&gt;<i> * Can read the request headers and POST body
+</I>&gt;<i> * Can set response status code and headers (redirects)
+</I>&gt;<i> * Can generate a textual response body
+</I>&gt;<i>  * Can designate a non-executable cached resource to be returned in
+</I>response
+&gt;<i> * Can decide to 'bypass' handling of a request and defer to the usual
+</I>&gt;<i> resource loading
+</I>&gt;<i> * Can decide to perform the usual resource loading, but to have the
+</I>response
+&gt;<i> added to the appCache
+</I>&gt;<i> * Can access HTML5Database APIs
+</I>&gt;<i> * Can utlize XmlHttpRequest to communicate with a server
+</I>&gt;<i>
+</I>&gt;<i> This would obviously be significant addition to the spec, but i do think
+</I>&gt;<i> this is worth consideration in the context of 'offline applications'.
+</I>Based
+&gt;<i> on observations of app developers wrestling with Gears, there have been
+</I>&gt;<i> several pain points. The HTML5ApplicationCache addresses one of them
+</I>&gt;<i> with per-application caches. This addition would address the second of
+</I>&gt;<i> them.  (Another pain point has been application deployment).
+</I>&gt;<i>
+</I>-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: &lt;<A HREF="http://lists.whatwg.org/pipermail/help-whatwg.org/attachments/20080930/959e39cf/attachment-0001.htm">http://lists.whatwg.org/pipermail/help-whatwg.org/attachments/20080930/959e39cf/attachment-0001.htm</A>&gt;
+</PRE>
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	
+	
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1434">[ date ]</a>
+              <a href="thread.html#1434">[ thread ]</a>
+              <a href="subject.html#1434">[ subject ]</a>
+              <a href="author.html#1434">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/help-whatwg.org">More information about the Help
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

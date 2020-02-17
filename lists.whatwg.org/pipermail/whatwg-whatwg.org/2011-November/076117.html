@@ -1,0 +1,230 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Drag-and-drop folders/files support with directory structure using DirectoryEntry
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Drag-and-drop%20folders/files%20support%20with%20directory%0A%20structure%20using%20DirectoryEntry&In-Reply-To=%3CCABirCh8jm_hXh_ALQ9YfwN1enmQiy2Bv5O8s_u0pmVXee8x8SQ%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="076143.html">
+   <LINK REL="Next"  HREF="076123.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Drag-and-drop folders/files support with directory structure using DirectoryEntry</H1>
+<!--htdig_noindex-->
+    <B>Glenn Maynard</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Drag-and-drop%20folders/files%20support%20with%20directory%0A%20structure%20using%20DirectoryEntry&In-Reply-To=%3CCABirCh8jm_hXh_ALQ9YfwN1enmQiy2Bv5O8s_u0pmVXee8x8SQ%40mail.gmail.com%3E"
+       TITLE="[whatwg] Drag-and-drop folders/files support with directory structure using DirectoryEntry">glenn at zewt.org
+       </A><BR>
+    <I>Wed Nov 16 10:21:08 PST 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="076143.html">[whatwg] Drag-and-drop folders/files support with directory structure using DirectoryEntry
+</A></li>
+        <LI>Next message: <A HREF="076123.html">[whatwg] Drag-and-drop folders/files support with directory structure using DirectoryEntry
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#76117">[ date ]</a>
+              <a href="thread.html#76117">[ thread ]</a>
+              <a href="subject.html#76117">[ subject ]</a>
+              <a href="author.html#76117">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Wed, Nov 16, 2011 at 3:42 AM, Jonas Sicking &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">jonas at sicking.cc</A>&gt; wrote:
+
+&gt;<i> &gt; That requires a full directory traversal in advance to find all of the
+</I>&gt;<i> &gt; files, though; the tree could be very large.
+</I>&gt;<i>
+</I>&gt;<i> You need to do that anyway to implement the .files attribute, no?
+</I>&gt;<i>
+</I>
+.files shouldn't recursively include all files inside directories.  (If you
+actually select tens of thousands of files and drag them, then yes, but in
+most cases when you have that many files, they're split into directories
+and you don't normally drag them individually.)
+
+
+On Wed, Nov 16, 2011 at 9:59 AM, Kinuko Yasuda &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">kinuko at chromium.org</A>&gt; wrote:
+
+&gt;<i>  The unsandboxed storage and actual data doesn't belong to origin, but
+</I>&gt;<i> the 'origin-specific' concept can be applied to the filesystem
+</I>&gt;<i> namespace.
+</I>&gt;<i>
+</I>&gt;<i> I haven't thought about workers cases deeply yet, but am thinking that
+</I>&gt;<i> we should prohibit access to the dropped folders from the other pages
+</I>&gt;<i> than the one that received the drop event.
+</I>
+
+Access to a file should just be limited by whoever has an Entry object
+pointing at it.  The Entry object is essentially a token granting access to
+its associated file(s).
+
+
+
+&gt;<i> As for the entry URLs I'm planning to make the URLs to the dropped entries
+</I>&gt;<i> and the filesystem
+</I>&gt;<i> namespace (that only contains the dropped files) expire when the page
+</I>&gt;<i> goes away, hoping this would largely simplify the lifetime and
+</I>&gt;<i> security issues.
+</I>&gt;<i>
+</I>
+I don't think it's possible to do this correctly, because URLs created with
+toURL have no equivalent to revokeObjectURL.  A long-running page has no
+way to avoid &quot;leaking&quot; these references until the page exits.  Adding a
+revoke method for toURL would essentially turn it into URL.createObjectURL.
+
+Needing to revoke URLs when dealing with worker communication also makes it
+very hard for users to get it right.  For example, suppose a Window sends a
+toURL-generated URL to a Worker.  How do you ensure that the URL is revoked
+after the worker has received it and finished converting it back to an
+Entry?  The Worker might be killed (eg. due to CPU quotas) at any time,
+making avoiding resource leaks very hard.
+
+These are just the usual problems with manual resource management, which
+should be avoided if at all possible.  We already have a mechanism that
+cleanly avoids all of this, with structured clone and File.
+
+ &gt; Off-hand, the main issue that directly affects reading is that most
+&gt;<i> &gt; non-Windows filesystems can store filenames which can't be represented
+</I>&gt;<i> by a
+</I>&gt;<i> &gt; DOMString, such as invalid codepoints (most commonly mismatched
+</I>&gt;<i> encodings).
+</I>&gt;<i>
+</I>&gt;<i> How do they appear in File.name in existing .files approach?
+</I>&gt;<i>
+</I>
+I don't have a Linux browser to check.  I'm guessing it won't inform us
+much here, since that didn't have to worry about general file access.
+
+A naive solution in filesystem approach would be silently ignoring
+&gt;<i> such files (probably bad) or having in-memory path mapping (would be
+</I>&gt;<i> slightly better).  For limited read-only drag-and-drop cases we
+</I>&gt;<i> wouldn't need to think about remapping and the mapping could just go
+</I>&gt;<i> away when the page goes away, so hopefully implementing such mapping
+</I>&gt;<i> wouldn't be that hard.
+</I>&gt;<i>
+</I>
+There are probably some cases that we'll just have to accept will never
+work perfectly, and design with that in mind.
+
+To take a common case, suppose a script does the following, a commonplace
+method for safe file overwriting (relatively; the needed flush operations
+don't exist here):
+
+1. Create a file with the name filename + &quot;.new&quot;.
+2. Write the new file contents to the file.
+3. Rename filename + &quot;.new&quot; to filename, overwriting the original file.
+
+This is a useful case: it's real-world--I've done this countless times--and
+it's a case where unrepresentable filenames affects both reading and
+writing, plus the auxiliary operation of renaming.
+
+I suppose the mapping approach could work here.  Associate the mapping with
+the DirectoryEntry containing it, from invalid filenames to generated
+filenames.  Then, if the invalid filename is &quot;X&quot;, and the DOMString mapping
+is &quot;MAPPING1&quot;, then this would first create the literal filename
+&quot;MAPPING1.new&quot;, followed by renaming it to the original &quot;invalid&quot; filename
+&quot;X&quot;.
+
+(In particular, though, I think it should not be possible to create *new*
+garbage filenames on people's systems, that didn't exist to begin with.
+That is, it should map to the filenames that really exist, not just string
+escaping.)
+
+This is complex, though, and leads to new questions, like how long the
+mappings last if the underlying file is deleted.  As a data point, note
+that most Windows applications are unable to access files whose filenames
+can't be represented in the current ANSI codepage.  That is, if you're on a
+US English system, you can't access filenames with Japanese in them.
+(Unicode applications can, but tons of applications in Windows aren't
+Unicode; Windows has never made it simple to support Unicode.)  If users
+find that reasonable, it might not be worth all this for the even rarer
+case of illegal codepoints in Linux.
+
+Yup, writing side would have tougher issues, and that's why I started
+&gt;<i> this proposal only with read-only scenarios.  (I agree that it'd be
+</I>&gt;<i> good to give another thought about unsandboxed writing cases though)
+</I>&gt;<i>
+</I>
+For what it's worth, I think the only sane approach here is an isolated
+break from attempting to make everything interoperable, and allow the
+platform's limitations to be visible.  (That is, fail file creation if the
+path depth or filename length is too long on the platform; succeed with
+file creation even if it would fail on a different platform, and so on.)  I
+think this is just inherent to allowing this sort of access to real
+filesystems, and trying to avoid it just causes other, stranger problems.
+
+(For example, if you prevent creating filenames in Linux which are illegal
+in Windows, then things get strange if an &quot;illegal&quot; filename already exists
+on a filesystem where it's not actually disallowed.)
+
+
+
+On Wed, Nov 16, 2011 at 12:01 PM, Eric U &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">ericu at google.com</A>&gt; wrote:
+
+&gt;<i>  While the URL format for non-sandboxed files has yet to be worked out,
+</I>&gt;<i> I think we need toURL to work no matter where the file comes from.
+</I>&gt;<i> It's already the case that an Entry can expire if the underlying file
+</I>&gt;<i> is deleted or moved;
+</I>
+
+But there's no revocation mechanism for toURL URLs.
+
+Also, if toURL URLs to non-sandboxed storage expires with the context it
+was created in (which it would have to, I think), it loses a whole category
+of use cases covered by structured clone: the ability to persist an access
+token.  For example, the spec allows storing a File within a History
+state.  That allows history navigation to restore its state properly: if
+the user opened a local picture into an image viewer app, navigating
+through history can correctly show the files in older history states, and
+even restore correctly through browser restarts and session restores.  The
+same should apply to Entry and DirectoryEntry.
+
+(Nobody implements this yet, as far as I know, but I hope it'll happen
+eventually.  It's a limitation today, and it'll become a more annoying one
+as local file access mechanisms like this one are fleshed out.)
+
+Also, if non-sandboxed toURL URLs are same-origin only, then that also
+loses functionality that structured cloning allows: using Web Messaging to
+pass an access token to a page with a different origin.  (This is much
+safer than allowing cross-origin use of the URLs, since it's far easier to
+accidentally expose a URL string than to accidentally transfer an object.)
+
+File API has already solved all of this by using structured clone.  I think
+it makes a lot of sense to follow its lead.
+
+-- 
+Glenn Maynard
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="076143.html">[whatwg] Drag-and-drop folders/files support with directory structure using DirectoryEntry
+</A></li>
+	<LI>Next message: <A HREF="076123.html">[whatwg] Drag-and-drop folders/files support with directory structure using DirectoryEntry
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#76117">[ date ]</a>
+              <a href="thread.html#76117">[ thread ]</a>
+              <a href="subject.html#76117">[ subject ]</a>
+              <a href="author.html#76117">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

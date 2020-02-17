@@ -1,0 +1,318 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Image resize API proposal
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Image%20resize%20API%20proposal&In-Reply-To=%3CAANLkTimipWsXnVqcNTD3vYTd9gSuLkWGeYnCtp0wYWIL%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="068550.html">
+   <LINK REL="Next"  HREF="068589.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Image resize API proposal</H1>
+<!--htdig_noindex-->
+    <B>Sterling Swigart</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Image%20resize%20API%20proposal&In-Reply-To=%3CAANLkTimipWsXnVqcNTD3vYTd9gSuLkWGeYnCtp0wYWIL%40mail.gmail.com%3E"
+       TITLE="[whatwg] Image resize API proposal">sswigart at google.com
+       </A><BR>
+    <I>Tue May 11 11:58:41 PDT 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="068550.html">[whatwg] Audio Panning - Bump
+</A></li>
+        <LI>Next message: <A HREF="068589.html">[whatwg] Image resize API proposal
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#68565">[ date ]</a>
+              <a href="thread.html#68565">[ thread ]</a>
+              <a href="subject.html#68565">[ subject ]</a>
+              <a href="author.html#68565">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>I'm working with David Levin, and based on the feedback received regarding
+offscreen canvas, the proposal has been changed to address more specific
+scenarios. The main use case was resizing images, so we are proposing an
+asynchronous image resizing API. If you are curious about how we arrived at
+our API below, take a look at the &quot;appendix&quot; to view the alternatives we
+considered.
+
+Let us know what you think. Thanks!
+Sterling
+
+Use Cases:
+
+Begin with a user giving a local image file to a webpage. Then:
+
+1. In real-time chat, quickly give other users a thumbnail view of the image
+file.
+
+2. Or, limit the size of an image file before uploading it to a web server.
+
+Proposed Solution:
+
+We propose adding image.getBlob. getBlob will be an instance function of the
+javascript Image object which asynchronously gets a blob of the image,
+resized to the given width and height, encoded into jpeg or png. The
+function declaration will be:
+
+getBlob(mimeType /* req */, width /* req */, height /* req */, successEvent
+/* req */, errorEvent /* op */, qualityLevel /* op */, preserveAspectRatio
+/* op */, rotateExif /* op */);
+
+The blob will be passed as an argument to the success callback function, or
+upon error, error data will be passed into the error callback function as an
+argument. Quality level should be between 0.0 and 1.0, and any value outside
+of that range will be reverted to the default, 0.85. If MIME type does not
+equal &quot;image/jpeg&quot;, then quality level is ignored. If null (or a negative
+value) is passed in for the width or height, then the function will use the
+source's measurement for that dimension. Default values for
+preserveAspectRatio and rotateExif are true.
+
+All EXIF metadata will be retained except for any saved thumbnails, and the
+EXIF rotation property will be appropriately modified.
+
+Security:
+
+If the image source is of a different origin than the script context, then
+getBlob raises a SECURITY_ERR exception.
+
+Sample Code:
+
+// url contains location of an image file
+
+Image i = new Image();
+
+i.src = url;
+
+var successEvt = function (newBlob) { myDiv.innerHTML += &quot;&lt;img src='&quot; +
+newBlob.url + &quot;' /&gt;&quot;; };
+
+var errEvt = function (err) { alert(err); };
+
+i.getBlob(&quot;image/jpeg&quot;, 300, 350, successEvt, errEvt, .55);
+
+// Image will retain aspect ratio and correct for EXIF rotation. If the
+source image was 700x700,
+
+// the blob will represent a new image that is 300x300.
+
+That's all!Appendix: Alternatives considered
+
+For reference, we've also included a list of other designs that we thought
+of along with the reasons why they were dropped
+
+Creating a new object for resizing
+
+Summary of approach:
+
+[NamedConstructor=ImageResizer(),
+
+NamedConstructor=ImageResizer(blob, onsuccess),
+
+NamedConstructor=ImageResizer(blob, onsuccess, onerror),
+
+NamedConstructor=ImageResizer(blob, onsuccess, onerror, type),
+
+NamedConstructor=ImageResizer(blob, onsuccess, onerror, type, width,
+height)]
+
+interface ImageResizer {
+
+void start(); // starts resize operation
+
+void abort(); // aborts operation
+
+ attribute Blob blob;
+
+attribute DOMString type; // default &quot;image/png&quot;
+
+attribute unsigned long width;
+
+attribute unsigned long height;
+
+attribute float qualityLevel; // default 1.0, must be 0.0 to 1.0, else
+reverts to default
+
+ readonly attribute unsigned short started; // default 0
+
+ attribute Function onsuccess;
+
+attribute Function onerror;
+
+};
+
+Why it wasn't chosen:
+
+Creating an entirely new object for this task made the task seem more
+complicated and involved than necessary, and this problem could be solved
+via modifications to the Image object.
+
+Returning a SizelessBlob immediately from a method on image
+
+Summary of approach:
+
+var streamingBlob = image.toStreamingBlob(mimeType /* req */, width /* req
+*/, height /* req */, qualityLevel /* op */, preserveAspectRatio /* op */,
+rotateExif /* op */);
+
+New Blob Interfaces:
+
+interface SizelessBlob {
+
+// moved from Blob
+
+readonly attribute DOMString type;
+
+readonly attribute DOMString url; // whatever name -- URL, urn, URN, etc.
+
+}
+
+interface StreamingBlob : SizelessBlob {
+
+// at most one of the following functions will be called for a single
+FutureBlob
+
+attribute Function onblobready;
+
+attribute Function onerror;
+
+readyonly attribute blob; // throws an exception if accessed before
+onblobready is called.
+
+}
+
+interface Blob : SizelessBlob {
+
+readonly attribute unsigned long long size;
+
+Blob slice(in long long start,
+
+in long long length); // raises DOMException
+
+};
+
+Why it wasn't chosen:
+
+   - the disconnect of the error from the thing that caused it making
+   failures hard to understand (e.g. An image load may fail but that may not be
+   detected until the xhr is done using the resized image.)
+   - the issues that result from passing a SizelessBlob, which has a
+   reference to a loading image, to another document and closing the original
+   document (thus killing the image loader)
+   - introduction of multiple blobs which may be confusing to developers
+   - the need to change all existing specs to use SizelessBlob instead of
+   Blob
+
+Returning a Blob immediately from a method on image
+
+Summary of approach:
+
+var blob = image.toBlob(mimeType /* req */, width /* req */, height /* req
+*/, qualityLevel /* op */, preserveAspectRatio /* op */, rotateExif /* op
+*/);
+
+blob.size and blob.slice throw until the blob is complete. There would need
+to be a new event to say when the blob's size is ready.
+
+Why it wasn't chosen:
+
+It felt like it was changing how blobs worked to make the size throw. Also,
+this has some of the same disadvantages of as the SizelessBlob approach.
+
+Using CSS of Image to designate dimensions instead of putting it in the API
+
+Summary of approach:
+
+img.getBlob(mimeType /* req */, successEvent /* req */, errorEvent /* op */,
+qualityLevel /* op */);
+
+Why it wasn't chosen:
+
+It would have been confusing to the user if getBlob took into account some
+CSS attributes but not others, and using all CSS tags posed a lot of
+unnecessary implementation complexity without any use cases.
+
+Using the File object
+
+Summary of approach:
+
+FileReader readResized(). The result would be a data url with the resized
+image.
+
+Why it wasn't chosen:
+
+We also examined making this function an instance method of the FileReader
+object, but this function did not fit well in the context of the File
+object. FileReader's result is a string, posing a problem for large results
+as well as an unnecessary conversion. One way another this problem is to use
+a URN (like File.urn), it would have prevented us from posting the result to
+a server as well as having the lifetime issues that File.urn does.
+
+Having a very specialized method on FormData to do the resize and allow
+upload
+
+Summary of approach:
+
+FormData.appendResized(DOMString name, Blob value, mimeType /* req */, with
+/* req */, height /* req */, qualityLevel /* op */, preserveAspectRatio /*
+op */, rotateExif /* op */);
+
+Why it wasn't chosen:
+
+This approach was over specialized and didn't allow for using the result on
+the web page at all which would be useful as a preview of exactly what is
+being uploaded.
+
+Using canvas in a worker
+
+Summary of approach:
+
+This is the OffscreenCanvas proposal which can be seen here:
+h&lt;<A HREF="http://www.mail-archive.com/whatwg@lists.whatwg.org/msg20297.html">http://www.mail-archive.com/whatwg@lists.whatwg.org/msg20297.html</A>&gt;
+ttp &lt;<A HREF="http://www.mail-archive.com/whatwg@lists.whatwg.org/msg20297.html">http://www.mail-archive.com/whatwg@lists.whatwg.org/msg20297.html</A>&gt;:&lt;<A HREF="http://www.mail-archive.com/whatwg@lists.whatwg.org/msg20297.html">http://www.mail-archive.com/whatwg@lists.whatwg.org/msg20297.html</A>&gt;
+//www.mail-archive.com/<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">whatwg at lists.whatwg.org</A>/msg20297.html&lt;<A HREF="http://www.mail-archive.com/whatwg@lists.whatwg.org/msg20297.html">http://www.mail-archive.com/whatwg@lists.whatwg.org/msg20297.html</A>&gt;
+
+Why it wasn't chosen:
+
+Due to making it rather complicated for the javascript user to accomplish
+their goal and the code complexity and the speed trade-offs that may change
+due to gpu acceleration, this idea didn't get traction and many folks
+suggested something simpler for the intended use cases. A few more drawbacks
+are that this doesn't obey exif automatically and it doesn't preserve the
+exif metadata.
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: &lt;<A HREF="http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20100511/8ad42d3a/attachment-0002.htm">http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20100511/8ad42d3a/attachment-0002.htm</A>&gt;
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="068550.html">[whatwg] Audio Panning - Bump
+</A></li>
+	<LI>Next message: <A HREF="068589.html">[whatwg] Image resize API proposal
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#68565">[ date ]</a>
+              <a href="thread.html#68565">[ thread ]</a>
+              <a href="subject.html#68565">[ subject ]</a>
+              <a href="author.html#68565">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

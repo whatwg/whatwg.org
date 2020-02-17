@@ -1,0 +1,129 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Avoiding synchronous iframe load
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Avoiding%20synchronous%20iframe%20load&In-Reply-To=%3Calpine.DEB.2.00.1401211916100.27706%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="084170.html">
+   <LINK REL="Next"  HREF="041893.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Avoiding synchronous iframe load</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Avoiding%20synchronous%20iframe%20load&In-Reply-To=%3Calpine.DEB.2.00.1401211916100.27706%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg] Avoiding synchronous iframe load">ian at hixie.ch
+       </A><BR>
+    <I>Tue Jan 21 11:26:48 PST 2014</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="084170.html">[whatwg] Avoiding synchronous iframe load
+</A></li>
+        <LI>Next message: <A HREF="041893.html">[whatwg] Date Update?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#84171">[ date ]</a>
+              <a href="thread.html#84171">[ thread ]</a>
+              <a href="subject.html#84171">[ subject ]</a>
+              <a href="author.html#84171">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Sat, 18 Jan 2014, Ryosuke Niwa wrote:
+&gt;<i>
+</I>&gt;<i> Am I correct in assuming that load event never fires for this 
+</I>&gt;<i> about:blank page since it&#8217;s &#8220;both ready for post-load tasks and 
+</I>&gt;<i> completely loaded immediately&quot;?
+</I>&gt;<i> 
+</I>&gt;<i> If so, that doesn&#8217;t match the existing behaviors of major browser 
+</I>&gt;<i> engines.  For example, Firefox logs 1 then 2 in the following example 
+</I>&gt;<i> whereas Chrome and Safari log 2 and then 1:
+</I>&gt;<i>
+</I>&gt;<i> var iframe = document.createElement('iframe');
+</I>&gt;<i> iframe.onload = function () { console.log('2'); }
+</I>&gt;<i> document.body.appendChild(iframe);
+</I>&gt;<i> console.log('1&#8217;);
+</I>
+I encourage you to read the spec rather than rely on my interpretation of 
+the spec, because if I made a mistake when writing the spec, I'm likely to 
+make the same mistake when reading it, and thus it'll be missed, and doing 
+what I describe in person will result in behaviour that is not 
+interoperable with doing what I described in the spec.
+
+But, with that caveat out of the way, here's what I think the spec says:
+
+Creating the iframe does nothing interesting.
+Setting the onload event listener does nothing interesting.
+Appending the document triggers:
+
+# When an iframe element is inserted into a document, the user agent must 
+# create a nested browsing context, and then process the iframe attributes 
+# for the &quot;first time&quot;.
+ -- <A HREF="http://www.whatwg.org/specs/web-apps/current-work/#the-iframe-element">http://www.whatwg.org/specs/web-apps/current-work/#the-iframe-element</A>
+
+This leads us to &quot;Otherwise, if the element has no src attribute 
+specified, and the user agent is processing the iframe's attributes for 
+the &quot;first time&quot;&quot;:
+
+# Queue a task to run the iframe load event steps.
+ -- <A HREF="http://www.whatwg.org/specs/web-apps/current-work/#process-the-iframe-attributes">http://www.whatwg.org/specs/web-apps/current-work/#process-the-iframe-attributes</A>
+
+So a task is queued. At this point, script continues, and we log &quot;1&quot;.
+
+After the script ends, we go back to the event loop and run the 
+aforementioned task; the only step that matters for the test above is:
+
+# 4. Fire a simple event named load at the iframe element.
+ -- <A HREF="http://www.whatwg.org/specs/web-apps/current-work/#iframe-load-event-steps">http://www.whatwg.org/specs/web-apps/current-work/#iframe-load-event-steps</A>
+
+This, via the event model in the DOM spec, ends up calling the lambda, and 
+thus we log &quot;2&quot;.
+
+Thus, the spec says that it should log &quot;1&quot;, then log &quot;2&quot;.
+
+Note that things are way more involved if you have document.write()s going 
+on, or a src=&quot;&quot; attribute (even if it is set to &quot;about:blank&quot;), or any 
+number of other wacked things that the Web platform allows.
+
+
+As a side note -- the javascript: handling rewrite that was prophesied in 
+my earlier message on this thread has since occurred. I haven't checked 
+how it impacts the earlier question.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="084170.html">[whatwg] Avoiding synchronous iframe load
+</A></li>
+	<LI>Next message: <A HREF="041893.html">[whatwg] Date Update?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#84171">[ date ]</a>
+              <a href="thread.html#84171">[ thread ]</a>
+              <a href="subject.html#84171">[ subject ]</a>
+              <a href="author.html#84171">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

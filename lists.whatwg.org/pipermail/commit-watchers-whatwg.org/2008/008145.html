@@ -1,0 +1,1521 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [html5] r1237 - /
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commit-watchers%40lists.whatwg.org?Subject=Re%3A%20%5Bhtml5%5D%20r1237%20-%20/&In-Reply-To=%3C20080222094303.3C7EC139DDD%40hixie.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="008144.html">
+   <LINK REL="Next"  HREF="008146.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[html5] r1237 - /</H1>
+<!--htdig_noindex-->
+    <B>whatwg at whatwg.org</B> 
+    <A HREF="mailto:commit-watchers%40lists.whatwg.org?Subject=Re%3A%20%5Bhtml5%5D%20r1237%20-%20/&In-Reply-To=%3C20080222094303.3C7EC139DDD%40hixie.dreamhostps.com%3E"
+       TITLE="[html5] r1237 - /">whatwg at whatwg.org
+       </A><BR>
+    <I>Fri Feb 22 01:43:03 PST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="008144.html">[html5] r1236 - /
+</A></li>
+        <LI>Next message: <A HREF="008146.html">[html5] r1238 - /
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#8145">[ date ]</a>
+              <a href="thread.html#8145">[ thread ]</a>
+              <a href="subject.html#8145">[ subject ]</a>
+              <a href="author.html#8145">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Author: ianh
+Date: 2008-02-22 01:43:02 -0800 (Fri, 22 Feb 2008)
+New Revision: 1237
+
+Modified:
+   index
+   source
+Log:
+[agowt] (2)  * Made it possible to adjust the reconnection timeout.
+
+ * Made it so that the client tells the server what the last message it 
+   received was when it reconnects, so as to allow seamless continuation. 
+
+ * Rewrote the implementation processing requirements.
+
+ * Simplified the event stream format:
+    - removed the concept of 'commands'
+    - changed the comment syntax from starting with a ';' to
+      starting with a ':'
+
+ * Removed the possibility to control anything of the event other than the 
+   'data' and 'type' of the event.
+
+ * Restricted the events that can be fired to all use MessageEvent.
+
+ * Made 'message' events not bubble.
+
+ * Made the MIME type of the new event stream format be
+   text/event-stream; removed mention of the old format's type 
+   (application/x-dom-event-stream).
+
+
+Modified: index
+===================================================================
+--- index	2008-02-21 02:46:06 UTC (rev 1236)
++++ index	2008-02-22 09:43:02 UTC (rev 1237)
+@@ -24,7 +24,7 @@
+ 
+    &lt;h1 id=html-5&gt;HTML 5&lt;/h1&gt;
+ 
+-   &lt;h2 class=&quot;no-num no-toc&quot; id=working&gt;Working Draft &mdash; 21 February
++   &lt;h2 class=&quot;no-num no-toc&quot; id=working&gt;Working Draft &mdash; 22 February
+     2008&lt;/h2&gt;
+ 
+    &lt;p&gt;You can take part in this work. &lt;a
+@@ -5851,7 +5851,8 @@
+  &lt;/body&gt;
+ &lt;/html&gt;&lt;/pre&gt;
+ 
+-   &lt;p&gt;...because the data placed in the cells is clearly not tabular data. A
++   &lt;p&gt;...because the data placed in the cells is clearly not tabular data
++    (and the &lt;code&gt;&lt;a href=&quot;#cite2&quot;&gt;cite&lt;/a&gt;&lt;/code&gt; element mis-used). A
+     corrected version of this document might be:&lt;/p&gt;
+ 
+    &lt;pre&gt;&lt;!DOCTYPE html&gt;
+@@ -5862,7 +5863,7 @@
+    &lt;p&gt; My favourite animal is the cat. &lt;/p&gt;
+   &lt;/blockquote&gt;
+   &lt;p&gt;
+-   &mdash;&lt;a href=&quot;<A HREF="http://example.org/~ernest/">http://example.org/~ernest/</A>&quot;&gt;&lt;cite&gt;Ernest&lt;/cite&gt;&lt;/a&gt;,
++   &mdash;&lt;a href=&quot;<A HREF="http://example.org/~ernest/">http://example.org/~ernest/</A>&quot;&gt;Ernest&lt;/a&gt;,
+    in an essay from 1992
+   &lt;/p&gt;
+  &lt;/body&gt;
+@@ -21118,7 +21119,7 @@
+ 
+   &lt;p&gt;The &lt;dfn id=src11 title=attr-event-source-src&gt;&lt;code&gt;src&lt;/code&gt;&lt;/dfn&gt;
+    attribute, if specified, must give a URI (or IRI) pointing to a resource
+-   that uses the &lt;code&gt;application/x-dom-event-stream&lt;/code&gt; format.
++   that uses the &lt;code&gt;text/event-stream&lt;/code&gt; format.
+ 
+   &lt;p&gt;When the element is inserted into the document, if it has the &lt;code
+    title=attr-event-source-src&gt;&lt;a href=&quot;#src11&quot;&gt;src&lt;/a&gt;&lt;/code&gt; attribute
+@@ -35455,17 +35456,30 @@
+    buffering with different expected line endings can cause delays in event
+    dispatch.
+ 
++  &lt;p&gt;Each event source in the list must have associated with it the
++   following:
++
++  &lt;ul&gt;
++   &lt;li&gt;The &lt;dfn id=reconnection
++    title=concept-event-stream-reconnection-time&gt;reconnection time&lt;/dfn&gt;, in
++    milliseconds. This must initially be a user-agent-defined value, probably
++    in the region of a few seconds.
++
++   &lt;li&gt;The &lt;dfn id=last-event title=concept-event-stream-last-event-id&gt;last
++    event ID string&lt;/dfn&gt;. This must initially be the empty string.
++  &lt;/ul&gt;
++
+   &lt;p&gt;In general, the semantics of the transport protocol specified by the
+    URIs for the event sources must be followed, including HTTP caching rules.
+ 
+   &lt;p&gt;For HTTP connections, the &lt;code title=&quot;&quot;&gt;Accept&lt;/code&gt; header may be
+    included; if included, it must only contain formats of event framing that
+    are supported by the user agent (one of which must be
+-   &lt;code&gt;application/x-dom-event-stream&lt;/code&gt;, as described below).
++   &lt;code&gt;text/event-stream&lt;/code&gt;, as described below).
+ 
+   &lt;p&gt;Other formats of event framing may also be supported in addition to
+-   &lt;code&gt;application/x-dom-event-stream&lt;/code&gt;, but this specification does
+-   not define how they are to be parsed or processed.
++   &lt;code&gt;text/event-stream&lt;/code&gt;, but this specification does not define how
++   they are to be parsed or processed.
+ 
+   &lt;p class=note&gt;Such formats could include systems like SMS-push; for example
+    servers could use &lt;code title=&quot;&quot;&gt;Accept&lt;/code&gt; headers and HTTP redirects
+@@ -35475,16 +35489,22 @@
+   &lt;p&gt;User agents should use the &lt;code&gt;Cache-Control: no-cache&lt;/code&gt; header
+    in requests to bypass any caches for requests of event sources.
+ 
++  &lt;p&gt;If the event source's last event ID string is not the empty string, then
++   a &lt;code title=&quot;&quot;&gt;Last-Event-ID&lt;/code&gt; HTTP header must be included with
++   the request, whose value is the value of the event source's last event ID
++   string.
++
+   &lt;p&gt;For connections to domains other than &lt;a href=&quot;#domain0&quot;&gt;the document's
+    domain&lt;/a&gt;, the semantics of the Access-Control HTTP header must be
+-   followed. &lt;a href=&quot;#refsACCESSCONTROL&quot;&gt;[ACCESSCONTROL]&lt;/a&gt;
++   followed. &lt;a href=&quot;#refsACCESSCONTROL&quot;&gt;[ACCESSCONTROL]&lt;/a&gt; &lt;!--
++  XXX define this better once that spec is more stable --&gt;
++   
+ 
+   &lt;p&gt;HTTP 200 OK responses with a &lt;a href=&quot;#content-type8&quot;&gt;Content-Type&lt;/a&gt;
+-   header specifying the type &lt;code&gt;application/x-dom-event-stream&lt;/code&gt;
+-   that are either from &lt;a href=&quot;#domain0&quot;&gt;the document's domain&lt;/a&gt; or
+-   explicitly allowed by the Access-Control HTTP headers must be processed
+-   line by line &lt;a href=&quot;#event-stream-interpretation&quot;&gt;as described
+-   below&lt;/a&gt;.
++   header specifying the type &lt;code&gt;text/event-stream&lt;/code&gt; that are either
++   from &lt;a href=&quot;#domain0&quot;&gt;the document's domain&lt;/a&gt; or explicitly allowed by
++   the Access-Control HTTP headers must be processed line by line &lt;a
++   href=&quot;#event-stream-interpretation&quot;&gt;as described below&lt;/a&gt;.
+ 
+   &lt;p&gt;For the purposes of such successfully opened event streams only, user
+    agents should ignore HTTP cache headers, and instead assume that the
+@@ -35492,15 +35512,15 @@
+ 
+   &lt;p&gt;If such a resource completes loading (i.e. the entire HTTP response body
+    is received or the connection itself closes), the user agent should
+-   request the event source resource again after a delay of approximately
+-   five seconds.
++   request the event source resource again after a delay equal to the
++   reconnection time of the event source.
+ 
+   &lt;p&gt;HTTP 200 OK responses that have a &lt;a
+    href=&quot;#content-type8&quot;&gt;Content-Type&lt;/a&gt; other than
+-   &lt;code&gt;application/x-dom-event-stream&lt;/code&gt; (or some other supported
+-   type), and HTTP responses whose Access-Control headers indicate that the
+-   resource are not to be used, must be ignored and must prevent the user
+-   agent from refetching the resource for that event source.
++   &lt;code&gt;text/event-stream&lt;/code&gt; (or some other supported type), and HTTP
++   responses whose Access-Control headers indicate that the resource are not
++   to be used, must be ignored and must prevent the user agent from
++   refetching the resource for that event source.
+ 
+   &lt;p&gt;HTTP 201 Created, 202 Accepted, 203 Non-Authoritative Information, and
+    206 Partial Content responses must be treated like HTTP 200 OK responses
+@@ -35511,7 +35531,7 @@
+   &lt;p&gt;HTTP 204 No Content, and 205 Reset Content responses must be treated as
+    if they were 200 OK responses with the right MIME type but no content, and
+    should therefore cause the user agent to refetch the resource after a
+-   short delay.
++   delay equal to the reconnection time of the event source.
+ 
+   &lt;p&gt;HTTP 300 Multiple Choices responses should be handled automatically if
+    possible (treating the responses as if they were 302 Found responses
+@@ -35532,8 +35552,8 @@
+ 
+   &lt;p&gt;HTTP 304 Not Modified responses should be handled like HTTP 200 OK
+    responses, with the content coming from the user agent cache. A new
+-   request should then be made after a short delay of approximately five
+-   seconds.
++   request should then be made after a delay equal to the reconnection time
++   of the event source.
+ 
+   &lt;p&gt;HTTP 305 Use Proxy, HTTP 401 Unauthorized, and 407 Proxy Authentication
+    Required should be treated transparently as for any other subresource.
+@@ -35557,17 +35577,14 @@
+ 
+   &lt;h4 id=parsing1&gt;&lt;span class=secno&gt;6.2.3 &lt;/span&gt;Parsing an event stream&lt;/h4&gt;
+ 
+-  &lt;p&gt;This event stream format's MIME type is
+-   &lt;code&gt;application/x-dom-event-stream&lt;/code&gt;.
++  &lt;p&gt;This event stream format's MIME type is &lt;code&gt;text/event-stream&lt;/code&gt;.
+ 
+   &lt;p&gt;The event stream format is (in pseudo-BNF):
+ 
+   &lt;pre&gt;&lt;stream&gt;          ::= &lt;bom&gt;? &lt;event&gt;*
+-&lt;event&gt;           ::= [ &lt;comment&gt; | &lt;command&gt; | &lt;field&gt; ]* &lt;newline&gt;
+-&lt;comment&gt;         ::= ';' &lt;any-char&gt;* &lt;newline&gt;
+-&lt;command&gt;         ::= ':' &lt;any-char&gt;* &lt;newline&gt;
+-&lt;field&gt;           ::= &lt;name&gt; [ ':' &lt;space&gt;? &lt;any-char&gt;* ]? &lt;newline&gt;
+-&lt;name&gt;            ::= &lt;name-start-char&gt; &lt;name-char&gt;*
++&lt;event&gt;           ::= [ &lt;comment&gt; | &lt;field&gt; ]* &lt;newline&gt;
++&lt;comment&gt;         ::= &lt;colon&gt; &lt;any-char&gt;* &lt;newline&gt;
++&lt;field&gt;           ::= &lt;name-char&gt;+ [ &lt;colon&gt; &lt;space&gt;? &lt;any-char&gt;* ]? &lt;newline&gt;
+ 
+ # characters:
+ &lt;bom&gt;             ::= a single U+FEFF BYTE ORDER MARK character
+@@ -35577,309 +35594,166 @@
+                       | a single U+000D CARRIAGE RETURN character
+                       | a single U+000A LINE FEED character
+                       | the end of the file
+-&lt;name-start-char&gt; ::= a single Unicode character other than
+-                      ':', ';', U+000D CARRIAGE RETURN and U+000A LINE FEED
++&lt;colon&gt;           ::= a single U+003A COLON character (':')
+ &lt;name-char&gt;       ::= a single Unicode character other than
+-                      ':', U+000D CARRIAGE RETURN and U+000A LINE FEED
++                      U+003A COLON, U+000D CARRIAGE RETURN and U+000A LINE FEED
+ &lt;any-char&gt;        ::= a single Unicode character other than
+                       U+000D CARRIAGE RETURN and U+000A LINE FEED
+ &lt;/pre&gt;
+ 
+-  &lt;p&gt;Event streams in this format must always be encoded as UTF-8. Lines must
+-   be separated by either a U+000D CARRIAGE RETURN U+000A LINE FEED (CRLF)
+-   character pair, a single U+000A LINE FEED (LF) character, or a single
+-   U+000D CARRIAGE RETURN (CR) character. User agents must treat those three
+-   variants as equivalent line terminators.
++  &lt;p&gt;Event streams in this format must always be encoded as UTF-8.
+ 
++  &lt;p&gt;Lines must be separated by either a U+000D CARRIAGE RETURN U+000A LINE
++   FEED (CRLF) character pair, a single U+000A LINE FEED (LF) character, or a
++   single U+000D CARRIAGE RETURN (CR) character.
++
++  &lt;h4 id=event-stream-interpretation&gt;&lt;span class=secno&gt;6.2.4
++   &lt;/span&gt;Interpreting an event stream&lt;/h4&gt;
++
+   &lt;p&gt;Bytes or sequences of bytes that are not valid UTF-8 sequences must be
+    interpreted as the U+FFFD REPLACEMENT CHARACTER.
+ 
+   &lt;p&gt;One leading U+FEFF BYTE ORDER MARK character must be ignored if any are
+    present.
+ 
+-  &lt;p&gt;The stream must then be parsed by reading everything line by line, in
+-   blocks separated by blank lines. Comment lines (those starting with the
+-   character ';') and command lines (those starting with the character ':')
+-   must be ignored.
++  &lt;p&gt;The stream must then be parsed by reading everything line by line, with
++   a U+000D CARRIAGE RETURN U+000A LINE FEED (CRLF) character pair, a single
++   U+000A LINE FEED (LF) character, a single U+000D CARRIAGE RETURN (CR)
++   character, and the end of the file being the four ways in which a line can
++   end.
+ 
+-  &lt;p&gt;Command lines are reserved for future extensions.&lt;/p&gt;
+-  &lt;!--XXX Lachlan says:
+-    For the next version of server sent events, it might be useful if
+-    authors could specify the retry interval for connections.
++  &lt;p&gt;When a stream is parsed, a &lt;var title=&quot;&quot;&gt;data&lt;/var&gt; buffer and an &lt;var
++   title=&quot;&quot;&gt;event name&lt;/var&gt; buffer must be associated with it. They must be
++   initialized to the empty string
+ 
+-    e.g. In cases where it is known that content is only updated at
+-    specified intervals (e.g. once per minute), having the browser retry
+-    the connection every 5 seconds and fire the event with the same
+-    content may be excessive.
++  &lt;p&gt;Lines must be processed, in the order they are received, as follows:
+ 
+-    This could possibly be done using the :command syntax.
++  &lt;dl class=switch&gt;
++   &lt;dt&gt;If the line is empty (a blank line)
+ 
+-    e.g.
+-      Event: click
+-      :retry 60000
+-
+-    The browser would then retry the connection in 60,000 milliseconds (1
+-    minute).
+-  --&gt;
+-
+-  &lt;p&gt;For each non-blank, non-comment, non-command line, the field name must
+-   first be taken. This is everything on the line up to but not including the
+-   first colon (':') or the line terminator, whichever comes first. Then, if
+-   there was a colon, the data for that line must be taken. This is
+-   everything after the colon, ignoring a single space after the colon if
+-   there is one, up to the end of the line. If there was no colon the data is
+-   the empty string.
+-
+-  &lt;div class=example&gt;
+-   &lt;p&gt;Examples:&lt;/p&gt;
+-
+-   &lt;pre&gt;Field name:&nbsp;Field data&lt;/pre&gt;
+-
+-   &lt;pre&gt;This is a blank field&lt;/pre&gt;
+-
+-   &lt;pre&gt;1. These two lines:&nbsp;have the same data
+-2. These two lines:have the same data&lt;/pre&gt;
+-
+-   &lt;pre&gt;1. But these two lines:&nbsp; do not
+-2. But these two lines:&nbsp;do not&lt;/pre&gt;
+-  &lt;/div&gt;
+-
+-  &lt;p&gt;If a field name occurs multiple times in a block, the value for that
+-   field in that black must consist of the data parts for each of those
+-   lines, concatenated with U+000A LINE FEED characters between them
+-   (regardless of what the line terminators used in the stream actually are).
+-
+-  &lt;div class=example&gt;
+-   &lt;p&gt;For example, the following block:&lt;/p&gt;
+-
+-   &lt;pre&gt;Test:&nbsp;Line 1
+-Foo:&nbsp;&nbsp;Bar
+-Test:&nbsp;Line 2&lt;/pre&gt;
+-
+-   &lt;p&gt;...is treated as having two fields, one called &lt;code&gt;Test&lt;/code&gt; with
+-    the value &quot;&lt;code&gt;Line 1\nLine 2&lt;/code&gt;&quot; (where &lt;code&gt;\n&lt;/code&gt; represents
+-    a newline), and one called &lt;code&gt;Foo&lt;/code&gt; with the value
+-    &quot;&lt;code&gt;&nbsp;Bar&lt;/code&gt;&quot; (note the leading space character).&lt;/p&gt;
+-  &lt;/div&gt;
+-
+-  &lt;p&gt;A block thus consists of all the name-value pairs for its fields.
+-   Command lines have no effect on blocks and are not considered part of a
+-   block.
+-
+-  &lt;p class=note&gt;Since any random stream of characters matches the above
+-   format, there is no need to define any error handling.
+-
+-  &lt;h4 id=event-stream-interpretation&gt;&lt;span class=secno&gt;6.2.4
+-   &lt;/span&gt;Interpreting an event stream&lt;/h4&gt;
+-
+-  &lt;p&gt;Once the fields have been parsed, they are interpreted as follows (these
+-   are case-sensitive exact comparisons):
+-
+-  &lt;dl&gt;
+-   &lt;dt&gt;&lt;code title=&quot;&quot;&gt;Event&lt;/code&gt; field
+-
+    &lt;dd&gt;
+-    &lt;p&gt;This field gives the name of the event. For example, &lt;code
+-     title=&quot;&quot;&gt;load&lt;/code&gt;, &lt;code title=&quot;&quot;&gt;DOMActivate&lt;/code&gt;, &lt;code
+-     title=&quot;&quot;&gt;updateTicker&lt;/code&gt;. If there is no field with this name, the
+-     name &lt;code title=event-message&gt;&lt;a href=&quot;#message0&quot;&gt;message&lt;/a&gt;&lt;/code&gt;
+-     must be used.
++    &lt;p&gt;&lt;a href=&quot;#dispatchMessage&quot;&gt;Dispatch the event&lt;/a&gt;, as defined below.
+ 
+-   &lt;dt&gt;&lt;code title=&quot;&quot;&gt;Namespace&lt;/code&gt; field
++   &lt;dt&gt;If the line starts with a U+003A COLON character (':')
+ 
+    &lt;dd&gt;
+-    &lt;p&gt;This field gives the DOM3 namespace for the event. (For normal DOM
+-     events this would be null.) If it isn't specified the event namespace is
+-     null.
++    &lt;p&gt;Ignore the line.
+ 
+-   &lt;dt&gt;&lt;code title=&quot;&quot;&gt;Class&lt;/code&gt; field
++   &lt;dt&gt;If the line contains a U+003A COLON character (':') character
+ 
+    &lt;dd&gt;
+-    &lt;p&gt;This field gives is the interface used for the event, for instance
+-     &lt;code&gt;Event&lt;/code&gt;, &lt;code&gt;UIEvent&lt;/code&gt;, &lt;code&gt;MutationEvent&lt;/code&gt;,
+-     &lt;code&gt;KeyboardEvent&lt;/code&gt;, etc. For compatibility with DOM3 Events, the
+-     values &lt;code title=&quot;&quot;&gt;UIEvents&lt;/code&gt;, &lt;code
+-     title=&quot;&quot;&gt;MouseEvents&lt;/code&gt;, &lt;code title=&quot;&quot;&gt;MutationEvents&lt;/code&gt;, and
+-     &lt;code title=&quot;&quot;&gt;HTMLEvents&lt;/code&gt; are valid values and must be treated
+-     respectively as meaning the interfaces &lt;code&gt;UIEvent&lt;/code&gt;,
+-     &lt;code&gt;MouseEvent&lt;/code&gt;, &lt;code&gt;MutationEvent&lt;/code&gt;, and
+-     &lt;code&gt;Event&lt;/code&gt;. (This value can therefore be used as the argument to
+-     &lt;code title=&quot;&quot;&gt;createEvent()&lt;/code&gt;.)&lt;/p&gt;
++    &lt;p&gt;Collect the characters on the line before the first U+003A COLON
++     character (':'), and let &lt;var title=&quot;&quot;&gt;field&lt;/var&gt; be that string.&lt;/p&gt;
+ 
+-    &lt;p&gt;If the value is not specified but the &lt;code title=&quot;&quot;&gt;Namespace&lt;/code&gt;
+-     is null and the &lt;code title=&quot;&quot;&gt;Event&lt;/code&gt; field exactly matches one of
+-     the events specified by DOM3 Events in &lt;a
+-     href=&quot;<A HREF="http://www.w3.org/TR/DOM-Level-3-Events/events.html#Events-EventTypes-complete">http://www.w3.org/TR/DOM-Level-3-Events/events.html#Events-EventTypes-complete</A>&quot;&gt;section
+-     1.4.2 &quot;Complete list of event types&quot;&lt;/a&gt;, then the interface used must
+-     default to the interface relevant for that event type. &lt;a
+-     href=&quot;#refsDOM3EVENTS&quot;&gt;[DOM3EVENTS]&lt;/a&gt;&lt;/p&gt;
++    &lt;p&gt;Collect the characters on the line after the first U+003A COLON
++     character (':'), and let &lt;var title=&quot;&quot;&gt;value&lt;/var&gt; be that string. If
++     &lt;var title=&quot;&quot;&gt;value&lt;/var&gt; starts with a single U+0020 SPACE character,
++     remove it from &lt;var title=&quot;&quot;&gt;value&lt;/var&gt;.&lt;/p&gt;
+ 
+-    &lt;div class=example&gt;
+-     &lt;p&gt;For example:&lt;/p&gt;
++    &lt;p&gt;&lt;a href=&quot;#processField&quot;&gt;Process the field&lt;/a&gt; using the steps
++     described below, using &lt;var title=&quot;&quot;&gt;field&lt;/var&gt; as the field name and
++     &lt;var title=&quot;&quot;&gt;value&lt;/var&gt; as the field value.&lt;/p&gt;
+ 
+-     &lt;pre&gt;Event: click&lt;/pre&gt;
++   &lt;dt&gt;Otherwise, the string is not empty but does not contain a U+003A COLON
++    character (':') character
+ 
+-     &lt;p&gt;...would cause &lt;code title=&quot;&quot;&gt;Class&lt;/code&gt; to be treated as
+-      &lt;code&gt;MouseEvent&lt;/code&gt;.&lt;/p&gt;
+-    &lt;/div&gt;
++   &lt;dd&gt;
++    &lt;p&gt;&lt;a href=&quot;#processField&quot;&gt;Process the field&lt;/a&gt; using the steps
++     described below, using the the whole line as the field name, and the
++     empty string as the field value.&lt;/p&gt;
++  &lt;/dl&gt;
+ 
+-    &lt;p&gt;If the &lt;code title=&quot;&quot;&gt;Namespace&lt;/code&gt; is null and the &lt;code
+-     title=&quot;&quot;&gt;Event&lt;/code&gt; field is &lt;code title=event-message&gt;&lt;a
+-     href=&quot;#message0&quot;&gt;message&lt;/a&gt;&lt;/code&gt; (including if it was not specified
+-     explicitly), then the &lt;code&gt;&lt;a
+-     href=&quot;#messageevent&quot;&gt;MessageEvent&lt;/a&gt;&lt;/code&gt; interface must be used.&lt;/p&gt;
++  &lt;p&gt;Once the end of the file is reached, the user agent must &lt;a
++   href=&quot;#dispatchMessage&quot;&gt;dispatch the event&lt;/a&gt; one final time, as defined
++   below.
+ 
+-    &lt;p&gt;Otherwise, the &lt;code&gt;Event&lt;/code&gt; interface must be used.&lt;/p&gt;
++  &lt;p id=processField&gt;The steps to &lt;dfn id=process title=&quot;&quot;&gt;process the
++   field&lt;/dfn&gt; given a field name and a field value depend on the field name,
++   as given in the following list. Field names must be compared literally,
++   with no case folding performed.
+ 
+-    &lt;p&gt;It is quite possible to give the wrong class for an event. This is
+-     equivalent to creating an event in the DOM using the DOM Event APIs, but
+-     using the wrong interface for it.&lt;/p&gt;
++  &lt;dl class=switch&gt;
++   &lt;dt&gt;If the field name is &quot;event&quot;
+ 
+-   &lt;dt&gt;&lt;code title=&quot;&quot;&gt;Bubbles&lt;/code&gt; field
+-
+    &lt;dd&gt;
+-    &lt;p&gt;This field specifies whether the event is to bubble. If it is
+-     specified and has the value &lt;code title=&quot;&quot;&gt;No&lt;/code&gt;, the event must not
+-     bubble. If it is specified and has any other value (including &lt;code
+-     title=&quot;&quot;&gt;no&lt;/code&gt; or &lt;code title=&quot;&quot;&gt;NO&lt;/code&gt;) then the event must
+-     bubble.&lt;/p&gt;
++    &lt;p&gt;Set the &lt;var title=&quot;&quot;&gt;event name&lt;/var&gt; buffer the field value. &lt;a
++     href=&quot;#refsXMLNS&quot;&gt;[XMLNS]&lt;/a&gt;
+ 
+-    &lt;p&gt;If it is not specified but the &lt;code title=&quot;&quot;&gt;Namespace&lt;/code&gt; field
+-     is null and the &lt;code title=&quot;&quot;&gt;Event&lt;/code&gt; field exactly matches one of
+-     the events specified by DOM3 Events in &lt;a
+-     href=&quot;<A HREF="http://www.w3.org/TR/DOM-Level-3-Events/events.html#Events-EventTypes-complete">http://www.w3.org/TR/DOM-Level-3-Events/events.html#Events-EventTypes-complete</A>&quot;&gt;section
+-     1.4.2 &quot;Complete list of event types&quot;&lt;/a&gt;, then the event must bubble if
+-     the DOM3 Events spec specifies that that event bubbles, and musn't
+-     bubble if it specifies it does not. &lt;a
+-     href=&quot;#refsDOM3EVENTS&quot;&gt;[DOM3EVENTS]&lt;/a&gt;&lt;/p&gt;
++   &lt;dt&gt;If the field name is &quot;data&quot;
+ 
+-    &lt;div class=example&gt;
+-     &lt;p&gt;For example:&lt;/p&gt;
++   &lt;dd&gt;
++    &lt;p&gt;If the &lt;var title=&quot;&quot;&gt;data&lt;/var&gt; buffer is not the empty string, then
++     append a single U+000A LINE FEED character to the &lt;var
++     title=&quot;&quot;&gt;data&lt;/var&gt; buffer. Append the field value to the &lt;var
++     title=&quot;&quot;&gt;data&lt;/var&gt; buffer.
+ 
+-     &lt;pre&gt;Event: load&lt;/pre&gt;
++   &lt;dt&gt;If the field name is &quot;id&quot;
+ 
+-     &lt;p&gt;...would cause &lt;code title=&quot;&quot;&gt;Bubbles&lt;/code&gt; to be treated as &lt;code
+-      title=&quot;&quot;&gt;No&lt;/code&gt;.&lt;/p&gt;
+-    &lt;/div&gt;
+-
+-    &lt;p&gt;Otherwise, the event must bubble.&lt;/p&gt;
+-
+-   &lt;dt&gt;&lt;code title=&quot;&quot;&gt;Cancelable&lt;/code&gt; field
+-
+    &lt;dd&gt;
+-    &lt;p&gt;This field specifies whether the event can have its default action
+-     prevented. If it is specified and has the value &lt;code
+-     title=&quot;&quot;&gt;No&lt;/code&gt;, the event must not be cancelable. If it is specified
+-     and has any other value (including &lt;code title=&quot;&quot;&gt;no&lt;/code&gt; or &lt;code
+-     title=&quot;&quot;&gt;NO&lt;/code&gt;) then the event must be cancelable.&lt;/p&gt;
++    &lt;p&gt;Set the event stream's &lt;a href=&quot;#last-event&quot;
++     title=concept-event-stream-last-event-id&gt;last event ID&lt;/a&gt; to the field
++     value.
+ 
+-    &lt;p&gt;If it is not specified, but the &lt;code title=&quot;&quot;&gt;Namespace&lt;/code&gt; field
+-     is null and the &lt;code title=&quot;&quot;&gt;Event&lt;/code&gt; field exactly matches one of
+-     the events specified by DOM3 Events in &lt;a
+-     href=&quot;<A HREF="http://www.w3.org/TR/DOM-Level-3-Events/events.html#Events-EventTypes-complete">http://www.w3.org/TR/DOM-Level-3-Events/events.html#Events-EventTypes-complete</A>&quot;&gt;section
+-     1.4.2 &quot;Complete list of event types&quot;&lt;/a&gt;, then the event must be
+-     cancelable if the DOM3 Events specification specifies that it is, and
+-     must not be cancelable otherwise. &lt;a
+-     href=&quot;#refsDOM3EVENTS&quot;&gt;[DOM3EVENTS]&lt;/a&gt;&lt;/p&gt;
++   &lt;dt&gt;If the field name is &quot;retry&quot;
+ 
+-    &lt;div class=example&gt;
+-     &lt;p&gt;For example:&lt;/p&gt;
+-
+-     &lt;pre&gt;Event: load&lt;/pre&gt;
+-
+-     &lt;p&gt;...would cause &lt;code title=&quot;&quot;&gt;Cancelable&lt;/code&gt; to be treated as
+-      &lt;code title=&quot;&quot;&gt;No&lt;/code&gt;.&lt;/p&gt;
+-    &lt;/div&gt;
+-
+-    &lt;p&gt;Otherwise, the event must be cancelable.&lt;/p&gt;
+-
+-   &lt;dt&gt;&lt;code title=&quot;&quot;&gt;Target&lt;/code&gt; field
+-
+    &lt;dd&gt;
+-    &lt;p&gt;This field gives the node that the event is to be dispatched on.&lt;/p&gt;
++    &lt;p&gt;If the field value consists of only characters in the range U+0030
++     DIGIT ZERO ('0') U+0039 DIGIT NINE ('9'), then interpret the field value
++     as an integer in base ten, and set the event stream's &lt;a
++     href=&quot;#reconnection&quot;
++     title=concept-event-stream-reconnection-time&gt;reconnection time&lt;/a&gt; to
++     that integer. Otherwise, ignore the field.
+ 
+-    &lt;p&gt;If the object for which the event source is being processed is not a
+-     Node, but the &lt;code title=&quot;&quot;&gt;Target&lt;/code&gt; field is nonetheless
+-     specified, then the event must be dropped.&lt;/p&gt;
++   &lt;dt&gt;Otherwise
+ 
+-    &lt;p&gt;Otherwise, if field is specified and its value starts with a &lt;code
+-     title=&quot;&quot;&gt;#&lt;/code&gt; character, then the remainder of the value represents
+-     an ID, and the event must be dispatched on the same node as would be
+-     obtained by the &lt;code title=&quot;&quot;&gt;getElementById()&lt;/code&gt; method on the
+-     &lt;code title=&quot;&quot;&gt;ownerDocument&lt;/code&gt; of the node whose event source is
+-     being processed.&lt;/p&gt;
+-
+-    &lt;div class=example&gt;
+-     &lt;p&gt;For example,&lt;/p&gt;
+-
+-     &lt;pre&gt;Target: #test&lt;/pre&gt;
+-
+-     &lt;p&gt;...would target the element with ID &lt;code title=&quot;&quot;&gt;test&lt;/code&gt;.&lt;/p&gt;
+-    &lt;/div&gt;
+-
+-    &lt;p&gt;Otherwise, if the field is specified and its value is the literal
+-     string &quot;&lt;code title=&quot;&quot;&gt;Document&lt;/code&gt;&quot;, then the event must be
+-     dispatched at the &lt;code title=&quot;&quot;&gt;ownerDocument&lt;/code&gt; of the node whose
+-     event source is being processed.&lt;/p&gt;
+-
+-    &lt;p&gt;Otherwise, the field (whether specified or not) is ignored and the
+-     event must be dispatched at the object itself.&lt;/p&gt;
++   &lt;dd&gt;
++    &lt;p&gt;The field is ignored.
+   &lt;/dl&gt;
+ 
+-  &lt;p&gt;Other fields depend on the interface specified (or possibly implied) by
+-   the &lt;code title=&quot;&quot;&gt;Class&lt;/code&gt; field. If the specified interface has an
+-   attribute that exactly matches the name of the field, and the value of the
+-   field can be converted (using the type conversions defined in ECMAScript)
+-   to the type of the attribute, then it must be used. Any attributes (other
+-   than the &lt;code&gt;Event&lt;/code&gt; interface attributes) that do not have
+-   matching fields are initialised to zero, null, false, or the empty string.
++  &lt;p id=dispatchEvent&gt;When the user agent is required to &lt;dfn id=dispatch
++   title=&quot;&quot;&gt;dispatch the event&lt;/dfn&gt;, then the user agent must act as
++   follows:
+ 
+-  &lt;div class=example&gt;
+-   &lt;p&gt;For example:&lt;/p&gt;
++  &lt;ol&gt;
++   &lt;li&gt;
++    &lt;p&gt;If the &lt;var title=&quot;&quot;&gt;data&lt;/var&gt; buffer is an empty string, set the
++     &lt;var title=&quot;&quot;&gt;data&lt;/var&gt; buffer and the &lt;var title=&quot;&quot;&gt;event name&lt;/var&gt;
++     buffer to the empty string and abort these steps.
+ 
+-   &lt;pre&gt;Event: click
+-Class: MouseEvent
+-button: 2&lt;/pre&gt;
++   &lt;li&gt;
++    &lt;p&gt;If the &lt;var title=&quot;&quot;&gt;event name&lt;/var&gt; buffer is not the empty string
++     but is also not a valid &lt;a
++     href=&quot;<A HREF="http://www.w3.org/TR/REC-xml-names/#NT-NCName">http://www.w3.org/TR/REC-xml-names/#NT-NCName</A>&quot;&gt;NCName&lt;/a&gt;, set the
++     &lt;var title=&quot;&quot;&gt;data&lt;/var&gt; buffer and the &lt;var title=&quot;&quot;&gt;event name&lt;/var&gt;
++     buffer to the empty string and abort these steps.
+ 
+-   &lt;p&gt;...would result in a 'click' event using the &lt;code&gt;MouseEvent&lt;/code&gt;
+-    interface that has &lt;code&gt;button&lt;/code&gt; set to &lt;code title=&quot;&quot;&gt;2&lt;/code&gt; but
+-    &lt;code&gt;screenX&lt;/code&gt;, &lt;code&gt;screenY&lt;/code&gt;, etc, set to 0, false, or null
+-    as appropriate.&lt;/p&gt;
+-  &lt;/div&gt;
++   &lt;li&gt;
++    &lt;p&gt;Otherwise, create an event that uses the &lt;code&gt;&lt;a
++     href=&quot;#messageevent&quot;&gt;MessageEvent&lt;/a&gt;&lt;/code&gt; interface, with the event
++     name &lt;code title=event-message&gt;&lt;a href=&quot;#message0&quot;&gt;message&lt;/a&gt;&lt;/code&gt;,
++     which does not bubble, is cancelable, and has no default action. The
++     &lt;code title=dom-MessageEvent-data&gt;&lt;a href=&quot;#data4&quot;&gt;data&lt;/a&gt;&lt;/code&gt;
++     attribute must be set to the value of the &lt;var title=&quot;&quot;&gt;data&lt;/var&gt;
++     buffer, the &lt;code title=dom-MessageEvent-origin&gt;origin&lt;/code&gt; attribute
++     must be set to the &lt;a href=&quot;#origin0&quot;&gt;origin&lt;/a&gt; of the event stream,
++     and the &lt;code title=dom-MessageEvent-source&gt;&lt;a
++     href=&quot;#source2&quot;&gt;source&lt;/a&gt;&lt;/code&gt; attribute must be set to null.
+ 
+-  &lt;p&gt;If a field does not match any of the attributes on the event, it must be
+-   ignored.
++   &lt;li&gt;
++    &lt;p&gt;If the &lt;var title=&quot;&quot;&gt;event name&lt;/var&gt; buffer has a value other than
++     the empty string, change the type of the newly created event to equal
++     the value of the &lt;var title=&quot;&quot;&gt;event name&lt;/var&gt; buffer.
+ 
+-  &lt;div class=example&gt;
+-   &lt;p&gt;For example:&lt;/p&gt;
++   &lt;li&gt;
++    &lt;p&gt;Set the &lt;var title=&quot;&quot;&gt;data&lt;/var&gt; buffer and the &lt;var title=&quot;&quot;&gt;event
++     name&lt;/var&gt; buffer to the empty string.
+ 
+-   &lt;pre&gt;Event: keypress
+-Class: MouseEvent
+-keyIdentifier: 0&lt;/pre&gt;
++   &lt;li&gt;
++    &lt;p&gt;Dispatch the newly created event at the &lt;code&gt;&lt;a
++     href=&quot;#remoteeventtarget0&quot;&gt;RemoteEventTarget&lt;/a&gt;&lt;/code&gt; object to which
++     the event stream is registered.
++  &lt;/ol&gt;
+ 
+-   &lt;p&gt;...would result in a &lt;code&gt;MouseEvent&lt;/code&gt; event with its fields all
+-    at their default values, with the event name being &lt;code
+-    title=&quot;&quot;&gt;keypress&lt;/code&gt;. The &lt;code title=&quot;&quot;&gt;keyIdentifier&lt;/code&gt; field
+-    would be ignored. (If the author had not included the &lt;code
+-    title=&quot;&quot;&gt;Class&lt;/code&gt; field explicitly, it would have just worked, since
+-    the class would have defaulted as described above.)&lt;/p&gt;
+-  &lt;/div&gt;
+-
+-  &lt;p&gt;Once a blank line or the end of the file is reached, an event of the
+-   type and namespace given by the &lt;code title=&quot;&quot;&gt;Event&lt;/code&gt; and
+-   &lt;code&gt;Namespace&lt;/code&gt; fields respectively must be synthesized and
+-   dispatched to the appropriate node as described by the fields above. No
+-   event must be dispatched until a blank line has been received or the end
+-   of the file reached.
+-
+-  &lt;p&gt;The event must be dispatched as if using the DOM &lt;code
+-   title=&quot;&quot;&gt;dispatchEvent()&lt;/code&gt; method. Thus, if the &lt;code
+-   title=&quot;&quot;&gt;Event&lt;/code&gt; field was omitted, leaving the name as the empty
+-   string, or if the name had invalid characters, then the dispatching of the
+-   event fails.
+-
+-  &lt;p&gt;Events fired from event sources do not have user-agent default actions.
+-
+   &lt;div class=example&gt;
+    &lt;p&gt;The following event stream, once followed by a blank line:&lt;/p&gt;
+ 
+@@ -35890,11 +35764,10 @@
+    &lt;p&gt;...would cause an event &lt;code title=event-message&gt;&lt;a
+     href=&quot;#message0&quot;&gt;message&lt;/a&gt;&lt;/code&gt; with the interface &lt;code&gt;&lt;a
+     href=&quot;#messageevent&quot;&gt;MessageEvent&lt;/a&gt;&lt;/code&gt; to be dispatched on the
+-    &lt;code&gt;&lt;a href=&quot;#event-source&quot;&gt;event-source&lt;/a&gt;&lt;/code&gt; element, which
+-    would then bubble up the DOM, and whose &lt;code
+-    title=dom-MessageEvent-data&gt;&lt;a href=&quot;#data4&quot;&gt;data&lt;/a&gt;&lt;/code&gt; attribute
+-    would contain the string &lt;code&gt;YHOO\n-2\n10&lt;/code&gt; (where &lt;code&gt;\n&lt;/code&gt;
+-    again represents a newline).&lt;/p&gt;
++    &lt;code&gt;&lt;a href=&quot;#event-source&quot;&gt;event-source&lt;/a&gt;&lt;/code&gt; element, whose
++    &lt;code title=dom-MessageEvent-data&gt;&lt;a href=&quot;#data4&quot;&gt;data&lt;/a&gt;&lt;/code&gt;
++    attribute would contain the string &lt;code&gt;YHOO\n-2\n10&lt;/code&gt; (where
++    &lt;code&gt;\n&lt;/code&gt; represents a newline).&lt;/p&gt;
+ 
+    &lt;p&gt;This could be used as follows:
+ 
+@@ -35909,38 +35782,63 @@
+   &lt;/div&gt;
+ 
+   &lt;div class=example&gt;
+-   &lt;p&gt;The following stream contains four blocks and therefore fires four
+-    events. The first block has just a comment, and will fire a &lt;code
+-    title=event-message&gt;&lt;a href=&quot;#message0&quot;&gt;message&lt;/a&gt;&lt;/code&gt; event with all
+-    the fields set to the empty string or null. The second block has two
+-    fields with names &quot;load&quot; and &quot;Target&quot; respectively; since there is no
+-    &quot;&lt;code title=&quot;&quot;&gt;load&lt;/code&gt;&quot; member on the &lt;code&gt;&lt;a
+-    href=&quot;#messageevent&quot;&gt;MessageEvent&lt;/a&gt;&lt;/code&gt; object that field is
+-    ignored, leaving the event as a second &lt;code title=event-message&gt;&lt;a
+-    href=&quot;#message0&quot;&gt;message&lt;/a&gt;&lt;/code&gt; event with all the fields set to the
+-    empty string or null, but this time the event is targetted at an element
+-    with ID &quot;image1&quot;. The third block is empty (no lines between two blank
+-    lines), and the fourth block has only two comments, so they both yet
+-    again fire &lt;code title=event-message&gt;&lt;a
+-    href=&quot;#message0&quot;&gt;message&lt;/a&gt;&lt;/code&gt; events with all the fields set to the
+-    empty string or null.&lt;/p&gt;
++   &lt;p&gt;The following stream contains four blocks. The first block has just a
++    comment, and will fire nothing. The second block has two fields with
++    names &quot;data&quot; and &quot;id&quot; respectively; an event will be fired for this
++    block, with the data &quot;first event&quot;, and will then set the last event ID
++    to &quot;1&quot; so that if the connection died between this block and the next,
++    the server would be sent a &lt;code title=&quot;&quot;&gt;Last-Event-ID&lt;/code&gt; header
++    with the value &quot;1&quot;. The third block fires an event with data &quot;second
++    event&quot;, and also has an &quot;id&quot; field, this time with no value, which resets
++    the last event ID to the empty string (meaning no code
++    title=&quot;&quot;&gt;Last-Event-ID header will now be sent in the event of a
++    reconnection being attempted). Finally the last block just fires an event
++    with the data &quot;third event&quot;. Note that the last block doesn't have to end
++    with a blank line, the end of the stream is enough to trigger the
++    dispatch of the last event.&lt;/p&gt;
+ 
+-   &lt;pre&gt;; test
++   &lt;pre&gt;: test stream
+ 
+-load
+-Target: #image1
++data: first event
++id: 1
+ 
++data: second event
++id
+ 
+-; if any more events follow this block, they will not be affected by
+-; the &quot;Target&quot; and &quot;load&quot; fields above.
+-&lt;/pre&gt;
++data: third event&lt;/pre&gt;
+   &lt;/div&gt;
+ 
++  &lt;div class=example&gt;
++   &lt;p&gt;The following stream fires just one event:&lt;/p&gt;
++
++   &lt;pre&gt;data
++
++data
++data
++
++data:&lt;/pre&gt;
++
++   &lt;p&gt;The first and last blocks do nothing, since they do not contain any
++    actual data (the &lt;var title=&quot;&quot;&gt;data&lt;/var&gt; buffer remains at the empty
++    string, and so nothing gets dispatched). The middle block fires an event
++    with the data set to a single newline character.&lt;/p&gt;
++  &lt;/div&gt;
++
++  &lt;div class=example&gt;
++   &lt;p&gt;The following stream fires two identical events:&lt;/p&gt;
++
++   &lt;pre&gt;data:test
++
++data:&nbsp;test&lt;/pre&gt;
++
++   &lt;p&gt;This is because the space after the colon is ignored if present.&lt;/p&gt;
++  &lt;/div&gt;
++
+   &lt;h4 id=notes&gt;&lt;span class=secno&gt;6.2.5 &lt;/span&gt;Notes&lt;/h4&gt;
+ 
+   &lt;p&gt;Legacy proxy servers are known to, in certain cases, drop HTTP
+    connections after a short timeout. To protect against such proxy servers,
+-   authors can include a comment line (one starting with a ';' character)
++   authors can include a comment line (one starting with a ':' character)
+    every 15 seconds or so.
+ 
+   &lt;p&gt;Authors wishing to relate event source connections to each other or to
+@@ -36892,10 +36790,11 @@
+     &lt;p&gt;Create an event that uses the &lt;code&gt;&lt;a
+      href=&quot;#messageevent&quot;&gt;MessageEvent&lt;/a&gt;&lt;/code&gt; interface, with the event
+      name &lt;code title=event-message&gt;&lt;a href=&quot;#message0&quot;&gt;message&lt;/a&gt;&lt;/code&gt;,
+-     which bubbles, is cancelable, and has no default action. The &lt;code
+-     title=dom-MessageEvent-data&gt;&lt;a href=&quot;#data4&quot;&gt;data&lt;/a&gt;&lt;/code&gt; attribute
+-     must be set to the value passed as the &lt;var title=&quot;&quot;&gt;message&lt;/var&gt;
+-     argument to the &lt;code title=dom-window-postMessage&gt;&lt;a
++     which does not bubble, is cancelable, and has no default action. The
++     &lt;code title=dom-MessageEvent-data&gt;&lt;a href=&quot;#data4&quot;&gt;data&lt;/a&gt;&lt;/code&gt;
++     attribute must be set to the value passed as the &lt;var
++     title=&quot;&quot;&gt;message&lt;/var&gt; argument to the &lt;code
++     title=dom-window-postMessage&gt;&lt;a
+      href=&quot;#postmessage&quot;&gt;postMessage()&lt;/a&gt;&lt;/code&gt; method, the &lt;code
+      title=dom-MessageEvent-origin&gt;origin&lt;/code&gt; attribute must be set to the
+      &lt;a href=&quot;#origin0&quot;&gt;origin&lt;/a&gt; of the document that the script that
+
+Modified: source
+===================================================================
+--- source	2008-02-21 02:46:06 UTC (rev 1236)
++++ source	2008-02-22 09:43:02 UTC (rev 1237)
+@@ -4441,7 +4441,8 @@
+ &lt;/html&gt;&lt;/pre&gt;
+ 
+    &lt;p&gt;...because the data placed in the cells is clearly not tabular
+-   data. A corrected version of this document might be:&lt;/p&gt;
++   data (and the &lt;code&gt;cite&lt;/code&gt; element mis-used). A corrected
++   version of this document might be:&lt;/p&gt;
+ 
+    &lt;pre&gt;&lt;!DOCTYPE html&gt;
+ &lt;html lang=&quot;en-GB&quot;&gt;
+@@ -4451,7 +4452,7 @@
+    &lt;p&gt; My favourite animal is the cat. &lt;/p&gt;
+   &lt;/blockquote&gt;
+   &lt;p&gt;
+-   &mdash;&lt;a href=&quot;<A HREF="http://example.org/~ernest/">http://example.org/~ernest/</A>&quot;&gt;&lt;cite&gt;Ernest&lt;/cite&gt;&lt;/a&gt;,
++   &mdash;&lt;a href=&quot;<A HREF="http://example.org/~ernest/">http://example.org/~ernest/</A>&quot;&gt;Ernest&lt;/a&gt;,
+    in an essay from 1992
+   &lt;/p&gt;
+  &lt;/body&gt;
+@@ -18790,8 +18791,7 @@
+ 
+   &lt;p&gt;The &lt;dfn title=&quot;attr-event-source-src&quot;&gt;&lt;code&gt;src&lt;/code&gt;&lt;/dfn&gt;
+   attribute, if specified, must give a URI (or IRI) pointing to a
+-  resource that uses the &lt;code&gt;application/x-dom-event-stream&lt;/code&gt;
+-  format.&lt;/p&gt;
++  resource that uses the &lt;code&gt;text/event-stream&lt;/code&gt; format.&lt;/p&gt;
+ 
+   &lt;p&gt;When the element is inserted into the document, if it has the
+   &lt;code title=&quot;attr-event-source-src&quot;&gt;src&lt;/code&gt; attribute specified,
+@@ -32767,7 +32767,8 @@
+   &lt;h4&gt;The &lt;dfn&gt;&lt;code&gt;RemoteEventTarget&lt;/code&gt;&lt;/dfn&gt; interface&lt;/h4&gt;
+ 
+   &lt;p&gt;Any object that implements the &lt;code&gt;EventTarget&lt;/code&gt; interface
+-  must also implement the &lt;code&gt;RemoteEventTarget&lt;/code&gt; interface.&lt;/p&gt;
++  must also implement the &lt;code&gt;RemoteEventTarget&lt;/code&gt;
++  interface.&lt;/p&gt;
+ 
+   &lt;pre class=&quot;idl&quot;&gt;interface &lt;dfn&gt;RemoteEventTarget&lt;/dfn&gt; {
+   void &lt;span title=&quot;dom-RemoteEventTarget-addEventSource&quot;&gt;addEventSource&lt;/span&gt;(in DOMString src);
+@@ -32818,6 +32819,22 @@
+   FEED character, block buffering or line buffering with different
+   expected line endings can cause delays in event dispatch.&lt;/p&gt;
+ 
++  &lt;p&gt;Each event source in the list must have associated with it the
++  following:&lt;/p&gt;
++
++  &lt;ul&gt;
++
++   &lt;li&gt;The &lt;dfn
++   title=&quot;concept-event-stream-reconnection-time&quot;&gt;reconnection
++   time&lt;/dfn&gt;, in milliseconds. This must initially be a
++   user-agent-defined value, probably in the region of a few
++   seconds.&lt;/li&gt;
++
++   &lt;li&gt;The &lt;dfn title=&quot;concept-event-stream-last-event-id&quot;&gt;last event
++   ID string&lt;/dfn&gt;. This must initially be the empty string.&lt;/li&gt;
++
++  &lt;/ul&gt;
++
+   &lt;p&gt;In general, the semantics of the transport protocol specified by
+   the URIs for the event sources must be followed, including HTTP
+   caching rules.&lt;/p&gt;
+@@ -32825,13 +32842,11 @@
+   &lt;p&gt;For HTTP connections, the &lt;code title=&quot;&quot;&gt;Accept&lt;/code&gt; header may
+   be included; if included, it must only contain formats of event
+   framing that are supported by the user agent (one of which must be
+-  &lt;code&gt;application/x-dom-event-stream&lt;/code&gt;, as described
+-  below).&lt;/p&gt;
++  &lt;code&gt;text/event-stream&lt;/code&gt;, as described below).&lt;/p&gt;
+ 
+   &lt;p&gt;Other formats of event framing may also be supported in addition
+-  to &lt;code&gt;application/x-dom-event-stream&lt;/code&gt;, but this
+-  specification does not define how they are to be parsed or
+-  processed.&lt;/p&gt;
++  to &lt;code&gt;text/event-stream&lt;/code&gt;, but this specification does not
++  define how they are to be parsed or processed.&lt;/p&gt;
+ 
+   &lt;p class=&quot;note&quot;&gt;Such formats could include systems like SMS-push;
+   for example servers could use &lt;code title=&quot;&quot;&gt;Accept&lt;/code&gt; headers
+@@ -32842,16 +32857,21 @@
+   header in requests to bypass any caches for requests of event
+   sources.&lt;/p&gt;
+ 
++  &lt;p&gt;If the event source's last event ID string is not the empty
++  string, then a &lt;code title=&quot;&quot;&gt;Last-Event-ID&lt;/code&gt; HTTP header must
++  be included with the request, whose value is the value of the event
++  source's last event ID string.&lt;/p&gt;
++
+   &lt;p&gt;For connections to domains other than &lt;span&gt;the document's
+   domain&lt;/span&gt;, the semantics of the Access-Control HTTP header must
+-  be followed. &lt;a href=&quot;#refsACCESSCONTROL&quot;&gt;[ACCESSCONTROL]&lt;/a&gt;
++  be followed. &lt;a href=&quot;#refsACCESSCONTROL&quot;&gt;[ACCESSCONTROL]&lt;/a&gt; &lt;!--
++  XXX define this better once that spec is more stable --&gt;
+ 
+   &lt;p&gt;HTTP 200 OK responses with a &lt;span&gt;Content-Type&lt;/span&gt; header
+-  specifying the type &lt;code&gt;application/x-dom-event-stream&lt;/code&gt; that
+-  are either from &lt;span&gt;the document's domain&lt;/span&gt; or explicitly
+-  allowed by the Access-Control HTTP headers must be processed line by
+-  line &lt;a href=&quot;#event-stream-interpretation&quot;&gt;as described
+-  below&lt;/a&gt;.&lt;/p&gt;
++  specifying the type &lt;code&gt;text/event-stream&lt;/code&gt; that are either
++  from &lt;span&gt;the document's domain&lt;/span&gt; or explicitly allowed by the
++  Access-Control HTTP headers must be processed line by line &lt;a
++  href=&quot;#event-stream-interpretation&quot;&gt;as described below&lt;/a&gt;.&lt;/p&gt;
+ 
+   &lt;p&gt;For the purposes of such successfully opened event streams only,
+   user agents should ignore HTTP cache headers, and instead assume
+@@ -32860,14 +32880,13 @@
+   &lt;p&gt;If such a resource completes loading (i.e. the entire HTTP
+   response body is received or the connection itself closes), the user
+   agent should request the event source resource again after a delay
+-  of approximately five seconds.&lt;/p&gt;
++  equal to the reconnection time of the event source.&lt;/p&gt;
+ 
+   &lt;p&gt;HTTP 200 OK responses that have a &lt;span&gt;Content-Type&lt;/span&gt; other
+-  than &lt;code&gt;application/x-dom-event-stream&lt;/code&gt; (or some other
+-  supported type), and HTTP responses whose Access-Control headers
+-  indicate that the resource are not to be used, must be ignored and
+-  must prevent the user agent from refetching the resource for that
+-  event source.&lt;/p&gt;
++  than &lt;code&gt;text/event-stream&lt;/code&gt; (or some other supported type),
++  and HTTP responses whose Access-Control headers indicate that the
++  resource are not to be used, must be ignored and must prevent the
++  user agent from refetching the resource for that event source.&lt;/p&gt;
+ 
+   &lt;p&gt;HTTP 201 Created, 202 Accepted, 203 Non-Authoritative
+   Information, and 206 Partial Content responses must be treated like
+@@ -32879,7 +32898,8 @@
+   &lt;p&gt;HTTP 204 No Content, and 205 Reset Content responses must be
+   treated as if they were 200 OK responses with the right MIME type
+   but no content, and should therefore cause the user agent to refetch
+-  the resource after a short delay.&lt;/p&gt;
++  the resource after a delay equal to the reconnection time of the
++  event source.&lt;/p&gt;
+ 
+   &lt;p&gt;HTTP 300 Multiple Choices responses should be handled
+   automatically if possible (treating the responses as if they were
+@@ -32901,8 +32921,8 @@
+ 
+   &lt;p&gt;HTTP 304 Not Modified responses should be handled like HTTP 200
+   OK responses, with the content coming from the user agent cache. A
+-  new request should then be made after a short delay of approximately
+-  five seconds.&lt;/p&gt;
++  new request should then be made after a delay equal to the
++  reconnection time of the event source.&lt;/p&gt;
+ 
+   &lt;p&gt;HTTP 305 Use Proxy, HTTP 401 Unauthorized, and 407 Proxy
+   Authentication Required should be treated transparently as for any
+@@ -32928,16 +32948,14 @@
+   &lt;h4&gt;Parsing an event stream&lt;/h4&gt;
+ 
+   &lt;p&gt;This event stream format's MIME type is
+-  &lt;code&gt;application/x-dom-event-stream&lt;/code&gt;.&lt;/p&gt;
++  &lt;code&gt;text/event-stream&lt;/code&gt;.&lt;/p&gt;
+ 
+   &lt;p&gt;The event stream format is (in pseudo-BNF):&lt;/p&gt;
+ 
+   &lt;pre&gt;&lt;stream&gt;          ::= &lt;bom&gt;? &lt;event&gt;*
+-&lt;event&gt;           ::= [ &lt;comment&gt; | &lt;command&gt; | &lt;field&gt; ]* &lt;newline&gt;
+-&lt;comment&gt;         ::= ';' &lt;any-char&gt;* &lt;newline&gt;
+-&lt;command&gt;         ::= ':' &lt;any-char&gt;* &lt;newline&gt;
+-&lt;field&gt;           ::= &lt;name&gt; [ ':' &lt;space&gt;? &lt;any-char&gt;* ]? &lt;newline&gt;
+-&lt;name&gt;            ::= &lt;name-start-char&gt; &lt;name-char&gt;*
++&lt;event&gt;           ::= [ &lt;comment&gt; | &lt;field&gt; ]* &lt;newline&gt;
++&lt;comment&gt;         ::= &lt;colon&gt; &lt;any-char&gt;* &lt;newline&gt;
++&lt;field&gt;           ::= &lt;name-char&gt;+ [ &lt;colon&gt; &lt;space&gt;? &lt;any-char&gt;* ]? &lt;newline&gt;
+ 
+ # characters:
+ &lt;bom&gt;             ::= a single U+FEFF BYTE ORDER MARK character
+@@ -32947,21 +32965,24 @@
+                       | a single U+000D CARRIAGE RETURN character
+                       | a single U+000A LINE FEED character
+                       | the end of the file
+-&lt;name-start-char&gt; ::= a single Unicode character other than
+-                      ':', ';', U+000D CARRIAGE RETURN and U+000A LINE FEED
++&lt;colon&gt;           ::= a single U+003A COLON character (':')
+ &lt;name-char&gt;       ::= a single Unicode character other than
+-                      ':', U+000D CARRIAGE RETURN and U+000A LINE FEED
++                      U+003A COLON, U+000D CARRIAGE RETURN and U+000A LINE FEED
+ &lt;any-char&gt;        ::= a single Unicode character other than
+                       U+000D CARRIAGE RETURN and U+000A LINE FEED
+ &lt;/pre&gt;
+ 
+   &lt;p&gt;Event streams in this format must always be encoded as
+-  UTF-8. Lines must be separated by either a U+000D CARRIAGE RETURN
+-  U+000A LINE FEED (CRLF) character pair, a single U+000A LINE FEED
+-  (LF) character, or a single U+000D CARRIAGE RETURN (CR)
+-  character. User agents must treat those three variants as equivalent
+-  line terminators.&lt;/p&gt;
++  UTF-8.&lt;/p&gt;
+ 
++  &lt;p&gt;Lines must be separated by either a U+000D CARRIAGE RETURN U+000A
++  LINE FEED (CRLF) character pair, a single U+000A LINE FEED (LF)
++  character, or a single U+000D CARRIAGE RETURN (CR) character.&lt;/p&gt;
++
++
++
++  &lt;h4 id=&quot;event-stream-interpretation&quot;&gt;Interpreting an event stream&lt;/h4&gt;
++
+   &lt;p&gt;Bytes or sequences of bytes that are not valid UTF-8 sequences
+   must be interpreted as the U+FFFD REPLACEMENT CHARACTER.&lt;/p&gt;
+ 
+@@ -32969,297 +32990,157 @@
+   any are present.&lt;/p&gt;
+ 
+   &lt;p&gt;The stream must then be parsed by reading everything line by
+-  line, in blocks separated by blank lines. Comment lines (those
+-  starting with the character ';') and command lines (those starting
+-  with the character ':') must be ignored.&lt;/p&gt;
++  line, with a U+000D CARRIAGE RETURN U+000A LINE FEED (CRLF)
++  character pair, a single U+000A LINE FEED (LF) character, a single
++  U+000D CARRIAGE RETURN (CR) character, and the end of the file being
++  the four ways in which a line can end.&lt;/p&gt;
+ 
+-  &lt;p&gt;Command lines are reserved for future extensions.&lt;/p&gt;
++  &lt;p&gt;When a stream is parsed, a &lt;var title=&quot;&quot;&gt;data&lt;/var&gt; buffer and an
++  &lt;var title=&quot;&quot;&gt;event name&lt;/var&gt; buffer must be associated with
++  it. They must be initialized to the empty string&lt;/p&gt;
+ 
+-  &lt;!--XXX Lachlan says:
+-    For the next version of server sent events, it might be useful if
+-    authors could specify the retry interval for connections.
++  &lt;p&gt;Lines must be processed, in the order they are received, as
++  follows:&lt;/p&gt;
+ 
+-    e.g. In cases where it is known that content is only updated at
+-    specified intervals (e.g. once per minute), having the browser retry
+-    the connection every 5 seconds and fire the event with the same
+-    content may be excessive.
++  &lt;dl class=&quot;switch&quot;&gt;
+ 
+-    This could possibly be done using the :command syntax.
++   &lt;dt&gt;If the line is empty (a blank line)&lt;/dt&gt;
+ 
+-    e.g.
+-      Event: click
+-      :retry 60000
++   &lt;dd&gt;&lt;p&gt;&lt;a href=&quot;#dispatchMessage&quot;&gt;Dispatch the event&lt;/a&gt;, as
++   defined below.&lt;/p&gt;&lt;/dd&gt;
+ 
+-    The browser would then retry the connection in 60,000 milliseconds (1
+-    minute).
+-  --&gt;
+ 
+-  &lt;p&gt;For each non-blank, non-comment, non-command line, the field name
+-  must first be taken. This is everything on the line up to but not
+-  including the first colon (':') or the line terminator, whichever
+-  comes first. Then, if there was a colon, the data for that line must
+-  be taken. This is everything after the colon, ignoring a single
+-  space after the colon if there is one, up to the end of the line. If
+-  there was no colon the data is the empty string.&lt;/p&gt;
++   &lt;dt&gt;If the line starts with a U+003A COLON character (':')&lt;/dt&gt;
+ 
+-  &lt;div class=&quot;example&quot;&gt;
+-   &lt;p&gt;Examples:&lt;/p&gt;
+-   &lt;pre&gt;Field name:&nbsp;Field data&lt;/pre&gt;
+-   &lt;pre&gt;This is a blank field&lt;/pre&gt;
+-   &lt;pre&gt;1. These two lines:&nbsp;have the same data
+-2. These two lines:have the same data&lt;/pre&gt;
+-   &lt;pre&gt;1. But these two lines:&nbsp; do not
+-2. But these two lines:&nbsp;do not&lt;/pre&gt;
+-  &lt;/div&gt;
++   &lt;dd&gt;&lt;p&gt;Ignore the line.&lt;/p&gt;&lt;/dd&gt;
+ 
+-  &lt;p&gt;If a field name occurs multiple times in a block, the value for
+-  that field in that black must consist of the data parts for each of
+-  those lines, concatenated with U+000A LINE FEED characters between
+-  them (regardless of what the line terminators used in the stream
+-  actually are).&lt;/p&gt;
+ 
+-  &lt;div class=&quot;example&quot;&gt;
+-   &lt;p&gt;For example, the following block:&lt;/p&gt;
+-   &lt;pre&gt;Test:&nbsp;Line 1
+-Foo:&nbsp;&nbsp;Bar
+-Test:&nbsp;Line 2&lt;/pre&gt;
+-   &lt;p&gt;...is treated as having two fields, one called &lt;code&gt;Test&lt;/code&gt;
+-   with the value &quot;&lt;code&gt;Line 1\nLine 2&lt;/code&gt;&quot; (where &lt;code&gt;\n&lt;/code&gt;
+-   represents a newline), and one called &lt;code&gt;Foo&lt;/code&gt; with the
+-   value &quot;&lt;code&gt;&nbsp;Bar&lt;/code&gt;&quot; (note the leading space
+-   character).&lt;/p&gt;
+-  &lt;/div&gt;
++   &lt;dt&gt;If the line contains a U+003A COLON character (':') character&lt;/dt&gt;
+ 
+-  &lt;p&gt;A block thus consists of all the name-value pairs for its
+-  fields. Command lines have no effect on blocks and are not
+-  considered part of a block.&lt;/p&gt;
++   &lt;dd&gt;
+ 
+-  &lt;p class=&quot;note&quot;&gt;Since any random stream of characters matches the above
+-  format, there is no need to define any error handling.&lt;/p&gt;
++    &lt;p&gt;Collect the characters on the line before the first U+003A
++    COLON character (':'), and let &lt;var title=&quot;&quot;&gt;field&lt;/var&gt; be that
++    string.&lt;/p&gt;
+ 
++    &lt;p&gt;Collect the characters on the line after the first U+003A COLON
++    character (':'), and let &lt;var title=&quot;&quot;&gt;value&lt;/var&gt; be that
++    string. If &lt;var title=&quot;&quot;&gt;value&lt;/var&gt; starts with a single U+0020
++    SPACE character, remove it from &lt;var title=&quot;&quot;&gt;value&lt;/var&gt;.&lt;/p&gt;
+ 
+-  &lt;h4 id=&quot;event-stream-interpretation&quot;&gt;Interpreting an event stream&lt;/h4&gt;
++    &lt;p&gt;&lt;a href=&quot;#processField&quot;&gt;Process the field&lt;/a&gt; using the steps
++    described below, using &lt;var title=&quot;&quot;&gt;field&lt;/var&gt; as the field name
++    and &lt;var title=&quot;&quot;&gt;value&lt;/var&gt; as the field value.&lt;/p&gt;
+ 
+-  &lt;p&gt;Once the fields have been parsed, they are interpreted as follows
+-  (these are case-sensitive exact comparisons):&lt;/p&gt;
++   &lt;/dd&gt;
+ 
+-  &lt;dl&gt;
+ 
+-   &lt;dt&gt;&lt;code title=&quot;&quot;&gt;Event&lt;/code&gt; field&lt;/dt&gt;
++   &lt;dt&gt;Otherwise, the string is not empty but does not contain a U+003A COLON character (':') character&lt;/dt&gt;
+ 
+-   &lt;dd&gt;&lt;p&gt;This field gives the name of the event. For example, &lt;code
+-   title=&quot;&quot;&gt;load&lt;/code&gt;, &lt;code title=&quot;&quot;&gt;DOMActivate&lt;/code&gt;, &lt;code
+-   title=&quot;&quot;&gt;updateTicker&lt;/code&gt;. If there is no field with this name,
+-   the name &lt;code title=&quot;event-message&quot;&gt;message&lt;/code&gt; must be
+-   used.&lt;/p&gt;&lt;/dd&gt;
+-
+-
+-   &lt;dt&gt;&lt;code title=&quot;&quot;&gt;Namespace&lt;/code&gt; field&lt;/dt&gt;
+-
+-   &lt;dd&gt;&lt;p&gt;This field gives the DOM3 namespace for the event. (For
+-   normal DOM events this would be null.) If it isn't specified the
+-   event namespace is null.&lt;/p&gt;&lt;/dd&gt;
+-
+-
+-   &lt;dt&gt;&lt;code title=&quot;&quot;&gt;Class&lt;/code&gt; field&lt;/dt&gt;
+-
+    &lt;dd&gt;
+ 
+-    &lt;p&gt;This field gives is the interface used for the event, for
+-    instance &lt;code&gt;Event&lt;/code&gt;, &lt;code&gt;UIEvent&lt;/code&gt;,
+-    &lt;code&gt;MutationEvent&lt;/code&gt;, &lt;code&gt;KeyboardEvent&lt;/code&gt;, etc. For
+-    compatibility with DOM3 Events, the values &lt;code
+-    title=&quot;&quot;&gt;UIEvents&lt;/code&gt;, &lt;code title=&quot;&quot;&gt;MouseEvents&lt;/code&gt;, &lt;code
+-    title=&quot;&quot;&gt;MutationEvents&lt;/code&gt;, and &lt;code
+-    title=&quot;&quot;&gt;HTMLEvents&lt;/code&gt; are valid values and must be treated
+-    respectively as meaning the interfaces &lt;code&gt;UIEvent&lt;/code&gt;,
+-    &lt;code&gt;MouseEvent&lt;/code&gt;, &lt;code&gt;MutationEvent&lt;/code&gt;, and
+-    &lt;code&gt;Event&lt;/code&gt;. (This value can therefore be used as the
+-    argument to &lt;code title=&quot;&quot;&gt;createEvent()&lt;/code&gt;.)&lt;/p&gt;
++    &lt;p&gt;&lt;a href=&quot;#processField&quot;&gt;Process the field&lt;/a&gt; using the steps
++    described below, using the the whole line as the field name, and
++    the empty string as the field value.&lt;/p&gt;
+ 
+-    &lt;p&gt;If the value is not specified but the &lt;code
+-    title=&quot;&quot;&gt;Namespace&lt;/code&gt; is null and the &lt;code
+-    title=&quot;&quot;&gt;Event&lt;/code&gt; field exactly matches one of the events
+-    specified by DOM3 Events in &lt;a
+-    href=&quot;<A HREF="http://www.w3.org/TR/DOM-Level-3-Events/events.html#Events-EventTypes-complete">http://www.w3.org/TR/DOM-Level-3-Events/events.html#Events-EventTypes-complete</A>&quot;&gt;section
+-    1.4.2 &quot;Complete list of event types&quot;&lt;/a&gt;, then the interface used
+-    must default to the interface relevant for that event type. &lt;a
+-    href=&quot;#refsDOM3EVENTS&quot;&gt;[DOM3EVENTS]&lt;/a&gt;&lt;/p&gt;
+-
+-    &lt;div class=&quot;example&quot;&gt;
+-     &lt;p&gt;For example:&lt;/p&gt;
+-     &lt;pre&gt;Event: click&lt;/pre&gt;
+-     &lt;p&gt;...would cause &lt;code title=&quot;&quot;&gt;Class&lt;/code&gt; to be treated as &lt;code&gt;MouseEvent&lt;/code&gt;.&lt;/p&gt;
+-    &lt;/div&gt;
+-
+-    &lt;p&gt;If the &lt;code title=&quot;&quot;&gt;Namespace&lt;/code&gt; is null and the &lt;code
+-    title=&quot;&quot;&gt;Event&lt;/code&gt; field is &lt;code
+-    title=&quot;event-message&quot;&gt;message&lt;/code&gt; (including if it was not
+-    specified explicitly), then the &lt;code&gt;MessageEvent&lt;/code&gt;
+-    interface must be used.&lt;/p&gt;
+-
+-    &lt;p&gt;Otherwise, the &lt;code&gt;Event&lt;/code&gt; interface must be used.&lt;/p&gt;
+-
+-    &lt;p&gt;It is quite possible to give the wrong class for an event. This
+-    is equivalent to creating an event in the DOM using the DOM Event
+-    APIs, but using the wrong interface for it.&lt;/p&gt;
+-
+    &lt;/dd&gt;
+ 
++  &lt;/dl&gt;
+ 
+-   &lt;dt&gt;&lt;code title=&quot;&quot;&gt;Bubbles&lt;/code&gt; field&lt;/dt&gt;
++  &lt;p&gt;Once the end of the file is reached, the user agent must &lt;a
++  href=&quot;#dispatchMessage&quot;&gt;dispatch the event&lt;/a&gt; one final time, as
++  defined below.&lt;/p&gt;&lt;/dd&gt;
+ 
+-   &lt;dd&gt;
+ 
+-    &lt;p&gt;This field specifies whether the event is to bubble. If it is
+-    specified and has the value &lt;code title=&quot;&quot;&gt;No&lt;/code&gt;, the event
+-    must not bubble. If it is specified and has any other value
+-    (including &lt;code title=&quot;&quot;&gt;no&lt;/code&gt; or &lt;code title=&quot;&quot;&gt;NO&lt;/code&gt;)
+-    then the event must bubble.&lt;/p&gt;
++  &lt;p id=&quot;processField&quot;&gt;The steps to &lt;dfn title=&quot;&quot;&gt;process the
++  field&lt;/dfn&gt; given a field name and a field value depend on the field
++  name, as given in the following list. Field names must be compared
++  literally, with no case folding performed.&lt;/p&gt;
+ 
+-    &lt;p&gt;If it is not specified but the &lt;code title=&quot;&quot;&gt;Namespace&lt;/code&gt;
+-    field is null and the &lt;code title=&quot;&quot;&gt;Event&lt;/code&gt; field exactly
+-    matches one of the events specified by DOM3 Events in &lt;a
+-    href=&quot;<A HREF="http://www.w3.org/TR/DOM-Level-3-Events/events.html#Events-EventTypes-complete">http://www.w3.org/TR/DOM-Level-3-Events/events.html#Events-EventTypes-complete</A>&quot;&gt;section
+-    1.4.2 &quot;Complete list of event types&quot;&lt;/a&gt;, then the event must
+-    bubble if the DOM3 Events spec specifies that that event bubbles,
+-    and musn't bubble if it specifies it does not.  &lt;a
+-    href=&quot;#refsDOM3EVENTS&quot;&gt;[DOM3EVENTS]&lt;/a&gt;&lt;/p&gt;
++  &lt;dl class=&quot;switch&quot;&gt;
+ 
+-    &lt;div class=&quot;example&quot;&gt;
+-     &lt;p&gt;For example:&lt;/p&gt;
+-     &lt;pre&gt;Event: load&lt;/pre&gt;
+-     &lt;p&gt;...would cause &lt;code title=&quot;&quot;&gt;Bubbles&lt;/code&gt; to be treated as &lt;code title=&quot;&quot;&gt;No&lt;/code&gt;.&lt;/p&gt;
+-    &lt;/div&gt;
++   &lt;dt&gt;If the field name is &quot;event&quot;&lt;/dt&gt;
+ 
+-    &lt;p&gt;Otherwise, the event must bubble.&lt;/p&gt;
++   &lt;dd&gt;&lt;p&gt;Set the &lt;var title=&quot;&quot;&gt;event name&lt;/var&gt; buffer the field
++   value. &lt;a href=&quot;#refsXMLNS&quot;&gt;[XMLNS]&lt;/a&gt;&lt;/p&gt;&lt;/dd&gt;
+ 
+-   &lt;/dd&gt;
+ 
+-   &lt;dt&gt;&lt;code title=&quot;&quot;&gt;Cancelable&lt;/code&gt; field&lt;/dt&gt;
++   &lt;dt&gt;If the field name is &quot;data&quot;&lt;/dt&gt;
+ 
+-   &lt;dd&gt;
++   &lt;dd&gt;&lt;p&gt;If the &lt;var title=&quot;&quot;&gt;data&lt;/var&gt; buffer is not the empty
++   string, then append a single U+000A LINE FEED character to the &lt;var
++   title=&quot;&quot;&gt;data&lt;/var&gt; buffer. Append the field value to the &lt;var
++   title=&quot;&quot;&gt;data&lt;/var&gt; buffer.&lt;/p&gt;&lt;/dd&gt;
+ 
+-    &lt;p&gt;This field specifies whether the event can have its default
+-    action prevented. If it is specified and has the value &lt;code
+-    title=&quot;&quot;&gt;No&lt;/code&gt;, the event must not be cancelable. If it is
+-    specified and has any other value (including &lt;code
+-    title=&quot;&quot;&gt;no&lt;/code&gt; or &lt;code title=&quot;&quot;&gt;NO&lt;/code&gt;) then the event
+-    must be cancelable.&lt;/p&gt;
+ 
+-    &lt;p&gt;If it is not specified, but the &lt;code title=&quot;&quot;&gt;Namespace&lt;/code&gt;
+-    field is null and the &lt;code title=&quot;&quot;&gt;Event&lt;/code&gt; field exactly
+-    matches one of the events specified by DOM3 Events in &lt;a
+-    href=&quot;<A HREF="http://www.w3.org/TR/DOM-Level-3-Events/events.html#Events-EventTypes-complete">http://www.w3.org/TR/DOM-Level-3-Events/events.html#Events-EventTypes-complete</A>&quot;&gt;section
+-    1.4.2 &quot;Complete list of event types&quot;&lt;/a&gt;, then the event must be
+-    cancelable if the DOM3 Events specification specifies that it is,
+-    and must not be cancelable otherwise. &lt;a
+-    href=&quot;#refsDOM3EVENTS&quot;&gt;[DOM3EVENTS]&lt;/a&gt;&lt;/p&gt;
++   &lt;dt&gt;If the field name is &quot;id&quot;&lt;/dt&gt;
+ 
+-    &lt;div class=&quot;example&quot;&gt;
+-     &lt;p&gt;For example:&lt;/p&gt;
+-     &lt;pre&gt;Event: load&lt;/pre&gt;
+-     &lt;p&gt;...would cause &lt;code title=&quot;&quot;&gt;Cancelable&lt;/code&gt; to be treated as &lt;code title=&quot;&quot;&gt;No&lt;/code&gt;.&lt;/p&gt;
+-    &lt;/div&gt;
++   &lt;dd&gt;&lt;p&gt;Set the event stream's &lt;span
++   title=&quot;concept-event-stream-last-event-id&quot;&gt;last event ID&lt;/span&gt; to
++   the field value.&lt;/p&gt;&lt;/dd&gt;
+ 
+-    &lt;p&gt;Otherwise, the event must be cancelable.&lt;/p&gt;
+ 
+-   &lt;/dd&gt;
++   &lt;dt&gt;If the field name is &quot;retry&quot;&lt;/dt&gt;
+ 
++   &lt;dd&gt;&lt;p&gt;If the field value consists of only characters in the range
++   U+0030 DIGIT ZERO ('0') U+0039 DIGIT NINE ('9'), then interpret the
++   field value as an integer in base ten, and set the event stream's
++   &lt;span title=&quot;concept-event-stream-reconnection-time&quot;&gt;reconnection
++   time&lt;/span&gt; to that integer. Otherwise, ignore the field.&lt;/p&gt;&lt;/dd&gt;
+ 
+-   &lt;dt&gt;&lt;code title=&quot;&quot;&gt;Target&lt;/code&gt; field&lt;/dt&gt;
+ 
+-   &lt;dd&gt;
++   &lt;dt&gt;Otherwise&lt;/dt&gt;
+ 
+-    &lt;p&gt;This field gives the node that the event is to be dispatched
+-    on.&lt;/p&gt;
++   &lt;dd&gt;&lt;p&gt;The field is ignored.&lt;/p&gt;&lt;/dd&gt;
+ 
+-    &lt;p&gt;If the object for which the event source is being processed is
+-    not a Node, but the &lt;code title=&quot;&quot;&gt;Target&lt;/code&gt; field is
+-    nonetheless specified, then the event must be dropped.&lt;/p&gt;
++  &lt;/dl&gt;
+ 
+-    &lt;p&gt;Otherwise, if field is specified and its value starts with a
+-    &lt;code title=&quot;&quot;&gt;#&lt;/code&gt; character, then the remainder of the value
+-    represents an ID, and the event must be dispatched on the same
+-    node as would be obtained by the &lt;code
+-    title=&quot;&quot;&gt;getElementById()&lt;/code&gt; method on the &lt;code
+-    title=&quot;&quot;&gt;ownerDocument&lt;/code&gt; of the node whose event source is
+-    being processed.&lt;/p&gt;
+ 
+-    &lt;div class=&quot;example&quot;&gt;
+-     &lt;p&gt;For example,&lt;/p&gt;
+-     &lt;pre&gt;Target: #test&lt;/pre&gt;
+-     &lt;p&gt;...would target the element with ID &lt;code title=&quot;&quot;&gt;test&lt;/code&gt;.&lt;/p&gt;
+-    &lt;/div&gt;
++  &lt;p id=&quot;dispatchEvent&quot;&gt;When the user agent is required to &lt;dfn
++  title=&quot;&quot;&gt;dispatch the event&lt;/dfn&gt;, then the user agent must act as follows:
+ 
+-    &lt;p&gt;Otherwise, if the field is specified and its value is the
+-    literal string &quot;&lt;code title=&quot;&quot;&gt;Document&lt;/code&gt;&quot;, then the event
+-    must be dispatched at the &lt;code title=&quot;&quot;&gt;ownerDocument&lt;/code&gt; of
+-    the node whose event source is being processed.&lt;/p&gt;
++  &lt;ol&gt;
+ 
+-    &lt;p&gt;Otherwise, the field (whether specified or not) is ignored and
+-    the event must be dispatched at the object itself.&lt;/p&gt;
++   &lt;li&gt;&lt;p&gt;If the &lt;var title=&quot;&quot;&gt;data&lt;/var&gt; buffer is an empty string,
++   set the &lt;var title=&quot;&quot;&gt;data&lt;/var&gt; buffer and the &lt;var title=&quot;&quot;&gt;event
++   name&lt;/var&gt; buffer to the empty string and abort these
++   steps.&lt;/p&gt;&lt;/li&gt;
+ 
+-   &lt;/dd&gt;
++   &lt;li&gt;&lt;p&gt;If the &lt;var title=&quot;&quot;&gt;event name&lt;/var&gt; buffer is not the
++   empty string but is also not a valid &lt;a
++   href=&quot;<A HREF="http://www.w3.org/TR/REC-xml-names/#NT-NCName">http://www.w3.org/TR/REC-xml-names/#NT-NCName</A>&quot;&gt;NCName&lt;/a&gt;,
++   set the &lt;var title=&quot;&quot;&gt;data&lt;/var&gt; buffer and the &lt;var title=&quot;&quot;&gt;event
++   name&lt;/var&gt; buffer to the empty string and abort these
++   steps.&lt;/p&gt;&lt;/li&gt;
++   
++   &lt;li&gt;&lt;p&gt;Otherwise, create an event that uses the
++   &lt;code&gt;MessageEvent&lt;/code&gt; interface, with the event name &lt;code
++   title=&quot;event-message&quot;&gt;message&lt;/code&gt;, which does not bubble, is
++   cancelable, and has no default action. The &lt;code
++   title=&quot;dom-MessageEvent-data&quot;&gt;data&lt;/code&gt; attribute must be set to
++   the value of the &lt;var title=&quot;&quot;&gt;data&lt;/var&gt; buffer, the &lt;code
++   title=&quot;dom-MessageEvent-origin&quot;&gt;origin&lt;/code&gt; attribute must be set
++   to the &lt;span&gt;origin&lt;/span&gt; of the event stream, and the &lt;code
++   title=&quot;dom-MessageEvent-source&quot;&gt;source&lt;/code&gt; attribute must be set
++   to null.&lt;/p&gt;&lt;/li&gt;
++   
++   &lt;li&gt;&lt;p&gt;If the &lt;var title=&quot;&quot;&gt;event name&lt;/var&gt; buffer has a value
++   other than the empty string, change the type of the newly created
++   event to equal the value of the &lt;var title=&quot;&quot;&gt;event name&lt;/var&gt;
++   buffer.&lt;/p&gt;&lt;/li&gt;
+ 
+-  &lt;/dl&gt;
++   &lt;li&gt;&lt;p&gt;Set the &lt;var title=&quot;&quot;&gt;data&lt;/var&gt; buffer and the &lt;var
++   title=&quot;&quot;&gt;event name&lt;/var&gt; buffer to the empty string.&lt;/p&gt;&lt;/li&gt;
+ 
+-  &lt;p&gt;Other fields depend on the interface specified (or possibly
+-  implied) by the &lt;code title=&quot;&quot;&gt;Class&lt;/code&gt; field. If the specified
+-  interface has an attribute that exactly matches the name of the
+-  field, and the value of the field can be converted (using the type
+-  conversions defined in ECMAScript) to the type of the attribute,
+-  then it must be used. Any attributes (other than the
+-  &lt;code&gt;Event&lt;/code&gt; interface attributes) that do not have matching
+-  fields are initialised to zero, null, false, or the empty
+-  string.&lt;/p&gt;
++   &lt;li&gt;&lt;p&gt;Dispatch the newly created event at the
++   &lt;code&gt;RemoteEventTarget&lt;/code&gt; object to which the event stream is
++   registered.&lt;/p&gt;&lt;/li&gt;
+ 
+-  &lt;div class=&quot;example&quot;&gt;
+-   &lt;p&gt;For example:&lt;/p&gt;
+-   &lt;pre&gt;Event: click
+-Class: MouseEvent
+-button: 2&lt;/pre&gt;
+-   &lt;p&gt;...would result in a 'click' event using the
+-   &lt;code&gt;MouseEvent&lt;/code&gt; interface that has &lt;code&gt;button&lt;/code&gt; set
+-   to &lt;code title=&quot;&quot;&gt;2&lt;/code&gt; but &lt;code&gt;screenX&lt;/code&gt;,
+-   &lt;code&gt;screenY&lt;/code&gt;, etc, set to 0, false, or null as
+-   appropriate.&lt;/p&gt;
+-  &lt;/div&gt;
++  &lt;/ol&gt;
+ 
+-  &lt;p&gt;If a field does not match any of the attributes on the event, it
+-  must be ignored.&lt;/p&gt;
+ 
+   &lt;div class=&quot;example&quot;&gt;
+-   &lt;p&gt;For example:&lt;/p&gt;
+-   &lt;pre&gt;Event: keypress
+-Class: MouseEvent
+-keyIdentifier: 0&lt;/pre&gt;
+-   &lt;p&gt;...would result in a &lt;code&gt;MouseEvent&lt;/code&gt; event with its
+-   fields all at their default values, with the event name being &lt;code
+-   title=&quot;&quot;&gt;keypress&lt;/code&gt;. The &lt;code title=&quot;&quot;&gt;keyIdentifier&lt;/code&gt;
+-   field would be ignored. (If the author had not included the &lt;code
+-   title=&quot;&quot;&gt;Class&lt;/code&gt; field explicitly, it would have just worked,
+-   since the class would have defaulted as described above.)&lt;/p&gt;
+-  &lt;/div&gt;
+ 
+-  &lt;p&gt;Once a blank line or the end of the file is reached, an event of
+-  the type and namespace given by the &lt;code title=&quot;&quot;&gt;Event&lt;/code&gt; and
+-  &lt;code&gt;Namespace&lt;/code&gt; fields respectively must be synthesized and
+-  dispatched to the appropriate node as described by the fields
+-  above. No event must be dispatched until a blank line has been
+-  received or the end of the file reached.&lt;/p&gt;
+-
+-  &lt;p&gt;The event must be dispatched as if using the DOM &lt;code
+-  title=&quot;&quot;&gt;dispatchEvent()&lt;/code&gt; method. Thus, if the &lt;code
+-  title=&quot;&quot;&gt;Event&lt;/code&gt; field was omitted, leaving the name as the
+-  empty string, or if the name had invalid characters, then the
+-  dispatching of the event fails.&lt;/p&gt;
+-
+-  &lt;p&gt;Events fired from event sources do not have user-agent default
+-  actions.&lt;/p&gt;
+-
+-  &lt;div class=&quot;example&quot;&gt;
+-
+    &lt;p&gt;The following event stream, once followed by a blank line:&lt;/p&gt;
+    &lt;pre&gt;data: YHOO
+ data: -2
+@@ -33268,10 +33149,10 @@
+    &lt;p&gt;...would cause an event &lt;code
+    title=&quot;event-message&quot;&gt;message&lt;/code&gt; with the interface
+    &lt;code&gt;MessageEvent&lt;/code&gt; to be dispatched on the
+-   &lt;code&gt;event-source&lt;/code&gt; element, which would then bubble up the
+-   DOM, and whose &lt;code title=&quot;dom-MessageEvent-data&quot;&gt;data&lt;/code&gt;
+-   attribute would contain the string &lt;code&gt;YHOO\n-2\n10&lt;/code&gt; (where
+-   &lt;code&gt;\n&lt;/code&gt; again represents a newline).&lt;/p&gt;
++   &lt;code&gt;event-source&lt;/code&gt; element, whose &lt;code
++   title=&quot;dom-MessageEvent-data&quot;&gt;data&lt;/code&gt; attribute would contain
++   the string &lt;code&gt;YHOO\n-2\n10&lt;/code&gt; (where &lt;code&gt;\n&lt;/code&gt;
++   represents a newline).&lt;/p&gt;
+ 
+    &lt;p&gt;This could be used as follows:
+    &lt;pre&gt;&lt;event-source src=&quot;<A HREF="http://stocks.example.com/ticker.php">http://stocks.example.com/ticker.php</A>&quot;
+@@ -33284,38 +33165,69 @@
+ 
+   &lt;div class=&quot;example&quot;&gt;
+ 
+-   &lt;p&gt;The following stream contains four blocks and therefore fires
+-   four events. The first block has just a comment, and will fire a
+-   &lt;code title=&quot;event-message&quot;&gt;message&lt;/code&gt; event with all the
+-   fields set to the empty string or null. The second block has two
+-   fields with names &quot;load&quot; and &quot;Target&quot; respectively; since there is
+-   no &quot;&lt;code title=&quot;&quot;&gt;load&lt;/code&gt;&quot; member on the
+-   &lt;code&gt;MessageEvent&lt;/code&gt; object that field is ignored, leaving the
+-   event as a second &lt;code title=&quot;event-message&quot;&gt;message&lt;/code&gt; event
+-   with all the fields set to the empty string or null, but this time
+-   the event is targetted at an element with ID &quot;image1&quot;. The third
+-   block is empty (no lines between two blank lines), and the fourth
+-   block has only two comments, so they both yet again fire &lt;code
+-   title=&quot;event-message&quot;&gt;message&lt;/code&gt; events with all the fields set
+-   to the empty string or null.&lt;/p&gt;
++   &lt;p&gt;The following stream contains four blocks. The first block has
++   just a comment, and will fire nothing. The second block has two
++   fields with names &quot;data&quot; and &quot;id&quot; respectively; an event will be
++   fired for this block, with the data &quot;first event&quot;, and will then
++   set the last event ID to &quot;1&quot; so that if the connection died between
++   this block and the next, the server would be sent a &lt;code
++   title=&quot;&quot;&gt;Last-Event-ID&lt;/code&gt; header with the value &quot;1&quot;. The third
++   block fires an event with data &quot;second event&quot;, and also has an &quot;id&quot;
++   field, this time with no value, which resets the last event ID to
++   the empty string (meaning no code title=&quot;&quot;&gt;Last-Event-ID&lt;/code&gt;
++   header will now be sent in the event of a reconnection being
++   attempted). Finally the last block just fires an event with the
++   data &quot;third event&quot;. Note that the last block doesn't have to end
++   with a blank line, the end of the stream is enough to trigger the
++   dispatch of the last event.&lt;/p&gt;
+ 
+-   &lt;pre&gt;; test
++   &lt;pre&gt;: test stream
+ 
+-load
+-Target: #image1
++data: first event
++id: 1
+ 
++data: second event
++id
+ 
+-; if any more events follow this block, they will not be affected by
+-; the &quot;Target&quot; and &quot;load&quot; fields above.
+-&lt;/pre&gt;
++data: third event&lt;/pre&gt;
+   &lt;/div&gt;
+ 
++  &lt;div class=&quot;example&quot;&gt;
+ 
++   &lt;p&gt;The following stream fires just one event:&lt;/p&gt;
++
++   &lt;pre&gt;data
++
++data
++data
++
++data:&lt;/pre&gt;
++
++   &lt;p&gt;The first and last blocks do nothing, since they do not contain
++   any actual data (the &lt;var title=&quot;&quot;&gt;data&lt;/var&gt; buffer remains at the
++   empty string, and so nothing gets dispatched). The middle block
++   fires an event with the data set to a single newline character.&lt;/p&gt;
++  &lt;/div&gt;
++
++  &lt;div class=&quot;example&quot;&gt;
++
++   &lt;p&gt;The following stream fires two identical events:&lt;/p&gt;
++
++   &lt;pre&gt;data:test
++
++data:&nbsp;test&lt;/pre&gt;
++
++   &lt;p&gt;This is because the space after the colon is ignored if
++   present.&lt;/p&gt;
++
++  &lt;/div&gt;
++
++
+   &lt;h4&gt;Notes&lt;/h4&gt;
+ 
+   &lt;p&gt;Legacy proxy servers are known to, in certain cases, drop HTTP
+   connections after a short timeout. To protect against such proxy
+-  servers, authors can include a comment line (one starting with a ';'
++  servers, authors can include a comment line (one starting with a ':'
+   character) every 15 seconds or so.&lt;/p&gt;
+ 
+   &lt;p&gt;Authors wishing to relate event source connections to each other
+@@ -34288,7 +34200,7 @@
+ 
+     &lt;p&gt;Create an event that uses the &lt;code&gt;MessageEvent&lt;/code&gt;
+     interface, with the event name &lt;code
+-    title=&quot;event-message&quot;&gt;message&lt;/code&gt;, which bubbles, is
++    title=&quot;event-message&quot;&gt;message&lt;/code&gt;, which does not bubble, is
+     cancelable, and has no default action. The &lt;code
+     title=&quot;dom-MessageEvent-data&quot;&gt;data&lt;/code&gt; attribute must be set to
+     the value passed as the &lt;var title=&quot;&quot;&gt;message&lt;/var&gt; argument to
+
+
+</PRE>
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="008144.html">[html5] r1236 - /
+</A></li>
+	<LI>Next message: <A HREF="008146.html">[html5] r1238 - /
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#8145">[ date ]</a>
+              <a href="thread.html#8145">[ thread ]</a>
+              <a href="subject.html#8145">[ subject ]</a>
+              <a href="author.html#8145">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/commit-watchers-whatwg.org">More information about the Commit-Watchers
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

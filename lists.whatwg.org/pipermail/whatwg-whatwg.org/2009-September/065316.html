@@ -1,0 +1,155 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] LocalStorage in workers
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20LocalStorage%20in%20workers&In-Reply-To=%3C5dd9e5c50909161456o3b7555a3gcba67abcc5957a7d%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="065315.html">
+   <LINK REL="Next"  HREF="065318.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] LocalStorage in workers</H1>
+<!--htdig_noindex-->
+    <B>Jeremy Orlow</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20LocalStorage%20in%20workers&In-Reply-To=%3C5dd9e5c50909161456o3b7555a3gcba67abcc5957a7d%40mail.gmail.com%3E"
+       TITLE="[whatwg] LocalStorage in workers">jorlow at chromium.org
+       </A><BR>
+    <I>Wed Sep 16 14:56:34 PDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="065315.html">[whatwg] LocalStorage in workers
+</A></li>
+        <LI>Next message: <A HREF="065318.html">[whatwg] LocalStorage in workers
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#65316">[ date ]</a>
+              <a href="thread.html#65316">[ thread ]</a>
+              <a href="subject.html#65316">[ subject ]</a>
+              <a href="author.html#65316">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Wed, Sep 16, 2009 at 2:27 PM, Jonas Sicking &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">jonas at sicking.cc</A>&gt; wrote:
+
+&gt;<i> On Wed, Sep 16, 2009 at 12:58 PM, Drew Wilson &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">atwilson at google.com</A>&gt; wrote:
+</I>&gt;<i> &gt; I'm saying that an async API is overkill and unwieldy if all you need is
+</I>&gt;<i> &gt; WorkerLocalStorage.
+</I>&gt;<i> &gt; If you're going to route your localstorage access through an async API
+</I>&gt;<i> &gt; anyway, then you might as well proxy it to the parent page - there's very
+</I>&gt;<i> &gt; little advantage to doing it otherwise, other than access to lexically
+</I>&gt;<i> &gt; scoped resources from within your callback.
+</I>&gt;<i>
+</I>&gt;<i> Actually, there's a pretty big difference. With the current state of
+</I>&gt;<i> affairs, if a worker wants to make a computation based on values in
+</I>&gt;<i> the localStorage, and store the result in localStorage, this is
+</I>&gt;<i> extremely hard.
+</I>&gt;<i>
+</I>&gt;<i> For example, say that a worker want to perform the following operation:
+</I>&gt;<i>
+</I>&gt;<i> localStorage.result = F(localStorage.n);
+</I>&gt;<i>
+</I>&gt;<i> where F(n) is the n:th value in the Fibonacci sequence.
+</I>&gt;<i>
+</I>&gt;<i> To do this today the worker would first have to call the main window
+</I>&gt;<i> to get the localStoreage.n value. It could then calculate the result
+</I>&gt;<i> of F(localStorage.n). It would then send a message to the main window
+</I>&gt;<i> to store the result in localStorage.result. However in the meantime
+</I>&gt;<i> localStorage.n might have changed, which causes an inconsistent state.
+</I>&gt;<i>
+</I>&gt;<i> So instead the worker has to send both the value of localStorage.n as
+</I>&gt;<i> well as the result to the window. The window can then check if
+</I>&gt;<i> localStorage.n has changed. If it has changed, the window has to send
+</I>&gt;<i> the new value back to the worker, and then the worker has to redo its
+</I>&gt;<i> calculation.
+</I>&gt;<i>
+</I>&gt;<i> This has several problems. It's bug prone since the developer might
+</I>&gt;<i> not realize the race condition. It's very hard to do correctly. And
+</I>&gt;<i> even when done correctly risks wasting a lot of cycles.
+</I>&gt;<i>
+</I>&gt;<i> An alternative solution is to do all calculations in the main window,
+</I>&gt;<i> which has synchronous access to localStorage. But the whole point of a
+</I>&gt;<i> worker is to avoid having to do heavy work in the window.
+</I>&gt;<i>
+</I>&gt;<i> However, with the solution Jeremy proposed, calculating the above
+</I>&gt;<i> algorithm can be done in the worker after the worker while the worker
+</I>&gt;<i> is inside the callback and thus have synchronous access to
+</I>&gt;<i> localStorage.
+</I>&gt;<i>
+</I>&gt;<i> Say that instead of calculating Fibonacci numbers, we were storing a
+</I>&gt;<i> database of emails in localStorage, and using a worker to synchronize
+</I>&gt;<i> that database to a server. In this case it seems extermely complex to
+</I>&gt;<i> have to communicate asynchronously through the window and deal with
+</I>&gt;<i> race conditions where the user is modifying the email database at the
+</I>&gt;<i> same time.
+</I>&gt;<i>
+</I>
+True.
+
+The problem is that some page from the same origin might also try to access
+LocalStorage.  If it does, it'll block the entire event loop until the
+worker is finished.  I can't think of how to &quot;fix&quot; this in a way that's not
+racy.  My originally proposal was written in the hope that developers would
+be more cautious since they're doing things inside an async callback, but
+the more I think about it, the more I think this isn't realistic.
+
+I think we have 3 options:
+
+1) Create a LocalStorage like API that can only be accessed in an async way
+via pages (kind of like WebDatabase).
+
+2) Remove any atomicity/consistency guarantees from synchronous LocalStorage
+access within pages (like IE8 currently does) and add an async interface for
+when pages do need atomicity/consistency.
+
+3) Come up with a completely different storage API that all the browser
+vendors are willing to implement that only allows Async access from within
+pages.  WebSimpleDatabase might be a good starting point for this.
+
+
+1 is probably the simplest to implement, but it seems pretty hacky and it's
+likely not powerful enough for many advanced web apps (offline web mail
+would be an example).  If we do 2, many (most?) web developers will just use
+the sync interface and write racy apps.  3 will take the longest time to do,
+but is definitely the best long term solution.
+
+
+Do others agree with my list?  What's the best option out of these?
+ Honestly, I'm kind of leaning towards 3 at this point.
+
+J
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: &lt;<A HREF="http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20090916/59cf44ca/attachment-0002.htm">http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20090916/59cf44ca/attachment-0002.htm</A>&gt;
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="065315.html">[whatwg] LocalStorage in workers
+</A></li>
+	<LI>Next message: <A HREF="065318.html">[whatwg] LocalStorage in workers
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#65316">[ date ]</a>
+              <a href="thread.html#65316">[ thread ]</a>
+              <a href="subject.html#65316">[ subject ]</a>
+              <a href="author.html#65316">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

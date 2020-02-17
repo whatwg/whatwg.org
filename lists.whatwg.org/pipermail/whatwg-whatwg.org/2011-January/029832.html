@@ -1,0 +1,160 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] WebWorkers and images
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20WebWorkers%20and%20images&In-Reply-To=%3C4D2F0F16.5030407%40mit.edu%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="029837.html">
+   <LINK REL="Next"  HREF="029845.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] WebWorkers and images</H1>
+<!--htdig_noindex-->
+    <B>Boris Zbarsky</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20WebWorkers%20and%20images&In-Reply-To=%3C4D2F0F16.5030407%40mit.edu%3E"
+       TITLE="[whatwg] WebWorkers and images">bzbarsky at MIT.EDU
+       </A><BR>
+    <I>Thu Jan 13 06:41:26 PST 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="029837.html">[whatwg] WebWorkers and images
+</A></li>
+        <LI>Next message: <A HREF="029845.html">[whatwg] WebWorkers and images
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#29832">[ date ]</a>
+              <a href="thread.html#29832">[ thread ]</a>
+              <a href="subject.html#29832">[ subject ]</a>
+              <a href="author.html#29832">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On 1/13/11 7:24 AM, Jorge wrote:
+&gt;<i> Not too long ago, the browsers did allow timeouts of less than 10ms.
+</I>
+Uh, no.  Not too long ago browsers did not allow timeouts of less than 
+10ms, ever.  At this point the only browser that does for repeated 
+timeouts is Chrome, which allows 4ms.  Various browsers allow timeouts 
+up to some small level of nesting to run arbitrarily quickly; that 
+started because it happens to make JSBench run faster due to the broken 
+way that benchmark is constructed.
+
+In any case, to implement the 4ms thing on Windows Chrome has to have a 
+dedicated thread polling the multimedia timer, which is a huge PITA in 
+terms of things like wakeups and battery life... And for what it's worth 
+on my Mac they don't manage to hit the 4ms thing either; they get closer 
+to 4.7ms on average, though I haven't looked at the distribution.  And 
+if I lower Gecko's clamp to 4ms, I get a similar 4.7ms average on Mac, 
+so that might just be an OS limitation too.
+
+It looks like other browsers will be following suit on the 4ms thing 
+eventually for two reasons: the HTML5 spec specs it and there are lots 
+of bogus performance &quot;benchmarks&quot; that measure JavaScript execution 
+speed across timeouts.  Now I suspect browsers won't actually _deliver_ 
+decent 4ms timers on Windows unless they jump through the hoops that 
+Chrome does with a polling thread; Windows just doesn't give you a sane 
+way to deal with times less than a tick (10ms on single-processor 
+systems, 15ms on multiprocessor ones).  But they might be able to 
+deliver something that fires every 4ms on average (firing immediately 
+sometimes and after 10-15ms other times).
+
+&gt;<i> Why was the&gt;= 10ms minimum timer duration spec'ed this way ?
+</I>
+The current spec draft says the floor is 4ms.
+
+&gt;&gt;<i> Note that if your computational work is entirely working with
+</I>&gt;&gt;<i> ImageData, you can send the ImageData to a thread.  It's limiting (you
+</I>&gt;&gt;<i> can't blit images to the canvas that way, since you don't have the
+</I>&gt;&gt;<i> Canvas interface), but it may be enough for your case.
+</I>&gt;<i>
+</I>&gt;<i> I've tried once to improve a full-screen animation like that, and found that the cost of passing the data back and forth to the worker is so high
+</I>
+A full-screen on my screen would mean a 9.2MB imagedata.  So depending 
+on how often you're trying to pass it back and forth, just creating the 
+copies could be pretty expensive, yes.  If it's being round-tripped 
+through a string or something it would be even worse.
+
+It would be interesting to have an API that allows passing an imagedata 
+object (not a copy) to a worker.  Such an API would have to make the 
+data disappear on the caller's side.  That could be implemented 
+reasonably efficiently using shared memory (either directly with threads 
+or using shared memory segments with processes).
+
+That said, I would be interested in seeing your testcase for this; in my 
+experience bottlenecks in situations like this can be in ... surprising 
+places.
+
+&gt;<i> That was passing the objects serialized as text messages.
+</I>
+And serializing in JS?  Yeah, that would be pretty slow!
+
+&gt;<i> Perhaps with structured clones, the situation may have been improved a bit.
+</I>
+It should have, even with the copying that probably happens now.  Worth 
+retesting.
+
+&gt;<i> But I think that the workers desperately need a mechanism that permitted to pass objects *quickly*, and *quickly* most likely means by reference not by copy.
+</I>
+Then it needs to be something that passes the object and _forgets_ it on 
+the caller side.
+
+&gt;<i> To preserve shared-nothingness, the passed object (and the object's children) could be made unreachable (somehow, don't ask me)
+</I>
+This is actually not all that bad for imagedata: just deallocate its 
+storage on the caller and make any access to the buffer throw.  The key 
+is that you don't care that you have to copy things like the 
+width/height; you just don't want to copy the giant byte array.  So you 
+move the byte array, and deny all access to its elements after that. 
+Since the elements are never pointed to by reference from JS, this works.
+
+For arbitrary objects this is harder, but could be done, actually. 
+Gecko already does something similar for Window objects when their 
+origin changes: you might still have a reference to the original object, 
+but you can no longer actually touch any of it.  Under the hood, this is 
+implemented in a way that could be used for sending objects to a worker 
+too, I think.
+
+-Boris
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="029837.html">[whatwg] WebWorkers and images
+</A></li>
+	<LI>Next message: <A HREF="029845.html">[whatwg] WebWorkers and images
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#29832">[ date ]</a>
+              <a href="thread.html#29832">[ thread ]</a>
+              <a href="subject.html#29832">[ subject ]</a>
+              <a href="author.html#29832">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

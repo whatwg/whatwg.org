@@ -1,0 +1,291 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Codecs for &lt;audio&gt; and &lt;video&gt;
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Codecs%20for%20%3Caudio%3E%20and%20%3Cvideo%3E&In-Reply-To=%3C20090808171518.GA13038%40mccormick.cx%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="022029.html">
+   <LINK REL="Next"  HREF="021839.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Codecs for &lt;audio&gt; and &lt;video&gt;</H1>
+<!--htdig_noindex-->
+    <B>Chris McCormick</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Codecs%20for%20%3Caudio%3E%20and%20%3Cvideo%3E&In-Reply-To=%3C20090808171518.GA13038%40mccormick.cx%3E"
+       TITLE="[whatwg] Codecs for &lt;audio&gt; and &lt;video&gt;">chris at mccormick.cx
+       </A><BR>
+    <I>Sat Aug  8 10:15:18 PDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="022029.html">[whatwg] Question re: WSS
+</A></li>
+        <LI>Next message: <A HREF="021839.html">[whatwg] Codecs for &lt;audio&gt; and &lt;video&gt;
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21838">[ date ]</a>
+              <a href="thread.html#21838">[ thread ]</a>
+              <a href="subject.html#21838">[ subject ]</a>
+              <a href="author.html#21838">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Wed, Jul 08, 2009 at 09:24:42AM -0700, Charles Pritchard wrote:
+&gt;<i> There are two use cases that I think are important: a codec  
+</I>&gt;<i> implementation (let's use Vorbis),
+</I>&gt;<i> and an accessibility implementation, working with a &lt;canvas&gt; element.
+</I>
+Here are a few more use-cases that many people would consider just as
+important:
+
+* Browser based music software and synthesis toys.
+* New types of 'algorithmic' music like that pioneered by Brian Eno.
+* Browser based games which want to use procedural audio instead of
+pre-rendered sound effects.
+
+I'd like to reiterate the previously expressed sentiment that only implementing
+pre-rendered audio playback is like having a browser that only supports static
+images loaded from the server instead of animations and &lt;canvas&gt; tags.
+
+What is really needed is a DSP vector processor which runs outside of ECMA
+script, but with a good API so that the ECMAscripts can talk to it directly.
+Examples of reference software, mostly open source, which do this type of thing
+follow:
+
+* Csound
+* Supercollider
+* Pure Data
+* Nyquist
+* Chuck
+* Steinberg VSTs
+
+I am going to use the terms &quot;signal vector&quot;, &quot;audio buffer&quot;, and &quot;array&quot;
+interchangeably below.
+
+Four major types of synthesis would be useful, but they are pretty much
+isomorphic, so any one of them could be implemented as a base-line:
+
+* Wavetable (implement vector write/read/lookup operators)
+* FM &amp; AM (implement vector + and * operators)
+* Subtractive (implement unit delay from which you can build filters)
+* Frequency domain (implemnt FFT and back again)
+
+Of these, I feel that wavetable synthesis should be the first type of synthesis
+to be implemented, since most of the code for manipulating audio buffers is
+already going to be in the browsers and exposing those buffers shouldn't be
+hugely difficult. Basically what this would take is ensuring some things about
+the audio tag:
+
+* Supports playback of arbitrarily small buffers.
+* Seamlessly loops those small buffers.
+* Allows read/write access to those buffers from ECMAscript.
+
+Given the above, the other types of synthesis are possible, albeit slowly. For
+example, FM &amp; AM synthesis are possible by adding adding/multiplying vectors of
+sine data together into a currently looping audio buffer. Subtractive synthesis
+is possible by adding delayed versions of the data in the buffer to itself.
+Frequency domain synthesis is possible by analysing the data in the buffer with
+FFT (and reverse FFT) and writing back new data. I see this API as working as
+previously posted, by Charles Prichard, but with the following extra
+possibility:
+
+&lt;audio id='mybuffer'&gt;
+buffer = document.getElementById(&quot;mybuffer&quot;);
+// here myfunc is a function which will change
+// the audio buffer each time the buffer loops
+buffer.loopCallback = myfunc;
+buffer.loop = True;
+buffer.play();
+
+Of course, the ECMA script is probably going to be too slow in the short term,
+so moving forward it would be great if there was a library/API which can do the
+following vector operations in the background at a speed faster than doing them
+directly, element by element inside ECMAscript (a bit like Python's Numeric
+module). All inputs and outputs are signal vectors/audio tag buffers:
+
+* + - add two signal vectors (2 input, 1 output)
+* * - multiply two signal vectors (2 input, 1 output)
+* z - delay a signal vector with customisable sample length (2 input, 1 output)
+* read - do a table lookup (1 input, 1 output)
+* write - do a table write (2 input, 1 output)
+* copy - memcpy a signal vector (1 input, 1 output)
+* fft do a fast fourier transform - (1 input, 2 output)
+* rfft do a reverse fast fourier transform - (2 inputs, 1 output)
+
+It would be so great if it was possible to unify the above into an API that
+looked and worked something like this:
+
+&lt;audio id='mybuffer'&gt;
+
+outbuffer = document.getElementById(&quot;mybuffer&quot;);
+
+b = new AudioBuffer(64)
+for (x=0; x&lt;64; x++)
+	b[x] = Math.sin(x / 64 * Math.PI)a;
+
+// inside the loopCallback do a vector multiplication of the data in our buffer
+// with a sine wave we created earlier.
+outbuffer.multiply(b);
+
+I hope this email is not too obvious and helps clarify thinking rather than
+confusing things. As a game developer and music software developer I look
+forward to making dynamic audio applications on the web!
+
+Best regards,
+
+Chris.
+
+-------------------
+<A HREF="http://mccormick.cx">http://mccormick.cx</A>
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="022029.html">[whatwg] Question re: WSS
+</A></li>
+	<LI>Next message: <A HREF="021839.html">[whatwg] Codecs for &lt;audio&gt; and &lt;video&gt;
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21838">[ date ]</a>
+              <a href="thread.html#21838">[ thread ]</a>
+              <a href="subject.html#21838">[ subject ]</a>
+              <a href="author.html#21838">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

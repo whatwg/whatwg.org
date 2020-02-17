@@ -1,0 +1,245 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Prerendering and APIs
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Prerendering%20and%20APIs&In-Reply-To=%3CCAB2HWxij6Km-5NeS-dgmnP%3DK13Y3yes9K2J6pfwQcV2m0FGeFQ%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="077647.html">
+   <LINK REL="Next"  HREF="077668.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Prerendering and APIs</H1>
+<!--htdig_noindex-->
+    <B>Gavin Peters (&#33995;&#25991;&#24444;&#24503;&#26031;)</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Prerendering%20and%20APIs&In-Reply-To=%3CCAB2HWxij6Km-5NeS-dgmnP%3DK13Y3yes9K2J6pfwQcV2m0FGeFQ%40mail.gmail.com%3E"
+       TITLE="[whatwg] Prerendering and APIs">gavinp at chromium.org
+       </A><BR>
+    <I>Mon Apr  9 11:16:27 PDT 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="077647.html">[whatwg] Fullscreen and non-HTML elements
+</A></li>
+        <LI>Next message: <A HREF="077668.html">[whatwg] Prerendering and APIs
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#35394">[ date ]</a>
+              <a href="thread.html#35394">[ thread ]</a>
+              <a href="subject.html#35394">[ subject ]</a>
+              <a href="author.html#35394">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Hi whatwg!
+
+Since sending the below message, I've spent some time thinking about how to
+handle the two cases I described in my initial posting, timeouts and load
+events, and I think that both can be handled inside of the existing markup
+framework on &lt;link rel=prerender...&gt; elements.
+
+Also, I forgot to include some documents in my earlier post; here's
+Chrome's instructions to web developers for prerendering:
+<A HREF="https://developers.google.com/chrome/whitepapers/prerender">https://developers.google.com/chrome/whitepapers/prerender</A> .
+
+Now, three weeks later here's an update on where my thoughts are on the
+problems I introduced in my original email, along with my status in
+addressing them:
+
+
+*==Canceling Prerenders Using the Link Element==*
+
+Some pages may want to keep the prerenders they launch fresh.  A search
+engine, for instance (like Google Web Search, which currently issues
+prerenders) will not want users to navigate to stale prerenders.  The
+simplest way, and I think a way consistant with both the current link
+element, and existing use of markup, is to cancel the prerender associated
+with a link element when the link element is removed from the document.
+
+This is both similar to, and different from, the behaviour of other
+elements when they are removed from documents.
+
+It is different from what happens when an img element, for instance, is
+removed from a document.  Most browsers I've tested informally continue to
+load an img element even after it's removed from the document; and this
+serves a purpose: inserting the same img element into the document at a
+different location results in a seamless continuation of the img load.
+
+However, this is strikingly similar to two other cases: when a &lt;link
+rel=stylesheet ...&gt; element is removed from the document, in WebKit, we
+remove the stylesheet from the document, although this isn't explicitly
+specified in 4.12.5.11,
+<A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/links.html#link-type-stylesheet.">http://www.whatwg.org/specs/web-apps/current-work/multipage/links.html#link-type-stylesheet.</A>
+
+It is also similar to what happens on removal of an object or applet
+element.  In 15.3.1 discussing the applet element, the state of a JVM is
+discussed as dependent on insertion and removal from a document.  In 4.8.4,
+the object element specifically requires a plugin unload when the object
+element is removed from the DOM.
+
+
+*==Load Events/Statistics==*
+
+The web visibility API[1][2][3][4] provides a great way for targets of
+prerenders to detect prerendering.  I'd like launching sites to have some
+means to detect some information about the prerenders they're launching, to
+for instance gather analytics on if the prerenders being launched are all
+going unused, which prerenders are working best (keeping in mind that the
+current chrome prerender implementation only allows one prerender at a
+time), etc...
+
+For that, I propose we fire events at the link element; similar to an
+iframe the standard load events load, error, abort, and possibly loadstart.
+ The abort event will be sent when the prerender is dropped by the browser,
+for instance due to a timeout, or due to the prerendered site doing an
+illegal action (i.e. XHR DELETE).  These events will allow a launching site
+to track uptake of target prerenders, particularly in conjunction with &lt;a
+ping=...&gt; on the relevant outgoing link.
+
+
+*==Status==*
+
+I'm currently working on an implementation of the first part, canceling, in
+WebKit &amp; Chrome, with some early architectural reviews coming back in
+<A HREF="https://bugs.webkit.org/show_bug.cgi?id=82478">https://bugs.webkit.org/show_bug.cgi?id=82478</A> and
+<A HREF="http://codereview.chromium.org/9875026/">http://codereview.chromium.org/9875026/</A> .
+
+whatwg, WDYT?
+
+- Gavin
+
+
+[1] <A HREF="https://developers.google.com/chrome/whitepapers/pagevisibility">https://developers.google.com/chrome/whitepapers/pagevisibility</A>
+[2] <A HREF="https://developer.mozilla.org/en/DOM/Using_the_Page_Visibility_API">https://developer.mozilla.org/en/DOM/Using_the_Page_Visibility_API</A>
+[3]
+<A HREF="http://ie.microsoft.com/testdrive/Performance/PageVisibility/Default.html">http://ie.microsoft.com/testdrive/Performance/PageVisibility/Default.html</A>
+[4] <A HREF="http://www.w3.org/TR/page-visibility/">http://www.w3.org/TR/page-visibility/</A>
+
+
+
+
+On Wed, Mar 14, 2012 at 11:35 AM, Gavin Peters (&#33995;&#25991;&#24444;&#24503;&#26031;)
+&lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">gavinp at chromium.org</A>&gt;wrote:
+
+&gt;<i> We're having great luck in Chrome with &lt;link rel=prerender href=foo&gt;.  If
+</I>&gt;<i> that element with that rel attribute is in your document, Chrome launches a
+</I>&gt;<i> hidden tab that we swap in and stitch into history if the user navigates
+</I>&gt;<i> there.  Navigation is as quick as switching tabs, you either join an
+</I>&gt;<i> in-progress load or an already loaded page, depending.  It's really
+</I>&gt;<i> increased the number of 0ms navigations chrome does!  &quot;0ms: it's not just
+</I>&gt;<i> for about:blank any more.&quot;
+</I>&gt;<i>
+</I>&gt;<i> Right now, while Chrome registers and sends onload/onerror events to link
+</I>&gt;<i> elements for prefetch, we don't do that for prerender.  Actually, it's a
+</I>&gt;<i> bit of a bug, but we always instantly send onerror to rel=prerender link
+</I>&gt;<i> elements.
+</I>&gt;<i>
+</I>&gt;<i> Hundreds of sites are using it now.  Prerender instructions are also
+</I>&gt;<i> sometimes inserted by GWS in results, which makes clicking on search
+</I>&gt;<i> results faster.  But I have some concerns:
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> *==First Concern: Timeouts==*
+</I>&gt;<i>
+</I>&gt;<i> One concern we've had feedback on from sites trying to adopt the feature
+</I>&gt;<i> is maintaining prerender freshness.  Right now, out of an abundance of
+</I>&gt;<i> caution, we keep prerenders alive for a maximum of 30s.  That short limit
+</I>&gt;<i> has caused at least one site we know of to abandon the feature out of
+</I>&gt;<i> frustration.  While 30s may be a great timeout for a search engine that
+</I>&gt;<i> wants to make sure you go to a fresh news site, for instance, 30s probably
+</I>&gt;<i> makes sense.  For a magazine or blog using it for a next article, maybe
+</I>&gt;<i> they'd be OK with the prerender being around indefinitely, or some amount
+</I>&gt;<i> longer.
+</I>&gt;<i>
+</I>&gt;<i> But this means we need more control at two places.  Target sites should be
+</I>&gt;<i> able to control the amount of prerendering done of them, that's true.
+</I>&gt;<i>  Today, though, I'd like to talk about launching sites.  I think launching
+</I>&gt;<i> sites need a mechanism to cancel prerenders that they've launched, and also
+</I>&gt;<i> to specify to launch prerenders with other than a short timeout.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> *==Second Concern: Load Events/Statistics==*
+</I>&gt;<i> *
+</I>&gt;<i> *
+</I>&gt;<i> I'd like sites using Prerendering to be able to track the performance that
+</I>&gt;<i> this feature is getting them.  We're in a good spot on target sites for
+</I>&gt;<i> that today; we have implemented the visibility API which exposes a
+</I>&gt;<i> visibility state &quot;prerender.&quot;  The API has a visibility change event, so a
+</I>&gt;<i> target site has relatively good information they can collect.
+</I>&gt;<i>
+</I>&gt;<i> But launching sites right now have nothing; they insert the link prerender
+</I>&gt;<i> element, and that's that.  Just like link rel=prefetch, I think this event
+</I>&gt;<i> could return, just as a cross-origin iframe does, onload/onerror/onabort
+</I>&gt;<i> (onabort for instance when we aren't prerendering, or won't launch that
+</I>&gt;<i> prerender for some other reason?).  But that isn't quite there: there's
+</I>&gt;<i> lots of reasons that the prerender could go away after onload.  For
+</I>&gt;<i> instance, if a prerender attempts to launch an XHR DELETE, we both don't
+</I>&gt;<i> complete the request, and we drop the prerender.  By this point, we've
+</I>&gt;<i> already fired off a load event at the page possibly, so if we send onabort,
+</I>&gt;<i> that will be an onabort after onload, which I think is novel?  Although I
+</I>&gt;<i> guess &lt;audio&gt; can send abort many times, though it never sends load,
+</I>&gt;<i> instead it sends the suite of media loading events.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> *==Conclusion==*
+</I>&gt;<i>
+</I>&gt;<i> No conclusions yet.  I just have these two interesting problems.  I'd love
+</I>&gt;<i> to hear what anyone else thinks about these problems?
+</I>&gt;<i>
+</I>&lt;
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="077647.html">[whatwg] Fullscreen and non-HTML elements
+</A></li>
+	<LI>Next message: <A HREF="077668.html">[whatwg] Prerendering and APIs
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#35394">[ date ]</a>
+              <a href="thread.html#35394">[ thread ]</a>
+              <a href="subject.html#35394">[ subject ]</a>
+              <a href="author.html#35394">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

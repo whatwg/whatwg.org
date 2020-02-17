@@ -1,0 +1,205 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Workers: What can be done in a worker after call to	close()?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Workers%3A%20What%20can%20be%20done%20in%20a%20worker%20after%20call%20to%0A%09close%28%29%3F&In-Reply-To=%3Ck2k21b1517c1003311003kc4303c0co9b835c067ba2ea06%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="025734.html">
+   <LINK REL="Next"  HREF="025749.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Workers: What can be done in a worker after call to	close()?</H1>
+<!--htdig_noindex-->
+    <B>ben turner</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Workers%3A%20What%20can%20be%20done%20in%20a%20worker%20after%20call%20to%0A%09close%28%29%3F&In-Reply-To=%3Ck2k21b1517c1003311003kc4303c0co9b835c067ba2ea06%40mail.gmail.com%3E"
+       TITLE="[whatwg] Workers: What can be done in a worker after call to	close()?">bent.mozilla at gmail.com
+       </A><BR>
+    <I>Wed Mar 31 10:03:02 PDT 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="025734.html">[whatwg] Workers: What can be done in a worker after call to	close()?
+</A></li>
+        <LI>Next message: <A HREF="025749.html">[whatwg] Workers: What can be done in a worker after call to	close()?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#25747">[ date ]</a>
+              <a href="thread.html#25747">[ thread ]</a>
+              <a href="subject.html#25747">[ subject ]</a>
+              <a href="author.html#25747">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Hi,
+
+When implementing the close() function for Firefox we chose to set the
+closing flag and clear pending events only. As the worker script is
+calling close() on itself we figured that the worker should retain
+maximum functionality until it has finished execution (otherwise it
+could just not call close() and rely on some kind of postMessage() and
+terminate() combo). Therefore we do not enforce any timeout for the
+currently executing script and we continue to allow postMessage()
+calls and synchronous XHR to proceed. Since the closing flag is set in
+response to close() the worker is guaranteed to finish as soon as the
+currently running script finishes. We always enforce a timeout for any
+code that runs in response to the close event that gets fired after
+the current script finishes, though.
+
+If the code that calls close() never returns (like the while(1) { }
+example above) then the worker will never finish, as pointed out
+above, but that's no different than having a worker script that
+consists only of a while(1) { } loop and we don't think it's important
+to prevent. If a worker script is written in this way then a
+terminate() call is still a valid solution.
+
+Also, since we try to retain maximum functionality after close() we
+also allow errors to propagate as shown above.
+
+If anyone is curious the basic strategy we use in response to close
+functions (like close(), terminate(), and for UA-generated events like
+when the main worker object is GC'd) can be found in the following
+table:
+
+<A HREF="http://mxr.mozilla.org/mozilla-central/source/dom/src/threads/nsDOMWorker.h#202">http://mxr.mozilla.org/mozilla-central/source/dom/src/threads/nsDOMWorker.h#202</A>
+
+-Ben
+
+On Tue, Mar 30, 2010 at 6:38 PM, Dmitry Titov &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">dimich at chromium.org</A>&gt; wrote:
+&gt;<i>
+</I>&gt;<i> On Tue, Mar 30, 2010 at 5:58 PM, Drew Wilson &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">atwilson at google.com</A>&gt; wrote:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> I'll note that the spec gives the UA an significant amount of latitude
+</I>&gt;&gt;<i> about its behavior after close() is called:
+</I>&gt;&gt;<i> User agents may invoke the &quot;kill a worker&quot; processing model on a worker at
+</I>&gt;&gt;<i> any time, e.g. in response to user requests, in response to CPU quota
+</I>&gt;&gt;<i> management, or when a worker stops being an&#160;active needed worker&#160;if the
+</I>&gt;&gt;<i> worker continues executing even after its&#160;closing&#160;flag was set to true.
+</I>&gt;&gt;<i> Essentially, UAs can kill a worker at any time, and since the &quot;kill a
+</I>&gt;&gt;<i> worker&quot; algorithm allows UAs to abort the script after a user-agent-defined
+</I>&gt;&gt;<i> amount of time (including zero), it seems like almost any behavior
+</I>&gt;&gt;<i> post-close is compliant. This seems like a guaranteed source of
+</I>&gt;&gt;<i> cross-browser incompatibilities.
+</I>&gt;<i>
+</I>&gt;<i> Yes, and this, after many hours of troubles, may eventually crystallize into
+</I>&gt;<i> &quot;don't have any code after close() in your worker code&quot; rule-of-thumb for
+</I>&gt;<i> web developers. Which is basically a bad thing...
+</I>&gt;<i> This is why it could be better to specify explicitly that either execution
+</I>&gt;<i> is immediately terminated or it runs until JS exits with full functionality
+</I>&gt;<i> of the worker, not in a special almost-closed mode. Having a timeout
+</I>&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> I've always operated under the impression that the intent of the spec is
+</I>&gt;&gt;<i> to allow pending worker operations to complete, but still give UAs the
+</I>&gt;&gt;<i> ability to abort scripts that don't exit in a timely manner (so close()
+</I>&gt;&gt;<i> should not immediately abort the script), but I don't see anything in the
+</I>&gt;&gt;<i> spec regarding this.
+</I>&gt;&gt;<i> For #2 below, I believe that exceptions in worker context should *always*
+</I>&gt;&gt;<i> be reported, regardless of closing state. Section 4.6 (Runtime script
+</I>&gt;&gt;<i> errors) makes no mention of tying this behavior to the closing flag.
+</I>&gt;<i>
+</I>&gt;<i> This applies as long as the browser still executes the code after close().
+</I>&gt;<i> In WebKit V8 case, we terminate execution almost instantly, so we don't even
+</I>&gt;<i> run the code that causes an error :-) If we are not to terminate execution
+</I>&gt;<i> instantly, then it'd be nice to say the script runs until it ends (or parent
+</I>&gt;<i> document closes, which actually terminates the script forcefully), and not
+</I>&gt;<i> have a requirement to stop the queue or disconnect ports, as to not create a
+</I>&gt;<i> whole new 'mode of worker execution' which needs to have a spec on its own
+</I>&gt;<i> since all other features will need to be mentions (like sync APIs).
+</I>&gt;<i> It's not clear why a fixed timeout would be useful. It would create some
+</I>&gt;<i> randomness in what a worker can still do after&#160;calling&#160;close(). I think web
+</I>&gt;<i> developers would then rather do those things before calling close(), to
+</I>&gt;<i> avoid random results.
+</I>&gt;<i> But if we say close() lets script run until completion (but prevents further
+</I>&gt;<i> messages/events from dispatching), then perhaps we don't need it at all -
+</I>&gt;<i> there is nothing then that script in the worker can not do to the same
+</I>&gt;<i> effect (unregister onmessage, clear timers etc).
+</I>&gt;<i> That means letting worker to call close() on itself only makes additional
+</I>&gt;<i> sense if it is specified as immediate termination. It could be useful and it
+</I>&gt;<i> can be specified in deterministic manner.
+</I>&gt;<i> On a separate note, I agree with giving workers some time before terminating
+</I>&gt;<i> them in case the parent page closes - but this is the case when forces
+</I>&gt;<i> outside and async to the worker need to close it. I think
+</I>&gt;<i> it's&#160;different&#160;when worker's own script wants to terminate - it could do its
+</I>&gt;<i> last wishes before calling close() as well.
+</I>&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> -atw
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> On Tue, Mar 30, 2010 at 4:44 PM, Dmitry Titov &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">dimich at chromium.org</A>&gt; wrote:
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> Hi!
+</I>&gt;&gt;&gt;<i> Trying to fix some bugs for Workers, I've got some questions about
+</I>&gt;&gt;&gt;<i> close() method on WorkerGlobalScope.
+</I>&gt;&gt;&gt;<i> In particular, the spec seems to imply that after&#160;calling&#160;close() inside
+</I>&gt;&gt;&gt;<i> the worker, the JS does not get terminated right away, but rather continue
+</I>&gt;&gt;&gt;<i> to execute, while an internal 'closing' flag is set and a message
+</I>&gt;&gt;&gt;<i> queue&#160;associated&#160;with the worker discards all the tasks, existing and
+</I>&gt;&gt;&gt;<i> future. Also, all ports are immediately disentangled.
+</I>&gt;&gt;&gt;<i> This seems to leave some questions without explicit answer, with
+</I>&gt;&gt;&gt;<i> differences in current implementations:
+</I>&gt;&gt;&gt;<i> 1. Does this code in a&#160;worker&#160;continues looping until the parent page
+</I>&gt;&gt;&gt;<i> unloads:
+</I>&gt;&gt;&gt;<i> &#160;...
+</I>&gt;&gt;&gt;<i> &#160;close();
+</I>&gt;&gt;&gt;<i> &#160;while(true) {}
+</I>&gt;&gt;&gt;<i> WebKit V8 terminates, WebKit JCS terminates after a timeout, FF does not
+</I>&gt;&gt;&gt;<i> terminate.
+</I>&gt;&gt;&gt;<i> 2. Do the errors propagate back to Worker object after close()?
+</I>&gt;&gt;&gt;<i> ...
+</I>&gt;&gt;&gt;<i> close();
+</I>&gt;&gt;&gt;<i> nonExistingFunction(); &#160;&lt;&lt;-- throws, if not processed locally, posts
+</I>&gt;&gt;&gt;<i> error info to the Worker object.
+</I>&gt;&gt;&gt;<i> In WebKit and FF errors propagate, although it does not seem consistent
+</I>&gt;&gt;&gt;<i> while worker closed all the ports and is in a dormant state.
+</I>&gt;&gt;&gt;<i> 3. Should synchronous operations work after close()? Asynchronous ones
+</I>&gt;&gt;&gt;<i> perhaps should not, because of the event loop queue which is stopped...
+</I>&gt;&gt;&gt;<i> ...
+</I>&gt;&gt;&gt;<i> close();
+</I>&gt;&gt;&gt;<i> xhr.open(&quot;GET&quot;, &quot;foo.com&quot;, false);
+</I>&gt;&gt;&gt;<i> xhr.send();
+</I>&gt;&gt;&gt;<i> WebKit: does not work (mostly), FF - does work.
+</I>&gt;&gt;&gt;<i> Perhaps it would be simpler to either say nothing is
+</I>&gt;&gt;&gt;<i> executed/posted/fired after close() (immediate termination), or to enable
+</I>&gt;&gt;&gt;<i> worker run unimpeded (with ports open, etc) until it naturally yields from
+</I>&gt;&gt;&gt;<i> JS.
+</I>&gt;&gt;&gt;<i> Any opinions?
+</I>&gt;&gt;&gt;<i> Thanks,
+</I>&gt;&gt;&gt;<i> Dmitry
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I></PRE>
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="025734.html">[whatwg] Workers: What can be done in a worker after call to	close()?
+</A></li>
+	<LI>Next message: <A HREF="025749.html">[whatwg] Workers: What can be done in a worker after call to	close()?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#25747">[ date ]</a>
+              <a href="thread.html#25747">[ thread ]</a>
+              <a href="subject.html#25747">[ subject ]</a>
+              <a href="author.html#25747">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

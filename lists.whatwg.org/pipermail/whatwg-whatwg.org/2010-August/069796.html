@@ -1,0 +1,185 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Adding ECMAScript 5 array extras to HTMLCollection
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Adding%20ECMAScript%205%20array%20extras%20to%20HTMLCollection&In-Reply-To=%3CAANLkTin%2BgKyxNj9P2ifKYDSiGptn6cC%2BtzsdXw8qm%2Bio%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="069793.html">
+   <LINK REL="Next"  HREF="069798.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Adding ECMAScript 5 array extras to HTMLCollection</H1>
+<!--htdig_noindex-->
+    <B>Garrett Smith</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Adding%20ECMAScript%205%20array%20extras%20to%20HTMLCollection&In-Reply-To=%3CAANLkTin%2BgKyxNj9P2ifKYDSiGptn6cC%2BtzsdXw8qm%2Bio%40mail.gmail.com%3E"
+       TITLE="[whatwg] Adding ECMAScript 5 array extras to HTMLCollection">dhtmlkitchen at gmail.com
+       </A><BR>
+    <I>Mon Aug  2 17:22:44 PDT 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="069793.html">[whatwg] Adding ECMAScript 5 array extras to HTMLCollection
+</A></li>
+        <LI>Next message: <A HREF="069798.html">[whatwg] Adding ECMAScript 5 array extras to HTMLCollection
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#69796">[ date ]</a>
+              <a href="thread.html#69796">[ thread ]</a>
+              <a href="subject.html#69796">[ subject ]</a>
+              <a href="author.html#69796">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On 8/2/10, And Clover &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">and-py at doxdesk.com</A>&gt; wrote:
+&gt;<i> On 08/02/2010 09:57 PM, Garrett Smith wrote:
+</I>&gt;<i>
+</I>&gt;&gt;<i> Can it be argued as to what &quot;integer index&quot; means? And what is a &quot;string
+</I>&gt;&gt;<i> index&quot;?
+</I>&gt;<i>
+</I>&gt;<i> Good catch, that's pretty ambiguous language. Browsers implement this as
+</I>&gt;<i> if &quot;integer index&quot; were equal to the term &quot;array index&quot; defined section
+</I>&gt;<i> 15.4 of ECMA262 (that is an unsigned 32-bit integer other than
+</I>&gt;<i> (1&lt;&lt;32)-1, expressed in simplest-possible decimal form), and &quot;string
+</I>&gt;<i> index&quot; meaning any other index.
+</I>&gt;<i>
+</I>
+Not exactly.
+
+An array's `length` is 1 greater than the largest index in the array;
+represented as uint internally. The largest possible array index is
+2^32 - 2. ES5 specification says this a bit differently:
+
+
+|<i> A property name P (in the form of a String value) is
+</I>|<i> an array index if and only if ToString(ToUint32(P)) is
+</I>|<i> equal to P and ToUint32(P) is not equal to 232-1
+</I>
+That could cover &quot;integer index&quot;, but the remaining undefined is
+&quot;string index&quot;, which seems a paradoxical name, even for Java
+programmers.
+
+Suppose string index could be any other index. Or it could be any
+index matching production for NAME.
+
+But then, does that mean property access on an HTMLCollection can
+never return undefined? Seems so; must be either `null` or an object.
+
+If the a collection is spec'd to use specialized [[Get]] access, then
+it may need to use catchalls. Again, browsers do use these in some
+cases and they aren't specified.
+
+&gt;<i> The paragraph should be updated to explicitly reference this; probably
+</I>&gt;<i> the language about square brackets should be dropped too, as it seems to
+</I>&gt;<i> represent a misunderstanding of exactly how the ECMAScript
+</I>&gt;<i> square-bracket and dot operators actually work.
+</I>&gt;<i>
+</I>
+
+&gt;<i> Whether a property name is an &quot;array index&quot; or not is an unrelated issue
+</I>
+Depends. If a specialized [[Get]] implemented as a catchall, then the
+browsers do some checking.
+
+A specialized [[Get]] may be interfering with array generics working
+with IE host object collections. It may have been that it was too
+complicated and that the developers decided that it was easier to fail
+fast by throwing &quot;JScript object expected'.
+
+Again, on that error, if `ho` is a host object, then the behavior in
+IE &lt;= 8 for `[].slice.call( ho )` is &quot;JScript object expected.&quot; IE
+operation sees that the context -- the `this`value -- is not a JScript
+object and then aborts prematurely, without trying. It could be that
+the attempt to slice the object could actually succeed, as: -
+  &quot;0&quot; in ho &amp;&amp; &quot;length&quot; in ho
+
+- is true.
+
+&gt;<i> to the matter of how the property value is retrieved. OK, you can't use
+</I>&gt;<i> the direct dot syntax on an array index purely as a grammatical manner,
+</I>&gt;<i> but . and [] aren't the only way to access properties. (eg.
+</I>&gt;<i> document.links.hasOwnProperty('0').)
+</I>&gt;<i>
+</I>
+That shows that `hasOwnProperty` is present on the object and that
+calling it returns true where there.
+
+For compatibility with IE, a layer of indirection may be used:
+
+({}).hasOwnProperty.call(document.links, &quot;0&quot;);
+
+- and resulting true in IE.
+
+However, that hasOwnProperty check does not always true for
+collections. As seen in the previous example I posted, for property P,
+[[HasProperty]] resulted false when there is a property P. Once again,
+this time with hasOwnProperty, I see a result in Firefox 3.6: [false,
+object]
+
+javascript: var result =
+  [
+  ({}).hasOwnProperty.call(document.forms[0], &quot;0&quot;),
+  typeof document.forms[0][0]
+  ];
+
+ alert( result )
+
+HTML5 also codifies a common form memory leak as &quot;past names map&quot;.
+
+Both of those oddities were explained more here:
+&lt;<A HREF="http://www.jibbering.com/faq/names/">http://www.jibbering.com/faq/names/</A>&gt;
+
+However, AFAIK, HTML5 does not specify the catchall behavior for the
+approach for specialized property access seen there.
+
+Does a collection have element properties?  (and by &quot;element&quot;, I do
+not mean Element, but indexed/keyed item that represents an object in
+the collection.
+
+If it does, then that's a lot easier. Spec'd specialized behavior for
+property accessors can be removed; as that behavior is already defined
+by ECMA-262. The only change could be to allow for &quot;integer index&quot;
+access to return `undefined`, as it currently does in most browsers.
+
+If any collection does not have element properties, then it is
+necessary to define &quot;integer index&quot; and &quot;string access&quot;, at least for
+that collection.
+
+Most collections appear to have element properties and so I can't see
+any reason for not specifying that. I recall raising discussion of
+property access on collections over a year ago, before writing the
+article I've linked above.
+
+Garrett
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="069793.html">[whatwg] Adding ECMAScript 5 array extras to HTMLCollection
+</A></li>
+	<LI>Next message: <A HREF="069798.html">[whatwg] Adding ECMAScript 5 array extras to HTMLCollection
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#69796">[ date ]</a>
+              <a href="thread.html#69796">[ thread ]</a>
+              <a href="subject.html#69796">[ subject ]</a>
+              <a href="author.html#69796">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

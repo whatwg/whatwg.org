@@ -1,0 +1,145 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Automatic transaction should support changing the	value of input/textarea
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Automatic%20transaction%20should%20support%20changing%20the%0A%09value%20of%20input/textarea&In-Reply-To=%3CCABNRm61BsfwggtNhW5B_CkJ_GdtNSf1ZME-cP_dyzikZioTRTA%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="076270.html">
+   <LINK REL="Next"  HREF="033775.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Automatic transaction should support changing the	value of input/textarea</H1>
+<!--htdig_noindex-->
+    <B>Ryosuke Niwa</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Automatic%20transaction%20should%20support%20changing%20the%0A%09value%20of%20input/textarea&In-Reply-To=%3CCABNRm61BsfwggtNhW5B_CkJ_GdtNSf1ZME-cP_dyzikZioTRTA%40mail.gmail.com%3E"
+       TITLE="[whatwg] Automatic transaction should support changing the	value of input/textarea">rniwa at webkit.org
+       </A><BR>
+    <I>Wed Nov 30 23:13:00 PST 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="076270.html">[whatwg] Automatic transaction should support changing the	value of input/textarea
+</A></li>
+        <LI>Next message: <A HREF="033775.html">[whatwg] tabindexscope
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#76273">[ date ]</a>
+              <a href="thread.html#76273">[ thread ]</a>
+              <a href="subject.html#76273">[ subject ]</a>
+              <a href="author.html#76273">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Wed, Nov 30, 2011 at 6:50 PM, Jonas Sicking &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">jonas at sicking.cc</A>&gt; wrote:
+
+&gt;<i> I don't think I'm understanding your set of steps.
+</I>&gt;<i>
+</I>&gt;<i> Let me try to clarify:
+</I>&gt;<i>
+</I>&gt;<i> 1. input.value is &quot;foo&quot;.
+</I>&gt;<i> 2. automatic transaction starts.
+</I>&gt;<i> 3. input.value is changed to &quot;hi&quot;.
+</I>&gt;<i> 4. automatic transaction ends.
+</I>&gt;<i> 5. input.value is changed to &quot;foo bar&quot;.
+</I>&gt;<i> 6. input.value is changed to &quot;hi&quot;.
+</I>&gt;<i> 7. undo is called on undomanager.
+</I>&gt;<i>
+</I>&gt;<i> at this point I don't see a reason we wouldn't want to change the
+</I>&gt;<i> value back to &quot;foo&quot;. This doesn't seem like a particularly interesting
+</I>&gt;<i> scenario because the change is perfectly undoable since the value
+</I>&gt;<i> matches.
+</I>
+
+The problem is that shadow nodes are lost when we assigned &quot;foo bar&quot;. So
+unless we store the value when we assign &quot;foo bar&quot;, we can't revert the
+change.
+
+
+&gt;<i> 1. input.value is &quot;lot's of text here&quot;.
+</I>&gt;<i> 2. automatic transaction starts.
+</I>&gt;<i> 3. input.value is changed to &quot;lot's of words here&quot;.
+</I>&gt;<i> 4. automatic transaction ends.
+</I>&gt;<i> 5. input.value is changed to &quot;some words here&quot;.
+</I>&gt;<i> 6. undo is called on undomanager.
+</I>&gt;<i>
+</I>&gt;<i> Here it seems like there is &quot;no perfect solution&quot; since we don't know
+</I>&gt;<i> if the page would want to revert back to &quot;lot's of text here&quot;, or keep
+</I>&gt;<i> the &quot;some words here&quot;. Or maybe change to &quot;some text here&quot; (though
+</I>&gt;<i> this obviously isn't a viable solution since it'll too easily break in
+</I>&gt;<i> non-trivial scenarios).
+</I>&gt;<i>
+</I>&gt;<i> If we define that the implementation has to revert the value back to
+</I>&gt;<i> &quot;lot's of text here&quot; it means that the implementation must store the
+</I>&gt;<i> &quot;delta&quot; as well as either the whole &quot;before value&quot; or the whole &quot;after
+</I>&gt;<i> value&quot;. Or store both the &quot;before value&quot; and &quot;after value&quot; and no
+</I>&gt;<i> delta.
+</I>
+
+I'm not convinced that storing the &quot;whole&quot; before value is much of an issue
+at least for UAs that implement textarea/input using a shadow DOM since we
+can just store the pointer to the shadow text nodes. When scripts assigns a
+value to the element, we can detach the nodes from the element but still
+keep the text nodes around. Of course, text nodes may be modified by the
+user but that's okay because any user-initiated modifications to the text
+nodes will be done as automatic transactions.
+ So in your scenario (+ user editing):
+
+   1. input.value is &quot;hello world&quot;.
+   2. automatic transaction starts.
+   3. input.value is changed to &quot;foo&quot;. // We keep reference to #text(&quot;hello
+   world&quot;)
+   4. automatic transaction ends.
+   5. User types &quot; bar&quot; after &quot;foo&quot;. // We keep the reference to #text(&quot;foo
+   bar&quot;) in addition to remembering the delta.
+   6. input.value is changed to &quot;goodbye&quot;.
+   7. Undo is called on undomanager. // Detach #text(&quot;foo bar&quot;) and attach
+   #text(&quot;hello world&quot;)
+
+
+By the way, it appears that both Firefox and Opera treat every assignemnt
+to input.value as an &quot;automatic transaction&quot; already inside input/textarea.
+In addition, they appear to have a separate undo scope inside
+textarea/input elements. On the other hand, WebKit and Internet Explorer
+appear to clear undo stack in the input/textarea element when the
+assignment happens, and they share the same undo scope as the document. So
+we need to be extremely careful not to break either behavior.
+
+In the above scenario, steps 5 and 6 create new automatic transactions
+inside the shadow for Firefox and Opera. On WebKit and Internet Explorer,
+step 5 creates new transaction and step 6 clears it. However on all 4 UAs,
+we're overriding this behavior by the undo manager of the document.
+
+- Ryosuke
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="076270.html">[whatwg] Automatic transaction should support changing the	value of input/textarea
+</A></li>
+	<LI>Next message: <A HREF="033775.html">[whatwg] tabindexscope
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#76273">[ date ]</a>
+              <a href="thread.html#76273">[ thread ]</a>
+              <a href="subject.html#76273">[ subject ]</a>
+              <a href="author.html#76273">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

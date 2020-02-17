@@ -1,0 +1,139 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] API for encoding/decoding ArrayBuffers into text
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20API%20for%20encoding/decoding%20ArrayBuffers%20into%20text&In-Reply-To=%3CPine.LNX.4.64.1203132354190.6189%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="077326.html">
+   <LINK REL="Next"  HREF="077330.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] API for encoding/decoding ArrayBuffers into text</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20API%20for%20encoding/decoding%20ArrayBuffers%20into%20text&In-Reply-To=%3CPine.LNX.4.64.1203132354190.6189%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg] API for encoding/decoding ArrayBuffers into text">ian at hixie.ch
+       </A><BR>
+    <I>Tue Mar 13 17:01:42 PDT 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="077326.html">[whatwg] API for encoding/decoding ArrayBuffers into text
+</A></li>
+        <LI>Next message: <A HREF="077330.html">[whatwg] API for encoding/decoding ArrayBuffers into text
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#77327">[ date ]</a>
+              <a href="thread.html#77327">[ thread ]</a>
+              <a href="subject.html#77327">[ subject ]</a>
+              <a href="author.html#77327">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Tue, 13 Mar 2012, Joshua Bell wrote:
+&gt;<i> 
+</I>&gt;<i> For both of the above: initially suggested use cases included parsing 
+</I>&gt;<i> data as esoteric as ID3 tags in MP3 files, where encoding unspecified 
+</I>&gt;<i> and is guessed at by decoders, and includes non-Unicode encodings. It 
+</I>&gt;<i> was suggested that the encoding sniffing capabilities of browsers be 
+</I>&gt;<i> leveraged. [...]
+</I>&gt;<i> 
+</I>&gt;<i> Whether we should restrict it as far as UTF-8 depends on whether we 
+</I>&gt;<i> envision this API only used for parsing/serializing newly defined data 
+</I>&gt;<i> formats, or whether there is consideration for interop with previously 
+</I>&gt;<i> existing formats data formats and code.
+</I>
+Seems reasonable. If we have specific use cases for non-UTF-8 encodings, I 
+agree we should support them; if that's the case, we should survey those 
+use cases to work out what the set of encodings we need is, and add just 
+those.
+
+
+&gt;<i> &gt;  - Having a mechanism that lets you encode the string and get a length
+</I>&gt;<i> &gt;   separate from the mechanism that lets you encode the string and get the
+</I>&gt;<i> &gt;   encoded string seems like it would encourage very inefficient code. Can
+</I>&gt;<i> &gt;   we instead have a mechanism that returns both at once? Or is the idea
+</I>&gt;<i> &gt;   that for some encodings getting the encoded length is much quicker than
+</I>&gt;<i> &gt;   getting the actual string?
+</I>&gt;<i> &gt;
+</I>&gt;<i> 
+</I>&gt;<i> The use case was to compute the size necessary to allocate a single buffer
+</I>&gt;<i> into which may be encoded multiple strings and other data, rather than
+</I>&gt;<i> allocating multiple small buffers and then copying strings into a larger
+</I>&gt;<i> buffer.
+</I>&gt;<i> 
+</I>&gt;<i> Ignoring the issue of invalid code points, the length calculations for
+</I>&gt;<i> non-UTF-8 encodings are trivial. (And with the suggestion that UTF-16 not
+</I>&gt;<i> be sanitized, that case is trivially 2x the JS string length.)
+</I>
+Yeah, but surely we'll mainly be doing stuff with UTF-8...
+
+One option is to return an opaque object of the form:
+
+   interface EncodedString {
+     readonly attributes unsigned long length;
+     // internally has a copy of the encoded string
+   }
+
+...and then have view.setString take this EncodedString object. At least 
+then you get it down to an extraneous copy, rather than an extraneous 
+encode. Still not ideal though.
+
+
+&gt;<i> &gt;  - Seems weird that integers and strings would have such different APIs
+</I>&gt;<i> &gt;   for doing the same thing. Why can't we handle them equivalently? As in:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;     len = view.setString(strings[i],
+</I>&gt;<i> &gt;                          offset + Uint32Array.BYTES_PER_ELEMENT,
+</I>&gt;<i> &gt;                          &quot;UTF-8&quot;);
+</I>&gt;<i> &gt;     view.setUint32(offset, len);
+</I>&gt;<i> &gt;     offset += Uint32Array.BYTES_PER_ELEMENT + len;
+</I>&gt;<i> 
+</I>&gt;<i> Heh, that's where the discussion started, actually. We wanted to keep 
+</I>&gt;<i> the DataView interface simple, and potentially support encoding into 
+</I>&gt;<i> plain JS arrays and/or non-TypedArray support that appeared to be on the 
+</I>&gt;<i> horizon for JS.
+</I>
+I see where you're coming from, but I think we should look at the platform 
+as a whole, not just one API. It doesn't help the platform as a whole if 
+we just have the same features split across two interfaces, the complexity 
+is even slightly higher than just having one consistent API that does ints 
+and strings equivalently.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="077326.html">[whatwg] API for encoding/decoding ArrayBuffers into text
+</A></li>
+	<LI>Next message: <A HREF="077330.html">[whatwg] API for encoding/decoding ArrayBuffers into text
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#77327">[ date ]</a>
+              <a href="thread.html#77327">[ thread ]</a>
+              <a href="subject.html#77327">[ subject ]</a>
+              <a href="author.html#77327">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

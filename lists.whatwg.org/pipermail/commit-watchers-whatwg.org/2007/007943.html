@@ -1,0 +1,164 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [html5] r1035 - /
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commit-watchers%40lists.whatwg.org?Subject=Re%3A%20%5Bhtml5%5D%20r1035%20-%20/&In-Reply-To=%3C20070925092235.45CAC38ED2C%40hixie.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="007942.html">
+   <LINK REL="Next"  HREF="007944.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[html5] r1035 - /</H1>
+<!--htdig_noindex-->
+    <B>whatwg at whatwg.org</B> 
+    <A HREF="mailto:commit-watchers%40lists.whatwg.org?Subject=Re%3A%20%5Bhtml5%5D%20r1035%20-%20/&In-Reply-To=%3C20070925092235.45CAC38ED2C%40hixie.dreamhostps.com%3E"
+       TITLE="[html5] r1035 - /">whatwg at whatwg.org
+       </A><BR>
+    <I>Tue Sep 25 02:22:35 PDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="007942.html">[html5] r1034 - /
+</A></li>
+        <LI>Next message: <A HREF="007944.html">[html5] r1036 - /
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#7943">[ date ]</a>
+              <a href="thread.html#7943">[ thread ]</a>
+              <a href="subject.html#7943">[ subject ]</a>
+              <a href="author.html#7943">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Author: ianh
+Date: 2007-09-25 02:22:34 -0700 (Tue, 25 Sep 2007)
+New Revision: 1035
+
+Modified:
+   index
+   source
+Log:
+[] (0) Change the way that changing a database version works.
+
+Modified: index
+===================================================================
+--- index	2007-09-25 08:57:17 UTC (rev 1034)
++++ index	2007-09-25 09:22:34 UTC (rev 1035)
+@@ -28502,7 +28502,8 @@
+    fine.
+ 
+   &lt;pre class=idl&gt;interface &lt;dfn id=database0&gt;Database&lt;/dfn&gt; {
+-           attribute DOMString &lt;a href=&quot;#version&quot; title=dom-database-version&gt;version&lt;/a&gt;;
++  readonly attribute DOMString &lt;a href=&quot;#version&quot; title=dom-database-version&gt;version&lt;/a&gt;;
++  bool &lt;a href=&quot;#changeversion&quot; title=dom-database-changeVersion&gt;changeVersion&lt;/a&gt;(in DOMString oldVersion, in DOMString newVersion);
+   void &lt;a href=&quot;#executesql&quot; title=dom-database-executeSql&gt;executeSql&lt;/a&gt;(in DOMString sqlStatement, &lt;var title=&quot;&quot;&gt;arguments...&lt;/var&gt;, in &lt;a href=&quot;#sqlcallback&quot;&gt;SQLCallback&lt;/a&gt; callback);&lt;!--
+   void &lt;span title=&quot;dom-database-executeSql&quot;&gt;executeSql&lt;/span&gt;(in Array sqlStatements, in &lt;span&gt;SQLCallback&lt;/span&gt; callback); // XXX add this in v2 --&gt;
+   void &lt;a href=&quot;#closetransaction&quot; title=dom-database-closeTransaction&gt;closeTransaction&lt;/a&gt;(); // only needed as part of error recovery
+@@ -28520,12 +28521,22 @@
+   &lt;p&gt;On getting, the attribute must return the current version of the
+    database.
+ 
+-  &lt;p&gt;On setting, the attribute must wait for all transactions that are trying
+-   to commit to finish commiting, and then must change the current version of
+-   the database and the &lt;a href=&quot;#expected&quot;
+-   title=concept-database-expected-version&gt;expected version&lt;/a&gt; of the
+-   &lt;code&gt;&lt;a href=&quot;#database0&quot;&gt;Database&lt;/a&gt;&lt;/code&gt; object on which the
+-   attribute was called to the new value.
++  &lt;p&gt;The &lt;dfn id=changeversion
++   title=dom-database-changeVersion&gt;changeVersion()&lt;/dfn&gt; method allows you
++   to atomically verify the version number and change it. When the method is
++   invoked, the user agent must obtain a full lock of the database (waiting
++   for all open transactions to be closed), and then must verify that the
++   current version of the database matches the first argument to the method.
++   If it does not match, then the user agent must release the lock and return
++   false. Otherwise, the current version matches the first argument, and the
++   user agent must change the current version of the database and the &lt;a
++   href=&quot;#expected&quot; title=concept-database-expected-version&gt;expected
++   version&lt;/a&gt; of the &lt;code&gt;&lt;a href=&quot;#database0&quot;&gt;Database&lt;/a&gt;&lt;/code&gt; object
++   on which the method was invoked to the value of the second argument. Then,
++   the lock must be released. Any &lt;code&gt;&lt;a
++   href=&quot;#database0&quot;&gt;Database&lt;/a&gt;&lt;/code&gt; instances that have an expected
++   version that differs from the new version will start failing at this
++   point. Finally, the method must return true.
+ 
+   &lt;h4 id=executing&gt;&lt;span class=secno&gt;4.10.3. &lt;/span&gt;Executing SQL statements&lt;/h4&gt;
+ 
+
+Modified: source
+===================================================================
+--- source	2007-09-25 08:57:17 UTC (rev 1034)
++++ source	2007-09-25 09:22:34 UTC (rev 1035)
+@@ -26085,7 +26085,8 @@
+   fine.&lt;/p&gt;
+ 
+   &lt;pre class=&quot;idl&quot;&gt;interface &lt;dfn&gt;Database&lt;/dfn&gt; {
+-           attribute DOMString &lt;span title=&quot;dom-database-version&quot;&gt;version&lt;/span&gt;;
++  readonly attribute DOMString &lt;span title=&quot;dom-database-version&quot;&gt;version&lt;/span&gt;;
++  bool &lt;span title=&quot;dom-database-changeVersion&quot;&gt;changeVersion&lt;/span&gt;(in DOMString oldVersion, in DOMString newVersion);
+   void &lt;span title=&quot;dom-database-executeSql&quot;&gt;executeSql&lt;/span&gt;(in DOMString sqlStatement, &lt;var title=&quot;&quot;&gt;arguments...&lt;/var&gt;, in &lt;span&gt;SQLCallback&lt;/span&gt; callback);&lt;!--
+   void &lt;span title=&quot;dom-database-executeSql&quot;&gt;executeSql&lt;/span&gt;(in Array sqlStatements, in &lt;span&gt;SQLCallback&lt;/span&gt; callback); // XXX add this in v2 --&gt;
+   void &lt;span title=&quot;dom-database-closeTransaction&quot;&gt;closeTransaction&lt;/span&gt;(); // only needed as part of error recovery
+@@ -26103,12 +26104,22 @@
+   &lt;p&gt;On getting, the attribute must return the current version of the
+   database.&lt;/p&gt;
+ 
+-  &lt;p&gt;On setting, the attribute must wait for all transactions that are
+-  trying to commit to finish commiting, and then must change the
+-  current version of the database and the &lt;span
+-  title=&quot;concept-database-expected-version&quot;&gt;expected version&lt;/span&gt; of
+-  the &lt;code&gt;Database&lt;/code&gt; object on which the attribute was called
+-  to the new value.&lt;/p&gt;
++  &lt;p&gt;The &lt;dfn
++  title=&quot;dom-database-changeVersion&quot;&gt;changeVersion()&lt;/span&gt;&lt;/dfn&gt;
++  method allows you to atomically verify the version number and change
++  it. When the method is invoked, the user agent must obtain a full
++  lock of the database (waiting for all open transactions to be
++  closed), and then must verify that the current version of the
++  database matches the first argument to the method. If it does not
++  match, then the user agent must release the lock and return
++  false. Otherwise, the current version matches the first argument,
++  and the user agent must change the current version of the database
++  and the &lt;span title=&quot;concept-database-expected-version&quot;&gt;expected
++  version&lt;/span&gt; of the &lt;code&gt;Database&lt;/code&gt; object on which the
++  method was invoked to the value of the second argument. Then, the
++  lock must be released. Any &lt;code&gt;Database&lt;/code&gt; instances that have
++  an expected version that differs from the new version will start
++  failing at this point. Finally, the method must return true.&lt;/p&gt;
+ 
+ 
+ 
+
+
+</PRE>
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="007942.html">[html5] r1034 - /
+</A></li>
+	<LI>Next message: <A HREF="007944.html">[html5] r1036 - /
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#7943">[ date ]</a>
+              <a href="thread.html#7943">[ thread ]</a>
+              <a href="subject.html#7943">[ subject ]</a>
+              <a href="author.html#7943">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/commit-watchers-whatwg.org">More information about the Commit-Watchers
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

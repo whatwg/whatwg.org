@@ -1,0 +1,171 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Onpopstate is Flawed
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Onpopstate%20is%20Flawed&In-Reply-To=%3CAANLkTikJaYwYTfMSq9mnsYjYjtXmBMHOZ7hHpLSe4UNA%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="030185.html">
+   <LINK REL="Next"  HREF="030273.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Onpopstate is Flawed</H1>
+<!--htdig_noindex-->
+    <B>Justin Lebar</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Onpopstate%20is%20Flawed&In-Reply-To=%3CAANLkTikJaYwYTfMSq9mnsYjYjtXmBMHOZ7hHpLSe4UNA%40mail.gmail.com%3E"
+       TITLE="[whatwg] Onpopstate is Flawed">justin.lebar at gmail.com
+       </A><BR>
+    <I>Wed Feb  2 15:37:14 PST 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="030185.html">[whatwg] Onpopstate is Flawed
+</A></li>
+        <LI>Next message: <A HREF="030273.html">[whatwg] Onpopstate is Flawed
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#30187">[ date ]</a>
+              <a href="thread.html#30187">[ thread ]</a>
+              <a href="subject.html#30187">[ subject ]</a>
+              <a href="author.html#30187">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Oh, I think I now understand what Jonas meant.
+
+Proposal A, as I understand it:
+
+1) Don't fire an initial popstate, because this causes stale popstates
+when pushState is called before the popstate.
+
+2) Expose the state object to the DOM so pages can find out what the
+initial state is when they load.  (The initial state might not be null
+if we're restoring after a crash, or if we're going back in history
+after we unloaded the document.)
+
+3) Otherwise, fire popstate like normal, once for each navigation.
+(With the caveat that you never want to fire a stale popstate -- that
+is, if any navigations or push/replaceStates have occurred since you
+queued the task to fire the popstate, don't fire it.)
+
+I think we need the caveat in step 3 because firing popstate isn't
+synchronous (step 11 at [1]).
+
+But if we need that caveat, maybe it's better to do what Jonas
+originally proposed.  Proposal B:
+
+1) Fire popstates as we currently do, with the caveat that you never
+fire a stale popstate -- that is, if any navigations or
+push/replaceStates have occurred since you queued the task to fire the
+popstate, don't fire it.
+
+Proposal B has the advantage of requiring fewer changes.  (We could,
+of course, add the DOM property later -- it's orthogonal to proposal
+B, but required by proposal A.)
+
+[1] <A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/history.html#traverse-the-history">http://www.whatwg.org/specs/web-apps/current-work/multipage/history.html#traverse-the-history</A>
+
+On Wed, Feb 2, 2011 at 2:48 PM, Jonas Sicking &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">jonas at sicking.cc</A>&gt; wrote:
+&gt;<i> On Wed, Feb 2, 2011 at 2:34 PM, Justin Lebar &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">justin.lebar at gmail.com</A>&gt; wrote:
+</I>&gt;&gt;&gt;<i> So during loading, any script that wants to know what the initial (or
+</I>&gt;&gt;&gt;<i> current) state is does not need to wait for the first popstate, but
+</I>&gt;&gt;&gt;<i> can simply grab the state and go.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Yeah, I think it's too late to move to this approach.
+</I>&gt;<i>
+</I>&gt;<i> Even if we also include the new state in the popstate events? Such a
+</I>&gt;<i> change seems mostly additive to the current spec.
+</I>&gt;<i>
+</I>&gt;&gt;&gt;<i> My thinking was that if someone calls replaceState, then probably that
+</I>&gt;&gt;&gt;<i> means that they're currently changing the page to represent that new
+</I>&gt;&gt;&gt;<i> state. If they do that then I don't see that they initial popstate
+</I>&gt;&gt;&gt;<i> would help them in any way?
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> I agree it's potentially misinformative to give the page a popstate in
+</I>&gt;&gt;<i> this case. &#160;But it's possible that a page might be built so that it
+</I>&gt;&gt;<i> doesn't begin to function properly until it receives the initial
+</I>&gt;&gt;<i> popstate. &#160;If a user clicks on a link and causes a replaceState call
+</I>&gt;&gt;<i> before the initial popstate, then such a page could break.
+</I>&gt;<i>
+</I>&gt;<i> But with my suggested change, pages have no reason to wait until the
+</I>&gt;<i> initial popstate fires. And in fact they can't since we don't fire it
+</I>&gt;<i> at all :) But yes, I agree that it could break already existing pages
+</I>&gt;<i> that have the above behavior.
+</I>&gt;<i>
+</I>&gt;<i> So the question is if webkit would be ok with such a change.
+</I>&gt;<i>
+</I>&gt;&gt;&gt;<i> So during loading, any script that wants to know what the initial (or
+</I>&gt;&gt;&gt;<i> current) state is does not need to wait for the first popstate, but
+</I>&gt;&gt;&gt;<i> can simply grab the state and go.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Oh, is this why we needed the initial popstate? &#160;For instance, we
+</I>&gt;&gt;<i> persist state objects across session restore, so when the user
+</I>&gt;&gt;<i> restarts, a page could get an onload followed by a popstate with a
+</I>&gt;&gt;<i> non-null state object.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> [Aside: What we currently have doesn't work well for this case, since
+</I>&gt;&gt;<i> the page really needs the state object at the moment it starts to run
+</I>&gt;&gt;<i> script so it can decide what content to load, but it doesn't get the
+</I>&gt;&gt;<i> state object until after onload.]
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> If we can't get rid of the initial popstate because of the above, then
+</I>&gt;&gt;<i> I think what Jonas proposed is reasonable. &#160;I just wish we had
+</I>&gt;&gt;<i> something with fewer gotchas.
+</I>&gt;<i>
+</I>&gt;<i> I think my latest proposed change makes this a whole lot better since
+</I>&gt;<i> the state is immediately available to scripts. The problem with only
+</I>&gt;<i> sticking the state in an event is that there is really no good point
+</I>&gt;<i> to fire the event. The later you fire it the longer it takes before
+</I>&gt;<i> the page works properly. The sooner you fire it the bigger risk you
+</I>&gt;<i> run that some script runs too late to get be able to catch the event.
+</I>&gt;<i>
+</I>&gt;<i> / Jonas
+</I>&gt;<i>
+</I></PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="030185.html">[whatwg] Onpopstate is Flawed
+</A></li>
+	<LI>Next message: <A HREF="030273.html">[whatwg] Onpopstate is Flawed
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#30187">[ date ]</a>
+              <a href="thread.html#30187">[ thread ]</a>
+              <a href="subject.html#30187">[ subject ]</a>
+              <a href="author.html#30187">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

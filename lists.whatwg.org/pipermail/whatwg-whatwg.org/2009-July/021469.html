@@ -1,0 +1,146 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] scripts, defer, document.write and DOMContentLoaded
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20scripts%2C%20defer%2C%20document.write%20and%20DOMContentLoaded&In-Reply-To=%3C63df84f0907272117q3f5ec802jd5ac2ed9990a6eda%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="021255.html">
+   <LINK REL="Next"  HREF="021670.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] scripts, defer, document.write and DOMContentLoaded</H1>
+<!--htdig_noindex-->
+    <B>Jonas Sicking</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20scripts%2C%20defer%2C%20document.write%20and%20DOMContentLoaded&In-Reply-To=%3C63df84f0907272117q3f5ec802jd5ac2ed9990a6eda%40mail.gmail.com%3E"
+       TITLE="[whatwg] scripts, defer, document.write and DOMContentLoaded">jonas at sicking.cc
+       </A><BR>
+    <I>Mon Jul 27 21:17:04 PDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="021255.html">[whatwg] scripts, defer, document.write and DOMContentLoaded
+</A></li>
+        <LI>Next message: <A HREF="021670.html">[whatwg] scripts, defer, document.write and DOMContentLoaded
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21469">[ date ]</a>
+              <a href="thread.html#21469">[ thread ]</a>
+              <a href="subject.html#21469">[ subject ]</a>
+              <a href="author.html#21469">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Mon, Jul 20, 2009 at 7:25 PM, Ian Hickson&lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">ian at hixie.ch</A>&gt; wrote:
+&gt;<i> On Tue, 7 Jul 2009, Jonas Sicking wrote:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> What's tricky is that a document.write inside a deferred script in IE
+</I>&gt;&gt;<i> will in some circumstances clear the current document, in other cases
+</I>&gt;&gt;<i> append to it. Specifically it seems that if the page has ever set
+</I>&gt;&gt;<i> .innerHTML on any node then document.write in the deferred script will
+</I>&gt;&gt;<i> append to the current page. If .innerHTML has never been set, then it
+</I>&gt;&gt;<i> will replace the current page.
+</I>&gt;<i>
+</I>&gt;<i> Actually what's going on is more subtle than that. When you set innerHTML,
+</I>&gt;<i> it's actually triggering the deferred scripts right there, if it has them
+</I>&gt;<i> loaded (e.g. inline scripts or cached scripts). If it doesn't have them
+</I>&gt;<i> loaded yet, it drops them on the floor and doesn't ever run them.
+</I>&gt;<i>
+</I>&gt;<i> I've specced this, except that the spec requires that not-yet-loaded
+</I>&gt;<i> scripts be loaded then run, rather than dropped, before innerHTML
+</I>&gt;<i> continues, so there's no race conditions.
+</I>
+Erm, I would really not like to do this. innerHTML is an very popular
+method used by web developers, so adding unexpected (to say the least)
+behavior like this I think will be a great source of developer bugs.
+And as others have pointed out, making it wait on network traffic
+synchronously is simply not acceptable.
+
+&gt;&gt;<i> * Don't fire DOMContentLoaded until all deferred scripts have executed.
+</I>&gt;&gt;<i> * Possibly hold off firing DOMContentLoaded until any outstanding
+</I>&gt;&gt;<i> scripts have finished loading and executing.
+</I>&gt;<i>
+</I>&gt;<i> I've done this. In fact, I've made it wait until all scripts that were
+</I>&gt;<i> pending when the parsing finished have been run.
+</I>&gt;<i>
+</I>&gt;<i> (You mentioned .readyState; I haven't changed that, since it makes the
+</I>&gt;<i> 'interactive' state far less useful if it only gets set once all the
+</I>&gt;<i> scripts have run but before the images have loaded. Being able to detect
+</I>&gt;<i> when or whether parsing has finished while running deferred scripts does
+</I>&gt;<i> seem useful. Hopefully it's not too much rope.)
+</I>
+Sounds ok. As long as .readyState is changed before any deferred
+scripts are executed (in order to avoid race conditions).
+
+&gt;&gt;<i> * Always execute elements in the order they are inserted into the
+</I>&gt;&gt;<i> Document, with exception of async and deferred scripts.
+</I>&gt;<i>
+</I>&gt;<i> I haven't done this, because people use document.appendChild() of external
+</I>&gt;<i> scripts specifically to have scripts run &quot;ASAP&quot; and not necessarily in
+</I>&gt;<i> order.
+</I>
+I'm always wary of adding race conditions, and I think that's exactly
+what we're adding here. The use case of running scripts ASAP is
+already supported by using the &quot;async&quot; attribute.
+
+&gt;<i> In general, I am very wary of changing this part of the spec, as it was
+</I>&gt;<i> written with extreme care based on all the tests I could run, primarily on
+</I>&gt;<i> IE, but also on other browsers. The innerHTML thing, though... I'll admit
+</I>&gt;<i> I really didn't even remotely think that there could be something to test!
+</I>
+My experience implementing deferred scripts and shipping support in
+firefox 3.5 is that IE behavior is not needed here. I'd like to see
+data showing otherwise before making innerHTML significantly more
+confusing to developers (or significantly less performant if we do the
+sync network thing) given how commonly used it is.
+
+We immediately noticed when document.write in deferred scripts blew
+away the full document, even before shipping a beta. Once we made it
+append to the end of the document we have not had a single problem
+reported. This several weeks after final shipping of firefox 3.5.
+
+/ Jonas
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="021255.html">[whatwg] scripts, defer, document.write and DOMContentLoaded
+</A></li>
+	<LI>Next message: <A HREF="021670.html">[whatwg] scripts, defer, document.write and DOMContentLoaded
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21469">[ date ]</a>
+              <a href="thread.html#21469">[ thread ]</a>
+              <a href="subject.html#21469">[ subject ]</a>
+              <a href="author.html#21469">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

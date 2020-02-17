@@ -1,0 +1,234 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] RFC: Alternatives to storage mutex for cookies	and	localStorage
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20RFC%3A%20Alternatives%20to%20storage%20mutex%20for%20cookies%0A%09and%09localStorage&In-Reply-To=%3C4AA6C0C9.6020604%40mozilla.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="022779.html">
+   <LINK REL="Next"  HREF="022784.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] RFC: Alternatives to storage mutex for cookies	and	localStorage</H1>
+<!--htdig_noindex-->
+    <B>Chris Jones</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20RFC%3A%20Alternatives%20to%20storage%20mutex%20for%20cookies%0A%09and%09localStorage&In-Reply-To=%3C4AA6C0C9.6020604%40mozilla.com%3E"
+       TITLE="[whatwg] RFC: Alternatives to storage mutex for cookies	and	localStorage">cjones at mozilla.com
+       </A><BR>
+    <I>Tue Sep  8 13:38:33 PDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="022779.html">[whatwg] RFC: Alternatives to storage mutex for cookies	and	localStorage
+</A></li>
+        <LI>Next message: <A HREF="022784.html">[whatwg] RFC: Alternatives to storage mutex for cookies and	localStorage
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22780">[ date ]</a>
+              <a href="thread.html#22780">[ thread ]</a>
+              <a href="subject.html#22780">[ subject ]</a>
+              <a href="author.html#22780">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Benjamin Smedberg wrote:
+&gt;<i> -----BEGIN PGP SIGNED MESSAGE-----
+</I>&gt;<i> Hash: SHA1
+</I>&gt;<i> 
+</I>&gt;<i> On 9/8/09 3:00 AM, Aaron Boodman wrote:
+</I>&gt;&gt;<i> On Fri, Sep 4, 2009 at 12:02 AM, Chris Jones&lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">cjones at mozilla.com</A>&gt; wrote:
+</I>&gt;&gt;&gt;<i> I propose adding the functions
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>  window.localStorage.beginTransaction()
+</I>&gt;&gt;&gt;<i>  window.localStorage.commitTransaction()
+</I>&gt;&gt;&gt;<i> or
+</I>&gt;&gt;&gt;<i>  window.beginTransaction()
+</I>&gt;&gt;&gt;<i>  window.commitTransaction()
+</I>&gt;&gt;<i> I think this is a good idea! I would modify it to follow the pattern
+</I>&gt;&gt;<i> set by the current SQLDatabase proposal, to have a callback, like
+</I>&gt;&gt;<i> this:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> window.localStorage.transaction(function() {
+</I>&gt;&gt;<i>   // use local storage here
+</I>&gt;&gt;<i> });
+</I>&gt;<i> 
+</I>&gt;<i> To be specific, the .transaction function would enqueue an operation to
+</I>&gt;<i> perform at a later time when a mutex was held. The current caller would
+</I>&gt;<i> continue to run to completion. There would never be simultaneous
+</I>&gt;<i> transactions which could potentially conflict with eachother and require
+</I>&gt;<i> merging or rollback.
+</I>&gt;<i> 
+</I>&gt;<i> It wasn't clear to me when this was proposed that it was asynchronous,
+</I>&gt;<i> instead of a blocking call that *immediately* waited for the mutex and
+</I>&gt;<i> blocked script execution.
+</I>&gt;<i> 
+</I>
+To be clear, that's not what I had in mind at all.  I envisioned a 
+synchronous API that speaks in terms of fallible, atomic/consistent 
+transactions.  Mutexes are implementation details that the spec would 
+not mention.
+
+It's easy to make an async API out of a sync one by using setTimeout(0, 
+...).  It's harder to go the other way.
+
+&gt;<i> Would the transaction function be defined so that it never runs immediately
+</I>&gt;<i> but is always enqueued? Also, I think the function name should make it
+</I>&gt;<i> clearer that it's an asynchronous callback:
+</I>&gt;<i> window.localStorage.queueTransaction or somesuch?
+</I>&gt;<i> 
+</I>&gt;&gt;<i> I'm against having explicit begin/commit methods for the same reason
+</I>&gt;&gt;<i> as I am for the SQLDatabase feature:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> - It is easy to forget to commit
+</I>&gt;&gt;<i> - The most likely paths in an application to be wrong are ones that
+</I>&gt;&gt;<i> are rarely run
+</I>&gt;&gt;<i> - Therefore many applications will contain uncommon paths that end up
+</I>&gt;&gt;<i> hung (responsive, but still unable to make forward progress) and with
+</I>&gt;&gt;<i> uncommitted data
+</I>&gt;<i> 
+</I>&gt;<i> I agree that this is true if you never implicitly commit the transaction.
+</I>&gt;<i> But if you were to implicitly commit the transaction when a script runs to
+</I>&gt;<i> completion, would that negate the most serious of these issues? I'm defining
+</I>&gt;<i> &quot;completion&quot; as &quot;all those places where the current spec says the storage
+</I>&gt;<i> mutex is unlocked&quot;, which seems equivalent to &quot;the places script can block
+</I>&gt;<i> on network or UI activity&quot;.
+</I>&gt;<i> 
+</I>
+It sounds like you're proposing to make the unit of run-to-completion 
+implicitly delineate localStorage transactions?  This is fine but it 
+complicates the handling of failed transactions, IMHO.
+
+&gt;<i> I suspect that making incompatible changes to the existing storage API is
+</I>&gt;<i> going to be a hard sell for some authors: could we continue to support
+</I>&gt;<i> completely transaction-free access to storage, in addition to the race-free
+</I>&gt;<i> queued version. This would allow authors (JS libraries) to do
+</I>&gt;<i> runtime-detection of the form:
+</I>&gt;<i> 
+</I>&gt;<i> if (window.localStorage.transaction === undefined)
+</I>&gt;<i>   window.localStorage.transaction = function(fn) {
+</I>&gt;<i>     window.setTimeout(fn, 0);
+</I>&gt;<i>   };
+</I>&gt;<i> 
+</I>
+No one has responded directly to my original proposal of making 
+|<i>window.localStorage === undefined| until |window.transaction| or 
+</I>whatever has been accessed.  Unlike your proposal and a similar one from 
+Jeremy, mine is a &quot;safe&quot; (non-racy) way for spec-compliant UAs to &quot;bend&quot; 
+backwards compatibility without explicitly breaking it.  Web apps slow 
+to change should theoretically be prepared for |window.localStorage === 
+undefined| anyway, as not all UAs support localStorage.  And if a UA 
+doesn't support window.transaction, a web app that cares never needs to 
+worry about racy localStorage because in non-compliant UAs, 
+|<i>window.transaction === undefined|.
+</I>
+Cheers,
+Chris
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="022779.html">[whatwg] RFC: Alternatives to storage mutex for cookies	and	localStorage
+</A></li>
+	<LI>Next message: <A HREF="022784.html">[whatwg] RFC: Alternatives to storage mutex for cookies and	localStorage
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22780">[ date ]</a>
+              <a href="thread.html#22780">[ thread ]</a>
+              <a href="subject.html#22780">[ subject ]</a>
+              <a href="author.html#22780">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

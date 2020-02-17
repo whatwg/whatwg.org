@@ -1,0 +1,190 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Canvas in workers
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Canvas%20in%20workers&In-Reply-To=%3C525AC3E8.6070103%40gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="083349.html">
+   <LINK REL="Next"  HREF="083353.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Canvas in workers</H1>
+<!--htdig_noindex-->
+    <B>David Bruant</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Canvas%20in%20workers&In-Reply-To=%3C525AC3E8.6070103%40gmail.com%3E"
+       TITLE="[whatwg] Canvas in workers">bruant.d at gmail.com
+       </A><BR>
+    <I>Sun Oct 13 09:01:44 PDT 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="083349.html">[whatwg] Canvas in workers
+</A></li>
+        <LI>Next message: <A HREF="083353.html">[whatwg] Canvas in workers
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#83350">[ date ]</a>
+              <a href="thread.html#83350">[ thread ]</a>
+              <a href="subject.html#83350">[ subject ]</a>
+              <a href="author.html#83350">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Le 13/10/2013 06:12, Kyle Huey a &#233;crit :
+&gt;<i> I talked at length with Robert O'Callahan about what the DOM API for
+</I>&gt;<i> supporting &lt;canvas&gt; in web workers should look like and we came up with the
+</I>&gt;<i> following modifications to the spec.
+</I>&gt;<i>
+</I>&gt;<i>     1. Rename CanvasProxy to WorkerCanvas and only allow it to be
+</I>&gt;<i>     transferred to workers.  I don't think we're interested in supporting
+</I>&gt;<i>     cross-origin &lt;canvas&gt; via CanvasProxy (I would be curious to hear more
+</I>&gt;<i>     about what the use cases are).
+</I>&gt;<i>     2. Add a worker-only WorkerCanvas constructor that takes the desired
+</I>&gt;<i>     width/height of the drawing surface.
+</I>What is the use case for this constructor? Draw something in worker, 
+output an image to be sent to main thread?
+
+&gt;<i>     3. Remove the rendering context constructors and the setContext method
+</I>&gt;<i>     on WorkerCanvas (n&#233;e CanvasProxy).
+</I>&gt;<i>     4. Copy all of the sensible non-node related things from
+</I>&gt;<i>     HTMLCanvasElement to WorkerCanvas.  This would include
+</I>&gt;<i>     - width and height as readonly attributes
+</I>&gt;<i>        - getContext (to replace what we removed in step 3).  roc prefers to
+</I>&gt;<i>        have getContext2D and getContextWebGL, and dispense with the string
+</I>&gt;<i>        argument version entirely, but I don't have strong feelings.
+</I>For the sake of writing interoperable code in main thread and worker, I 
+tend to be against this sort of change. I'm aware of the ugliness of 
+some APIs, but consistent ugly APIs beats a mix of beautiful and ugly API.
+
+&gt;<i>        - toBlob.  We do not intend to implement toDataURL here.
+</I>&gt;<i>     5. Add a &quot;commit&quot; method to WorkerCanvas.  For a WorkerCanvas obtained
+</I>&gt;<i>     from a main thread &lt;canvas&gt; element, this would cause the buffer displayed
+</I>&gt;<i>     on screen to swap.  For a WorkerCanvas created *de novo* on a worker
+</I>&gt;<i>     thread, it would do nothing.
+</I>Let's have this method optional, then? Or create 2 interfaces? I'm not 
+sure of what can be expressed in WebIDL to solve this, but useless 
+methods aren't a good idea. If I can't do anything, don't give me the 
+method. It's like in UI. If I can't click a button, just don't show me 
+the button or at least grey it out.
+
+
+&gt;<i>     This commit method would also commit a minor
+</I>&gt;<i>     violation of run-to-completion semantics, described below.
+</I>&gt;<i>     6. We would rely on extracting ImageBitmaps from the WorkerCanvas and
+</I>&gt;<i>     shipping them to the main thread via postMessage to allow synchronizing
+</I>&gt;<i>     canvas updates with DOM updates.  We explored a couple other options but we
+</I>&gt;<i>     didn't come up with anything else that allows synchronizing updates to
+</I>&gt;<i>     multiple canvases from a worker.  This isn't really sketched out here.
+</I>&gt;<i>
+</I>&gt;<i> So the IDL would look something like:
+</I>&gt;<i>
+</I>&gt;&gt;<i> [Constructor(unsigned long width, unsigned long height)]
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> interface WorkerCanvas {
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>    readonly attribute unsigned long width;
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>    readonly attribute unsigned long height;
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>    CanvasRenderingContext2D? getContext2D(any... args);
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>    WebGLRenderingContext? getContextWebGL(any... args);
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>    void toBlob(FileCallback? _callback, optional DOMString type, any...
+</I>&gt;&gt;<i> arguments);
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>    bool commit();
+</I>Boolean as return value for success? :-s
+A promise instead maybe? throw instead of false at least?
+In any case, it looks like commit could be a long operation (tell me if 
+I'm wrong here. Do you have numbers on how long it takes/would take?), 
+having it async sounds reasonable.
+
+&gt;&gt;<i>
+</I>&gt;&gt;<i> };
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> WorkerCanvas implements Transferable;
+</I>&gt;&gt;<i>
+</I>&gt;<i> Everything would be behave pretty much as one would expect, except perhaps
+</I>&gt;<i> for the commit method.  The width and height of the canvas can be modified
+</I>&gt;<i> on the main thread while the worker is drawing.  This would fire an event
+</I>&gt;<i> off to the worker to update the WorkerCanvas's dimensions that would be
+</I>&gt;<i> scheduled as if the main thread had postMessage()d something to the
+</I>&gt;<i> worker.  But it's possible that the worker would attempt to draw to the
+</I>&gt;<i> &lt;canvas&gt; before that update runs.  It's also possible that the worker would
+</I>&gt;<i> simply draw in a loop without yielding.  To solve this, if commit is called
+</I>&gt;<i> and the current dimensions on the main thread don't match the dimensions of
+</I>&gt;<i> the WorkerCanvas it would fail (return false) and update the dimensions of
+</I>&gt;<i> the WorkerCanvas before returning.  This is technically a violation of
+</I>&gt;<i> run-to-completion semantics, but is needed to support workers that do not
+</I>&gt;<i> yield.
+</I>I feel fairly strongly against the run-to-completion violation as it's a 
+foundation of how JavaScript works, how people reason about programs. 
+Also, TC39 is working hard to close the gap between what can be 
+expressed in pure ECMAScript and what the web platform does express, 
+it'd be inappropriate to add things that widen this gap in my opinion.
+
+I would be much more in favor of a solution like how IndexedDB handles 
+transactions. Here is how it could work:
+For a canvas which WorkerCanvas has been transfered, when trying to 
+change width/height:
+*1 Store the values, but don't do it yet
+*2 Send a message to the worker to re-dimension,
+#1 in the worker: wait for the current message to be taken care of
+#2 dispatch a &quot;dimension changed&quot; event (or equivalent)
+#3 send a confirmation to main thread
+#4 run the listeners
+*3 back to main thread: process all committed changes before the 
+confirmation
+*4 Actually change the dimensions
+
+This guarantees that the worker can always works on a canvas which it 
+knows the dimensions of makes life a whole lot easier for authors.
+
+Potentially *3 could be changed to &quot;cancel all unprocessed committed 
+changes&quot;. If commit returns a promise, the worker could be warned about 
+the cancellation.
+
+The downside of this solution is that the worker may take time to yield 
+to the event loop, but that results in crappy UX and it's the authors 
+responsibility to make sure it doesn't happen.
+Also, in my experience, &lt;canvas&gt; most often keep their dimensions, so I 
+don't know if it's worth polishing too much this use case.
+
+David
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="083349.html">[whatwg] Canvas in workers
+</A></li>
+	<LI>Next message: <A HREF="083353.html">[whatwg] Canvas in workers
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#83350">[ date ]</a>
+              <a href="thread.html#83350">[ thread ]</a>
+              <a href="subject.html#83350">[ subject ]</a>
+              <a href="author.html#83350">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

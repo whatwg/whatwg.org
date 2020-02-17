@@ -1,0 +1,164 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Limiting the amount of downloaded but not watched video
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Limiting%20the%20amount%20of%20downloaded%20but%20not%20watched%20video&In-Reply-To=%3Cop.vpj4shs3sr6mfa%40kirk%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="072226.html">
+   <LINK REL="Next"  HREF="072230.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Limiting the amount of downloaded but not watched video</H1>
+<!--htdig_noindex-->
+    <B>Philip J&#228;genstedt</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Limiting%20the%20amount%20of%20downloaded%20but%20not%20watched%20video&In-Reply-To=%3Cop.vpj4shs3sr6mfa%40kirk%3E"
+       TITLE="[whatwg] Limiting the amount of downloaded but not watched video">philipj at opera.com
+       </A><BR>
+    <I>Wed Jan 19 05:22:58 PST 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="072226.html">[whatwg] Limiting the amount of downloaded but not watched video
+</A></li>
+        <LI>Next message: <A HREF="072230.html">[whatwg] Limiting the amount of downloaded but not watched video
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#72229">[ date ]</a>
+              <a href="thread.html#72229">[ thread ]</a>
+              <a href="subject.html#72229">[ subject ]</a>
+              <a href="author.html#72229">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Wed, 19 Jan 2011 10:42:01 +0100, Aryeh Gregor  
+&lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">Simetrical+w3c at gmail.com</A>&gt; wrote:
+
+&gt;<i> On Mon, Jan 17, 2011 at 6:41 PM, Jeroen Wijering
+</I>&gt;<i> &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">jeroen at longtailvideo.com</A>&gt; wrote:
+</I>&gt;&gt;<i> We are getting some questions from JW Player users that HTML5 video is  
+</I>&gt;&gt;<i> quite wasteful on bandwidth for longer videos (think 10min+). This  
+</I>&gt;&gt;<i> because browsers download the entire movie once playback starts,  
+</I>&gt;&gt;<i> regardless of whether a user pauses the player. If throttling is used,  
+</I>&gt;&gt;<i> it seems very conservative, which means a lot of unwatched video is in  
+</I>&gt;&gt;<i> the buffer when a user unloads a video.
+</I>&gt;<i>
+</I>&gt;<i> A lot of people are complaining about this right now, and it needs to
+</I>&gt;<i> be addressed, but nothing I've seen makes it clear that it's a spec
+</I>&gt;<i> issue rather than QoI.  I.e., will this still be a problem once all
+</I>&gt;<i> browsers reliably implement preload=&quot;&quot; and iron our their video fetch
+</I>&gt;<i> behavior a bit more?  Are non-Mozilla browsers working on preload=&quot;&quot;?
+</I>
+I'm working on &lt;video preload&gt; right now, so have had reason to think a  
+lot about this recently. At first sight exposing something like  
+downloadBufferTarget seems quite reasonable, but things are complicated,  
+as usual...
+
+== Preload States ==
+
+The 3 preload states imply 3 simple buffering strategies:
+
+none: don't touch the network at all
+preload: buffer as little as possible while still reaching readyState  
+HAVE_METADATA
+auto: buffer as fast and much as possible
+
+However, the state we're discussing is when the user has begun playing the  
+video. The spec doesn't talk about it, but I call it:
+
+invoked: buffer as little as possible without readyState dropping below  
+HAVE_FUTURE_DATA (in other words: being able to play from currentTime to  
+duration at playbackRate without waiting for the network)
+
+== Bandwidth Management ==
+
+If the available bandwidth exceeds the bandwidth of the resource, some  
+kind of throttling must eventually be used. There are mainly 2 options for  
+doing this:
+
+1. Throttle at the TCP level by not reading data from the socket (not at  
+all to suspend, or at a controlled rate to buffer ahead)
+2. Use HTTP byte ranges, making many smaller requests with any kind of  
+throttling at the TCP level
+
+After much deliberation, I've tentatively concluded that option 2 is best  
+on balance, for the following reasons:
+
+* Browsers already have the infrastructure to do byte range requests for  
+&lt;video&gt;
+* More requests gives the server more opportunities to do load balancing
+* Servers may limit the number of concurrent requests, and the long-lived  
+requests caused by TCP throttling add to the total
+* Using HTTP byte range requests, connections don't live longer than  
+necessary and it's possible to interleave fetching of many resources from  
+the same server
+* Smooth reverse playback (playbackRate &lt; 0) is only possible using byte  
+range requests (or waiting for the whole resource to buffer, which could  
+be impossible with a limited cache size)
+* HTTP pipelining should ensure that a new connection doesn't need to be  
+established if the requests are not too far apart
+
+(Since there is some overhead with each HTTP request, one must make sure  
+that they are not unreasonably small.)
+
+When HTTP byte ranges are used to achieve bandwidth management, it's hard  
+to talk about a single downloadBufferTarget that is the number of seconds  
+buffered ahead. Rather, there might be an upper and lower limit within  
+which the browser tries to stay, so that each request can be of a  
+reasonable size. Neither an author-provided minumum or maximum value can  
+be followed particularly closely, but could possibly be taken as a hint of  
+some sort.
+
+== User Expectations ==
+
+The above buffering strategies are still not enough, because users seem to  
+expect that in a low-bandwidth situation, the video will keep buffering  
+until they can watch it through to the end. These seem to be the options  
+for solving the problem:
+
+* Make sites that want this behavior set .preload='auto' in the 'paused'  
+event handler
+* Add an option in the context menu to &quot;Preload Video&quot; or some such
+* Cause an invoked (see dfn above) but paused video to behave like  
+preload=auto
+* As above, but only when the available bandwidth is limited
+
+I don't think any of these solutions are particularly good, so any input  
+on other options is very welcome!
+
+-- 
+Philip J&#228;genstedt
+Core Developer
+Opera Software
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="072226.html">[whatwg] Limiting the amount of downloaded but not watched video
+</A></li>
+	<LI>Next message: <A HREF="072230.html">[whatwg] Limiting the amount of downloaded but not watched video
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#72229">[ date ]</a>
+              <a href="thread.html#72229">[ thread ]</a>
+              <a href="subject.html#72229">[ subject ]</a>
+              <a href="author.html#72229">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

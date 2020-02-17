@@ -1,0 +1,170 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] &lt;video&gt; resource selection algorithm and NETWORK_NO_SOURCE
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20%3Cvideo%3E%20resource%20selection%20algorithm%20and%0A%20NETWORK_NO_SOURCE&In-Reply-To=%3Cop.vgf2jy00sr6mfa%40philip-pc.gothenburg.osa%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="069576.html">
+   <LINK REL="Next"  HREF="069618.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] &lt;video&gt; resource selection algorithm and NETWORK_NO_SOURCE</H1>
+<!--htdig_noindex-->
+    <B>Philip J&#228;genstedt</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20%3Cvideo%3E%20resource%20selection%20algorithm%20and%0A%20NETWORK_NO_SOURCE&In-Reply-To=%3Cop.vgf2jy00sr6mfa%40philip-pc.gothenburg.osa%3E"
+       TITLE="[whatwg] &lt;video&gt; resource selection algorithm and NETWORK_NO_SOURCE">philipj at opera.com
+       </A><BR>
+    <I>Mon Jul 26 02:41:48 PDT 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="069576.html">[whatwg] &lt;video&gt; resource selection algorithm and	NETWORK_NO_SOURCE
+</A></li>
+        <LI>Next message: <A HREF="069618.html">[whatwg] &lt;video&gt; resource selection algorithm and	NETWORK_NO_SOURCE
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#69616">[ date ]</a>
+              <a href="thread.html#69616">[ thread ]</a>
+              <a href="subject.html#69616">[ subject ]</a>
+              <a href="author.html#69616">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>I actually don't think there's anything wrong about the spec as it is.
+
+NETWORK_NO_SOURCE is not a state of failure, it is a waiting state. Here's  
+what happens as the parser inserts elements into the DOM:
+
+&lt;video controls width=&quot;400px&quot;&gt;
+&lt;!-- video has been inserted but resource selection hasn't run --&gt;
+   &lt;source type=&quot;video/mp4&quot;&gt;
+&lt;!-- resource selection is started, ends on step 21 with NETWORK_NO_SOURCE  
+and pointer pointing to just after the only source element --&gt;
+   &lt;source type=&quot;video/webm&quot;&gt;
+&lt;!-- resource selection continues at step 22, going another loop and  
+ending at step 21, but with pointer pointer to after the second source  
+element --&gt;
+   &lt;source type=&quot;video/ogg&quot;&gt;
+&lt;-- same as above, but pointing to after the third source element --&gt;
+&lt;/video&gt;
+
+If nothing is done, the resource selection algorithm will wait forever at  
+step 21. To get out of that state you have to either call load() to  
+restart resource selection, or append another source element.
+
+If we should let networkState be NETWORK_EMPTY after inserting the dummy  
+&lt;source&gt; elements, then resource selection would be run from the beginning  
+each time, which means that during parsing, the first &lt;source&gt; element  
+will be considered 3 times, the second 2 times and the last 1 time. In  
+your example this doesn't matter, but if the reason a &lt;source&gt; failed was  
+because of network errors, unsupported Content-Type or an unsupported file  
+format, then that will also happen too many times, adding useless network  
+traffic (unless e.g. 404 results are cached).
+
+So, I think the algorithm should stay as it is and that the other browsers  
+should change their implementations. In your original example you used  
+&lt;source&gt; elements with no src attribute. This is invalid, and I think the  
+proper solution would be to create each source element, set the src  
+attribute and append it to the video element.
+
+Philip
+
+On Sat, 24 Jul 2010 05:51:12 +0200, Silvia Pfeiffer  
+&lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">silviapfeiffer1 at gmail.com</A>&gt; wrote:
+
+&gt;<i> There is definitely a spec bug, because different locations of the spec  
+</I>&gt;<i> say
+</I>&gt;<i> diverging things. While the first step in the resource selection  
+</I>&gt;<i> algorithm
+</I>&gt;<i> states to go into NETWORK_NO_SOURCE state, the description of
+</I>&gt;<i> NETWORK_NO_SOURCE in the spec actually implies a state of failure. Since  
+</I>&gt;<i> the
+</I>&gt;<i> first step in the resource selection algorithm really is a state where we
+</I>&gt;<i> know nothing about the resource yet, it matches more with the  
+</I>&gt;<i> description of
+</I>&gt;<i> NETWORK_EMPTY:
+</I>&gt;<i>
+</I>&gt;<i> NETWORK_EMPTY (numeric value 0)
+</I>&gt;<i>     The element has not yet been initialized. All attributes are in their
+</I>&gt;<i> initial states.
+</I>&gt;<i>
+</I>&gt;<i> NETWORK_NO_SOURCE (numeric value 3)
+</I>&gt;<i>     The element's resource selection algorithm is active, but it has  
+</I>&gt;<i> failed
+</I>&gt;<i> to find a resource to use.
+</I>&gt;<i>
+</I>&gt;<i> In any case, it would be nice to get the spec corrected either way and  
+</I>&gt;<i> the
+</I>&gt;<i> implementations aligned. :)
+</I>&gt;<i>
+</I>&gt;<i> Cheers,
+</I>&gt;<i> Silvia.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> On Sat, Jul 24, 2010 at 12:16 AM, Philip J&#228;genstedt  
+</I>&gt;<i> &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">philipj at opera.com</A>&gt;wrote:
+</I>&gt;<i>
+</I>&gt;&gt;<i> Silvia made we aware of discrepancy in how browsers implement the  
+</I>&gt;&gt;<i> resource
+</I>&gt;&gt;<i> selection algorithm, see forwarded message. It's my assessment that  
+</I>&gt;&gt;<i> Opera is
+</I>&gt;&gt;<i> the only browser following the spec. I've filed this bug with Mozilla:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> <A HREF="https://bugzilla.mozilla.org/show_bug.cgi?id=581355">https://bugzilla.mozilla.org/show_bug.cgi?id=581355</A>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> I've also reported bugs in Chrome and Safari, but can't see where they
+</I>&gt;&gt;<i> ended up.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> The reason I'm writing this email is that apparently everyone but myself
+</I>&gt;&gt;<i> has a different interpretation of the spec, so perhaps this is  
+</I>&gt;&gt;<i> something we
+</I>&gt;&gt;<i> need to discuss. Does any other browser ever set the state  
+</I>&gt;&gt;<i> NETWORK_NO_SOURCE
+</I>&gt;&gt;<i> at all? I speculated that perhaps other browsers aren't very strict  
+</I>&gt;&gt;<i> about
+</I>&gt;&gt;<i> which parts of the algorithm are run synchronously and not, but even
+</I>&gt;&gt;<i> checking the networkState after a setTimeout it still isn't
+</I>&gt;&gt;<i> NETWORK_NO_SOURCE.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Test case: <A HREF="http://people.opera.com/philipj/2010/07/23/networkState.html">http://people.opera.com/philipj/2010/07/23/networkState.html</A>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Please fix implementation or spec :)
+</I>
+-- 
+Philip J&#228;genstedt
+Core Developer
+Opera Software
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="069576.html">[whatwg] &lt;video&gt; resource selection algorithm and	NETWORK_NO_SOURCE
+</A></li>
+	<LI>Next message: <A HREF="069618.html">[whatwg] &lt;video&gt; resource selection algorithm and	NETWORK_NO_SOURCE
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#69616">[ date ]</a>
+              <a href="thread.html#69616">[ thread ]</a>
+              <a href="subject.html#69616">[ subject ]</a>
+              <a href="author.html#69616">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

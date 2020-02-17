@@ -1,0 +1,148 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Fixing undo on the Web - UndoManager and Transaction
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Fixing%20undo%20on%20the%20Web%20-%20UndoManager%20and%20Transaction&In-Reply-To=%3CCABNRm61PMikepKeuGH-nV9-SjKGunPQkrAf5i6Nuw685Wya2bQ%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="074992.html">
+   <LINK REL="Next"  HREF="032648.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Fixing undo on the Web - UndoManager and Transaction</H1>
+<!--htdig_noindex-->
+    <B>Ryosuke Niwa</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Fixing%20undo%20on%20the%20Web%20-%20UndoManager%20and%20Transaction&In-Reply-To=%3CCABNRm61PMikepKeuGH-nV9-SjKGunPQkrAf5i6Nuw685Wya2bQ%40mail.gmail.com%3E"
+       TITLE="[whatwg] Fixing undo on the Web - UndoManager and Transaction">rniwa at webkit.org
+       </A><BR>
+    <I>Fri Jul 29 17:40:05 PDT 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="074992.html">[whatwg] Fixing undo on the Web - UndoManager and Transaction
+</A></li>
+        <LI>Next message: <A HREF="032648.html">[whatwg] Nested list
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#74995">[ date ]</a>
+              <a href="thread.html#74995">[ thread ]</a>
+              <a href="subject.html#74995">[ subject ]</a>
+              <a href="author.html#74995">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Fri, Jul 29, 2011 at 5:08 PM, Jonas Sicking &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">jonas at sicking.cc</A>&gt; wrote:
+
+&gt;<i> I really do like the undoscope attribute, that is something that is
+</I>&gt;<i> definitely needed.
+</I>
+
+Yes. I've considered other possibilities such as letting scripts to manually
+instantiate UndoManager objects, etc... but that turned out to require too
+much work just to separate undo transaction histories of two editable
+regions.
+
+
+&gt;<i> It does seem undefined how it
+</I>&gt;<i> interacts with the contenteditable attribute? I was thinking that
+</I>&gt;<i> contenteditable would create a undoscope, unless there's an element
+</I>&gt;<i> higher up in the tree which has an explicit undoscope attribute.
+</I>&gt;<i>
+</I>
+I've thought this approach as well but this would break the backward
+compatibility as the major browsers currently provide one undo transaction
+history per document.  My proposal tries to decouple contenteditable and
+undoscope so that if the apps were so desired, they can share the same undo
+transaction history between multiple contenteditable regions.
+
+My proposal, however, mentions the editing host when I define a &quot;proper
+sequence of managed transactions&quot; in order to support co-existance of
+managed and manual transactions.
+
+ Why is there a need for a 'reapply' action? How is it different from
+&gt;<i> the 'apply' action?
+</I>&gt;<i>
+</I>
+In the case of collaborative editing apps, reapply is different from apply
+because the backend server may have a tree of transaction history and may
+need to consult on demand in order to determine exactly what mutations have
+to happen.
+
+What is the purpose of the UndoManager.replace function and it's
+&gt;<i> replaceGroup argument? In general I'm not sure I fully understand
+</I>&gt;<i> &quot;transaction groups&quot;. Are they different from simply a set of
+</I>&gt;<i> transactions which have been merged together such that they are
+</I>&gt;<i> done/undone together?
+</I>&gt;<i>
+</I>
+Yeah, sorry about that.  I should clarify that part of the design.
+
+*UndoManager.replace*
+The key observation is that ManagedTransaction is constrained to work only
+with a &quot;proper sequence of managed transactions&quot;.  Whenever an app inserts a
+manual transaction or directly mutates the DOM under the same editing host,
+the UA won't be able to unapply/reapply the existing ManagedTransaction
+created by user editing actions; i.e. inserting a manual transaction breaks
+the existing managed transactions.  Without this constraint, however, the UA
+is required to keep track of all DOM mutations happening in the undo scope
+:<i>(
+</I>
+Given this constraint, the apps that do use managed transactions such as
+collaborative editing apps need to replace the managed transactions inserted
+by the UA by the corresponding manual transaction when user types text.
+
+*Transaction Group*
+When a user types &quot;hello&quot;, he isn't really typing all of &quot;hello&quot; at once but
+rather inserting character &quot;h&quot;, &quot;e&quot;, &quot;l&quot;, &quot;l&quot;, and &quot;o&quot;, letting the UA
+insert each letter as a separate managed transaction in the order.  However,
+when the user undoes or redoes this typing command, the entire &quot;hello&quot; needs
+to removed.  This is accomplished as grouping 5 managed transactions for
+inserting &quot;h&quot;, &quot;e&quot;, &quot;l&quot;, &quot;l&quot;, and &quot;o&quot; as a transaction group.
+
+Why expose explicit Transaction objects. What value does that provide?
+&gt;<i>
+</I>
+I admit this is more of stylistic issue rather than the technical limitation
+but given a transaction already has label and apply &quot;properties&quot;, it seemed
+more natural for it to be an object.  That'll allow us to add more
+properties in the future.
+
+In particular, I really wanted to provide a mutation list as discussed on
+the mutation events replacement thread on public-webapps.  This allows apps
+to determine which transaction did what without having to listening to each
+mutation event, and makes it easier to replace managed transactions by
+manual transactions as described above.
+
+- Ryosuke
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="074992.html">[whatwg] Fixing undo on the Web - UndoManager and Transaction
+</A></li>
+	<LI>Next message: <A HREF="032648.html">[whatwg] Nested list
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#74995">[ date ]</a>
+              <a href="thread.html#74995">[ thread ]</a>
+              <a href="subject.html#74995">[ subject ]</a>
+              <a href="author.html#74995">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

@@ -1,0 +1,925 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Gigantoredesignorrific changes to the Database API
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Gigantoredesignorrific%20changes%20to%20the%20Database%20API&In-Reply-To=%3CPine.LNX.4.62.0710240823380.16360%40hixie.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="055113.html">
+   <LINK REL="Next"  HREF="055164.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Gigantoredesignorrific changes to the Database API</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Gigantoredesignorrific%20changes%20to%20the%20Database%20API&In-Reply-To=%3CPine.LNX.4.62.0710240823380.16360%40hixie.dreamhostps.com%3E"
+       TITLE="[whatwg] Gigantoredesignorrific changes to the Database API">ian at hixie.ch
+       </A><BR>
+    <I>Wed Oct 24 03:56:41 PDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="055113.html">[whatwg] Invalid SQL statements and SYNTAX_ERR
+</A></li>
+        <LI>Next message: <A HREF="055164.html">[whatwg] Gigantoredesignorrific changes to the Database API
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#55139">[ date ]</a>
+              <a href="thread.html#55139">[ thread ]</a>
+              <a href="subject.html#55139">[ subject ]</a>
+              <a href="author.html#55139">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>
+Please excercise caution when replying to this e-mail, as it has been 
+cross-posted to both the WHATWG and the public-html mailing lists. To 
+avoid difficulties, please reply just to one or the other.
+
+I have heavily modified the database API to address a number of 
+fundamental issues people have raised.
+
+I have not supplied a way to do a statement with a transaction in this 
+version of the API, though the new API is much more able to be extended to 
+support that without ending up with weird method names.
+
+I haven't supplied a way in this version of the API to rollback or commit 
+a transaction without executing the whole callback (i.e. there's no 
+commit() or rollback() method), but the changes again make it much easier 
+for us to extend the API later to allow this.
+
+I also made no attempt to address the concern that a callback that did a 
+lot of work (a common scenario if you consider building up a table from a 
+SELECT's result set to be a lot of work) would hold up the end of a 
+transaction.
+
+More details below.
+
+You can find the new spec at:
+
+   <A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/section-sql.html">http://www.whatwg.org/specs/web-apps/current-work/multipage/section-sql.html</A>
+
+
+On Tue, 16 Oct 2007, Scott Hess wrote:
+&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; Whoa!  I just realized that there's another group, constraint 
+</I>&gt;<i> &gt; &gt; failures. These are statements which will sometimes succeed, 
+</I>&gt;<i> &gt; &gt; sometimes fail.  As currently spec'ed, it looks like a constraint 
+</I>&gt;<i> &gt; &gt; failure will cause rollback.  This is probably not appropriate, 
+</I>&gt;<i> &gt; &gt; constraint failures are generally expected to be benign and 
+</I>&gt;<i> &gt; &gt; detectable.  Arguing against myself, I've seen plenty of code which 
+</I>&gt;<i> &gt; &gt; just treats any errors from something which allows for a constraint 
+</I>&gt;<i> &gt; &gt; failure as a constraint failure, so maybe this also can be lumped 
+</I>&gt;<i> &gt; &gt; under a single big error code.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Could you elaborate on this? What would code running into this 
+</I>&gt;<i> &gt; situation look like? How should we expose it?
+</I>&gt;<i> 
+</I>&gt;<i> A common case is wanting to update a row, if present, or insert it, if 
+</I>&gt;<i> not.  You can handle this in three ways.  You can use a transaction to 
+</I>&gt;<i> keep things consistent:
+</I>&gt;<i> 
+</I>&gt;<i>   BEGIN;
+</I>&gt;<i>     SELECT COUNT(*) FROM t WHERE id = ?;
+</I>&gt;<i>     -- if == 0
+</I>&gt;<i>       INSERT INTO t VALUES (?, ...);
+</I>&gt;<i>     -- if == 1
+</I>&gt;<i>       UPDATE t SET c = ?, ... WHERE id = ?;
+</I>&gt;<i>   END;
+</I>
+With the new API:
+
+   var db = openDatabase('test', '');
+   db.transaction(function (tx) {
+     tx.executeSql('SELECT COUNT(*) AS count FROM t WHERE id = ?', [id],
+       function (tx, results) {
+         if (results.rows[0].count == 0)
+           tx.executeSql('INSERT INTO t (id, c) VALUES (?, ?)', [id, data]);
+         else
+           tx.executeSql('UPDATE t SET c = ? WHERE id = ?', [data, id]);
+       });
+   });
+
+
+&gt;<i> This style is generally avoided, because in a server environment, you
+</I>&gt;<i> have four round trips from when the transaction is opened to when it's
+</I>&gt;<i> closed, plus whatever contention for CPU is present at both ends, so
+</I>&gt;<i> it is not great for concurrency.  Instead, you can just try the insert
+</I>&gt;<i> and rely on a unique or primary key to cause a constraint violation:
+</I>&gt;<i> 
+</I>&gt;<i>   INSERT INTO t VALUES (?, ...);
+</I>&gt;<i>   -- if constraint violation on id
+</I>&gt;<i>     UPDATE t SET c = ?, ... WHERE id = ?;
+</I>
+With the new API:
+
+   var db = openDatabase('test', '');
+   db.transaction(function (tx) {
+     tx.executeSql('INSERT INTO t (id, c) VALUES (?, ?)', [id, data],
+       function (tx, results) {},
+       function (tx, error) {
+         if (error.code == 6) {
+           tx.executeSql('UPDATE t SET c = ? WHERE id = ?', [data, id]);
+           return false;
+         }
+         throw error;
+       });
+   });
+
+
+&gt;<i> That variant is best if you expect to usually succeed, and sometimes
+</I>&gt;<i> fall through to the update (for instance when inserting a new user
+</I>&gt;<i> record).  Otherwise, you could do:
+</I>&gt;<i> 
+</I>&gt;<i>   UPDATE t SET c = ?, ... WHERE id = ?;
+</I>&gt;<i>   -- if no rows affected
+</I>&gt;<i>     INSERT INTO t VALUES (?, ...);
+</I>
+With the new API:
+
+   var db = openDatabase('test', '');
+   db.transaction(function (tx) {
+     tx.executeSql('UPDATE t SET c = ? WHERE id = ?', [data, id]);
+       function (tx, results) {
+         if (results.rowsAffected == 0)
+           tx.executeSql('INSERT INTO t (id, c) VALUES (?, ?)', [id, data],
+       });
+   });
+
+
+On Wed, 17 Oct 2007, Maciej Stachowiak wrote:
+&gt;<i> 
+</I>&gt;<i> I can think of two reasons you might not want to open a transaction in a 
+</I>&gt;<i> particular case.
+</I>&gt;<i> 
+</I>&gt;<i> (1) Behavior - you may honestly want to start a completely independent 
+</I>&gt;<i> statement from the callback for another. This case seems to be handled 
+</I>&gt;<i> ok by closeTransaction(), though perhaps a little inconveniently if this 
+</I>&gt;<i> turns out to be the common case.
+</I>
+In the new spec you can start a new transaction just by calling 
+transaction(), so that's catered for. (It doesn't start a nested 
+transaction, it starts an independent one.)
+
+
+&gt;<i> (2) Performance for single statements. We should gain implementation 
+</I>&gt;<i> experience to determine if, in likely implementations, it is a 
+</I>&gt;<i> significant performance improvement for single statements to be executed 
+</I>&gt;<i> without opening a transaction at all.
+</I>
+I have, for now, not included an API for this. Please let me know when you 
+have more experience with this in the wild if such an API would help. The 
+current API is easily extended to allow for this.
+
+
+&gt;<i> (3) Performance in the face of concurrency by not holding locks as long. 
+</I>&gt;<i> But again closeTranscation() can cover this case if (2) is not an issue.
+</I>
+With the removal of closeTransaction() the spec actually makes this harder 
+now. However, you can work around it with setTimeout(..., 0) if it is 
+critical. It would be relatively easy to address this in future versions 
+by adding a commit() method to the SQLTransaction object.
+
+
+On Wed, 17 Oct 2007, Brady Eidson wrote:
+&gt;<i>
+</I>&gt;<i> I imagine that *any* potential back end will have a hard time optimizing 
+</I>&gt;<i> the &quot;1 statement in a transaction&quot; case to be as fast as the statement 
+</I>&gt;<i> by itself.
+</I>&gt;<i> 
+</I>&gt;<i> Is this mandatory performance hit acceptable?
+</I>
+I don't know.
+
+A number of other people made detailed comments on the performance 
+characteristics of various implementation strategies and API designs, 
+which I have elided here. It seems that the issue can be argued all three 
+ways (transactions are a win, raw statements without transactions are a 
+win, the difference is insignificant), and so I have mostly let other 
+concerns drive the design of the API. Do let me know if you think I have 
+not addressed something that you think is important.
+
+
+On Wed, 17 Oct 2007, Adam Roben wrote:
+&gt;<i> 
+</I>&gt;<i> 1. Should single SQL statements be wrapped in a transaction?
+</I>&gt;<i>
+</I>&gt;<i> 2. Should the SQL API support explicit transactions (and therefore a way 
+</I>&gt;<i> to not fall into implicit transactions)?
+</I>
+The new spec makes all transactions explicit, which makes #2 somewhat 
+moot. There's no way to avoid #1 at the moment but we can address that in 
+a future version relatively easily. As previously mentioned, I'd like to 
+keep this API as thin as possible in the first version.
+
+
+On Wed, 17 Oct 2007, Scott Hess wrote:
+&gt;<i> 
+</I>&gt;<i> A) As things currently stand, the developer simply can't roll their own 
+</I>&gt;<i> transaction structure.  Passing BEGIN, COMMIT, or ROLLBACK to 
+</I>&gt;<i> executeSql() doesn't do anything sensible.  It's possible you could 
+</I>&gt;<i> somehow do something using temporary tables, but that's going to be 
+</I>&gt;<i> really dependent on your underlying SQL implementation's capabilities.
+</I>
+This is still the case.
+
+
+&gt;<i> B) Transactions are a meaningful concept in SQL, and we're entangling 
+</I>&gt;<i> that concept with an implementation detail of how the API is 
+</I>&gt;<i> implemented.
+</I>
+Indeed.
+
+
+&gt;<i> I'm gradually getting to where I don't feel strongly about B.  If you 
+</I>&gt;<i> don't want a transaction, you can have serial calls to executeSql(). If 
+</I>&gt;<i> you want serial calls that are dependent, you can call 
+</I>&gt;<i> closeTransaction() before making the next executeSql().  I agree that 
+</I>&gt;<i> the following might be more self-documenting:
+</I>&gt;<i> 
+</I>&gt;<i>   db.transaction(function () {
+</I>&gt;<i>     db.executeSql(...);
+</I>&gt;<i>   });
+</I>
+That's basically what we have now (though executeSql is on a transaction 
+object passed to the callback).
+
+
+&gt;<i> On A, I'm still nervous.
+</I>
+Can you elaborate on your concerns?
+
+
+On Wed, 17 Oct 2007, Brady Eidson wrote:
+&gt;<i> 
+</I>&gt;<i> I'm really starting to fall in to your way of thinking on this: A is 
+</I>&gt;<i> what makes me nervous and I think it largely complicates both the 
+</I>&gt;<i> implicit transaction and changeVersion() issues.
+</I>&gt;<i> 
+</I>&gt;<i> &quot;A future version of this specification may define the exact SQL subset 
+</I>&gt;<i> required in more detail&quot; - perhaps this future version of the spec might 
+</I>&gt;<i> also specifically disallow begin/commit/rollback in executeSql(), which 
+</I>&gt;<i> would be okay if we make the built-in alternative clear.
+</I>
+I've disallowed BEGIN/COMMIT/ROLLBACK.
+
+
+On Wed, 17 Oct 2007, Brady Eidson wrote:
+&gt;<i> 
+</I>&gt;<i> Additionally, if we replaced closeTransaction() with commitTransaction() 
+</I>&gt;<i> and rollbackTransaction(), that would fit in with my idea of disallowing 
+</I>&gt;<i> BEGIN/COMMIT/ROLLBACK in executeSql() as the developer would still have 
+</I>&gt;<i> manual control over the implicit transaction.
+</I>&gt;<i> 
+</I>&gt;<i> I'm very interested to hear everyone's thoughts on this.
+</I>
+The spec does have a way of controlling what gets commited and what gets 
+rolled back now (you throw to force a rollback; you return false from your 
+transaction error handler to ignore the error and force a commit if 
+possible).
+
+
+On Wed, 17 Oct 2007, Aaron Boodman wrote:
+&gt;<i> 
+</I>&gt;<i> In the current spec, the tx must stay open until callback returns, 
+</I>&gt;<i> right? That seems like the only reasonable way it could work. That's too 
+</I>&gt;<i> bad because since the callback is also overloaded as a way to get the 
+</I>&gt;<i> results of executeSql and do work, the callback might stay open for a 
+</I>&gt;<i> long time and do all sorts of other work, like starting httprequests, 
+</I>&gt;<i> starting new logical sql transactions, updating the UI, etc.
+</I>
+Indeed. Other than providing explicit commit() and rollback() methods on 
+the SQLTransaction object (which I think we should do only in version 2), 
+I don't see how to work around this.
+
+
+&gt;<i> This is the first thing that makes me question the current implicit 
+</I>&gt;<i> transaction API :-(. Maybe adding a executeSqlInTransaction() would be 
+</I>&gt;<i> smarter. You can then separate the two meanings of SQLCallback:
+</I>&gt;<i> 
+</I>&gt;<i> - getting results of a sql call
+</I>&gt;<i> - linking sql calls together into transactions
+</I>
+Could you elaborate on how this would work? How would the UA know when to 
+commit?
+
+
+On Wed, 17 Oct 2007, Scott Hess wrote:
+&gt;<i> 
+</I>&gt;<i> Since opening an SQL transaction is itself an SQL call which may fail, I 
+</I>&gt;<i> think it would be more reasonable to just have two calls, executeSql() 
+</I>&gt;<i> which simply passes the SQL statement down to the driver, and 
+</I>&gt;<i> transaction() which provides a transaction context in the callback.  If 
+</I>&gt;<i> executeSql() is called within the transaction() callback, that extends 
+</I>&gt;<i> the transaction into the newly registered callback.  If transaction() is 
+</I>&gt;<i> called within a callback, that opens a nested transaction (*) and 
+</I>&gt;<i> extends the containing transaction. Successfully completing the entire 
+</I>&gt;<i> tree of callbacks results in commit, while an uncaught exception causes 
+</I>&gt;<i> rollback (**).
+</I>
+This is basically what the spec does now, modulo the nested transactions.
+
+
+&gt;<i> (*) This could either be a true nested transaction, if your SQL driver 
+</I>&gt;<i> supports that, or a fake transaction using a stack to track nesting 
+</I>&gt;<i> (with the consequent inability to rollback a nested transaction without 
+</I>&gt;<i> rolling back through the outermost transaction).
+</I>&gt;<i> 
+</I>&gt;<i> (**) I'm not sure how real nested transactions would work, here. Maybe 
+</I>&gt;<i> you have to catch exceptions from the nested transaction() call?
+</I>
+Nested transactions seemed like more effort than they were worth, 
+especially given lack of support in common DB libraries like SQLite. I've 
+made transaction() simply open a new transaction unrelated to any parent 
+transaction.
+
+
+On Wed, 17 Oct 2007, Scott Hess wrote:
+&gt;<i> 
+</I>&gt;<i> It might, but I'd still wonder how far the spec wants to go down the 
+</I>&gt;<i> road of replicating/enforcing the SQL transaction model.  I think having 
+</I>&gt;<i> convenience functions is helpful to developers, it's the notion of 
+</I>&gt;<i> having _only_ the convenience functions which concerns me.  The more the 
+</I>&gt;<i> API adds things like implicit transactions and commit/rollback 
+</I>&gt;<i> functions, the more tightly tied it will be to a specific SQL 
+</I>&gt;<i> implementation's semantics.
+</I>
+The spec will eventually be completely tied to a specific SQL 
+implementation's semantics, so I don't see why this is a problem.
+
+
+&gt;<i> A thought experiment we've used on the Gears team is to ask whether 
+</I>&gt;<i> something can be composed from more basic components entirely in 
+</I>&gt;<i> JavaScript.  Posit a version of the API which instead implements 
+</I>&gt;<i> executeRawSql(), which does not have any transaction implications at 
+</I>&gt;<i> all.  The spec's executeSql() could clearly be implemented as a wrapper 
+</I>&gt;<i> around executeRawSql(), as could the current closeTransaction() and the 
+</I>&gt;<i> above commitTransaction() and rollbackTransaction().  executeRawSql() 
+</I>&gt;<i> also allows the developer to merrily shoot themselves in the foot, of 
+</I>&gt;<i> course.
+</I>
+I agree that transaction support could be implemented on top of raw calls 
+and multiple databases. However:
+
+&gt;<i> [I think where I'm going here might be &quot;make easy things easy and hard 
+</I>&gt;<i> things possible&quot;.]
+</I>
+I think the above argues for us to take the API just that one level above 
+the raw SQL up to having &quot;first-class&quot; transaction support in the API.
+
+
+On Wed, 17 Oct 2007, Aaron Boodman wrote:
+&gt;<i> 
+</I>&gt;<i> Yes this is an icky bit. I am almost ready to say that 
+</I>&gt;<i> BEGIN/COMMIT/ROLLBACK should be blacklisted, except for the fact that I 
+</I>&gt;<i> can see somebody wanting to programatically rollback in the space 
+</I>&gt;<i> between two sql statements and the only way without ROLLBACK is to throw 
+</I>&gt;<i> an error.
+</I>
+I haven't made this possible in this version. I have left us the option of 
+providing a rollback() method in a future version that would make this 
+easy, though.
+
+
+On Wed, 17 Oct 2007, Brady Eidson wrote:
+&gt;<i> 
+</I>&gt;<i> I've seen about 10 different interpretations of the implicit transaction 
+</I>&gt;<i> and the effect of closeTransaction() - I don't think it's clear yet ;)
+</I>
+How about now? :-)
+
+
+&gt;<i> &gt; What are the disadvantages of implicit transactions?
+</I>&gt;<i> 
+</I>&gt;<i> The above case with sql1-3 and sql4-6 - what would happen?  Would the 
+</I>&gt;<i> sql4-6 calls wait until the sql1-3's complete or would they error out? 
+</I>&gt;<i> The spec is ambiguous on this *because* of the implicit transaction.
+</I>
+I don't really see how it's the implicitness that makes it ambiguous. It's 
+inherently a race condition, no?
+
+
+&gt;<i> Also, the &quot;implicit transaction&quot; from the JS API's standpoint turns into 
+</I>&gt;<i> an &quot;explicit transaction for every individual statement&quot; in SQL reality.  
+</I>&gt;<i> This is almost certainly going to translate into a lock held for a 
+</I>&gt;<i> longer period of time or more code execution for a single statement.  
+</I>&gt;<i> If a common use-case turns out to be individual statements one at a 
+</I>&gt;<i> time, we're inflicting a mandatory penalty on the web developer.
+</I>
+Yes.
+
+
+&gt;<i> Additionally, I sent an email a bit over a week about about the 
+</I>&gt;<i> complexities of changeVersion() along with the implicit transactions.  
+</I>&gt;<i> If there is one of these transactions open, how do we rectify 
+</I>&gt;<i> changeVersion() blocking the JS thread when a callback on the JS thread 
+</I>&gt;<i> would be needed to address closing out the mandatory implicit 
+</I>&gt;<i> transaction?
+</I>
+changeVersion() is now asynchronous (and actually invokes a transaction 
+just like transaction() does).
+
+
+&gt;<i> &gt; That's a possibility, though we're trying to keep the API as thin as 
+</I>&gt;<i> &gt; possible.
+</I>&gt;<i> 
+</I>&gt;<i> An admirable goal - one that I agree with.  Which is why I think the 
+</I>&gt;<i> wisdom of the implicit transaction is dubious.  Developers that will be 
+</I>&gt;<i> using SQL will know they can say &quot;BEGIN TRANSACTION;&quot; and &quot;COMMIT;&quot; or 
+</I>&gt;<i> &quot;ROLLBACK;&quot; so the utility of having transactions will not be lost.  
+</I>&gt;<i> Ditching it would help thin the API further, clearing up this confusion 
+</I>&gt;<i> and complexity.
+</I>
+Well, the spec now blacklists those, forcing the API to be used for 
+transactions. In theory this makes things better, for example by making it 
+much harder to forget to close a transaction.
+
+
+On Wed, 17 Oct 2007, Maciej Stachowiak wrote:
+&gt;<i> 
+</I>&gt;<i> Downsides to this approach:
+</I>&gt;<i> 
+</I>&gt;<i> - You could only have one transaction in flight at once, so you'd have 
+</I>&gt;<i> to do scheduling in the app code if a transaction-starting UI operation 
+</I>&gt;<i> happens while you already have a transaction in progress. Otherwise 
+</I>&gt;<i> multiple transactions would get scrambled. (Or else the API layer could 
+</I>&gt;<i> parse your statements and understand when you have opened a transaction 
+</I>&gt;<i> to still implicitly assign statements in your callbacks to the 
+</I>&gt;<i> transaction, but I am not sure this is a simplification overall.)
+</I>
+Indeed. This is addressed in the new API by having an explicit 
+SQLTransaction object per transaction.
+
+
+&gt;<i> - An author mistake (like doing something that causes an exception in 
+</I>&gt;<i> the callback) means a stuck lock, quite possibly ruining the whole 
+</I>&gt;<i> session.
+</I>
+Indeed, that's the main reason for having transactions at the API level, 
+IMHO.
+
+
+&gt;<i> With a synchronous API and threads this wouldn't be a problem, because 
+</I>&gt;<i> we could provide a wrapper function that would bracket your code with 
+</I>&gt;<i> BEGIN TRANSACTION and the appropriate of ROLLBACK or COMMIT depending on 
+</I>&gt;<i> whether you throw an exception, and each thread would be using a 
+</I>&gt;<i> different database connection. But with the async API, you create much 
+</I>&gt;<i> more opportunity for author error.
+</I>
+Indeed, when we introduce worker pool APIs I think we'll have to introduce 
+a synchronous version of this API.
+
+
+&gt;<i> I think the current model is not really as hard to understand as it 
+</I>&gt;<i> might seem from the spec, which has to be very precise for the sake of 
+</I>&gt;<i> implementations and does not make for a good tutorial.
+</I>
+Yeah, I'll add an intro section once we're settled on something.
+
+
+&gt;<i> We should test whether the performance benefits of not using 
+</I>&gt;<i> transactions are significant. If we need to provide both I might suggest 
+</I>&gt;<i> startTransaction or startSqlTransaction that would act like the current 
+</I>&gt;<i> executeSql, and executeSql which acts as currently if there is a current 
+</I>&gt;<i> transaction, but doesn't start one if none is open.
+</I>
+We now have transaction() on the Database and executeSql() on the 
+SQLTransaction -- we can easily add an executeRawSql() method on the 
+Database object at some future point if we find it is needed.
+
+
+On Wed, 17 Oct 2007, Aaron Boodman wrote:
+&gt;<i> 
+</I>&gt;<i> Another problem is that developers actually don't realize they need to 
+</I>&gt;<i> use BEGIN and COMMIT and they end up writing extremely slow code and 
+</I>&gt;<i> wondering why. Making the transactions be automatic is a big win for 
+</I>&gt;<i> making the API performant by default.
+</I>
+Right, this is one reason that the API now requires use of transactions, 
+at least in this version.
+
+
+On Wed, 17 Oct 2007, Scott Hess wrote:
+&gt;<i> 
+</I>&gt;<i> I agree with Aaron.  Having transactions explicitly in the API is 
+</I>&gt;<i> useful, because langauge features can be integrated (for instance, 
+</I>&gt;<i> unhandled JavaScript exceptions can result in a ROLLBACK), and because 
+</I>&gt;<i> it's very easy to make a mistake that locks things up.
+</I>
+Indeed.
+
+
+&gt;<i> Here I'm mixed.  There are multiple reasons to use transactions.  The 
+</I>&gt;<i> most primary use is for correctness reasons.  Using them to improve 
+</I>&gt;<i> performance is an implementation detail, in a high-concurrency system a 
+</I>&gt;<i> bunch of bare statements is likely to allow more performance than the 
+</I>&gt;<i> same statements in a transaction.  I'm concerned that making 
+</I>&gt;<i> transactions implicit to address an implementation detail like 
+</I>&gt;<i> performance may cause unforseen correctness issues.
+</I>
+Do you like the new explicit model?
+
+
+&gt;<i> How would the current system interact with nested transactions?  The 
+</I>&gt;<i> obvious answer is that each executeSql() would create a new nested 
+</I>&gt;<i> transaction, but if you logically want a nested transaction, and want to 
+</I>&gt;<i> do a ROLLBACK, you want to ROLLBACK the logical nested transaction, not 
+</I>&gt;<i> the one associated with the enclosing executeSql().  I was thinking you 
+</I>&gt;<i> could call closeTransaction() [which would COMMIT the immediately local 
+</I>&gt;<i> executeSql()], then throw an exception to cause a ROLLBACK, but as 
+</I>&gt;<i> currently spec'ed I think that will poison the entire transaction.
+</I>
+The current spec has no nested transaction support whatsoever.
+
+
+&gt;<i> I think I generally agree with Maciej, but differ that I think the 
+</I>&gt;<i> conservative stance would be to not introduce implicit transactions and 
+</I>&gt;<i> later add them, rather than introduce them and later add a way to not 
+</I>&gt;<i> have them.  I do think real experience will be useful, because combining 
+</I>&gt;<i> transactions and asynchronous operation makes it hard to see through to 
+</I>&gt;<i> which issues are real.  It may be that convoluted nested-transaction 
+</I>&gt;<i> systems are just impossible to understand when phrased asynchronously, 
+</I>&gt;<i> so making the API work with them is not valuable.
+</I>
+If this turns out to be the case, we can add explicit SQL calls and 
+downplay or deprecate the transaction API. It is harder to go the other 
+way (trying to convince people not to use a raw API when there's a better 
+one is hard, people will still use the other one).
+
+
+On Wed, 17 Oct 2007, Brady Eidson wrote:
+&gt;<i> 
+</I>&gt;<i> There is a problem that has been alluded too in this thread but not 
+</I>&gt;<i> explicitly called out.
+</I>&gt;<i> 
+</I>&gt;<i> For all the tracking of implicit transactions, having &quot;active thread 
+</I>&gt;<i> global transactions&quot; in an executeSql() chain, and have changeVersion() 
+</I>&gt;<i> wait until all transactions are closed... how do we handle web 
+</I>&gt;<i> developers who start their own transactions?
+</I>
+It's not possible in the new spec.
+
+
+On Wed, 17 Oct 2007, Maciej Stachowiak wrote:
+&gt;<i> 
+</I>&gt;<i> I think the remaining problem is that you can't make the version change 
+</I>&gt;<i> atomic with the transaction you use to actually upgrade the schema. This 
+</I>&gt;<i> could be fixed by making changeVersion() open a transaction which is the 
+</I>&gt;<i> current transaction during its callback, with the requirement that the 
+</I>&gt;<i> version is automatically rolled back if the transaction is. Then you can 
+</I>&gt;<i> do the actual schema upgrade from changeVersion()'s callback. I believe 
+</I>&gt;<i> this is reasonable to implement and would make database upgrades more 
+</I>&gt;<i> sound.
+</I>
+I have done this.
+
+
+On Wed, 17 Oct 2007, Brady Eidson wrote:
+&gt;<i> 
+</I>&gt;<i> I share Maciej's concern here.  Right now the only alternative is to 
+</I>&gt;<i> make sure you're not in the middle of any transactions, perform an 
+</I>&gt;<i> executeSql() chain in one transaction that changes the database schema, 
+</I>&gt;<i> and immediately follow up that chain with a changeVersion().  Problem is 
+</I>&gt;<i> that another browsing context can still butt-in between your 
+</I>&gt;<i> schema-mutating-transaction and your call to changeVersion().  What if 
+</I>&gt;<i> that other browsing context changes the schema in a different way, then 
+</I>&gt;<i> you change the version, but not to what you would expect?
+</I>
+In the previous model I expected people to change the version to a 
+temporary version, do the work, then change it to the final version. This 
+worked around the above problems, but was still very brittle -- what if 
+the script dies while in the temporary version state? The database becomes 
+unusable.
+
+The new model fixes this.
+
+
+On Wed, 17 Oct 2007, Aaron Boodman wrote:
+&gt;<i>
+</I>&gt;<i> I'm still not convinced that closeTransaction() is worth the trouble.
+</I>
+It's gone.
+
+
+&gt;<i> My point of view is that database errors are rare and unexpected and 
+</I>&gt;<i> will be handled with a separate code path from the success path. In 
+</I>&gt;<i> simple cases, they need not be handled at all, throwing a global error 
+</I>&gt;<i> (which goes to window.onerror, then the error console) is sufficient. In 
+</I>&gt;<i> more complex cases, the db transaction may have been part of a larger 
+</I>&gt;<i> operation, like synchronization, which needs to be aborted and handled 
+</I>&gt;<i> gracefully in the UI. Still, in that case, the code for handling errors 
+</I>&gt;<i> is totally different than the code for handling success, and it 
+</I>&gt;<i> definitely does not need to do anything inside the failed transaction.
+</I>
+I haven't yet made errors go to window.onerror, but other than that, I've 
+done what you suggest -- transaction(), changeVersion(), and executeSql() 
+all have two callbacks, one for errors and one for success.
+
+I'm not sure exactly what to do with onerror. Should I raise an exception 
+as if the transaction() call had failed? (i.e. what line number do I use? 
+What exception?)
+
+
+On Thu, 18 Oct 2007, Scott Hess wrote:
+&gt;<i>
+</I>&gt;<i> If the statement to executeSql() is invalid, then an exception will be 
+</I>&gt;<i> raised immediately, which can be caught by wrapping the call to 
+</I>&gt;<i> executeSql() with an exception handler.  If there is an error in the 
+</I>&gt;<i> course of executing the statement, it will be exposed by the errorCode 
+</I>&gt;<i> in the callback.  If there is no such error, the callback will be 
+</I>&gt;<i> executed in the context of an implicit database transaction.
+</I>
+I've changed this so that all errors fire the error callback. executeSql() 
+will no longer ever raise an exception. This should make error handling 
+easier to manage.
+
+
+&gt;<i> This would appear to leave no place from which to detect an error 
+</I>&gt;<i> committing the transaction.
+</I>
+I've added an error callback to transaction() to handle this case. It also 
+gets called when an error happens in any of the executeSql() calls that 
+isn't handled by those error handlers.
+
+
+&gt;<i> There is also no place to hang code to execute when the transaction is 
+</I>&gt;<i> known to be successful.
+</I>
+I haven't added anything for that. Do we really want a third callback? 
+What's the use case? (Updating UI? Can't you update the UI optimistically 
+and then fix it up in case of error?)
+
+
+On Thu, 18 Oct 2007, Aaron Boodman wrote:
+&gt;<i> 
+</I>&gt;<i> Good one. Another reason I guess you need to separate the concept of 
+</I>&gt;<i> finishing a transaction from the concept of finishing a statement.
+</I>
+It's all kinda still implicit right now, I have to admit.
+
+
+On Thu, 18 Oct 2007, Mihai Sucan wrote:
+&gt;<i> &gt; 
+</I>&gt;<i> &gt; You also asked some questions about the globalStorage stuff and about 
+</I>&gt;<i> &gt; file upload APIs. I'll answer those later when I address those areas.
+</I>&gt;<i> 
+</I>&gt;<i> No problem. I know I went off-topic, but I allowed myself to do that, 
+</I>&gt;<i> because ideas are most important.
+</I>
+Yeah; it was no problem at all, it's just that I'm not addressing those 
+areas at the moment! Don't worry about mixing feedback, it's fine, so 
+long as you can handle replies to different parts at different times!
+
+
+&gt;<i> &gt; &gt; 1. Why complicate things with database versions? Any use cases?
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; It's for when you update your application and need to transition to a 
+</I>&gt;<i> &gt; new database schema.
+</I>&gt;<i> 
+</I>&gt;<i> Can't this be done with a completely new database name?
+</I>
+This would require copying all the data over each time you update the 
+schema.
+
+
+&gt;<i> The spec definition of what a database 'version' is, is not very clear. 
+</I>&gt;<i> Let me see if I correctly understand now:
+</I>&gt;<i> 
+</I>&gt;<i> openDatabase('robodesign', 'v1')
+</I>&gt;<i> 
+</I>&gt;<i> ... this creates the database 'robodesign' with version 'v1'.
+</I>&gt;<i> 
+</I>&gt;<i> ... we can executeSql() as much as we want
+</I>&gt;<i> 
+</I>&gt;<i> openDatabase('robodesign', 'v2')
+</I>&gt;<i> 
+</I>&gt;<i> ... this fails (INVALID_STATE_ERR), because the database doesn't have 
+</I>&gt;<i> version 'v2'
+</I>&gt;<i> 
+</I>&gt;<i> openDatabase('robodesign', '')
+</I>&gt;<i> 
+</I>&gt;<i> ... this works - no expected version.
+</I>&gt;<i> 
+</I>&gt;<i> ... but still, we cannot executeSql() because the algorithm tells that 
+</I>&gt;<i> the expected version must be te same as the current version.
+</I>
+All right except that if you opened it with '' then you can do anything.
+
+
+&gt;<i> db.changeVersion('v1', 'v2', callBack)
+</I>&gt;<i> 
+</I>&gt;<i> ... allows the author to implement the transition from older versions to 
+</I>&gt;<i> newer versions of the same database.
+</I>
+Right.
+
+
+&gt;<i> Now, the question is: how are authors supposed to make the transition between
+</I>&gt;<i> versions?
+</I>&gt;<i> 
+</I>&gt;<i> a) within the callback of changeVersion()?
+</I>&gt;<i> 
+</I>&gt;<i> The author is not supposed to start running any commands which 
+</I>&gt;<i> transition the database to the newer version. Everything is supposed to 
+</I>&gt;<i> be done within the callback.
+</I>
+Right.
+
+
+&gt;<i> If my understanding of what the database version is correct, here's my 
+</I>&gt;<i> try at a simpler &quot;overview&quot; definition:
+</I>&gt;<i> 
+</I>&gt;<i> &quot;Any database can have only one version at a time - versions are not 
+</I>&gt;<i> concurrent. The database version only serves the purpose of easier 
+</I>&gt;<i> identification of the version for Web authors. They can write scripts 
+</I>&gt;<i> which automatically upgrade the database of the client to a newer 
+</I>&gt;<i> version. Without any version identifier, the authors would not be able 
+</I>&gt;<i> to trivially check which database schema is provided by the client.&quot;
+</I>
+I've added a note with the same spirit which might help.
+
+
+&gt;<i> &gt; &gt; 2. Why openDatabase() instead of executeSql('SELECT databaseName') ?
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; Because you're not executing SQL, you're selecting the database. I 
+</I>&gt;<i> &gt; don't really see why you'd use executeSql for this.
+</I>&gt;<i> 
+</I>&gt;<i> Erm, that's a mistake. I wanted executeSql('USE database_name'). 
+</I>&gt;<i> However, given the special purpose of openDatabase() ... the USE command 
+</I>&gt;<i> cannot be used.
+</I>
+I'm not sure why you'd want to use the USE command...
+
+In any case, with the new API this becomes moot, since there is no way to 
+execute SQL until after you have a transaction, which you can't do until 
+you have a database.
+
+
+&gt;<i> Further comments on the section:
+</I>&gt;<i> 
+</I>&gt;<i> 1. The changeVersion() definition does not tell what happens if the 
+</I>&gt;<i> author invokes the method with the first two arguments being the same. 
+</I>&gt;<i> It also does not tell what happens when the newVersion is the same as 
+</I>&gt;<i> the current version.
+</I>
+It doesn't mention these explicitly, but I believe the spec does define 
+what should happen in those cases, no? The same rules apply as in any 
+other case.
+
+
+&gt;<i> 2. The changeVersion() method should also provide the Database object to 
+</I>&gt;<i> the callback function, as the first argument. The second argument should 
+</I>&gt;<i> be the boolean value determined by the algorithm defined for the 
+</I>&gt;<i> changeVersion() method.
+</I>
+changeVersion() now passes a SQLTransaction to the callback.
+
+
+&gt;<i> 3. In step 5 of the executeSql() algorithm it is said:
+</I>&gt;<i> 
+</I>&gt;<i> &quot;The user agent must then add the specified SQL statement to 
+</I>&gt;<i> transaction, and must execute it as soon as all the statements that were 
+</I>&gt;<i> added to that transaction before it have themselves successfully 
+</I>&gt;<i> executed. [SQL]
+</I>&gt;<i> 
+</I>&gt;<i> If the Database object has an expected version that is neither the empty 
+</I>&gt;<i> string nor the actual version of the database, the statement must fail.&quot;
+</I>&gt;<i> 
+</I>&gt;<i> The UA must execute the SQL statement. However, if the expected version 
+</I>&gt;<i> is not the same as the current version, *then* the statement must fail. 
+</I>&gt;<i> How does this work? Shouldn't the UA skip the execution of the SQL 
+</I>&gt;<i> statement if the two versions don't match, and simply fail?
+</I>
+The new text should make this clearer. Let me know if it's still 
+ambiguous.
+
+
+&gt;<i> 4. Based on the definition of the openDatabase() method I understand 
+</I>&gt;<i> that the expected version can *only* be the empty string *or* the actual 
+</I>&gt;<i> value of the *current* version of the database. Is that correct? If yes 
+</I>&gt;<i> (or not) this should also be made more clear.
+</I>
+No, the current version can get changed by changeVersion() in another 
+thread. I'm not sure how to make that clearer.
+
+
+&gt;<i> 5. In the list of error codes, maybe an error code should be defined for 
+</I>&gt;<i> one of the most common errors: duplicate ID. The error is triggered when 
+</I>&gt;<i> the author tries to execute an SQL statement which inserts a new row 
+</I>&gt;<i> with an existing ID - duplicate ID.
+</I>
+Added.
+
+
+On Fri, 19 Oct 2007, Timothy Hatcher wrote:
+&gt;<i> 
+</I>&gt;<i> I think step one needs more clarification on what an invalid statement 
+</I>&gt;<i> is. In the current WebKit implementation a SYNTAX_ERR is being thrown 
+</I>&gt;<i> for all queries that sqlite3_prepare doesn't return SQLITE_OK. This 
+</I>&gt;<i> means queries against tables that don't exist will throw a SYNTAX_ERR, 
+</I>&gt;<i> among other things that are perfectly well-formed statements.
+</I>
+This should be a non-issue now that all errors use the error callback 
+instead of throwing exceptions.
+
+
+&gt;<i> Take this example and assume WebKitNotes doesn't exist:
+</I>&gt;<i> 
+</I>&gt;<i> db.executeSql(&quot;CREATE TABLE WebKitNotes (note TEXT, timestamp REAL)&quot;, [],
+</I>&gt;<i> function(result) {});
+</I>&gt;<i> db.executeSql(&quot;INSERT INTO WebKitNotes VALUES (?, ?)&quot;, [note, timestamp],
+</I>&gt;<i> function(result) {});
+</I>&gt;<i> 
+</I>&gt;<i> The first query will be queued for execution. It is a valid statement. 
+</I>&gt;<i> The second query can come in before the first has been executed. Since 
+</I>&gt;<i> the table hasn't been created yet, executeSql will throw a SYNTAX_ERR 
+</I>&gt;<i> because sqlite3_prepare fails to find the table.
+</I>&gt;<i> 
+</I>&gt;<i> Now, run the code again and the create table will throw SYNTAX_ERR 
+</I>&gt;<i> because the table already exists. Users could use CREATE TABLE IF NOT 
+</I>&gt;<i> EXISTS, but SQLite has not always had this (for instance, the version 
+</I>&gt;<i> shipped on Mac OS 10.4.)
+</I>&gt;<i> 
+</I>&gt;<i> So a developer needs to write their code like this:
+</I>&gt;<i> 
+</I>&gt;<i> try {
+</I>&gt;<i> 	db.executeSql(&quot;CREATE TABLE WebKitNotes (note TEXT, timestamp REAL)&quot;,
+</I>&gt;<i> [], function(result) {
+</I>&gt;<i> 		db.executeSql(&quot;INSERT INTO WebKitNotes VALUES (?, ?)&quot;, [note,
+</I>&gt;<i> timestamp], function(result) {});
+</I>&gt;<i> 	});
+</I>&gt;<i> } catch(e) {
+</I>&gt;<i> 	db.executeSql(&quot;INSERT INTO WebKitNotes VALUES (?, ?)&quot;, [note,
+</I>&gt;<i> timestamp], function(result) {});
+</I>&gt;<i> }
+</I>&gt;<i> 
+</I>&gt;<i> I think SYNTAX_ERR should only be thrown for non well-formed queries 
+</I>&gt;<i> (missing quotes, clauses, etc.), and if a table doesn't exist it should 
+</I>&gt;<i> not throw. Once the whole queue is executed, that table might exist. If 
+</I>&gt;<i> the table still doesn't exist the developer will have an errorCode and a 
+</I>&gt;<i> meaningful error string instead of a generic SYNTAX_ERR with no context.
+</I>
+In the new API the above would translate (bugs and all) directly to:
+
+   var db = openDatabase('test', '');
+   db.transaction(function (tx) {
+     tx.executeSql('CREATE TABLE WebKitNotes (note TEXT, timestamp REAL)', [],
+       function (tx, results) {
+         tx.executeSql(&quot;INSERT INTO WebKitNotes VALUES (?, ?)&quot;,
+                       [note, timestamp]);
+       },
+       function (tx, error) {
+         tx.executeSql(&quot;INSERT INTO WebKitNotes VALUES (?, ?)&quot;,
+                       [note, timestamp]);
+         return false;
+       });
+   });
+
+...or you could do:
+
+   var db = openDatabase('test', '');
+   db.transaction(function (tx) {
+     var insert = function (tx) {
+       tx.executeSql(&quot;INSERT INTO WebKitNotes VALUES (?, ?)&quot;, [note, timestamp]);
+       return false;
+     };
+     tx.executeSql('CREATE TABLE WebKitNotes (note TEXT, timestamp REAL)',
+                   [], insert, insert);
+   });
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="055113.html">[whatwg] Invalid SQL statements and SYNTAX_ERR
+</A></li>
+	<LI>Next message: <A HREF="055164.html">[whatwg] Gigantoredesignorrific changes to the Database API
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#55139">[ date ]</a>
+              <a href="thread.html#55139">[ thread ]</a>
+              <a href="subject.html#55139">[ subject ]</a>
+              <a href="author.html#55139">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

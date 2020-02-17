@@ -1,0 +1,2604 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [html5] r7327 - [giow] (1) Reform the processing model around	loading of text tracks to solve a [...]
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commit-watchers%40lists.whatwg.org?Subject=Re%3A%20%5Bhtml5%5D%20r7327%20-%20%5Bgiow%5D%20%281%29%20Reform%20the%20processing%20model%20around%0A%09loading%20of%20text%20tracks%20to%20solve%20a%20%5B...%5D&In-Reply-To=%3C20120911215914.A52421C8405E%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="014189.html">
+   <LINK REL="Next"  HREF="014191.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[html5] r7327 - [giow] (1) Reform the processing model around	loading of text tracks to solve a [...]</H1>
+<!--htdig_noindex-->
+    <B>whatwg at whatwg.org</B> 
+    <A HREF="mailto:commit-watchers%40lists.whatwg.org?Subject=Re%3A%20%5Bhtml5%5D%20r7327%20-%20%5Bgiow%5D%20%281%29%20Reform%20the%20processing%20model%20around%0A%09loading%20of%20text%20tracks%20to%20solve%20a%20%5B...%5D&In-Reply-To=%3C20120911215914.A52421C8405E%40ps20323.dreamhostps.com%3E"
+       TITLE="[html5] r7327 - [giow] (1) Reform the processing model around	loading of text tracks to solve a [...]">whatwg at whatwg.org
+       </A><BR>
+    <I>Tue Sep 11 14:59:14 PDT 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="014189.html">[html5] r7326 - [giow] (1) &lt;track&gt; loading algorithm updates (part	1) Affected topics: Video Tex [...]
+</A></li>
+        <LI>Next message: <A HREF="014191.html">[html5] r7328 - [giow] (1) Make text track cues more forgiving:	drop the concept of cues being ' [...]
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#14190">[ date ]</a>
+              <a href="thread.html#14190">[ thread ]</a>
+              <a href="subject.html#14190">[ subject ]</a>
+              <a href="author.html#14190">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Author: ianh
+Date: 2012-09-11 14:59:07 -0700 (Tue, 11 Sep 2012)
+New Revision: 7327
+
+Modified:
+   complete.html
+   index
+   source
+Log:
+[giow] (1) Reform the processing model around loading of text tracks to solve a number of problems: what happens when there's no media element parent, how to make sure we pick the right text track when there's a user preference, and some race conditions
+Affected topics: HTML, Rendering, Video Text Tracks, Video and Audio
+
+Modified: complete.html
+===================================================================
+--- complete.html	2012-09-07 21:52:27 UTC (rev 7326)
++++ complete.html	2012-09-11 21:59:07 UTC (rev 7327)
+@@ -246,7 +246,7 @@
+ 
+   &lt;header class=head id=head&gt;&lt;p&gt;&lt;a class=logo href=<A HREF="http://www.whatwg.org/">http://www.whatwg.org/</A>&gt;&lt;img alt=WHATWG height=101 src=/images/logo width=101&gt;&lt;/a&gt;&lt;/p&gt;
+    &lt;hgroup&gt;&lt;h1 class=allcaps&gt;HTML&lt;/h1&gt;
+-    &lt;h2 class=&quot;no-num no-toc&quot;&gt;Living Standard &mdash; Last Updated 7 September 2012&lt;/h2&gt;
++    &lt;h2 class=&quot;no-num no-toc&quot;&gt;Living Standard &mdash; Last Updated 11 September 2012&lt;/h2&gt;
+    &lt;/hgroup&gt;&lt;dl&gt;&lt;dt&gt;&lt;strong&gt;Web developer edition:&lt;/strong&gt;&lt;/dt&gt;
+     &lt;dd&gt;&lt;strong&gt;&lt;a href=<A HREF="http://developers.whatwg.org/">http://developers.whatwg.org/</A>&gt;<A HREF="http://developers.whatwg.org/&lt;/a">http://developers.whatwg.org/&lt;/a</A>&gt;&lt;/strong&gt;&lt;/dd&gt;
+     &lt;dt&gt;Multiple-page version:&lt;/dt&gt;
+@@ -1586,6 +1586,10 @@
+    different text for web+, etc. I haven't fixed these yet since I
+    expect the WHATWG to switch approach at some point soon too. --&gt;
+ 
++   &lt;li&gt;The W3C HTML specification avoids mentioning
++   &lt;code&gt;&lt;a href=#mouseeventinit&gt;MouseEventInit&lt;/a&gt;&lt;/code&gt;, resulting in a different definition
++   for &lt;code&gt;&lt;a href=#drageventinit&gt;DragEventInit&lt;/a&gt;&lt;/code&gt;.&lt;/li&gt;
++
+   &lt;/ul&gt;&lt;p&gt;The following sections are only published in the WHATWG
+   specifications and are not currently available anywhere else:&lt;/p&gt;
+ 
+@@ -28429,11 +28433,10 @@
+   format.&lt;/p&gt;
+ 
+   &lt;p&gt;The &lt;code&gt;&lt;a href=#the-video-element&gt;video&lt;/a&gt;&lt;/code&gt; element also &lt;a href=#represents&gt;represents&lt;/a&gt; any
+-  &lt;a href=#text-track-cue title=&quot;text track cue&quot;&gt;text track cues&lt;/a&gt; whose
+-  &lt;a href=#text-track-cue-active-flag&gt;text track cue active flag&lt;/a&gt; is set and whose
+-  &lt;a href=#text-track&gt;text track&lt;/a&gt; is in the &lt;a href=#text-track-showing title=&quot;text track
+-  showing&quot;&gt;showing&lt;/a&gt; or &lt;a href=#text-track-showing-by-default title=&quot;text track showing by
+-  default&quot;&gt;showing by default&lt;/a&gt; modes.&lt;/p&gt;
++  &lt;a href=#text-track-cue title=&quot;text track cue&quot;&gt;text track cues&lt;/a&gt; whose &lt;a href=#text-track-cue-active-flag&gt;text
++  track cue active flag&lt;/a&gt; is set and whose &lt;a href=#text-track&gt;text
++  track&lt;/a&gt; is in the &lt;a href=#text-track-showing title=&quot;text track
++  showing&quot;&gt;showing&lt;/a&gt; mode.&lt;/p&gt;
+ 
+   &lt;p&gt;In addition to the above, the user agent may provide messages to
+   the user (such as &quot;buffering&quot;, &quot;no video loaded&quot;, &quot;error&quot;, or more
+@@ -31738,21 +31741,20 @@
+   &lt;/p&gt;
+ 
+   &lt;ol&gt;&lt;li&gt;&lt;p&gt;Let &lt;var title=&quot;&quot;&gt;current cues&lt;/var&gt; be a list of &lt;a href=#text-track-cue title=&quot;text track cue&quot;&gt;cues&lt;/a&gt;, initialized to contain all the
+-   &lt;a href=#text-track-cue title=&quot;text track cue&quot;&gt;cues&lt;/a&gt; of all the &lt;a href=#text-track-hidden title=&quot;text track hidden&quot;&gt;hidden&lt;/a&gt;, &lt;a href=#text-track-showing title=&quot;text track
+-   showing&quot;&gt;showing&lt;/a&gt;, or &lt;a href=#text-track-showing-by-default title=&quot;text track showing by
+-   default&quot;&gt;showing by default&lt;/a&gt; &lt;a href=#text-track title=&quot;text track&quot;&gt;text
+-   tracks&lt;/a&gt; of the &lt;a href=#media-element&gt;media element&lt;/a&gt; (not the &lt;a href=#text-track-disabled title=&quot;text track disabled&quot;&gt;disabled&lt;/a&gt; ones) whose &lt;a href=#text-track-cue-start-time title=&quot;text track cue start time&quot;&gt;start times&lt;/a&gt; are less than
+-   or equal to the &lt;a href=#current-playback-position&gt;current playback position&lt;/a&gt; and whose
+-   &lt;a href=#text-track-cue-end-time title=&quot;text track cue end time&quot;&gt;end times&lt;/a&gt; are greater
+-   than the &lt;a href=#current-playback-position&gt;current playback position&lt;/a&gt;.&lt;/li&gt;
++   &lt;a href=#text-track-cue title=&quot;text track cue&quot;&gt;cues&lt;/a&gt; of all the &lt;a href=#text-track-hidden title=&quot;text track hidden&quot;&gt;hidden&lt;/a&gt; or &lt;a href=#text-track-showing title=&quot;text track
++   showing&quot;&gt;showing&lt;/a&gt; &lt;a href=#text-track title=&quot;text track&quot;&gt;text tracks&lt;/a&gt;
++   of the &lt;a href=#media-element&gt;media element&lt;/a&gt; (not the &lt;a href=#text-track-disabled title=&quot;text track
++   disabled&quot;&gt;disabled&lt;/a&gt; ones) whose &lt;a href=#text-track-cue-start-time title=&quot;text track cue
++   start time&quot;&gt;start times&lt;/a&gt; are less than or equal to the
++   &lt;a href=#current-playback-position&gt;current playback position&lt;/a&gt; and whose &lt;a href=#text-track-cue-end-time title=&quot;text
++   track cue end time&quot;&gt;end times&lt;/a&gt; are greater than the
++   &lt;a href=#current-playback-position&gt;current playback position&lt;/a&gt;.&lt;/li&gt;
+ 
+    &lt;li&gt;&lt;p&gt;Let &lt;var title=&quot;&quot;&gt;other cues&lt;/var&gt; be a list of &lt;a href=#text-track-cue title=&quot;text track cue&quot;&gt;cues&lt;/a&gt;, initialized to contain all the
+    &lt;a href=#text-track-cue title=&quot;text track cue&quot;&gt;cues&lt;/a&gt; of &lt;a href=#text-track-hidden title=&quot;text track
+-   hidden&quot;&gt;hidden&lt;/a&gt;, &lt;a href=#text-track-showing title=&quot;text track
+-   showing&quot;&gt;showing&lt;/a&gt;, and &lt;a href=#text-track-showing-by-default title=&quot;text track showing by
+-   default&quot;&gt;showing by default&lt;/a&gt; &lt;a href=#text-track title=&quot;text track&quot;&gt;text
+-   tracks&lt;/a&gt; of the &lt;a href=#media-element&gt;media element&lt;/a&gt; that are not
+-   present in &lt;var title=&quot;&quot;&gt;current cues&lt;/var&gt;.&lt;/li&gt;
++   hidden&quot;&gt;hidden&lt;/a&gt; and &lt;a href=#text-track-showing title=&quot;text track
++   showing&quot;&gt;showing&lt;/a&gt; &lt;a href=#text-track title=&quot;text track&quot;&gt;text tracks&lt;/a&gt;
++   of the &lt;a href=#media-element&gt;media element&lt;/a&gt; that are not present in &lt;var title=&quot;&quot;&gt;current cues&lt;/var&gt;.&lt;/li&gt;
+ 
+    &lt;li&gt;&lt;p&gt;Let &lt;var title=&quot;&quot;&gt;last time&lt;/var&gt; be the &lt;a href=#current-playback-position&gt;current
+    playback position&lt;/a&gt; at the time this algorithm was last run
+@@ -31898,12 +31900,9 @@
+ 
+    &lt;li&gt;&lt;p&gt;Run the &lt;a href=#rules-for-updating-the-text-track-rendering&gt;rules for updating the text track
+    rendering&lt;/a&gt; of each of the &lt;a href=#text-track title=&quot;text track&quot;&gt;text
+-   tracks&lt;/a&gt; in &lt;var title=&quot;&quot;&gt;affected tracks&lt;/var&gt; that are &lt;a href=#text-track-showing title=&quot;text track showing&quot;&gt;showing&lt;/a&gt; or &lt;a href=#text-track-showing-by-default title=&quot;text
+-   track showing by default&quot;&gt;showing by default&lt;/a&gt;.
+-   For example, for &lt;a href=#text-track title=&quot;text track&quot;&gt;text tracks&lt;/a&gt;
+-   based on &lt;a href=#webvtt&gt;WebVTT&lt;/a&gt;, the &lt;a href=#rules-for-updating-the-display-of-webvtt-text-tracks&gt;rules for updating the
+-   display of WebVTT text tracks&lt;/a&gt;. &lt;a href=#refsWEBVTT&gt;[WEBVTT]&lt;/a&gt;
+-   &lt;/li&gt;
++   tracks&lt;/a&gt; in &lt;var title=&quot;&quot;&gt;affected tracks&lt;/var&gt; that are &lt;a href=#text-track-showing title=&quot;text track showing&quot;&gt;showing&lt;/a&gt;. For example, for &lt;a href=#text-track title=&quot;text track&quot;&gt;text tracks&lt;/a&gt; based on &lt;a href=#webvtt&gt;WebVTT&lt;/a&gt;,
++   the &lt;a href=#rules-for-updating-the-display-of-webvtt-text-tracks&gt;rules for updating the display of WebVTT text
++   tracks&lt;/a&gt;. &lt;a href=#refsWEBVTT&gt;[WEBVTT]&lt;/a&gt; &lt;/li&gt;
+ 
+   &lt;/ol&gt;&lt;p&gt;For the purposes of the algorithm above, a &lt;a href=#text-track-cue&gt;text track
+   cue&lt;/a&gt; is considered to be part of a &lt;a href=#text-track&gt;text track&lt;/a&gt;
+@@ -33709,9 +33708,8 @@
+      &lt;/dd&gt;
+ 
+      &lt;dt&gt;&lt;dfn id=text-track-showing title=&quot;text track showing&quot;&gt;Showing&lt;/dfn&gt;
+-     &lt;dt&gt;&lt;dfn id=text-track-showing-by-default title=&quot;text track showing by default&quot;&gt;Showing by default&lt;/dfn&gt;
+ 
+-     &lt;/dt&gt;&lt;dd&gt;
++     &lt;dd&gt;
+ 
+       &lt;p&gt;Indicates that the text track is active. If no attempt has
+       yet been made to obtain the track's cues, the user agent will
+@@ -33728,13 +33726,6 @@
+       user can navigate to any point in the &lt;a href=#media-resource&gt;media
+       resource&lt;/a&gt; by selecting a cue.&lt;/p&gt;
+ 
+-      &lt;p&gt;The &lt;a href=#text-track-showing-by-default title=&quot;text track showing by default&quot;&gt;showing by
+-      default&lt;/a&gt; state is used in conjunction with the &lt;code title=attr-track-default&gt;&lt;a href=#attr-track-default&gt;default&lt;/a&gt;&lt;/code&gt; attribute on
+-      &lt;code&gt;&lt;a href=#the-track-element&gt;track&lt;/a&gt;&lt;/code&gt; elements to indicate that the text track was
+-      enabled due to that attribute. This allows the user agent to
+-      override the state if a later track is discovered that is more
+-      appropriate per the user's preferences.&lt;/p&gt;
+-
+      &lt;/dd&gt;
+ 
+     &lt;/dl&gt;&lt;/dd&gt;
+@@ -33762,18 +33753,21 @@
+   &lt;code&gt;&lt;a href=#texttrack&gt;TextTrack&lt;/a&gt;&lt;/code&gt; object.&lt;/p&gt;
+ 
+   &lt;hr&gt;&lt;p&gt;Each &lt;a href=#media-element&gt;media element&lt;/a&gt; has a &lt;dfn id=list-of-pending-text-tracks&gt;list of pending text
+-  tracks&lt;/dfn&gt;, which must initially be empty, and a
+-  &lt;dfn id=blocked-on-parser&gt;blocked-on-parser&lt;/dfn&gt; flag, which must initially be false.
+-  When the user agent is required to &lt;dfn id=populate-the-list-of-pending-text-tracks&gt;populate the list of pending
+-  text tracks&lt;/dfn&gt; of a &lt;a href=#media-element&gt;media element&lt;/a&gt;, the user agent
+-  must add to the element's &lt;a href=#list-of-pending-text-tracks&gt;list of pending text tracks&lt;/a&gt;
+-  each &lt;a href=#text-track&gt;text track&lt;/a&gt; in the element's &lt;a href=#list-of-text-tracks&gt;list of text
+-  tracks&lt;/a&gt; whose &lt;a href=#text-track-mode&gt;text track mode&lt;/a&gt; is not &lt;a href=#text-track-disabled title=&quot;text track disabled&quot;&gt;disabled&lt;/a&gt; and whose &lt;a href=#text-track-readiness-state&gt;text
+-  track readiness state&lt;/a&gt; is &lt;!--either &lt;span title=&quot;text track
+-  not loaded&quot;&gt;not loaded&lt;/span&gt; or [there can't be any in the 'not
+-  loaded' state that are not 'disabled']--&gt; &lt;a href=#text-track-loading title=&quot;text track
+-  loading&quot;&gt;loading&lt;/a&gt;.&lt;/p&gt;
++  tracks&lt;/dfn&gt;, which must initially be empty, a
++  &lt;dfn id=blocked-on-parser&gt;blocked-on-parser&lt;/dfn&gt; flag, which must initially be false,
++  and a &lt;dfn id=did-perform-automatic-track-selection&gt;did-perform-automatic-track-selection&lt;/dfn&gt; flag, which
++  must also initially be false.&lt;/p&gt;
+ 
++  &lt;p&gt;When the user agent is required to &lt;dfn id=populate-the-list-of-pending-text-tracks&gt;populate the list of
++  pending text tracks&lt;/dfn&gt; of a &lt;a href=#media-element&gt;media element&lt;/a&gt;, the user
++  agent must add to the element's &lt;a href=#list-of-pending-text-tracks&gt;list of pending text
++  tracks&lt;/a&gt; each &lt;a href=#text-track&gt;text track&lt;/a&gt; in the element's
++  &lt;a href=#list-of-text-tracks&gt;list of text tracks&lt;/a&gt; whose &lt;a href=#text-track-mode&gt;text track mode&lt;/a&gt;
++  is not &lt;a href=#text-track-disabled title=&quot;text track disabled&quot;&gt;disabled&lt;/a&gt; and whose
++  &lt;a href=#text-track-readiness-state&gt;text track readiness state&lt;/a&gt; is &lt;!--either &lt;span
++  title=&quot;text track not loaded&quot;&gt;not loaded&lt;/span&gt; or [there can't be
++  any in the 'not loaded' state that are not 'disabled']--&gt; &lt;a href=#text-track-loading title=&quot;text track loading&quot;&gt;loading&lt;/a&gt;.&lt;/p&gt;
++
+   &lt;p&gt;Whenever a &lt;code&gt;&lt;a href=#the-track-element&gt;track&lt;/a&gt;&lt;/code&gt; element's parent node changes, the
+   user agent must remove the corresponding &lt;a href=#text-track&gt;text track&lt;/a&gt;
+   from any &lt;a href=#list-of-pending-text-tracks&gt;list of pending text tracks&lt;/a&gt; that it is in.&lt;/p&gt;
+@@ -33789,8 +33783,9 @@
+   the element's &lt;a href=#blocked-on-parser&gt;blocked-on-parser&lt;/a&gt; flag to true. When a
+   &lt;a href=#media-element&gt;media element&lt;/a&gt; is popped off the &lt;a href=#stack-of-open-elements&gt;stack of open
+   elements&lt;/a&gt; of an &lt;a href=#html-parser&gt;HTML parser&lt;/a&gt; or &lt;a href=#xml-parser&gt;XML
+-  parser&lt;/a&gt;, the user agent must &lt;a href=#populate-the-list-of-pending-text-tracks&gt;populate the list of
+-  pending text tracks&lt;/a&gt; and set the element's
++  parser&lt;/a&gt;, the user agent must &lt;a href=#honor-user-preferences-for-automatic-text-track-selection&gt;honor user preferences for
++  automatic text track selection&lt;/a&gt;, &lt;a href=#populate-the-list-of-pending-text-tracks&gt;populate the list of
++  pending text tracks&lt;/a&gt;, and set the element's
+   &lt;a href=#blocked-on-parser&gt;blocked-on-parser&lt;/a&gt; flag to false.&lt;/p&gt;
+ 
+   &lt;p&gt;The &lt;a href=#text-track title=&quot;text track&quot;&gt;text tracks&lt;/a&gt; of a &lt;a href=#media-element&gt;media
+@@ -33899,18 +33894,18 @@
+      cue&lt;/a&gt;.&lt;/li&gt;
+ 
+      &lt;li&gt;&lt;p&gt;If &lt;var title=&quot;&quot;&gt;cue&lt;/var&gt; is not associated with a
+-     &lt;a href=#text-track&gt;text track&lt;/a&gt;, return &minus;1 and abort these
+-     steps.&lt;/li&gt;
++     &lt;a href=#text-track&gt;text track&lt;/a&gt;, or if that &lt;a href=#text-track&gt;text track&lt;/a&gt; is
++     not in the &lt;a href=#list-of-text-tracks&gt;list of text tracks&lt;/a&gt; of a &lt;a href=#media-element&gt;media
++     element&lt;/a&gt;, return &minus;1 and abort these steps.&lt;/li&gt;
+ 
+      &lt;li&gt;&lt;p&gt;Let &lt;var title=&quot;&quot;&gt;track&lt;/var&gt; be the &lt;a href=#text-track&gt;text
+      track&lt;/a&gt; that the &lt;var title=&quot;&quot;&gt;cue&lt;/var&gt; is associated
+      with.&lt;/li&gt;
+ 
+      &lt;li&gt;&lt;p&gt;Let &lt;var title=&quot;&quot;&gt;n&lt;/var&gt; be the number of &lt;a href=#text-track title=&quot;text track&quot;&gt;text tracks&lt;/a&gt; whose &lt;a href=#text-track-mode&gt;text track
+-     mode&lt;/a&gt; is &lt;a href=#text-track-showing title=&quot;text track showing&quot;&gt;showing&lt;/a&gt; or
+-     &lt;a href=#text-track-showing-by-default title=&quot;text track showing by default&quot;&gt;showing by
+-     default&lt;/a&gt; and that are in the &lt;a href=#media-element&gt;media element&lt;/a&gt;'s
+-     &lt;a href=#list-of-text-tracks&gt;list of text tracks&lt;/a&gt; before &lt;var title=&quot;&quot;&gt;track&lt;/var&gt;.&lt;/li&gt;
++     mode&lt;/a&gt; is &lt;a href=#text-track-showing title=&quot;text track showing&quot;&gt;showing&lt;/a&gt;
++     and that are in the &lt;a href=#media-element&gt;media element&lt;/a&gt;'s &lt;a href=#list-of-text-tracks&gt;list of
++     text tracks&lt;/a&gt; before &lt;var title=&quot;&quot;&gt;track&lt;/var&gt;.&lt;/li&gt;
+ 
+      &lt;li&gt;&lt;p&gt;Increment &lt;var title=&quot;&quot;&gt;n&lt;/var&gt; by one.&lt;/li&gt;
+ 
+@@ -33981,16 +33976,14 @@
+     disabled&quot;&gt;disabled&lt;/a&gt;; and whenever the &lt;a href=#media-element&gt;media
+     element&lt;/a&gt;'s &lt;code title=dom-media-readyState&gt;&lt;a href=#dom-media-readystate&gt;readyState&lt;/a&gt;&lt;/code&gt; is changed back to
+     &lt;code title=dom-media-HAVE_NOTHING&gt;&lt;a href=#dom-media-have_nothing&gt;HAVE_NOTHING&lt;/a&gt;&lt;/code&gt;. When the
+-    flag is unset in this way for one or more cues in &lt;a href=#text-track title=&quot;text track&quot;&gt;text tracks&lt;/a&gt; that were &lt;a href=#text-track-showing title=&quot;text track showing&quot;&gt;showing&lt;/a&gt; or &lt;a href=#text-track-showing-by-default title=&quot;text
+-    track showing by default&quot;&gt;showing by default&lt;/a&gt; prior to the
+-    relevant incident, the user agent must, after having unset the
+-    flag for all the affected cues, apply the &lt;a href=#rules-for-updating-the-text-track-rendering&gt;rules for updating
+-    the text track rendering&lt;/a&gt; of those &lt;a href=#text-track title=&quot;text
+-    track&quot;&gt;text tracks&lt;/a&gt;.
+-    For example, for &lt;a href=#text-track title=&quot;text track&quot;&gt;text tracks&lt;/a&gt;
+-    based on &lt;a href=#webvtt&gt;WebVTT&lt;/a&gt;, the &lt;a href=#rules-for-updating-the-display-of-webvtt-text-tracks&gt;rules for updating the
+-    display of WebVTT text tracks&lt;/a&gt;. &lt;a href=#refsWEBVTT&gt;[WEBVTT]&lt;/a&gt;&lt;/p&gt;
+-   &lt;/dd&gt;
++    flag is unset in this way for one or more cues in &lt;a href=#text-track title=&quot;text track&quot;&gt;text tracks&lt;/a&gt; that were &lt;a href=#text-track-showing title=&quot;text
++    track showing&quot;&gt;showing&lt;/a&gt; prior to the relevant incident, the
++    user agent must, after having unset the flag for all the affected
++    cues, apply the &lt;a href=#rules-for-updating-the-text-track-rendering&gt;rules for updating the text track
++    rendering&lt;/a&gt; of those &lt;a href=#text-track title=&quot;text track&quot;&gt;text
++    tracks&lt;/a&gt;. For example, for &lt;a href=#text-track title=&quot;text track&quot;&gt;text
++    tracks&lt;/a&gt; based on &lt;a href=#webvtt&gt;WebVTT&lt;/a&gt;, the &lt;a href=#rules-for-updating-the-display-of-webvtt-text-tracks&gt;rules for
++    updating the display of WebVTT text tracks&lt;/a&gt;. &lt;a href=#refsWEBVTT&gt;[WEBVTT]&lt;/a&gt;&lt;/p&gt; &lt;/dd&gt;
+ 
+    &lt;dt&gt;The &lt;dfn id=text-track-cue-display-state title=&quot;text track cue display state&quot;&gt;display state&lt;/dfn&gt;
+    &lt;dd&gt;
+@@ -34009,17 +34002,17 @@
+   the &lt;a href=#text-track-cue title=&quot;text track cue&quot;&gt;cues&lt;/a&gt; by their &lt;a href=#text-track&gt;text
+   track&lt;/a&gt;, with the groups being sorted in the same order as
+   their &lt;a href=#text-track title=&quot;text track&quot;&gt;text tracks&lt;/a&gt; appear in the
+-  &lt;a href=#media-element&gt;media element&lt;/a&gt;'s &lt;a href=#list-of-text-tracks&gt;list of text tracks&lt;/a&gt;;
+-  then, within each group, &lt;a href=#text-track-cue title=&quot;text track cue&quot;&gt;cues&lt;/a&gt;
+-  must be sorted by their &lt;a href=#text-track-cue-start-time title=&quot;text track cue start
+-  time&quot;&gt;start time&lt;/a&gt;, earliest first; then, any &lt;a href=#text-track-cue title=&quot;text track cue&quot;&gt;cues&lt;/a&gt; with the same &lt;a href=#text-track-cue-start-time title=&quot;text
+-  track cue start time&quot;&gt;start time&lt;/a&gt; must be sorted by their
+-  &lt;a href=#text-track-cue-end-time title=&quot;text track cue end time&quot;&gt;end time&lt;/a&gt;, latest
+-  first; and finally, any &lt;a href=#text-track-cue title=&quot;text track cue&quot;&gt;cues&lt;/a&gt;
+-  with identical &lt;a href=#text-track-cue-end-time title=&quot;text track cue end time&quot;&gt;end
+-  times&lt;/a&gt; must be sorted in the order they were created (so
+-  e.g. for cues from a &lt;a href=#webvtt&gt;WebVTT&lt;/a&gt; file, that would be the
+-  order in which the cues were listed in the file). &lt;a href=#refsWEBVTT&gt;[WEBVTT]&lt;/a&gt;&lt;/p&gt;
++  &lt;a href=#media-element&gt;media element&lt;/a&gt;'s &lt;a href=#list-of-text-tracks&gt;list of text tracks&lt;/a&gt;; then,
++  within each group, &lt;a href=#text-track-cue title=&quot;text track cue&quot;&gt;cues&lt;/a&gt; must be
++  sorted by their &lt;a href=#text-track-cue-start-time title=&quot;text track cue start time&quot;&gt;start
++  time&lt;/a&gt;, earliest first; then, any &lt;a href=#text-track-cue title=&quot;text track
++  cue&quot;&gt;cues&lt;/a&gt; with the same &lt;a href=#text-track-cue-start-time title=&quot;text track cue start
++  time&quot;&gt;start time&lt;/a&gt; must be sorted by their &lt;a href=#text-track-cue-end-time title=&quot;text
++  track cue end time&quot;&gt;end time&lt;/a&gt;, latest first; and finally, any
++  &lt;a href=#text-track-cue title=&quot;text track cue&quot;&gt;cues&lt;/a&gt; with identical &lt;a href=#text-track-cue-end-time title=&quot;text track cue end time&quot;&gt;end times&lt;/a&gt; must be sorted in
++  the order they were created (so e.g. for cues from a
++  &lt;a href=#webvtt&gt;WebVTT&lt;/a&gt; file, that would be the order in which the cues
++  were listed in the file). &lt;a href=#refsWEBVTT&gt;[WEBVTT]&lt;/a&gt;&lt;/p&gt;
+ 
+ 
+   &lt;h6 id=sourcing-in-band-text-tracks&gt;&lt;span class=secno&gt;4.8.10.12.2 &lt;/span&gt;Sourcing in-band text tracks&lt;/h6&gt;
+@@ -34144,11 +34137,11 @@
+    to load the whole media file just to start playing the first
+    frame... --&gt;
+ 
+-   &lt;!-- XXX-MODE-HEURISTIC --&gt;
+    &lt;li&gt;&lt;p&gt;Set the new &lt;a href=#text-track&gt;text track&lt;/a&gt;'s &lt;a href=#text-track-mode title=&quot;text
+    track mode&quot;&gt;mode&lt;/a&gt; to the mode consistent with the user's
+    preferences and the requirements of the relevant specification for
+-   the data.&lt;/li&gt;
++   the data.&lt;/li&gt; &lt;!-- it's too late to apply the normal
++   heuristic, so we don't bother --&gt;
+ 
+    &lt;li&gt;&lt;p&gt;Add the new &lt;a href=#text-track&gt;text track&lt;/a&gt; to the &lt;a href=#media-element&gt;media
+    element&lt;/a&gt;'s &lt;a href=#list-of-text-tracks&gt;list of text tracks&lt;/a&gt;.&lt;/li&gt;
+@@ -34172,6 +34165,9 @@
+   of text tracks&lt;/a&gt; all the &lt;a href=#media-resource-specific-text-track title=&quot;media-resource-specific
+   text track&quot;&gt;media-resource-specific text tracks&lt;/a&gt;.&lt;/p&gt;
+ 
++  &lt;!-- if, after in-band text tracks have been found, there's no
++  out-of-band text tracks, then apply user prefs? --&gt;
++
+   &lt;/div&gt;
+ 
+ 
+@@ -34217,6 +34213,10 @@
+   &lt;p class=note&gt;Changes to the &lt;a href=#track-url&gt;track URL&lt;/a&gt; are handled in
+   the algorithm below.&lt;/p&gt;
+ 
++  &lt;p&gt;The &lt;a href=#text-track-readiness-state&gt;text track readiness state&lt;/a&gt; is initially &lt;a href=#text-track-not-loaded title=&quot;text track not loaded&quot;&gt;not loaded&lt;/a&gt;, and the &lt;a href=#text-track-mode&gt;text
++  track mode&lt;/a&gt; is initially &lt;a href=#text-track-disabled title=&quot;text track
++  disabled&quot;&gt;disabled&lt;/a&gt;.&lt;/p&gt;
++
+   &lt;p&gt;The &lt;a href=#text-track-list-of-cues&gt;text track list of cues&lt;/a&gt; is initially empty. It
+   is dynamically modified when the referenced file is parsed.
+   Associated with the list are the &lt;a href=#rules-for-updating-the-text-track-rendering&gt;rules for updating the text
+@@ -34249,99 +34249,125 @@
+   &lt;code title=dom-media-textTracks&gt;&lt;a href=#dom-media-texttracks&gt;textTracks&lt;/a&gt;&lt;/code&gt; attribute's
+   &lt;code&gt;&lt;a href=#texttracklist&gt;TextTrackList&lt;/a&gt;&lt;/code&gt; object.&lt;/p&gt; &lt;!-- removetrack --&gt;
+ 
+-  &lt;p&gt;When a &lt;a href=#text-track&gt;text track&lt;/a&gt; corresponding to a
++  &lt;hr&gt;&lt;p&gt;When a &lt;a href=#text-track&gt;text track&lt;/a&gt; corresponding to a
+   &lt;code&gt;&lt;a href=#the-track-element&gt;track&lt;/a&gt;&lt;/code&gt; element is added to a &lt;a href=#media-element&gt;media
+   element&lt;/a&gt;'s &lt;a href=#list-of-text-tracks&gt;list of text tracks&lt;/a&gt;, the user agent
+-  must set the &lt;a href=#text-track-mode&gt;text track mode&lt;/a&gt; appropriately, as
+-  determined by the following conditions:&lt;/p&gt;
++  must &lt;a href=#queue-a-task&gt;queue a task&lt;/a&gt; to run the following steps for the
++  &lt;a href=#media-element&gt;media element&lt;/a&gt;:&lt;/p&gt;
+ 
+-  &lt;dl class=switch&gt;&lt;dt&gt;If the &lt;a href=#text-track-kind&gt;text track kind&lt;/a&gt; is &lt;code title=dom-TextTrack-kind-subtitles&gt;&lt;a href=#dom-texttrack-kind-subtitles&gt;subtitles&lt;/a&gt;&lt;/code&gt; or &lt;code title=dom-TextTrack-kind-captions&gt;&lt;a href=#dom-texttrack-kind-captions&gt;captions&lt;/a&gt;&lt;/code&gt; and the user
+-   has indicated an interest in having a track with this &lt;a href=#text-track-kind&gt;text
+-   track kind&lt;/a&gt;, &lt;a href=#text-track-language&gt;text track language&lt;/a&gt;, and
+-   &lt;a href=#text-track-label&gt;text track label&lt;/a&gt; enabled, and there is no other
+-   &lt;a href=#text-track&gt;text track&lt;/a&gt; in the &lt;a href=#media-element&gt;media element&lt;/a&gt;'s
+-   &lt;a href=#list-of-text-tracks&gt;list of text tracks&lt;/a&gt; with a &lt;a href=#text-track-kind&gt;text track
+-   kind&lt;/a&gt; of either &lt;code title=dom-TextTrack-kind-subtitles&gt;&lt;a href=#dom-texttrack-kind-subtitles&gt;subtitles&lt;/a&gt;&lt;/code&gt; or &lt;code title=dom-TextTrack-kind-captions&gt;&lt;a href=#dom-texttrack-kind-captions&gt;captions&lt;/a&gt;&lt;/code&gt; whose
+-   &lt;a href=#text-track-mode&gt;text track mode&lt;/a&gt; is &lt;a href=#text-track-showing title=&quot;text track
+-   showing&quot;&gt;showing&lt;/a&gt;&lt;/dt&gt;
++  &lt;ol&gt;&lt;li&gt;&lt;p&gt;If the element's &lt;a href=#blocked-on-parser&gt;blocked-on-parser&lt;/a&gt; flag is
++   true, abort these steps.&lt;/li&gt;
+ 
+-   &lt;dt&gt;If the &lt;a href=#text-track-kind&gt;text track kind&lt;/a&gt; is &lt;code title=dom-TextTrack-kind-descriptions&gt;&lt;a href=#dom-texttrack-kind-descriptions&gt;descriptions&lt;/a&gt;&lt;/code&gt; and
+-   the user has indicated an interest in having text descriptions with
+-   this &lt;a href=#text-track-language&gt;text track language&lt;/a&gt; and &lt;a href=#text-track-label&gt;text track
+-   label&lt;/a&gt; enabled, and there is no other &lt;a href=#text-track&gt;text
+-   track&lt;/a&gt; in the &lt;a href=#media-element&gt;media element&lt;/a&gt;'s &lt;a href=#list-of-text-tracks&gt;list of
+-   text tracks&lt;/a&gt; with a &lt;a href=#text-track-kind&gt;text track kind&lt;/a&gt; of &lt;code title=dom-TextTrack-kind-descriptions&gt;&lt;a href=#dom-texttrack-kind-descriptions&gt;descriptions&lt;/a&gt;&lt;/code&gt; whose
+-   &lt;a href=#text-track-mode&gt;text track mode&lt;/a&gt; is &lt;a href=#text-track-showing title=&quot;text track
+-   showing&quot;&gt;showing&lt;/a&gt;&lt;/dt&gt;
++   &lt;li&gt;&lt;p&gt;If the element's
++   &lt;a href=#did-perform-automatic-track-selection&gt;did-perform-automatic-track-selection&lt;/a&gt; flag is true,
++   abort these steps.&lt;/li&gt;
+ 
+-   &lt;dd&gt;
+-    &lt;p&gt;Let the &lt;a href=#text-track-mode&gt;text track mode&lt;/a&gt; be &lt;a href=#text-track-showing title=&quot;text
+-    track showing&quot;&gt;showing&lt;/a&gt;.&lt;/p&gt;
++   &lt;li&gt;&lt;p&gt;&lt;a href=#honor-user-preferences-for-automatic-text-track-selection&gt;Honor user preferences for automatic text track
++   selection&lt;/a&gt; for this element.&lt;/li&gt;
+ 
+-    &lt;p&gt;If there is a &lt;a href=#text-track&gt;text track&lt;/a&gt; in the &lt;a href=#media-element&gt;media
+-    element&lt;/a&gt;'s &lt;a href=#list-of-text-tracks&gt;list of text tracks&lt;/a&gt; whose
+-    &lt;a href=#text-track-mode&gt;text track mode&lt;/a&gt; is &lt;a href=#text-track-showing-by-default title=&quot;text track showing
+-    by default&quot;&gt;showing by default&lt;/a&gt;, the user agent must
+-    furthermore change &lt;em&gt;that&lt;/em&gt; &lt;a href=#text-track&gt;text track&lt;/a&gt;'s
+-    &lt;a href=#text-track-mode&gt;text track mode&lt;/a&gt; to &lt;a href=#text-track-hidden title=&quot;text track
+-    hidden&quot;&gt;hidden&lt;/a&gt;.&lt;/p&gt; &lt;!-- so that we still get events and
+-    stuff: we can expect authors to forget that default doesn't mean
+-    that it'll always be turned on, and that they'll still rely on
+-    events firing even if it doesn't show --&gt;
++  &lt;/ol&gt;&lt;p&gt;When the user agent is required to &lt;dfn id=honor-user-preferences-for-automatic-text-track-selection&gt;honor user preferences
++  for automatic text track selection&lt;/dfn&gt; for a &lt;a href=#media-element&gt;media
++  element&lt;/a&gt;, the user agent must run the following steps:&lt;/p&gt;
+ 
+-   &lt;/dd&gt;
++  &lt;ol&gt;&lt;li&gt;&lt;p&gt;&lt;a href=#perform-automatic-text-track-selection&gt;Perform automatic text track selection&lt;/a&gt; for &lt;code title=dom-TextTrack-kind-subtitles&gt;&lt;a href=#dom-texttrack-kind-subtitles&gt;subtitles&lt;/a&gt;&lt;/code&gt; and &lt;code title=dom-TextTrack-kind-captions&gt;&lt;a href=#dom-texttrack-kind-captions&gt;captions&lt;/a&gt;&lt;/code&gt;.&lt;/li&gt;
+ 
+-   &lt;dt&gt;If the &lt;a href=#text-track-kind&gt;text track kind&lt;/a&gt; is &lt;code title=dom-TextTrack-kind-chapters&gt;&lt;a href=#dom-texttrack-kind-chapters&gt;chapters&lt;/a&gt;&lt;/code&gt; and the
+-   &lt;a href=#text-track-language&gt;text track language&lt;/a&gt; is one that the user agent has
+-   reason to believe is appropriate for the user, and there is no
+-   other &lt;a href=#text-track&gt;text track&lt;/a&gt; in the &lt;a href=#media-element&gt;media element&lt;/a&gt;'s
+-   &lt;a href=#list-of-text-tracks&gt;list of text tracks&lt;/a&gt; with a &lt;a href=#text-track-kind&gt;text track
+-   kind&lt;/a&gt; of &lt;code title=dom-TextTrack-kind-chapters&gt;&lt;a href=#dom-texttrack-kind-chapters&gt;chapters&lt;/a&gt;&lt;/code&gt; whose
+-   &lt;a href=#text-track-mode&gt;text track mode&lt;/a&gt; is &lt;a href=#text-track-showing title=&quot;text track
+-   showing&quot;&gt;showing&lt;/a&gt;&lt;/dt&gt;
++   &lt;li&gt;&lt;p&gt;&lt;a href=#perform-automatic-text-track-selection&gt;Perform automatic text track selection&lt;/a&gt; for &lt;code title=dom-TextTrack-kind-descriptions&gt;&lt;a href=#dom-texttrack-kind-descriptions&gt;descriptions&lt;/a&gt;&lt;/code&gt;.&lt;/li&gt;
+ 
+-   &lt;dd&gt;
+-    &lt;p&gt;Let the &lt;a href=#text-track-mode&gt;text track mode&lt;/a&gt; be &lt;a href=#text-track-showing title=&quot;text
+-    track showing&quot;&gt;showing&lt;/a&gt;.&lt;/p&gt;
+-   &lt;/dd&gt;
++   &lt;li&gt;&lt;p&gt;&lt;a href=#perform-automatic-text-track-selection&gt;Perform automatic text track selection&lt;/a&gt; for &lt;code title=dom-TextTrack-kind-chapters&gt;&lt;a href=#dom-texttrack-kind-chapters&gt;chapters&lt;/a&gt;&lt;/code&gt;.&lt;/li&gt;
+ 
+-   &lt;dt&gt;If the &lt;code&gt;&lt;a href=#the-track-element&gt;track&lt;/a&gt;&lt;/code&gt; element has a &lt;code title=attr-track-default&gt;&lt;a href=#attr-track-default&gt;default&lt;/a&gt;&lt;/code&gt; attribute specified, and
+-   there is no other &lt;a href=#text-track&gt;text track&lt;/a&gt; in the &lt;a href=#media-element&gt;media
+-   element&lt;/a&gt;'s &lt;a href=#list-of-text-tracks&gt;list of text tracks&lt;/a&gt; whose
+-   &lt;a href=#text-track-mode&gt;text track mode&lt;/a&gt; is &lt;a href=#text-track-showing title=&quot;text track
+-   showing&quot;&gt;showing&lt;/a&gt; or &lt;a href=#text-track-showing-by-default title=&quot;text track
+-   showing by default&quot;&gt;showing by default&lt;/a&gt;&lt;/dt&gt;
++   &lt;li&gt;&lt;p&gt;&lt;a href=#perform-automatic-text-track-selection&gt;Perform automatic text track selection&lt;/a&gt; for &lt;code title=dom-TextTrack-kind-metadata&gt;&lt;a href=#dom-texttrack-kind-metadata&gt;metadata&lt;/a&gt;&lt;/code&gt;.&lt;/li&gt;
+ 
+-   &lt;dd&gt;
+-    &lt;p&gt;Let the &lt;a href=#text-track-mode&gt;text track mode&lt;/a&gt; be &lt;a href=#text-track-showing-by-default title=&quot;text
+-    track showing by default&quot;&gt;showing by default&lt;/a&gt;.&lt;/p&gt;
+-   &lt;/dd&gt;
++   &lt;li&gt;&lt;p&gt;Set the element's
++   &lt;a href=#did-perform-automatic-track-selection&gt;did-perform-automatic-track-selection&lt;/a&gt; flag to
++   true.&lt;/li&gt;
+ 
+-   &lt;dt&gt;Otherwise&lt;/dt&gt;
++  &lt;/ol&gt;&lt;p&gt;When the steps above say to &lt;dfn id=perform-automatic-text-track-selection&gt;perform automatic text track
++  selection&lt;/dfn&gt; for one or more &lt;a href=#text-track-kind title=&quot;text track kind&quot;&gt;text
++  track kinds&lt;/a&gt;, it means to run the following steps:&lt;/p&gt;
+ 
+-   &lt;dd&gt;
+-    &lt;p&gt;Let the &lt;a href=#text-track-mode&gt;text track mode&lt;/a&gt; be &lt;a href=#text-track-disabled title=&quot;text
+-    track disabled&quot;&gt;disabled&lt;/a&gt;.&lt;/p&gt;
+-   &lt;/dd&gt;
++  &lt;ol&gt;&lt;li&gt;&lt;p&gt;Let &lt;var title=&quot;&quot;&gt;candidates&lt;/var&gt; be a list consisting of
++   the &lt;a href=#text-track title=&quot;text track&quot;&gt;text tracks&lt;/a&gt; in the &lt;a href=#media-element&gt;media
++   element&lt;/a&gt;'s &lt;a href=#list-of-text-tracks&gt;list of text tracks&lt;/a&gt; whose &lt;a href=#text-track-kind&gt;text
++   track kind&lt;/a&gt; is one of the kinds that were passed to the
++   algorithm, if any.&lt;/li&gt;
+ 
+-  &lt;/dl&gt;&lt;p&gt;When a &lt;a href=#text-track&gt;text track&lt;/a&gt; corresponding to a
+-  &lt;code&gt;&lt;a href=#the-track-element&gt;track&lt;/a&gt;&lt;/code&gt; element is created with &lt;a href=#text-track-mode&gt;text track
+-  mode&lt;/a&gt; set to &lt;a href=#text-track-hidden title=&quot;text track hidden&quot;&gt;hidden&lt;/a&gt;,
+-  &lt;a href=#text-track-showing title=&quot;text track showing&quot;&gt;showing&lt;/a&gt;, or &lt;a href=#text-track-showing-by-default title=&quot;text track showing by default&quot;&gt;showing by default&lt;/a&gt;, and
+-  when a &lt;a href=#text-track&gt;text track&lt;/a&gt; corresponding to a &lt;code&gt;&lt;a href=#the-track-element&gt;track&lt;/a&gt;&lt;/code&gt;
+-  element is created with &lt;a href=#text-track-mode&gt;text track mode&lt;/a&gt; set to &lt;a href=#text-track-disabled title=&quot;text track disabled&quot;&gt;disabled&lt;/a&gt; and subsequently changes
+-  its &lt;a href=#text-track-mode&gt;text track mode&lt;/a&gt; to &lt;a href=#text-track-hidden title=&quot;text track
+-  hidden&quot;&gt;hidden&lt;/a&gt;, &lt;a href=#text-track-showing title=&quot;text track
+-  showing&quot;&gt;showing&lt;/a&gt;, or &lt;a href=#text-track-showing-by-default title=&quot;text track showing by
+-  default&quot;&gt;showing by default&lt;/a&gt; for the first time, the user
+-  agent must asynchronously run the following
+-  algorithm. This algorithm interacts closely with the &lt;a href=#event-loop&gt;event
+-  loop&lt;/a&gt; mechanism; in particular, it has a &lt;a href=#synchronous-section&gt;synchronous
+-  section&lt;/a&gt; (which is triggered as part of the &lt;a href=#event-loop&gt;event
+-  loop&lt;/a&gt; algorithm). The steps in that section are marked with
+-  &#8987;.&lt;/p&gt;
++   &lt;li&gt;&lt;p&gt;If &lt;var title=&quot;&quot;&gt;candidates&lt;/var&gt; is empty, then abort these
++   steps.&lt;/li&gt;
+ 
+-  &lt;ol&gt;&lt;li&gt;&lt;p&gt;&lt;i&gt;Top&lt;/i&gt;: &lt;a href=#await-a-stable-state&gt;Await a stable state&lt;/a&gt;. The
++   &lt;li&gt;&lt;p&gt;If any of the &lt;a href=#text-track title=&quot;text track&quot;&gt;text tracks&lt;/a&gt; in
++   &lt;var title=&quot;&quot;&gt;candidates&lt;/var&gt; have a &lt;a href=#text-track-mode&gt;text track mode&lt;/a&gt;
++   set to &lt;a href=#text-track-showing title=&quot;text track showing&quot;&gt;showing&lt;/a&gt;, abort these
++   steps.&lt;/li&gt;
++
++   &lt;li&gt;
++
++    &lt;p&gt;If the user has expressed an interest in having a track from
++    &lt;var title=&quot;&quot;&gt;candidates&lt;/var&gt; enabled based on its &lt;a href=#text-track-kind&gt;text
++    track kind&lt;/a&gt;, &lt;a href=#text-track-language&gt;text track language&lt;/a&gt;, and
++    &lt;a href=#text-track-label&gt;text track label&lt;/a&gt;, then set its &lt;a href=#text-track-mode&gt;text track
++    mode&lt;/a&gt; to &lt;a href=#text-track-showing title=&quot;text track
++    showing&quot;&gt;showing&lt;/a&gt;.&lt;/p&gt;
++
++    &lt;p class=note&gt;For example, the user could have set a browser
++    preference to the effect of &quot;I want French captions whenever
++    possible&quot;, or &quot;If there is a subtitle track with 'Commentary' in
++    the title, enable it&quot;, or &quot;If there are audio description tracks
++    available, enable one, ideally in Swiss German, but failing that
++    in Standard Swiss German or Standard German&quot;.&lt;/p&gt;
++
++   &lt;/li&gt;
++
++   &lt;li&gt;&lt;p&gt;If there are any &lt;a href=#text-track title=&quot;text track&quot;&gt;text tracks&lt;/a&gt;
++   in &lt;var title=&quot;&quot;&gt;candidates&lt;/var&gt; that correspond to
++   &lt;code&gt;&lt;a href=#the-track-element&gt;track&lt;/a&gt;&lt;/code&gt; elements with a &lt;code title=attr-track-default&gt;&lt;a href=#attr-track-default&gt;default&lt;/a&gt;&lt;/code&gt; attribute set whose
++   &lt;a href=#text-track-mode&gt;text track mode&lt;/a&gt; is set to &lt;a href=#text-track-disabled title=&quot;text track
++   disabled&quot;&gt;disabled&lt;/a&gt;, then set the &lt;a href=#text-track-mode&gt;text track
++   mode&lt;/a&gt; of each such track to &lt;a href=#text-track-hidden title=&quot;text track
++   hidden&quot;&gt;hidden&lt;/a&gt;.&lt;/p&gt; &lt;!-- so that we still get events and
++   stuff: we can expect authors to forget that default doesn't mean
++   that it'll always be turned on, and that they'll still rely on
++   events firing even if it doesn't show --&gt;
++
++  &lt;/ol&gt;&lt;p&gt;When a &lt;a href=#text-track&gt;text track&lt;/a&gt; corresponding to a
++  &lt;code&gt;&lt;a href=#the-track-element&gt;track&lt;/a&gt;&lt;/code&gt; element experiences any of the following
++  circumstances, the user agent must &lt;a href=#start-the-track-processing-model&gt;start the
++  &lt;code&gt;track&lt;/code&gt; processing model&lt;/a&gt; for that &lt;a href=#text-track&gt;text
++  track&lt;/a&gt; and its &lt;code&gt;&lt;a href=#the-track-element&gt;track&lt;/a&gt;&lt;/code&gt; element:
++
++  &lt;ul&gt;&lt;li&gt;The &lt;code&gt;&lt;a href=#the-track-element&gt;track&lt;/a&gt;&lt;/code&gt; element is created.&lt;/li&gt;
++
++   &lt;li&gt;The &lt;a href=#text-track&gt;text track&lt;/a&gt; has its &lt;a href=#text-track-mode&gt;text track
++   mode&lt;/a&gt; changed.&lt;/li&gt;
++
++   &lt;li&gt;The &lt;code&gt;&lt;a href=#the-track-element&gt;track&lt;/a&gt;&lt;/code&gt; element's parent element changes and the
++   new parent is a &lt;a href=#media-element&gt;media element&lt;/a&gt;.&lt;/li&gt;
++
++  &lt;/ul&gt;&lt;p&gt;When a user agent is to &lt;dfn id=start-the-track-processing-model&gt;start the &lt;code&gt;track&lt;/code&gt;
++  processing model&lt;/dfn&gt; for a &lt;a href=#text-track&gt;text track&lt;/a&gt; and its
++  &lt;code&gt;&lt;a href=#the-track-element&gt;track&lt;/a&gt;&lt;/code&gt; element, it must run the following algorithm.
++  This algorithm interacts closely with the &lt;a href=#event-loop&gt;event loop&lt;/a&gt;
++  mechanism; in particular, it has a &lt;a href=#synchronous-section&gt;synchronous section&lt;/a&gt;
++  (which is triggered as part of the &lt;a href=#event-loop&gt;event loop&lt;/a&gt;
++  algorithm). The steps in that section are marked with &#8987;.&lt;/p&gt;
++
++  &lt;ol&gt;&lt;li&gt;&lt;p&gt;If another occurrence of this algorithm is already running
++   for this &lt;a href=#text-track&gt;text track&lt;/a&gt; and its &lt;code&gt;&lt;a href=#the-track-element&gt;track&lt;/a&gt;&lt;/code&gt;
++   element, abort these steps, letting that other algorithm take care
++   of this element.&lt;/li&gt;
++
++   &lt;li&gt;&lt;p&gt;If the &lt;a href=#text-track&gt;text track&lt;/a&gt;'s &lt;a href=#text-track-mode&gt;text track
++   mode&lt;/a&gt; is not set to one of &lt;a href=#text-track-hidden title=&quot;text track
++   hidden&quot;&gt;hidden&lt;/a&gt; or &lt;a href=#text-track-showing title=&quot;text track
++   showing&quot;&gt;showing&lt;/a&gt;, abort these steps.&lt;/li&gt;
++
++   &lt;li&gt;&lt;p&gt;If the &lt;a href=#text-track&gt;text track&lt;/a&gt;'s &lt;code&gt;&lt;a href=#the-track-element&gt;track&lt;/a&gt;&lt;/code&gt; element
++   does not have a &lt;a href=#media-element&gt;media element&lt;/a&gt; as a parent, abort these
++   steps.&lt;/li&gt;
++
++   &lt;li&gt;&lt;p&gt;Run the remainder of these steps asynchronously, allowing
++   whatever caused these steps to run to continue.&lt;/li&gt;
++
++   &lt;li&gt;&lt;p&gt;&lt;i&gt;Top&lt;/i&gt;: &lt;a href=#await-a-stable-state&gt;Await a stable state&lt;/a&gt;. The
+    &lt;a href=#synchronous-section&gt;synchronous section&lt;/a&gt; consists of the following steps.
+    (The steps in the &lt;a href=#synchronous-section&gt;synchronous section&lt;/a&gt; are marked with
+    &#8987;.)&lt;/li&gt;
+@@ -34352,16 +34378,20 @@
+    &lt;li&gt;&lt;p&gt;&#8987; Let &lt;var title=&quot;&quot;&gt;URL&lt;/var&gt; be the &lt;a href=#track-url&gt;track
+    URL&lt;/a&gt; of the &lt;code&gt;&lt;a href=#the-track-element&gt;track&lt;/a&gt;&lt;/code&gt; element.&lt;/li&gt;
+ 
++   &lt;li&gt;&lt;p&gt;&#8987; If the &lt;code&gt;&lt;a href=#the-track-element&gt;track&lt;/a&gt;&lt;/code&gt; element's parent is a
++   &lt;a href=#media-element&gt;media element&lt;/a&gt; then let &lt;var title=&quot;&quot;&gt;CORS mode&lt;/var&gt;
++   be the state of the parent &lt;a href=#media-element&gt;media element&lt;/a&gt;'s &lt;code title=attr-media-crossorigin&gt;&lt;a href=#attr-media-crossorigin&gt;crossorigin&lt;/a&gt;&lt;/code&gt; content
++   attribute. Otherwise, let &lt;var title=&quot;&quot;&gt;CORS mode&lt;/var&gt; be &lt;a href=#attr-crossorigin-none title=attr-crossorigin-none&gt;No CORS&lt;/a&gt;.&lt;/li&gt;
++
+    &lt;li&gt;&lt;p&gt;End the &lt;a href=#synchronous-section&gt;synchronous section&lt;/a&gt;, continuing the
+    remaining steps asynchronously.&lt;/li&gt;
+ 
+    &lt;li&gt;
+ 
+     &lt;p&gt;If &lt;var title=&quot;&quot;&gt;URL&lt;/var&gt; is not the empty string, perform a
+-    &lt;a href=#potentially-cors-enabled-fetch&gt;potentially CORS-enabled fetch&lt;/a&gt; of &lt;var title=&quot;&quot;&gt;URL&lt;/var&gt;, with the &lt;i&gt;mode&lt;/i&gt; being the state of the
+-    &lt;a href=#media-element&gt;media element&lt;/a&gt;'s &lt;code title=attr-media-crossorigin&gt;&lt;a href=#attr-media-crossorigin&gt;crossorigin&lt;/a&gt;&lt;/code&gt; content
+-    attribute, the &lt;i title=&quot;&quot;&gt;origin&lt;/i&gt; being the
+-    &lt;a href=#origin&gt;origin&lt;/a&gt; of the &lt;a href=#media-element&gt;media element&lt;/a&gt;'s
++    &lt;a href=#potentially-cors-enabled-fetch&gt;potentially CORS-enabled fetch&lt;/a&gt; of &lt;var title=&quot;&quot;&gt;URL&lt;/var&gt;, with the &lt;i&gt;mode&lt;/i&gt; being &lt;var title=&quot;&quot;&gt;CORS
++    mode&lt;/var&gt;, the &lt;i title=&quot;&quot;&gt;origin&lt;/i&gt; being the
++    &lt;a href=#origin&gt;origin&lt;/a&gt; of the &lt;code&gt;&lt;a href=#the-track-element&gt;track&lt;/a&gt;&lt;/code&gt; element's
+     &lt;code&gt;&lt;a href=#document&gt;Document&lt;/a&gt;&lt;/code&gt;, and the &lt;i&gt;default origin behaviour&lt;/i&gt; set
+     to &lt;i&gt;fail&lt;/i&gt;.&lt;/p&gt;
+ 
+@@ -34406,7 +34436,7 @@
+     any reason (network error, the server returns an error code, a
+     cross-origin check fails, etc), if &lt;var title=&quot;&quot;&gt;URL&lt;/var&gt; is the
+     empty string, or if the &lt;!--sniffed--&gt; type of the resource is not a
+-    supported text track format, then run these steps:
++    supported text track format, then run these steps:&lt;/p&gt;
+ 
+     &lt;ol&gt;&lt;li&gt;&lt;p&gt;&lt;a href=#queue-a-task&gt;Queue a task&lt;/a&gt; to first change the &lt;a href=#text-track-readiness-state&gt;text
+      track readiness state&lt;/a&gt; to &lt;a href=#text-track-failed-to-load title=&quot;text track failed to
+@@ -34421,9 +34451,8 @@
+      &lt;li&gt;&lt;p&gt;Wait until the &lt;a href=#track-url&gt;track URL&lt;/a&gt; is no longer equal
+      to &lt;var title=&quot;&quot;&gt;URL&lt;/var&gt;, at the same time as the &lt;a href=#text-track-mode&gt;text
+      track mode&lt;/a&gt; is set to &lt;a href=#text-track-hidden title=&quot;text track
+-     hidden&quot;&gt;hidden&lt;/a&gt;, &lt;a href=#text-track-showing title=&quot;text track
+-     showing&quot;&gt;showing&lt;/a&gt;, or &lt;a href=#text-track-showing-by-default title=&quot;text track showing by
+-     default&quot;&gt;showing by default&lt;/a&gt;.&lt;/li&gt;
++     hidden&quot;&gt;hidden&lt;/a&gt; or &lt;a href=#text-track-showing title=&quot;text track
++     showing&quot;&gt;showing&lt;/a&gt;.&lt;/li&gt;
+ 
+      &lt;li&gt;&lt;p&gt;Jump to the step labeled &lt;i&gt;top&lt;/i&gt;.&lt;/li&gt;
+ 
+@@ -34454,9 +34483,8 @@
+      &lt;li&gt;&lt;p&gt;Wait until the &lt;a href=#track-url&gt;track URL&lt;/a&gt; is no longer equal
+      to &lt;var title=&quot;&quot;&gt;URL&lt;/var&gt;, at the same time as the &lt;a href=#text-track-mode&gt;text
+      track mode&lt;/a&gt; is set to &lt;a href=#text-track-hidden title=&quot;text track
+-     hidden&quot;&gt;hidden&lt;/a&gt;, &lt;a href=#text-track-showing title=&quot;text track
+-     showing&quot;&gt;showing&lt;/a&gt;, or &lt;a href=#text-track-showing-by-default title=&quot;text track showing by
+-     default&quot;&gt;showing by default&lt;/a&gt;.&lt;/li&gt;
++     hidden&quot;&gt;hidden&lt;/a&gt; or &lt;a href=#text-track-showing title=&quot;text track
++     showing&quot;&gt;showing&lt;/a&gt;.&lt;/li&gt;
+ 
+      &lt;li&gt;&lt;p&gt;Jump back to the step labeled &lt;i&gt;top&lt;/i&gt;.&lt;/li&gt;
+ 
+@@ -34466,14 +34494,13 @@
+     &lt;ul&gt;&lt;li&gt;the &lt;a href=#track-url&gt;track URL&lt;/a&gt; changes so that it is no longer
+      equal to &lt;var title=&quot;&quot;&gt;URL&lt;/var&gt;, while the &lt;a href=#text-track-mode&gt;text track
+      mode&lt;/a&gt; is set to &lt;a href=#text-track-hidden title=&quot;text track
+-     hidden&quot;&gt;hidden&lt;/a&gt;, &lt;a href=#text-track-showing title=&quot;text track
+-     showing&quot;&gt;showing&lt;/a&gt;, or &lt;a href=#text-track-showing-by-default title=&quot;text track showing by
+-     default&quot;&gt;showing by default&lt;/a&gt;; or&lt;/li&gt;
++     hidden&quot;&gt;hidden&lt;/a&gt; or &lt;a href=#text-track-showing title=&quot;text track
++     showing&quot;&gt;showing&lt;/a&gt;; or&lt;/li&gt;
+ 
+-     &lt;li&gt;the &lt;a href=#text-track-mode&gt;text track mode&lt;/a&gt; changes to &lt;a href=#text-track-hidden title=&quot;text track hidden&quot;&gt;hidden&lt;/a&gt;, &lt;a href=#text-track-showing title=&quot;text
+-     track showing&quot;&gt;showing&lt;/a&gt;, or &lt;a href=#text-track-showing-by-default title=&quot;text track
+-     showing by default&quot;&gt;showing by default&lt;/a&gt;, while the
+-     &lt;a href=#track-url&gt;track URL&lt;/a&gt; is not equal to &lt;var title=&quot;&quot;&gt;URL&lt;/var&gt;&lt;/li&gt;
++     &lt;li&gt;the &lt;a href=#text-track-mode&gt;text track mode&lt;/a&gt; changes to &lt;a href=#text-track-hidden title=&quot;text
++     track hidden&quot;&gt;hidden&lt;/a&gt; or &lt;a href=#text-track-showing title=&quot;text track
++     showing&quot;&gt;showing&lt;/a&gt;, while the &lt;a href=#track-url&gt;track URL&lt;/a&gt; is not
++     equal to &lt;var title=&quot;&quot;&gt;URL&lt;/var&gt;&lt;/li&gt;
+ 
+     &lt;/ul&gt;&lt;p&gt;...then the user agent must run the following steps:&lt;/p&gt;
+ 
+@@ -34636,8 +34663,13 @@
+            attribute &lt;a href=#eventhandler&gt;EventHandler&lt;/a&gt; &lt;a href=#handler-texttrack-oncuechange title=handler-TextTrack-oncuechange&gt;oncuechange&lt;/a&gt;;
+ };&lt;/pre&gt;
+ 
+-  &lt;dl class=domintro&gt;&lt;dt&gt;&lt;var title=&quot;&quot;&gt;textTrack&lt;/var&gt; . &lt;code title=dom-TextTrack-kind&gt;&lt;a href=#dom-texttrack-kind&gt;kind&lt;/a&gt;&lt;/code&gt;&lt;/dt&gt;
++  &lt;dl class=domintro&gt;&lt;dt&gt;&lt;var title=&quot;&quot;&gt;textTrack&lt;/var&gt; = &lt;var title=&quot;&quot;&gt;media&lt;/var&gt; . &lt;code title=dom-media-addTextTrack&gt;&lt;a href=#dom-media-addtexttrack&gt;addTextTrack&lt;/a&gt;&lt;/code&gt;( &lt;var title=&quot;&quot;&gt;kind&lt;/var&gt; [, &lt;var title=&quot;&quot;&gt;label&lt;/var&gt; [, &lt;var title=&quot;&quot;&gt;language&lt;/var&gt; ] ] )&lt;/dt&gt;
+    &lt;dd&gt;
++    &lt;p&gt;Creates and returns a new &lt;code&gt;&lt;a href=#texttrack&gt;TextTrack&lt;/a&gt;&lt;/code&gt; object, which is also added to the &lt;a href=#media-element&gt;media element&lt;/a&gt;'s &lt;a href=#list-of-text-tracks&gt;list of text tracks&lt;/a&gt;.&lt;/p&gt;
++   &lt;/dd&gt;
++
++   &lt;dt&gt;&lt;var title=&quot;&quot;&gt;textTrack&lt;/var&gt; . &lt;code title=dom-TextTrack-kind&gt;&lt;a href=#dom-texttrack-kind&gt;kind&lt;/a&gt;&lt;/code&gt;&lt;/dt&gt;
++   &lt;dd&gt;
+     &lt;p&gt;Returns the &lt;a href=#text-track-kind&gt;text track kind&lt;/a&gt; string.&lt;/p&gt;
+    &lt;/dd&gt;
+ 
+@@ -34673,7 +34705,7 @@
+      &lt;/dd&gt;
+      &lt;dt&gt;&quot;&lt;code title=dom-TextTrack-showing&gt;&lt;a href=#dom-texttrack-showing&gt;showing&lt;/a&gt;&lt;/code&gt;&quot;&lt;/dt&gt;
+      &lt;dd&gt;
+-      &lt;p&gt;The &lt;a href=#text-track-showing&gt;text track showing&lt;/a&gt; and &lt;a href=#text-track-showing-by-default title=&quot;text track showing by default&quot;&gt;showing by default&lt;/a&gt; modes.&lt;/p&gt;
++      &lt;p&gt;The &lt;a href=#text-track-showing&gt;text track showing&lt;/a&gt; mode.&lt;/p&gt;
+      &lt;/dd&gt;
+     &lt;/dl&gt;&lt;p&gt;Can be set, to change the mode.&lt;/p&gt;
+    &lt;/dd&gt;
+@@ -34700,14 +34732,85 @@
+     &lt;p&gt;Throws an exception if the argument is associated with another &lt;a href=#text-track&gt;text track&lt;/a&gt; or not in the list of cues.&lt;/p&gt;
+    &lt;/dd&gt;
+ 
+-   &lt;dt&gt;&lt;var title=&quot;&quot;&gt;textTrack&lt;/var&gt; = &lt;var title=&quot;&quot;&gt;media&lt;/var&gt; . &lt;code title=dom-media-addTextTrack&gt;&lt;a href=#dom-media-addtexttrack&gt;addTextTrack&lt;/a&gt;&lt;/code&gt;( &lt;var title=&quot;&quot;&gt;kind&lt;/var&gt; [, &lt;var title=&quot;&quot;&gt;label&lt;/var&gt; [, &lt;var title=&quot;&quot;&gt;language&lt;/var&gt; ] ] )&lt;/dt&gt;
+-   &lt;dd&gt;
+-    &lt;p&gt;Creates and returns a new &lt;code&gt;&lt;a href=#texttrack&gt;TextTrack&lt;/a&gt;&lt;/code&gt; object, which is also added to the &lt;a href=#media-element&gt;media element&lt;/a&gt;'s &lt;a href=#list-of-text-tracks&gt;list of text tracks&lt;/a&gt;.&lt;/p&gt;
+-   &lt;/dd&gt;
+-
+   &lt;/dl&gt;&lt;div class=impl&gt;
+ 
+-  &lt;p&gt;The &lt;dfn id=dom-texttrack-kind title=dom-TextTrack-kind&gt;&lt;code&gt;kind&lt;/code&gt;&lt;/dfn&gt;
++  &lt;p&gt;The &lt;dfn id=dom-media-addtexttrack title=dom-media-addTextTrack&gt;&lt;code&gt;addTextTrack(&lt;var title=&quot;&quot;&gt;kind&lt;/var&gt;, &lt;var title=&quot;&quot;&gt;label&lt;/var&gt;, &lt;var title=&quot;&quot;&gt;language&lt;/var&gt;)&lt;/code&gt;&lt;/dfn&gt; method of &lt;a href=#media-element title=&quot;media
++  element&quot;&gt;media elements&lt;/a&gt;, when invoked, must run the following
++  steps:&lt;/p&gt;
++
++  &lt;ol&gt;&lt;li&gt;
++
++    &lt;p&gt;If &lt;var title=&quot;&quot;&gt;kind&lt;/var&gt; is not one of the following
++    strings, then throw a &lt;code&gt;&lt;a href=#syntaxerror&gt;SyntaxError&lt;/a&gt;&lt;/code&gt; exception and abort
++    these steps:&lt;/p&gt;
++
++    &lt;ul class=brief&gt;&lt;li&gt;&lt;code title=dom-TextTrack-kind-subtitles&gt;&lt;a href=#dom-texttrack-kind-subtitles&gt;subtitles&lt;/a&gt;&lt;/code&gt;
++     &lt;li&gt;&lt;code title=dom-TextTrack-kind-captions&gt;&lt;a href=#dom-texttrack-kind-captions&gt;captions&lt;/a&gt;&lt;/code&gt;
++     &lt;li&gt;&lt;code title=dom-TextTrack-kind-descriptions&gt;&lt;a href=#dom-texttrack-kind-descriptions&gt;descriptions&lt;/a&gt;&lt;/code&gt;
++     &lt;li&gt;&lt;code title=dom-TextTrack-kind-chapters&gt;&lt;a href=#dom-texttrack-kind-chapters&gt;chapters&lt;/a&gt;&lt;/code&gt;
++     &lt;li&gt;&lt;code title=dom-TextTrack-kind-metadata&gt;&lt;a href=#dom-texttrack-kind-metadata&gt;metadata&lt;/a&gt;&lt;/code&gt;
++    &lt;/ul&gt;&lt;/li&gt;
++
++   &lt;li&gt;
++
++    &lt;p&gt;If the &lt;var title=&quot;&quot;&gt;label&lt;/var&gt; argument was omitted, let &lt;var title=&quot;&quot;&gt;label&lt;/var&gt; be the empty string.&lt;/p&gt;
++
++   &lt;/li&gt;
++
++   &lt;li&gt;
++
++    &lt;p&gt;If the &lt;var title=&quot;&quot;&gt;language&lt;/var&gt; argument was omitted, let
++    &lt;var title=&quot;&quot;&gt;language&lt;/var&gt; be the empty string.&lt;/p&gt;
++
++   &lt;/li&gt;
++
++   &lt;li&gt;
++
++    &lt;p&gt;Create a new &lt;code&gt;&lt;a href=#texttrack&gt;TextTrack&lt;/a&gt;&lt;/code&gt; object.&lt;/p&gt;
++
++   &lt;/li&gt;
++
++   &lt;li&gt;
++
++    &lt;p&gt;Create a new &lt;a href=#text-track&gt;text track&lt;/a&gt; corresponding to the new
++    object, and set its &lt;a href=#text-track-kind&gt;text track kind&lt;/a&gt; to &lt;var title=&quot;&quot;&gt;kind&lt;/var&gt;, its &lt;a href=#text-track-label&gt;text track label&lt;/a&gt; to &lt;var title=&quot;&quot;&gt;label&lt;/var&gt;, its &lt;a href=#text-track-language&gt;text track language&lt;/a&gt; to &lt;var title=&quot;&quot;&gt;language&lt;/var&gt;, its &lt;a href=#text-track-readiness-state&gt;text track readiness
++    state&lt;/a&gt; to the &lt;a href=#text-track-loaded&gt;text track loaded&lt;/a&gt; state, its
++    &lt;a href=#text-track-mode&gt;text track mode&lt;/a&gt; to the &lt;a href=#text-track-hidden&gt;text track hidden&lt;/a&gt;
++    mode, and its &lt;a href=#text-track-list-of-cues&gt;text track list of cues&lt;/a&gt; to an empty
++    list.
++    Associate the &lt;a href=#text-track-list-of-cues&gt;text track list of cues&lt;/a&gt; with the
++    &lt;a href=#rules-for-updating-the-display-of-webvtt-text-tracks&gt;rules for updating the display of WebVTT text tracks&lt;/a&gt;
++    as its &lt;a href=#rules-for-updating-the-text-track-rendering&gt;rules for updating the text track rendering&lt;/a&gt;.
++    &lt;a href=#refsWEBVTT&gt;[WEBVTT]&lt;/a&gt;
++    &lt;/p&gt;
++
++   &lt;/li&gt;
++
++   &lt;li&gt;
++
++    &lt;p&gt;Add the new &lt;a href=#text-track&gt;text track&lt;/a&gt; to the &lt;a href=#media-element&gt;media
++    element&lt;/a&gt;'s &lt;a href=#list-of-text-tracks&gt;list of text tracks&lt;/a&gt;.&lt;/p&gt;
++
++   &lt;/li&gt;
++
++   &lt;li&gt;
++
++    &lt;p&gt;&lt;a href=#queue-a-task&gt;Queue a task&lt;/a&gt; to fire an event with the name &lt;code title=event-addtrack&gt;addtrack&lt;/code&gt;, that does not bubble and
++    is not cancelable, and that uses the &lt;code&gt;&lt;a href=#trackevent&gt;TrackEvent&lt;/a&gt;&lt;/code&gt;
++    interface, with the &lt;code title=dom-TrackEvent-track&gt;&lt;a href=#dom-trackevent-track&gt;track&lt;/a&gt;&lt;/code&gt; attribute initialized to
++    the new &lt;a href=#text-track&gt;text track&lt;/a&gt;'s &lt;code&gt;&lt;a href=#texttrack&gt;TextTrack&lt;/a&gt;&lt;/code&gt; object,
++    at the &lt;a href=#media-element&gt;media element&lt;/a&gt;'s &lt;code title=dom-media-textTracks&gt;&lt;a href=#dom-media-texttracks&gt;textTracks&lt;/a&gt;&lt;/code&gt; attribute's
++    &lt;code&gt;&lt;a href=#texttracklist&gt;TextTrackList&lt;/a&gt;&lt;/code&gt; object.&lt;/p&gt;
++
++   &lt;/li&gt;
++
++   &lt;li&gt;
++
++    &lt;p&gt;Return the new &lt;code&gt;&lt;a href=#texttrack&gt;TextTrack&lt;/a&gt;&lt;/code&gt; object.&lt;/p&gt;
++
++   &lt;/li&gt;
++
++  &lt;/ol&gt;&lt;hr&gt;&lt;p&gt;The &lt;dfn id=dom-texttrack-kind title=dom-TextTrack-kind&gt;&lt;code&gt;kind&lt;/code&gt;&lt;/dfn&gt;
+   attribute must return the &lt;a href=#text-track-kind&gt;text track kind&lt;/a&gt; of the
+   &lt;a href=#text-track&gt;text track&lt;/a&gt; that the &lt;code&gt;&lt;a href=#texttrack&gt;TextTrack&lt;/a&gt;&lt;/code&gt; object
+   represents.&lt;/p&gt;
+@@ -34738,7 +34841,7 @@
+    &lt;dt&gt;&quot;&lt;dfn id=dom-texttrack-hidden title=dom-TextTrack-hidden&gt;&lt;code&gt;hidden&lt;/code&gt;&lt;/dfn&gt;&quot;&lt;/dt&gt;
+    &lt;dd&gt;The &lt;a href=#text-track-hidden&gt;text track hidden&lt;/a&gt; mode.&lt;/dd&gt;
+    &lt;dt&gt;&quot;&lt;dfn id=dom-texttrack-showing title=dom-TextTrack-showing&gt;&lt;code&gt;showing&lt;/code&gt;&lt;/dfn&gt;&quot;&lt;/dt&gt;
+-   &lt;dd&gt;The &lt;a href=#text-track-showing&gt;text track showing&lt;/a&gt; and &lt;a href=#text-track-showing-by-default title=&quot;text track showing by default&quot;&gt;showing by default&lt;/a&gt; modes.&lt;/dd&gt;
++   &lt;dd&gt;The &lt;a href=#text-track-showing&gt;text track showing&lt;/a&gt; mode.&lt;/dd&gt;
+   &lt;/dl&gt;&lt;p&gt;On setting, if the new value isn't equal to what the attribute
+   would currently return, the new value must be processed as
+   follows:&lt;/p&gt;
+@@ -34773,13 +34876,7 @@
+ 
+    &lt;/dd&gt;
+ 
+-  &lt;/dl&gt;&lt;p class=note&gt;If the mode is &lt;a href=#text-track-showing-by-default title=&quot;text track showing by
+-  default&quot;&gt;showing by default&lt;/a&gt;, then there is no way to change
+-  it to &lt;a href=#text-track-showing title=&quot;text track showing&quot;&gt;showing&lt;/a&gt; without first
+-  changing it to &lt;a href=#text-track-disabled title=&quot;text track disabled&quot;&gt;disabled&lt;/a&gt; or
+-  &lt;a href=#text-track-hidden title=&quot;text track hidden&quot;&gt;hidden&lt;/a&gt;.&lt;/p&gt;
+-
+-  &lt;p&gt;If the &lt;a href=#text-track-mode&gt;text track mode&lt;/a&gt; of the &lt;a href=#text-track&gt;text
++  &lt;/dl&gt;&lt;p&gt;If the &lt;a href=#text-track-mode&gt;text track mode&lt;/a&gt; of the &lt;a href=#text-track&gt;text
+   track&lt;/a&gt; that the &lt;code&gt;&lt;a href=#texttrack&gt;TextTrack&lt;/a&gt;&lt;/code&gt; object represents is
+   not the &lt;a href=#text-track-disabled&gt;text track disabled&lt;/a&gt; mode, then the &lt;dfn id=dom-texttrack-cues title=dom-TextTrack-cues&gt;&lt;code&gt;cues&lt;/code&gt;&lt;/dfn&gt; attribute must
+   return a &lt;a href=#live&gt;live&lt;/a&gt; &lt;code&gt;&lt;a href=#texttrackcuelist&gt;TextTrackCueList&lt;/a&gt;&lt;/code&gt; object that
+@@ -34852,82 +34949,6 @@
+    &lt;code&gt;&lt;a href=#texttrack&gt;TextTrack&lt;/a&gt;&lt;/code&gt; object's &lt;a href=#text-track&gt;text track&lt;/a&gt;'s
+    &lt;a href=#text-track-list-of-cues&gt;text track list of cues&lt;/a&gt;.&lt;/li&gt;
+ 
+-  &lt;/ol&gt;&lt;hr&gt;&lt;p&gt;The &lt;dfn id=dom-media-addtexttrack title=dom-media-addTextTrack&gt;&lt;code&gt;addTextTrack(&lt;var title=&quot;&quot;&gt;kind&lt;/var&gt;, &lt;var title=&quot;&quot;&gt;label&lt;/var&gt;, &lt;var title=&quot;&quot;&gt;language&lt;/var&gt;)&lt;/code&gt;&lt;/dfn&gt; method of &lt;a href=#media-element title=&quot;media
+-  element&quot;&gt;media elements&lt;/a&gt;, when invoked, must run the following
+-  steps:&lt;/p&gt;
+-
+-  &lt;ol&gt;&lt;li&gt;
+-
+-    &lt;p&gt;If &lt;var title=&quot;&quot;&gt;kind&lt;/var&gt; is not one of the following
+-    strings, then throw a &lt;code&gt;&lt;a href=#syntaxerror&gt;SyntaxError&lt;/a&gt;&lt;/code&gt; exception and abort
+-    these steps:&lt;/p&gt;
+-
+-    &lt;ul class=brief&gt;&lt;li&gt;&lt;code title=dom-TextTrack-kind-subtitles&gt;&lt;a href=#dom-texttrack-kind-subtitles&gt;subtitles&lt;/a&gt;&lt;/code&gt;
+-     &lt;li&gt;&lt;code title=dom-TextTrack-kind-captions&gt;&lt;a href=#dom-texttrack-kind-captions&gt;captions&lt;/a&gt;&lt;/code&gt;
+-     &lt;li&gt;&lt;code title=dom-TextTrack-kind-descriptions&gt;&lt;a href=#dom-texttrack-kind-descriptions&gt;descriptions&lt;/a&gt;&lt;/code&gt;
+-     &lt;li&gt;&lt;code title=dom-TextTrack-kind-chapters&gt;&lt;a href=#dom-texttrack-kind-chapters&gt;chapters&lt;/a&gt;&lt;/code&gt;
+-     &lt;li&gt;&lt;code title=dom-TextTrack-kind-metadata&gt;&lt;a href=#dom-texttrack-kind-metadata&gt;metadata&lt;/a&gt;&lt;/code&gt;
+-    &lt;/ul&gt;&lt;/li&gt;
+-
+-   &lt;li&gt;
+-
+-    &lt;p&gt;If the &lt;var title=&quot;&quot;&gt;label&lt;/var&gt; argument was omitted, let &lt;var title=&quot;&quot;&gt;label&lt;/var&gt; be the empty string.&lt;/p&gt;
+-
+-   &lt;/li&gt;
+-
+-   &lt;li&gt;
+-
+-    &lt;p&gt;If the &lt;var title=&quot;&quot;&gt;language&lt;/var&gt; argument was omitted, let
+-    &lt;var title=&quot;&quot;&gt;language&lt;/var&gt; be the empty string.&lt;/p&gt;
+-
+-   &lt;/li&gt;
+-
+-   &lt;li&gt;
+-
+-    &lt;p&gt;Create a new &lt;code&gt;&lt;a href=#texttrack&gt;TextTrack&lt;/a&gt;&lt;/code&gt; object.&lt;/p&gt;
+-
+-   &lt;/li&gt;
+-
+-   &lt;li&gt;
+-
+-    &lt;p&gt;Create a new &lt;a href=#text-track&gt;text track&lt;/a&gt; corresponding to the new
+-    object, and set its &lt;a href=#text-track-kind&gt;text track kind&lt;/a&gt; to &lt;var title=&quot;&quot;&gt;kind&lt;/var&gt;, its &lt;a href=#text-track-label&gt;text track label&lt;/a&gt; to &lt;var title=&quot;&quot;&gt;label&lt;/var&gt;, its &lt;a href=#text-track-language&gt;text track language&lt;/a&gt; to &lt;var title=&quot;&quot;&gt;language&lt;/var&gt;, its &lt;a href=#text-track-readiness-state&gt;text track readiness
+-    state&lt;/a&gt; to the &lt;a href=#text-track-loaded&gt;text track loaded&lt;/a&gt; state, its
+-    &lt;a href=#text-track-mode&gt;text track mode&lt;/a&gt; to the &lt;a href=#text-track-hidden&gt;text track hidden&lt;/a&gt;
+-    mode, and its &lt;a href=#text-track-list-of-cues&gt;text track list of cues&lt;/a&gt; to an empty
+-    list.
+-    Associate the &lt;a href=#text-track-list-of-cues&gt;text track list of cues&lt;/a&gt; with the
+-    &lt;a href=#rules-for-updating-the-display-of-webvtt-text-tracks&gt;rules for updating the display of WebVTT text tracks&lt;/a&gt;
+-    as its &lt;a href=#rules-for-updating-the-text-track-rendering&gt;rules for updating the text track rendering&lt;/a&gt;.
+-    &lt;a href=#refsWEBVTT&gt;[WEBVTT]&lt;/a&gt;
+-    &lt;/p&gt;
+-
+-   &lt;/li&gt;
+-
+-   &lt;li&gt;
+-
+-    &lt;p&gt;Add the new &lt;a href=#text-track&gt;text track&lt;/a&gt; to the &lt;a href=#media-element&gt;media
+-    element&lt;/a&gt;'s &lt;a href=#list-of-text-tracks&gt;list of text tracks&lt;/a&gt;.&lt;/p&gt;
+-
+-   &lt;/li&gt;
+-
+-   &lt;li&gt;
+-
+-    &lt;p&gt;&lt;a href=#queue-a-task&gt;Queue a task&lt;/a&gt; to fire an event with the name &lt;code title=event-addtrack&gt;addtrack&lt;/code&gt;, that does not bubble and
+-    is not cancelable, and that uses the &lt;code&gt;&lt;a href=#trackevent&gt;TrackEvent&lt;/a&gt;&lt;/code&gt;
+-    interface, with the &lt;code title=dom-TrackEvent-track&gt;&lt;a href=#dom-trackevent-track&gt;track&lt;/a&gt;&lt;/code&gt; attribute initialized to
+-    the new &lt;a href=#text-track&gt;text track&lt;/a&gt;'s &lt;code&gt;&lt;a href=#texttrack&gt;TextTrack&lt;/a&gt;&lt;/code&gt; object,
+-    at the &lt;a href=#media-element&gt;media element&lt;/a&gt;'s &lt;code title=dom-media-textTracks&gt;&lt;a href=#dom-media-texttracks&gt;textTracks&lt;/a&gt;&lt;/code&gt; attribute's
+-    &lt;code&gt;&lt;a href=#texttracklist&gt;TextTrackList&lt;/a&gt;&lt;/code&gt; object.&lt;/p&gt;
+-
+-   &lt;/li&gt;
+-
+-   &lt;li&gt;
+-
+-    &lt;p&gt;Return the new &lt;code&gt;&lt;a href=#texttrack&gt;TextTrack&lt;/a&gt;&lt;/code&gt; object.&lt;/p&gt;
+-
+-   &lt;/li&gt;
+-
+   &lt;/ol&gt;&lt;/div&gt;
+ 
+   &lt;div class=example&gt;
+@@ -35580,8 +35601,7 @@
+   &lt;p&gt;For the purposes of listing chapters in the &lt;a href=#media-resource&gt;media
+   resource&lt;/a&gt;, only &lt;a href=#text-track title=&quot;text track&quot;&gt;text tracks&lt;/a&gt; in
+   the &lt;a href=#media-element&gt;media element&lt;/a&gt;'s &lt;a href=#list-of-text-tracks&gt;list of text tracks&lt;/a&gt;
+-  &lt;a href=#text-track-showing title=&quot;text track showing&quot;&gt;showing&lt;/a&gt; or &lt;a href=#text-track-showing-by-default title=&quot;text
+-  track showing by default&quot;&gt;showing by default&lt;/a&gt; and whose
++  that are &lt;a href=#text-track-showing title=&quot;text track showing&quot;&gt;showing&lt;/a&gt; and whose
+   &lt;a href=#text-track-kind&gt;text track kind&lt;/a&gt; is &lt;code title=dom-TextTrack-kind-chapters&gt;&lt;a href=#dom-texttrack-kind-chapters&gt;chapters&lt;/a&gt;&lt;/code&gt; should be used.
+   Such tracks must be interpreted according to the &lt;a href=#rules-for-constructing-the-chapter-tree-from-a-text-track&gt;rules for
+   constructing the chapter tree from a text track&lt;/a&gt;.&lt;/p&gt;
+@@ -98070,12 +98090,13 @@
+ 
+   &lt;p&gt;When the user agent starts &lt;a href=#expose-a-user-interface-to-the-user title=&quot;expose a user interface
+   to the user&quot;&gt;exposing a user interface&lt;/a&gt; for a
+-  &lt;code&gt;&lt;a href=#the-video-element&gt;video&lt;/a&gt;&lt;/code&gt; element, the user agent should run the &lt;a href=#rules-for-updating-the-text-track-rendering&gt;rules
+-  for updating the text track rendering&lt;/a&gt; of each of the &lt;a href=#text-track title=&quot;text track&quot;&gt;text tracks&lt;/a&gt; in the &lt;code&gt;&lt;a href=#the-video-element&gt;video&lt;/a&gt;&lt;/code&gt;
+-  element's &lt;a href=#list-of-text-tracks&gt;list of text tracks&lt;/a&gt; that are &lt;a href=#text-track-showing title=&quot;text track showing&quot;&gt;showing&lt;/a&gt; or &lt;a href=#text-track-showing-by-default title=&quot;text
+-  track showing by default&quot;&gt;showing by default&lt;/a&gt; (e.g., for &lt;a href=#text-track title=&quot;text track&quot;&gt;text tracks&lt;/a&gt; based on
+-  &lt;a href=#webvtt&gt;WebVTT&lt;/a&gt;, the &lt;a href=#rules-for-updating-the-display-of-webvtt-text-tracks&gt;rules for updating the display of
+-  WebVTT text tracks&lt;/a&gt;). &lt;a href=#refsWEBVTT&gt;[WEBVTT]&lt;/a&gt;&lt;/p&gt;
++  &lt;code&gt;&lt;a href=#the-video-element&gt;video&lt;/a&gt;&lt;/code&gt; element, the user agent should run the
++  &lt;a href=#rules-for-updating-the-text-track-rendering&gt;rules for updating the text track rendering&lt;/a&gt; of each of
++  the &lt;a href=#text-track title=&quot;text track&quot;&gt;text tracks&lt;/a&gt; in the
++  &lt;code&gt;&lt;a href=#the-video-element&gt;video&lt;/a&gt;&lt;/code&gt; element's &lt;a href=#list-of-text-tracks&gt;list of text tracks&lt;/a&gt; that
++  are &lt;a href=#text-track-showing title=&quot;text track showing&quot;&gt;showing&lt;/a&gt; (e.g., for &lt;a href=#text-track title=&quot;text track&quot;&gt;text tracks&lt;/a&gt; based on &lt;a href=#webvtt&gt;WebVTT&lt;/a&gt;,
++  the &lt;a href=#rules-for-updating-the-display-of-webvtt-text-tracks&gt;rules for updating the display of WebVTT text
++  tracks&lt;/a&gt;). &lt;a href=#refsWEBVTT&gt;[WEBVTT]&lt;/a&gt;&lt;/p&gt;
+ 
+   &lt;p class=note&gt;Resizing &lt;code&gt;&lt;a href=#the-video-element&gt;video&lt;/a&gt;&lt;/code&gt; and &lt;code&gt;&lt;a href=#the-canvas-element&gt;canvas&lt;/a&gt;&lt;/code&gt;
+   elements does not interrupt video playback or clear the canvas.&lt;/p&gt;
+
+Modified: index
+===================================================================
+--- index	2012-09-07 21:52:27 UTC (rev 7326)
++++ index	2012-09-11 21:59:07 UTC (rev 7327)
+@@ -246,7 +246,7 @@
+ 
+   &lt;header class=head id=head&gt;&lt;p&gt;&lt;a class=logo href=<A HREF="http://www.whatwg.org/">http://www.whatwg.org/</A>&gt;&lt;img alt=WHATWG height=101 src=/images/logo width=101&gt;&lt;/a&gt;&lt;/p&gt;
+    &lt;hgroup&gt;&lt;h1 class=allcaps&gt;HTML&lt;/h1&gt;
+-    &lt;h2 class=&quot;no-num no-toc&quot;&gt;Living Standard &mdash; Last Updated 7 September 2012&lt;/h2&gt;
++    &lt;h2 class=&quot;no-num no-toc&quot;&gt;Living Standard &mdash; Last Updated 11 September 2012&lt;/h2&gt;
+    &lt;/hgroup&gt;&lt;dl&gt;&lt;dt&gt;&lt;strong&gt;Web developer edition:&lt;/strong&gt;&lt;/dt&gt;
+     &lt;dd&gt;&lt;strong&gt;&lt;a href=<A HREF="http://developers.whatwg.org/">http://developers.whatwg.org/</A>&gt;<A HREF="http://developers.whatwg.org/&lt;/a">http://developers.whatwg.org/&lt;/a</A>&gt;&lt;/strong&gt;&lt;/dd&gt;
+     &lt;dt&gt;Multiple-page version:&lt;/dt&gt;
+@@ -1586,6 +1586,10 @@
+    different text for web+, etc. I haven't fixed these yet since I
+    expect the WHATWG to switch approach at some point soon too. --&gt;
+ 
++   &lt;li&gt;The W3C HTML specification avoids mentioning
++   &lt;code&gt;&lt;a href=#mouseeventinit&gt;MouseEventInit&lt;/a&gt;&lt;/code&gt;, resulting in a different definition
++   for &lt;code&gt;&lt;a href=#drageventinit&gt;DragEventInit&lt;/a&gt;&lt;/code&gt;.&lt;/li&gt;
++
+   &lt;/ul&gt;&lt;p&gt;The following sections are only published in the WHATWG
+   specifications and are not currently available anywhere else:&lt;/p&gt;
+ 
+@@ -28429,11 +28433,10 @@
+   format.&lt;/p&gt;
+ 
+   &lt;p&gt;The &lt;code&gt;&lt;a href=#the-video-element&gt;video&lt;/a&gt;&lt;/code&gt; element also &lt;a href=#represents&gt;represents&lt;/a&gt; any
+-  &lt;a href=#text-track-cue title=&quot;text track cue&quot;&gt;text track cues&lt;/a&gt; whose
+-  &lt;a href=#text-track-cue-active-flag&gt;text track cue active flag&lt;/a&gt; is set and whose
+-  &lt;a href=#text-track&gt;text track&lt;/a&gt; is in the &lt;a href=#text-track-showing title=&quot;text track
+-  showing&quot;&gt;showing&lt;/a&gt; or &lt;a href=#text-track-showing-by-default title=&quot;text track showing by
+-  default&quot;&gt;showing by default&lt;/a&gt; modes.&lt;/p&gt;
++  &lt;a href=#text-track-cue title=&quot;text track cue&quot;&gt;text track cues&lt;/a&gt; whose &lt;a href=#text-track-cue-active-flag&gt;text
++  track cue active flag&lt;/a&gt; is set and whose &lt;a href=#text-track&gt;text
++  track&lt;/a&gt; is in the &lt;a href=#text-track-showing title=&quot;text track
++  showing&quot;&gt;showing&lt;/a&gt; mode.&lt;/p&gt;
+ 
+   &lt;p&gt;In addition to the above, the user agent may provide messages to
+   the user (such as &quot;buffering&quot;, &quot;no video loaded&quot;, &quot;error&quot;, or more
+@@ -31738,21 +31741,20 @@
+   &lt;/p&gt;
+ 
+   &lt;ol&gt;&lt;li&gt;&lt;p&gt;Let &lt;var title=&quot;&quot;&gt;current cues&lt;/var&gt; be a list of &lt;a href=#text-track-cue title=&quot;text track cue&quot;&gt;cues&lt;/a&gt;, initialized to contain all the
+-   &lt;a href=#text-track-cue title=&quot;text track cue&quot;&gt;cues&lt;/a&gt; of all the &lt;a href=#text-track-hidden title=&quot;text track hidden&quot;&gt;hidden&lt;/a&gt;, &lt;a href=#text-track-showing title=&quot;text track
+-   showing&quot;&gt;showing&lt;/a&gt;, or &lt;a href=#text-track-showing-by-default title=&quot;text track showing by
+-   default&quot;&gt;showing by default&lt;/a&gt; &lt;a href=#text-track title=&quot;text track&quot;&gt;text
+-   tracks&lt;/a&gt; of the &lt;a href=#media-element&gt;media element&lt;/a&gt; (not the &lt;a href=#text-track-disabled title=&quot;text track disabled&quot;&gt;disabled&lt;/a&gt; ones) whose &lt;a href=#text-track-cue-start-time title=&quot;text track cue start time&quot;&gt;start times&lt;/a&gt; are less than
+-   or equal to the &lt;a href=#current-playback-position&gt;current playback position&lt;/a&gt; and whose
+-   &lt;a href=#text-track-cue-end-time title=&quot;text track cue end time&quot;&gt;end times&lt;/a&gt; are greater
+-   than the &lt;a href=#current-playback-position&gt;current playback position&lt;/a&gt;.&lt;/li&gt;
++   &lt;a href=#text-track-cue title=&quot;text track cue&quot;&gt;cues&lt;/a&gt; of all the &lt;a href=#text-track-hidden title=&quot;text track hidden&quot;&gt;hidden&lt;/a&gt; or &lt;a href=#text-track-showing title=&quot;text track
++   showing&quot;&gt;showing&lt;/a&gt; &lt;a href=#text-track title=&quot;text track&quot;&gt;text tracks&lt;/a&gt;
++   of the &lt;a href=#media-element&gt;media element&lt;/a&gt; (not the &lt;a href=#text-track-disabled title=&quot;text track
++   disabled&quot;&gt;disabled&lt;/a&gt; ones) whose &lt;a href=#text-track-cue-start-time title=&quot;text track cue
++   start time&quot;&gt;start times&lt;/a&gt; are less than or equal to the
++   &lt;a href=#current-playback-position&gt;current playback position&lt;/a&gt; and whose &lt;a href=#text-track-cue-end-time title=&quot;text
++   track cue end time&quot;&gt;end times&lt;/a&gt; are greater than the
++   &lt;a href=#current-playback-position&gt;current playback position&lt;/a&gt;.&lt;/li&gt;
+ 
+    &lt;li&gt;&lt;p&gt;Let &lt;var title=&quot;&quot;&gt;other cues&lt;/var&gt; be a list of &lt;a href=#text-track-cue title=&quot;text track cue&quot;&gt;cues&lt;/a&gt;, initialized to contain all the
+    &lt;a href=#text-track-cue title=&quot;text track cue&quot;&gt;cues&lt;/a&gt; of &lt;a href=#text-track-hidden title=&quot;text track
+-   hidden&quot;&gt;hidden&lt;/a&gt;, &lt;a href=#text-track-showing title=&quot;text track
+-   showing&quot;&gt;showing&lt;/a&gt;, and &lt;a href=#text-track-showing-by-default title=&quot;text track showing by
+-   default&quot;&gt;showing by default&lt;/a&gt; &lt;a href=#text-track title=&quot;text track&quot;&gt;text
+-   tracks&lt;/a&gt; of the &lt;a href=#media-element&gt;media element&lt;/a&gt; that are not
+-   present in &lt;var title=&quot;&quot;&gt;current cues&lt;/var&gt;.&lt;/li&gt;
++   hidden&quot;&gt;hidden&lt;/a&gt; and &lt;a href=#text-track-showing title=&quot;text track
++   showing&quot;&gt;showing&lt;/a&gt; &lt;a href=#text-track title=&quot;text track&quot;&gt;text tracks&lt;/a&gt;
++   of the &lt;a href=#media-element&gt;media element&lt;/a&gt; that are not present in &lt;var title=&quot;&quot;&gt;current cues&lt;/var&gt;.&lt;/li&gt;
+ 
+    &lt;li&gt;&lt;p&gt;Let &lt;var title=&quot;&quot;&gt;last time&lt;/var&gt; be the &lt;a href=#current-playback-position&gt;current
+    playback position&lt;/a&gt; at the time this algorithm was last run
+@@ -31898,12 +31900,9 @@
+ 
+    &lt;li&gt;&lt;p&gt;Run the &lt;a href=#rules-for-updating-the-text-track-rendering&gt;rules for updating the text track
+    rendering&lt;/a&gt; of each of the &lt;a href=#text-track title=&quot;text track&quot;&gt;text
+-   tracks&lt;/a&gt; in &lt;var title=&quot;&quot;&gt;affected tracks&lt;/var&gt; that are &lt;a href=#text-track-showing title=&quot;text track showing&quot;&gt;showing&lt;/a&gt; or &lt;a href=#text-track-showing-by-default title=&quot;text
+-   track showing by default&quot;&gt;showing by default&lt;/a&gt;.
+-   For example, for &lt;a href=#text-track title=&quot;text track&quot;&gt;text tracks&lt;/a&gt;
+-   based on &lt;a href=#webvtt&gt;WebVTT&lt;/a&gt;, the &lt;a href=#rules-for-updating-the-display-of-webvtt-text-tracks&gt;rules for updating the
+-   display of WebVTT text tracks&lt;/a&gt;. &lt;a href=#refsWEBVTT&gt;[WEBVTT]&lt;/a&gt;
+-   &lt;/li&gt;
++   tracks&lt;/a&gt; in &lt;var title=&quot;&quot;&gt;affected tracks&lt;/var&gt; that are &lt;a href=#text-track-showing title=&quot;text track showing&quot;&gt;showing&lt;/a&gt;. For example, for &lt;a href=#text-track title=&quot;text track&quot;&gt;text tracks&lt;/a&gt; based on &lt;a href=#webvtt&gt;WebVTT&lt;/a&gt;,
++   the &lt;a href=#rules-for-updating-the-display-of-webvtt-text-tracks&gt;rules for updating the display of WebVTT text
++   tracks&lt;/a&gt;. &lt;a href=#refsWEBVTT&gt;[WEBVTT]&lt;/a&gt; &lt;/li&gt;
+ 
+   &lt;/ol&gt;&lt;p&gt;For the purposes of the algorithm above, a &lt;a href=#text-track-cue&gt;text track
+   cue&lt;/a&gt; is considered to be part of a &lt;a href=#text-track&gt;text track&lt;/a&gt;
+@@ -33709,9 +33708,8 @@
+      &lt;/dd&gt;
+ 
+      &lt;dt&gt;&lt;dfn id=text-track-showing title=&quot;text track showing&quot;&gt;Showing&lt;/dfn&gt;
+-     &lt;dt&gt;&lt;dfn id=text-track-showing-by-default title=&quot;text track showing by default&quot;&gt;Showing by default&lt;/dfn&gt;
+ 
+-     &lt;/dt&gt;&lt;dd&gt;
++     &lt;dd&gt;
+ 
+       &lt;p&gt;Indicates that the text track is active. If no attempt has
+       yet been made to obtain the track's cues, the user agent will
+@@ -33728,13 +33726,6 @@
+       user can navigate to any point in the &lt;a href=#media-resource&gt;media
+       resource&lt;/a&gt; by selecting a cue.&lt;/p&gt;
+ 
+-      &lt;p&gt;The &lt;a href=#text-track-showing-by-default title=&quot;text track showing by default&quot;&gt;showing by
+-      default&lt;/a&gt; state is used in conjunction with the &lt;code title=attr-track-default&gt;&lt;a href=#attr-track-default&gt;default&lt;/a&gt;&lt;/code&gt; attribute on
+-      &lt;code&gt;&lt;a href=#the-track-element&gt;track&lt;/a&gt;&lt;/code&gt; elements to indicate that the text track was
+-      enabled due to that attribute. This allows the user agent to
+-      override the state if a later track is discovered that is more
+-      appropriate per the user's preferences.&lt;/p&gt;
+-
+      &lt;/dd&gt;
+ 
+     &lt;/dl&gt;&lt;/dd&gt;
+@@ -33762,18 +33753,21 @@
+   &lt;code&gt;&lt;a href=#texttrack&gt;TextTrack&lt;/a&gt;&lt;/code&gt; object.&lt;/p&gt;
+ 
+   &lt;hr&gt;&lt;p&gt;Each &lt;a href=#media-element&gt;media element&lt;/a&gt; has a &lt;dfn id=list-of-pending-text-tracks&gt;list of pending text
+-  tracks&lt;/dfn&gt;, which must initially be empty, and a
+-  &lt;dfn id=blocked-on-parser&gt;blocked-on-parser&lt;/dfn&gt; flag, which must initially be false.
+-  When the user agent is required to &lt;dfn id=populate-the-list-of-pending-text-tracks&gt;populate the list of pending
+-  text tracks&lt;/dfn&gt; of a &lt;a href=#media-element&gt;media element&lt;/a&gt;, the user agent
+-  must add to the element's &lt;a href=#list-of-pending-text-tracks&gt;list of pending text tracks&lt;/a&gt;
+-  each &lt;a href=#text-track&gt;text track&lt;/a&gt; in the element's &lt;a href=#list-of-text-tracks&gt;list of text
+-  tracks&lt;/a&gt; whose &lt;a href=#text-track-mode&gt;text track mode&lt;/a&gt; is not &lt;a href=#text-track-disabled title=&quot;text track disabled&quot;&gt;disabled&lt;/a&gt; and whose &lt;a href=#text-track-readiness-state&gt;text
+-  track readiness state&lt;/a&gt; is &lt;!--either &lt;span title=&quot;text track
+-  not loaded&quot;&gt;not loaded&lt;/span&gt; or [there can't be any in the 'not
+-  loaded' state that are not 'disabled']--&gt; &lt;a href=#text-track-loading title=&quot;text track
+-  loading&quot;&gt;loading&lt;/a&gt;.&lt;/p&gt;
++  tracks&lt;/dfn&gt;, which must initially be empty, a
++  &lt;dfn id=blocked-on-parser&gt;blocked-on-parser&lt;/dfn&gt; flag, which must initially be false,
++  and a &lt;dfn id=did-perform-automatic-track-selection&gt;did-perform-automatic-track-selection&lt;/dfn&gt; flag, which
++  must also initially be false.&lt;/p&gt;
+ 
++  &lt;p&gt;When the user agent is required to &lt;dfn id=populate-the-list-of-pending-text-tracks&gt;populate the list of
++  pending text tracks&lt;/dfn&gt; of a &lt;a href=#media-element&gt;media element&lt;/a&gt;, the user
++  agent must add to the element's &lt;a href=#list-of-pending-text-tracks&gt;list of pending text
++  tracks&lt;/a&gt; each &lt;a href=#text-track&gt;text track&lt;/a&gt; in the element's
++  &lt;a href=#list-of-text-tracks&gt;list of text tracks&lt;/a&gt; whose &lt;a href=#text-track-mode&gt;text track mode&lt;/a&gt;
++  is not &lt;a href=#text-track-disabled title=&quot;text track disabled&quot;&gt;disabled&lt;/a&gt; and whose
++  &lt;a href=#text-track-readiness-state&gt;text track readiness state&lt;/a&gt; is &lt;!--either &lt;span
++  title=&quot;text track not loaded&quot;&gt;not loaded&lt;/span&gt; or [there can't be
++  any in the 'not loaded' state that are not 'disabled']--&gt; &lt;a href=#text-track-loading title=&quot;text track loading&quot;&gt;loading&lt;/a&gt;.&lt;/p&gt;
++
+   &lt;p&gt;Whenever a &lt;code&gt;&lt;a href=#the-track-element&gt;track&lt;/a&gt;&lt;/code&gt; element's parent node changes, the
+   user agent must remove the corresponding &lt;a href=#text-track&gt;text track&lt;/a&gt;
+   from any &lt;a href=#list-of-pending-text-tracks&gt;list of pending text tracks&lt;/a&gt; that it is in.&lt;/p&gt;
+@@ -33789,8 +33783,9 @@
+   the element's &lt;a href=#blocked-on-parser&gt;blocked-on-parser&lt;/a&gt; flag to true. When a
+   &lt;a href=#media-element&gt;media element&lt;/a&gt; is popped off the &lt;a href=#stack-of-open-elements&gt;stack of open
+   elements&lt;/a&gt; of an &lt;a href=#html-parser&gt;HTML parser&lt;/a&gt; or &lt;a href=#xml-parser&gt;XML
+-  parser&lt;/a&gt;, the user agent must &lt;a href=#populate-the-list-of-pending-text-tracks&gt;populate the list of
+-  pending text tracks&lt;/a&gt; and set the element's
++  parser&lt;/a&gt;, the user agent must &lt;a href=#honor-user-preferences-for-automatic-text-track-selection&gt;honor user preferences for
++  automatic text track selection&lt;/a&gt;, &lt;a href=#populate-the-list-of-pending-text-tracks&gt;populate the list of
++  pending text tracks&lt;/a&gt;, and set the element's
+   &lt;a href=#blocked-on-parser&gt;blocked-on-parser&lt;/a&gt; flag to false.&lt;/p&gt;
+ 
+   &lt;p&gt;The &lt;a href=#text-track title=&quot;text track&quot;&gt;text tracks&lt;/a&gt; of a &lt;a href=#media-element&gt;media
+@@ -33899,18 +33894,18 @@
+      cue&lt;/a&gt;.&lt;/li&gt;
+ 
+      &lt;li&gt;&lt;p&gt;If &lt;var title=&quot;&quot;&gt;cue&lt;/var&gt; is not associated with a
+-     &lt;a href=#text-track&gt;text track&lt;/a&gt;, return &minus;1 and abort these
+-     steps.&lt;/li&gt;
++     &lt;a href=#text-track&gt;text track&lt;/a&gt;, or if that &lt;a href=#text-track&gt;text track&lt;/a&gt; is
++     not in the &lt;a href=#list-of-text-tracks&gt;list of text tracks&lt;/a&gt; of a &lt;a href=#media-element&gt;media
++     element&lt;/a&gt;, return &minus;1 and abort these steps.&lt;/li&gt;
+ 
+      &lt;li&gt;&lt;p&gt;Let &lt;var title=&quot;&quot;&gt;track&lt;/var&gt; be the &lt;a href=#text-track&gt;text
+      track&lt;/a&gt; that the &lt;var title=&quot;&quot;&gt;cue&lt;/var&gt; is associated
+      with.&lt;/li&gt;
+ 
+      &lt;li&gt;&lt;p&gt;Let &lt;var title=&quot;&quot;&gt;n&lt;/var&gt; be the number of &lt;a href=#text-track title=&quot;text track&quot;&gt;text tracks&lt;/a&gt; whose &lt;a href=#text-track-mode&gt;text track
+-     mode&lt;/a&gt; is &lt;a href=#text-track-showing title=&quot;text track showing&quot;&gt;showing&lt;/a&gt; or
+-     &lt;a href=#text-track-showing-by-default title=&quot;text track showing by default&quot;&gt;showing by
+-     default&lt;/a&gt; and that are in the &lt;a href=#media-element&gt;media element&lt;/a&gt;'s
+-     &lt;a href=#list-of-text-tracks&gt;list of text tracks&lt;/a&gt; before &lt;var title=&quot;&quot;&gt;track&lt;/var&gt;.&lt;/li&gt;
++     mode&lt;/a&gt; is &lt;a href=#text-track-showing title=&quot;text track showing&quot;&gt;showing&lt;/a&gt;
++     and that are in the &lt;a href=#media-element&gt;media element&lt;/a&gt;'s &lt;a href=#list-of-text-tracks&gt;list of
++     text tracks&lt;/a&gt; before &lt;var title=&quot;&quot;&gt;track&lt;/var&gt;.&lt;/li&gt;
+ 
+      &lt;li&gt;&lt;p&gt;Increment &lt;var title=&quot;&quot;&gt;n&lt;/var&gt; by one.&lt;/li&gt;
+ 
+@@ -33981,16 +33976,14 @@
+     disabled&quot;&gt;disabled&lt;/a&gt;; and whenever the &lt;a href=#media-element&gt;media
+     element&lt;/a&gt;'s &lt;code title=dom-media-readyState&gt;&lt;a href=#dom-media-readystate&gt;readyState&lt;/a&gt;&lt;/code&gt; is changed back to
+     &lt;code title=dom-media-HAVE_NOTHING&gt;&lt;a href=#dom-media-have_nothing&gt;HAVE_NOTHING&lt;/a&gt;&lt;/code&gt;. When the
+-    flag is unset in this way for one or more cues in &lt;a href=#text-track title=&quot;text track&quot;&gt;text tracks&lt;/a&gt; that were &lt;a href=#text-track-showing title=&quot;text track showing&quot;&gt;showing&lt;/a&gt; or &lt;a href=#text-track-showing-by-default title=&quot;text
+-    track showing by default&quot;&gt;showing by default&lt;/a&gt; prior to the
+-    relevant incident, the user agent must, after having unset the
+-    flag for all the affected cues, apply the &lt;a href=#rules-for-updating-the-text-track-rendering&gt;rules for updating
+-    the text track rendering&lt;/a&gt; of those &lt;a href=#text-track title=&quot;text
+-    track&quot;&gt;text tracks&lt;/a&gt;.
+-    For example, for &lt;a href=#text-track title=&quot;text track&quot;&gt;text tracks&lt;/a&gt;
+-    based on &lt;a href=#webvtt&gt;WebVTT&lt;/a&gt;, the &lt;a href=#rules-for-updating-the-display-of-webvtt-text-tracks&gt;rules for updating the
+-    display of WebVTT text tracks&lt;/a&gt;. &lt;a href=#refsWEBVTT&gt;[WEBVTT]&lt;/a&gt;&lt;/p&gt;
+-   &lt;/dd&gt;
++    flag is unset in this way for one or more cues in &lt;a href=#text-track title=&quot;text track&quot;&gt;text tracks&lt;/a&gt; that were &lt;a href=#text-track-showing title=&quot;text
++    track showing&quot;&gt;showing&lt;/a&gt; prior to the relevant incident, the
++    user agent must, after having unset the flag for all the affected
++    cues, apply the &lt;a href=#rules-for-updating-the-text-track-rendering&gt;rules for updating the text track
++    rendering&lt;/a&gt; of those &lt;a href=#text-track title=&quot;text track&quot;&gt;text
++    tracks&lt;/a&gt;. For example, for &lt;a href=#text-track title=&quot;text track&quot;&gt;text
++    tracks&lt;/a&gt; based on &lt;a href=#webvtt&gt;WebVTT&lt;/a&gt;, the &lt;a href=#rules-for-updating-the-display-of-webvtt-text-tracks&gt;rules for
++    updating the display of WebVTT text tracks&lt;/a&gt;. &lt;a href=#refsWEBVTT&gt;[WEBVTT]&lt;/a&gt;&lt;/p&gt; &lt;/dd&gt;
+ 
+    &lt;dt&gt;The &lt;dfn id=text-track-cue-display-state title=&quot;text track cue display state&quot;&gt;display state&lt;/dfn&gt;
+    &lt;dd&gt;
+@@ -34009,17 +34002,17 @@
+   the &lt;a href=#text-track-cue title=&quot;text track cue&quot;&gt;cues&lt;/a&gt; by their &lt;a href=#text-track&gt;text
+   track&lt;/a&gt;, with the groups being sorted in the same order as
+   their &lt;a href=#text-track title=&quot;text track&quot;&gt;text tracks&lt;/a&gt; appear in the
+-  &lt;a href=#media-element&gt;media element&lt;/a&gt;'s &lt;a href=#list-of-text-tracks&gt;list of text tracks&lt;/a&gt;;
+-  then, within each group, &lt;a href=#text-track-cue title=&quot;text track cue&quot;&gt;cues&lt;/a&gt;
+-  must be sorted by their &lt;a href=#text-track-cue-start-time title=&quot;text track cue start
+-  time&quot;&gt;start time&lt;/a&gt;, earliest first; then, any &lt;a href=#text-track-cue title=&quot;text track cue&quot;&gt;cues&lt;/a&gt; with the same &lt;a href=#text-track-cue-start-time title=&quot;text
+-  track cue start time&quot;&gt;start time&lt;/a&gt; must be sorted by their
+-  &lt;a href=#text-track-cue-end-time title=&quot;text track cue end time&quot;&gt;end time&lt;/a&gt;, latest
+-  first; and finally, any &lt;a href=#text-track-cue title=&quot;text track cue&quot;&gt;cues&lt;/a&gt;
+-  with identical &lt;a href=#text-track-cue-end-time title=&quot;text track cue end time&quot;&gt;end
+-  times&lt;/a&gt; must be sorted in the order they were created (so
+-  e.g. for cues from a &lt;a href=#webvtt&gt;WebVTT&lt;/a&gt; file, that would be the
+-  order in which the cues were listed in the file). &lt;a href=#refsWEBVTT&gt;[WEBVTT]&lt;/a&gt;&lt;/p&gt;
++  &lt;a href=#media-element&gt;media element&lt;/a&gt;'s &lt;a href=#list-of-text-tracks&gt;list of text tracks&lt;/a&gt;; then,
++  within each group, &lt;a href=#text-track-cue title=&quot;text track cue&quot;&gt;cues&lt;/a&gt; must be
++  sorted by their &lt;a href=#text-track-cue-start-time title=&quot;text track cue start time&quot;&gt;start
++  time&lt;/a&gt;, earliest first; then, any &lt;a href=#text-track-cue title=&quot;text track
++  cue&quot;&gt;cues&lt;/a&gt; with the same &lt;a href=#text-track-cue-start-time title=&quot;text track cue start
++  time&quot;&gt;start time&lt;/a&gt; must be sorted by their &lt;a href=#text-track-cue-end-time title=&quot;text
++  track cue end time&quot;&gt;end time&lt;/a&gt;, latest first; and finally, any
++  &lt;a href=#text-track-cue title=&quot;text track cue&quot;&gt;cues&lt;/a&gt; with identical &lt;a href=#text-track-cue-end-time title=&quot;text track cue end time&quot;&gt;end times&lt;/a&gt; must be sorted in
++  the order they were created (so e.g. for cues from a
++  &lt;a href=#webvtt&gt;WebVTT&lt;/a&gt; file, that would be the order in which the cues
++  were listed in the file). &lt;a href=#refsWEBVTT&gt;[WEBVTT]&lt;/a&gt;&lt;/p&gt;
+ 
+ 
+   &lt;h6 id=sourcing-in-band-text-tracks&gt;&lt;span class=secno&gt;4.8.10.12.2 &lt;/span&gt;Sourcing in-band text tracks&lt;/h6&gt;
+@@ -34144,11 +34137,11 @@
+    to load the whole media file just to start playing the first
+    frame... --&gt;
+ 
+-   &lt;!-- XXX-MODE-HEURISTIC --&gt;
+    &lt;li&gt;&lt;p&gt;Set the new &lt;a href=#text-track&gt;text track&lt;/a&gt;'s &lt;a href=#text-track-mode title=&quot;text
+    track mode&quot;&gt;mode&lt;/a&gt; to the mode consistent with the user's
+    preferences and the requirements of the relevant specification for
+-   the data.&lt;/li&gt;
++   the data.&lt;/li&gt; &lt;!-- it's too late to apply the normal
++   heuristic, so we don't bother --&gt;
+ 
+    &lt;li&gt;&lt;p&gt;Add the new &lt;a href=#text-track&gt;text track&lt;/a&gt; to the &lt;a href=#media-element&gt;media
+    element&lt;/a&gt;'s &lt;a href=#list-of-text-tracks&gt;list of text tracks&lt;/a&gt;.&lt;/li&gt;
+@@ -34172,6 +34165,9 @@
+   of text tracks&lt;/a&gt; all the &lt;a href=#media-resource-specific-text-track title=&quot;media-resource-specific
+   text track&quot;&gt;media-resource-specific text tracks&lt;/a&gt;.&lt;/p&gt;
+ 
++  &lt;!-- if, after in-band text tracks have been found, there's no
++  out-of-band text tracks, then apply user prefs? --&gt;
++
+   &lt;/div&gt;
+ 
+ 
+@@ -34217,6 +34213,10 @@
+   &lt;p class=note&gt;Changes to the &lt;a href=#track-url&gt;track URL&lt;/a&gt; are handled in
+   the algorithm below.&lt;/p&gt;
+ 
++  &lt;p&gt;The &lt;a href=#text-track-readiness-state&gt;text track readiness state&lt;/a&gt; is initially &lt;a href=#text-track-not-loaded title=&quot;text track not loaded&quot;&gt;not loaded&lt;/a&gt;, and the &lt;a href=#text-track-mode&gt;text
++  track mode&lt;/a&gt; is initially &lt;a href=#text-track-disabled title=&quot;text track
++  disabled&quot;&gt;disabled&lt;/a&gt;.&lt;/p&gt;
++
+   &lt;p&gt;The &lt;a href=#text-track-list-of-cues&gt;text track list of cues&lt;/a&gt; is initially empty. It
+   is dynamically modified when the referenced file is parsed.
+   Associated with the list are the &lt;a href=#rules-for-updating-the-text-track-rendering&gt;rules for updating the text
+@@ -34249,99 +34249,125 @@
+   &lt;code title=dom-media-textTracks&gt;&lt;a href=#dom-media-texttracks&gt;textTracks&lt;/a&gt;&lt;/code&gt; attribute's
+   &lt;code&gt;&lt;a href=#texttracklist&gt;TextTrackList&lt;/a&gt;&lt;/code&gt; object.&lt;/p&gt; &lt;!-- removetrack --&gt;
+ 
+-  &lt;p&gt;When a &lt;a href=#text-track&gt;text track&lt;/a&gt; corresponding to a
++  &lt;hr&gt;&lt;p&gt;When a &lt;a href=#text-track&gt;text track&lt;/a&gt; corresponding to a
+   &lt;code&gt;&lt;a href=#the-track-element&gt;track&lt;/a&gt;&lt;/code&gt; element is added to a &lt;a href=#media-element&gt;media
+   element&lt;/a&gt;'s &lt;a href=#list-of-text-tracks&gt;list of text tracks&lt;/a&gt;, the user agent
+-  must set the &lt;a href=#text-track-mode&gt;text track mode&lt;/a&gt; appropriately, as
+-  determined by the following conditions:&lt;/p&gt;
++  must &lt;a href=#queue-a-task&gt;queue a task&lt;/a&gt; to run the following steps for the
++  &lt;a href=#media-element&gt;media element&lt;/a&gt;:&lt;/p&gt;
+ 
+-  &lt;dl class=switch&gt;&lt;dt&gt;If the &lt;a href=#text-track-kind&gt;text track kind&lt;/a&gt; is &lt;code title=dom-TextTrack-kind-subtitles&gt;&lt;a href=#dom-texttrack-kind-subtitles&gt;subtitles&lt;/a&gt;&lt;/code&gt; or &lt;code title=dom-TextTrack-kind-captions&gt;&lt;a href=#dom-texttrack-kind-captions&gt;captions&lt;/a&gt;&lt;/code&gt; and the user
+-   has indicated an interest in having a track with this &lt;a href=#text-track-kind&gt;text
+-   track kind&lt;/a&gt;, &lt;a href=#text-track-language&gt;text track language&lt;/a&gt;, and
+-   &lt;a href=#text-track-label&gt;text track label&lt;/a&gt; enabled, and there is no other
+-   &lt;a href=#text-track&gt;text track&lt;/a&gt; in the &lt;a href=#media-element&gt;media element&lt;/a&gt;'s
+-   &lt;a href=#list-of-text-tracks&gt;list of text tracks&lt;/a&gt; with a &lt;a href=#text-track-kind&gt;text track
+-   kind&lt;/a&gt; of either &lt;code title=dom-TextTrack-kind-subtitles&gt;&lt;a href=#dom-texttrack-kind-subtitles&gt;subtitles&lt;/a&gt;&lt;/code&gt; or &lt;code title=dom-TextTrack-kind-captions&gt;&lt;a href=#dom-texttrack-kind-captions&gt;captions&lt;/a&gt;&lt;/code&gt; whose
+-   &lt;a href=#text-track-mode&gt;text track mode&lt;/a&gt; is &lt;a href=#text-track-showing title=&quot;text track
+-   showing&quot;&gt;showing&lt;/a&gt;&lt;/dt&gt;
++  &lt;ol&gt;&lt;li&gt;&lt;p&gt;If the element's &lt;a href=#blocked-on-parser&gt;blocked-on-parser&lt;/a&gt; flag is
++   true, abort these steps.&lt;/li&gt;
+ 
+-   &lt;dt&gt;If the &lt;a href=#text-track-kind&gt;text track kind&lt;/a&gt; is &lt;code title=dom-TextTrack-kind-descriptions&gt;&lt;a href=#dom-texttrack-kind-descriptions&gt;descriptions&lt;/a&gt;&lt;/code&gt; and
+-   the user has indicated an interest in having text descriptions with
+-   this &lt;a href=#text-track-language&gt;text track language&lt;/a&gt; and &lt;a href=#text-track-label&gt;text track
+-   label&lt;/a&gt; enabled, and there is no other &lt;a href=#text-track&gt;text
+-   track&lt;/a&gt; in the &lt;a href=#media-element&gt;media element&lt;/a&gt;'s &lt;a href=#list-of-text-tracks&gt;list of
+-   text tracks&lt;/a&gt; with a &lt;a href=#text-track-kind&gt;text track kind&lt;/a&gt; of &lt;code title=dom-TextTrack-kind-descriptions&gt;&lt;a href=#dom-texttrack-kind-descriptions&gt;descriptions&lt;/a&gt;&lt;/code&gt; whose
+-   &lt;a href=#text-track-mode&gt;text track mode&lt;/a&gt; is &lt;a href=#text-track-showing title=&quot;text track
+-   showing&quot;&gt;showing&lt;/a&gt;&lt;/dt&gt;
++   &lt;li&gt;&lt;p&gt;If the element's
++   &lt;a href=#did-perform-automatic-track-selection&gt;did-perform-automatic-track-selection&lt;/a&gt; flag is true,
++   abort these steps.&lt;/li&gt;
+ 
+-   &lt;dd&gt;
+-    &lt;p&gt;Let the &lt;a href=#text-track-mode&gt;text track mode&lt;/a&gt; be &lt;a href=#text-track-showing title=&quot;text
+-    track showing&quot;&gt;showing&lt;/a&gt;.&lt;/p&gt;
++   &lt;li&gt;&lt;p&gt;&lt;a href=#honor-user-preferences-for-automatic-text-track-selection&gt;Honor user preferences for automatic text track
++   selection&lt;/a&gt; for this element.&lt;/li&gt;
+ 
+-    &lt;p&gt;If there is a &lt;a href=#text-track&gt;text track&lt;/a&gt; in the &lt;a href=#media-element&gt;media
+-    element&lt;/a&gt;'s &lt;a href=#list-of-text-tracks&gt;list of text tracks&lt;/a&gt; whose
+-    &lt;a href=#text-track-mode&gt;text track mode&lt;/a&gt; is &lt;a href=#text-track-showing-by-default title=&quot;text track showing
+-    by default&quot;&gt;showing by default&lt;/a&gt;, the user agent must
+-    furthermore change &lt;em&gt;that&lt;/em&gt; &lt;a href=#text-track&gt;text track&lt;/a&gt;'s
+-    &lt;a href=#text-track-mode&gt;text track mode&lt;/a&gt; to &lt;a href=#text-track-hidden title=&quot;text track
+-    hidden&quot;&gt;hidden&lt;/a&gt;.&lt;/p&gt; &lt;!-- so that we still get events and
+-    stuff: we can expect authors to forget that default doesn't mean
+-    that it'll always be turned on, and that they'll still rely on
+-    events firing even if it doesn't show --&gt;
++  &lt;/ol&gt;&lt;p&gt;When the user agent is required to &lt;dfn id=honor-user-preferences-for-automatic-text-track-selection&gt;honor user preferences
++  for automatic text track selection&lt;/dfn&gt; for a &lt;a href=#media-element&gt;media
++  element&lt;/a&gt;, the user agent must run the following steps:&lt;/p&gt;
+ 
+-   &lt;/dd&gt;
++  &lt;ol&gt;&lt;li&gt;&lt;p&gt;&lt;a href=#perform-automatic-text-track-selection&gt;Perform automatic text track selection&lt;/a&gt; for &lt;code title=dom-TextTrack-kind-subtitles&gt;&lt;a href=#dom-texttrack-kind-subtitles&gt;subtitles&lt;/a&gt;&lt;/code&gt; and &lt;code title=dom-TextTrack-kind-captions&gt;&lt;a href=#dom-texttrack-kind-captions&gt;captions&lt;/a&gt;&lt;/code&gt;.&lt;/li&gt;
+ 
+-   &lt;dt&gt;If the &lt;a href=#text-track-kind&gt;text track kind&lt;/a&gt; is &lt;code title=dom-TextTrack-kind-chapters&gt;&lt;a href=#dom-texttrack-kind-chapters&gt;chapters&lt;/a&gt;&lt;/code&gt; and the
+-   &lt;a href=#text-track-language&gt;text track language&lt;/a&gt; is one that the user agent has
+-   reason to believe is appropriate for the user, and there is no
+-   other &lt;a href=#text-track&gt;text track&lt;/a&gt; in the &lt;a href=#media-element&gt;media element&lt;/a&gt;'s
+-   &lt;a href=#list-of-text-tracks&gt;list of text tracks&lt;/a&gt; with a &lt;a href=#text-track-kind&gt;text track
+-   kind&lt;/a&gt; of &lt;code title=dom-TextTrack-kind-chapters&gt;&lt;a href=#dom-texttrack-kind-chapters&gt;chapters&lt;/a&gt;&lt;/code&gt; whose
+-   &lt;a href=#text-track-mode&gt;text track mode&lt;/a&gt; is &lt;a href=#text-track-showing title=&quot;text track
+-   showing&quot;&gt;showing&lt;/a&gt;&lt;/dt&gt;
++   &lt;li&gt;&lt;p&gt;&lt;a href=#perform-automatic-text-track-selection&gt;Perform automatic text track selection&lt;/a&gt; for &lt;code title=dom-TextTrack-kind-descriptions&gt;&lt;a href=#dom-texttrack-kind-descriptions&gt;descriptions&lt;/a&gt;&lt;/code&gt;.&lt;/li&gt;
+ 
+-   &lt;dd&gt;
+-    &lt;p&gt;Let the &lt;a href=#text-track-mode&gt;text track mode&lt;/a&gt; be &lt;a href=#text-track-showing title=&quot;text
+-    track showing&quot;&gt;showing&lt;/a&gt;.&lt;/p&gt;
+-   &lt;/dd&gt;
++   &lt;li&gt;&lt;p&gt;&lt;a href=#perform-automatic-text-track-selection&gt;Perform automatic text track selection&lt;/a&gt; for &lt;code title=dom-TextTrack-kind-chapters&gt;&lt;a href=#dom-texttrack-kind-chapters&gt;chapters&lt;/a&gt;&lt;/code&gt;.&lt;/li&gt;
+ 
+-   &lt;dt&gt;If the &lt;code&gt;&lt;a href=#the-track-element&gt;track&lt;/a&gt;&lt;/code&gt; element has a &lt;code title=attr-track-default&gt;&lt;a href=#attr-track-default&gt;default&lt;/a&gt;&lt;/code&gt; attribute specified, and
+-   there is no other &lt;a href=#text-track&gt;text track&lt;/a&gt; in the &lt;a href=#media-element&gt;media
+-   element&lt;/a&gt;'s &lt;a href=#list-of-text-tracks&gt;list of text tracks&lt;/a&gt; whose
+-   &lt;a href=#text-track-mode&gt;text track mode&lt;/a&gt; is &lt;a href=#text-track-showing title=&quot;text track
+-   showing&quot;&gt;showing&lt;/a&gt; or &lt;a href=#text-track-showing-by-default title=&quot;text track
+-   showing by default&quot;&gt;showing by default&lt;/a&gt;&lt;/dt&gt;
++   &lt;li&gt;&lt;p&gt;&lt;a href=#perform-automatic-text-track-selection&gt;Perform automatic text track selection&lt;/a&gt; for &lt;code title=dom-TextTrack-kind-metadata&gt;&lt;a href=#dom-texttrack-kind-metadata&gt;metadata&lt;/a&gt;&lt;/code&gt;.&lt;/li&gt;
+ 
+-   &lt;dd&gt;
+-    &lt;p&gt;Let the &lt;a href=#text-track-mode&gt;text track mode&lt;/a&gt; be &lt;a href=#text-track-showing-by-default title=&quot;text
+-    track showing by default&quot;&gt;showing by default&lt;/a&gt;.&lt;/p&gt;
+-   &lt;/dd&gt;
++   &lt;li&gt;&lt;p&gt;Set the element's
++   &lt;a href=#did-perform-automatic-track-selection&gt;did-perform-automatic-track-selection&lt;/a&gt; flag to
++   true.&lt;/li&gt;
+ 
+-   &lt;dt&gt;Otherwise&lt;/dt&gt;
++  &lt;/ol&gt;&lt;p&gt;When the steps above say to &lt;dfn id=perform-automatic-text-track-selection&gt;perform automatic text track
++  selection&lt;/dfn&gt; for one or more &lt;a href=#text-track-kind title=&quot;text track kind&quot;&gt;text
++  track kinds&lt;/a&gt;, it means to run the following steps:&lt;/p&gt;
+ 
+-   &lt;dd&gt;
+-    &lt;p&gt;Let the &lt;a href=#text-track-mode&gt;text track mode&lt;/a&gt; be &lt;a href=#text-track-disabled title=&quot;text
+-    track disabled&quot;&gt;disabled&lt;/a&gt;.&lt;/p&gt;
+-   &lt;/dd&gt;
++  &lt;ol&gt;&lt;li&gt;&lt;p&gt;Let &lt;var title=&quot;&quot;&gt;candidates&lt;/var&gt; be a list consisting of
++   the &lt;a href=#text-track title=&quot;text track&quot;&gt;text tracks&lt;/a&gt; in the &lt;a href=#media-element&gt;media
++   element&lt;/a&gt;'s &lt;a href=#list-of-text-tracks&gt;list of text tracks&lt;/a&gt; whose &lt;a href=#text-track-kind&gt;text
++   track kind&lt;/a&gt; is one of the kinds that were passed to the
++   algorithm, if any.&lt;/li&gt;
+ 
+-  &lt;/dl&gt;&lt;p&gt;When a &lt;a href=#text-track&gt;text track&lt;/a&gt; corresponding to a
+-  &lt;code&gt;&lt;a href=#the-track-element&gt;track&lt;/a&gt;&lt;/code&gt; element is created with &lt;a href=#text-track-mode&gt;text track
+-  mode&lt;/a&gt; set to &lt;a href=#text-track-hidden title=&quot;text track hidden&quot;&gt;hidden&lt;/a&gt;,
+-  &lt;a href=#text-track-showing title=&quot;text track showing&quot;&gt;showing&lt;/a&gt;, or &lt;a href=#text-track-showing-by-default title=&quot;text track showing by default&quot;&gt;showing by default&lt;/a&gt;, and
+-  when a &lt;a href=#text-track&gt;text track&lt;/a&gt; corresponding to a &lt;code&gt;&lt;a href=#the-track-element&gt;track&lt;/a&gt;&lt;/code&gt;
+-  element is created with &lt;a href=#text-track-mode&gt;text track mode&lt;/a&gt; set to &lt;a href=#text-track-disabled title=&quot;text track disabled&quot;&gt;disabled&lt;/a&gt; and subsequently changes
+-  its &lt;a href=#text-track-mode&gt;text track mode&lt;/a&gt; to &lt;a href=#text-track-hidden title=&quot;text track
+-  hidden&quot;&gt;hidden&lt;/a&gt;, &lt;a href=#text-track-showing title=&quot;text track
+-  showing&quot;&gt;showing&lt;/a&gt;, or &lt;a href=#text-track-showing-by-default title=&quot;text track showing by
+-  default&quot;&gt;showing by default&lt;/a&gt; for the first time, the user
+-  agent must asynchronously run the following
+-  algorithm. This algorithm interacts closely with the &lt;a href=#event-loop&gt;event
+-  loop&lt;/a&gt; mechanism; in particular, it has a &lt;a href=#synchronous-section&gt;synchronous
+-  section&lt;/a&gt; (which is triggered as part of the &lt;a href=#event-loop&gt;event
+-  loop&lt;/a&gt; algorithm). The steps in that section are marked with
+-  &#8987;.&lt;/p&gt;
++   &lt;li&gt;&lt;p&gt;If &lt;var title=&quot;&quot;&gt;candidates&lt;/var&gt; is empty, then abort these
++   steps.&lt;/li&gt;
+ 
+-  &lt;ol&gt;&lt;li&gt;&lt;p&gt;&lt;i&gt;Top&lt;/i&gt;: &lt;a href=#await-a-stable-state&gt;Await a stable state&lt;/a&gt;. The
++   &lt;li&gt;&lt;p&gt;If any of the &lt;a href=#text-track title=&quot;text track&quot;&gt;text tracks&lt;/a&gt; in
++   &lt;var title=&quot;&quot;&gt;candidates&lt;/var&gt; have a &lt;a href=#text-track-mode&gt;text track mode&lt;/a&gt;
++   set to &lt;a href=#text-track-showing title=&quot;text track showing&quot;&gt;showing&lt;/a&gt;, abort these
++   steps.&lt;/li&gt;
++
++   &lt;li&gt;
++
++    &lt;p&gt;If the user has expressed an interest in having a track from
++    &lt;var title=&quot;&quot;&gt;candidates&lt;/var&gt; enabled based on its &lt;a href=#text-track-kind&gt;text
++    track kind&lt;/a&gt;, &lt;a href=#text-track-language&gt;text track language&lt;/a&gt;, and
++    &lt;a href=#text-track-label&gt;text track label&lt;/a&gt;, then set its &lt;a href=#text-track-mode&gt;text track
++    mode&lt;/a&gt; to &lt;a href=#text-track-showing title=&quot;text track
++    showing&quot;&gt;showing&lt;/a&gt;.&lt;/p&gt;
++
++    &lt;p class=note&gt;For example, the user could have set a browser
++    preference to the effect of &quot;I want French captions whenever
++    possible&quot;, or &quot;If there is a subtitle track with 'Commentary' in
++    the title, enable it&quot;, or &quot;If there are audio description tracks
++    available, enable one, ideally in Swiss German, but failing that
++    in Standard Swiss German or Standard German&quot;.&lt;/p&gt;
++
++   &lt;/li&gt;
++
++   &lt;li&gt;&lt;p&gt;If there are any &lt;a href=#text-track title=&quot;text track&quot;&gt;text tracks&lt;/a&gt;
++   in &lt;var title=&quot;&quot;&gt;candidates&lt;/var&gt; that correspond to
++   &lt;code&gt;&lt;a href=#the-track-element&gt;track&lt;/a&gt;&lt;/code&gt; elements with a &lt;code title=attr-track-default&gt;&lt;a href=#attr-track-default&gt;default&lt;/a&gt;&lt;/code&gt; attribute set whose
++   &lt;a href=#text-track-mode&gt;text track mode&lt;/a&gt; is set to &lt;a href=#text-track-disabled title=&quot;text track
++   disabled&quot;&gt;disabled&lt;/a&gt;, then set the &lt;a href=#text-track-mode&gt;text track
++   mode&lt;/a&gt; of each such track to &lt;a href=#text-track-hidden title=&quot;text track
++   hidden&quot;&gt;hidden&lt;/a&gt;.&lt;/p&gt; &lt;!-- so that we still get events and
++   stuff: we can expect authors to forget that default doesn't mean
++   that it'll always be turned on, and that they'll still rely on
++   events firing even if it doesn't show --&gt;
++
++  &lt;/ol&gt;&lt;p&gt;When a &lt;a href=#text-track&gt;text track&lt;/a&gt; corresponding to a
++  &lt;code&gt;&lt;a href=#the-track-element&gt;track&lt;/a&gt;&lt;/code&gt; element experiences any of the following
++  circumstances, the user agent must &lt;a href=#start-the-track-processing-model&gt;start the
++  &lt;code&gt;track&lt;/code&gt; processing model&lt;/a&gt; for that &lt;a href=#text-track&gt;text
++  track&lt;/a&gt; and its &lt;code&gt;&lt;a href=#the-track-element&gt;track&lt;/a&gt;&lt;/code&gt; element:
++
++  &lt;ul&gt;&lt;li&gt;The &lt;code&gt;&lt;a href=#the-track-element&gt;track&lt;/a&gt;&lt;/code&gt; element is created.&lt;/li&gt;
++
++   &lt;li&gt;The &lt;a href=#text-track&gt;text track&lt;/a&gt; has its &lt;a href=#text-track-mode&gt;text track
++   mode&lt;/a&gt; changed.&lt;/li&gt;
++
++   &lt;li&gt;The &lt;code&gt;&lt;a href=#the-track-element&gt;track&lt;/a&gt;&lt;/code&gt; element's parent element changes and the
++   new parent is a &lt;a href=#media-element&gt;media element&lt;/a&gt;.&lt;/li&gt;
++
++  &lt;/ul&gt;&lt;p&gt;When a user agent is to &lt;dfn id=start-the-track-processing-model&gt;start the &lt;code&gt;track&lt;/code&gt;
++  processing model&lt;/dfn&gt; for a &lt;a href=#text-track&gt;text track&lt;/a&gt; and its
++  &lt;code&gt;&lt;a href=#the-track-element&gt;track&lt;/a&gt;&lt;/code&gt; element, it must run the following algorithm.
++  This algorithm interacts closely with the &lt;a href=#event-loop&gt;event loop&lt;/a&gt;
++  mechanism; in particular, it has a &lt;a href=#synchronous-section&gt;synchronous section&lt;/a&gt;
++  (which is triggered as part of the &lt;a href=#event-loop&gt;event loop&lt;/a&gt;
++  algorithm). The steps in that section are marked with &#8987;.&lt;/p&gt;
++
++  &lt;ol&gt;&lt;li&gt;&lt;p&gt;If another occurrence of this algorithm is already running
++   for this &lt;a href=#text-track&gt;text track&lt;/a&gt; and its &lt;code&gt;&lt;a href=#the-track-element&gt;track&lt;/a&gt;&lt;/code&gt;
++   element, abort these steps, letting that other algorithm take care
++   of this element.&lt;/li&gt;
++
++   &lt;li&gt;&lt;p&gt;If the &lt;a href=#text-track&gt;text track&lt;/a&gt;'s &lt;a href=#text-track-mode&gt;text track
++   mode&lt;/a&gt; is not set to one of &lt;a href=#text-track-hidden title=&quot;text track
++   hidden&quot;&gt;hidden&lt;/a&gt; or &lt;a href=#text-track-showing title=&quot;text track
++   showing&quot;&gt;showing&lt;/a&gt;, abort these steps.&lt;/li&gt;
++
++   &lt;li&gt;&lt;p&gt;If the &lt;a href=#text-track&gt;text track&lt;/a&gt;'s &lt;code&gt;&lt;a href=#the-track-element&gt;track&lt;/a&gt;&lt;/code&gt; element
++   does not have a &lt;a href=#media-element&gt;media element&lt;/a&gt; as a parent, abort these
++   steps.&lt;/li&gt;
++
++   &lt;li&gt;&lt;p&gt;Run the remainder of these steps asynchronously, allowing
++   whatever caused these steps to run to continue.&lt;/li&gt;
++
++   &lt;li&gt;&lt;p&gt;&lt;i&gt;Top&lt;/i&gt;: &lt;a href=#await-a-stable-state&gt;Await a stable state&lt;/a&gt;. The
+    &lt;a href=#synchronous-section&gt;synchronous section&lt;/a&gt; consists of the following steps.
+    (The steps in the &lt;a href=#synchronous-section&gt;synchronous section&lt;/a&gt; are marked with
+    &#8987;.)&lt;/li&gt;
+@@ -34352,16 +34378,20 @@
+    &lt;li&gt;&lt;p&gt;&#8987; Let &lt;var title=&quot;&quot;&gt;URL&lt;/var&gt; be the &lt;a href=#track-url&gt;track
+    URL&lt;/a&gt; of the &lt;code&gt;&lt;a href=#the-track-element&gt;track&lt;/a&gt;&lt;/code&gt; element.&lt;/li&gt;
+ 
++   &lt;li&gt;&lt;p&gt;&#8987; If the &lt;code&gt;&lt;a href=#the-track-element&gt;track&lt;/a&gt;&lt;/code&gt; element's parent is a
++   &lt;a href=#media-element&gt;media element&lt;/a&gt; then let &lt;var title=&quot;&quot;&gt;CORS mode&lt;/var&gt;
++   be the state of the parent &lt;a href=#media-element&gt;media element&lt;/a&gt;'s &lt;code title=attr-media-crossorigin&gt;&lt;a href=#attr-media-crossorigin&gt;crossorigin&lt;/a&gt;&lt;/code&gt; content
++   attribute. Otherwise, let &lt;var title=&quot;&quot;&gt;CORS mode&lt;/var&gt; be &lt;a href=#attr-crossorigin-none title=attr-crossorigin-none&gt;No CORS&lt;/a&gt;.&lt;/li&gt;
++
+    &lt;li&gt;&lt;p&gt;End the &lt;a href=#synchronous-section&gt;synchronous section&lt;/a&gt;, continuing the
+    remaining steps asynchronously.&lt;/li&gt;
+ 
+    &lt;li&gt;
+ 
+     &lt;p&gt;If &lt;var title=&quot;&quot;&gt;URL&lt;/var&gt; is not the empty string, perform a
+-    &lt;a href=#potentially-cors-enabled-fetch&gt;potentially CORS-enabled fetch&lt;/a&gt; of &lt;var title=&quot;&quot;&gt;URL&lt;/var&gt;, with the &lt;i&gt;mode&lt;/i&gt; being the state of the
+-    &lt;a href=#media-element&gt;media element&lt;/a&gt;'s &lt;code title=attr-media-crossorigin&gt;&lt;a href=#attr-media-crossorigin&gt;crossorigin&lt;/a&gt;&lt;/code&gt; content
+-    attribute, the &lt;i title=&quot;&quot;&gt;origin&lt;/i&gt; being the
+-    &lt;a href=#origin&gt;origin&lt;/a&gt; of the &lt;a href=#media-element&gt;media element&lt;/a&gt;'s
++    &lt;a href=#potentially-cors-enabled-fetch&gt;potentially CORS-enabled fetch&lt;/a&gt; of &lt;var title=&quot;&quot;&gt;URL&lt;/var&gt;, with the &lt;i&gt;mode&lt;/i&gt; being &lt;var title=&quot;&quot;&gt;CORS
++    mode&lt;/var&gt;, the &lt;i title=&quot;&quot;&gt;origin&lt;/i&gt; being the
++    &lt;a href=#origin&gt;origin&lt;/a&gt; of the &lt;code&gt;&lt;a href=#the-track-element&gt;track&lt;/a&gt;&lt;/code&gt; element's
+     &lt;code&gt;&lt;a href=#document&gt;Document&lt;/a&gt;&lt;/code&gt;, and the &lt;i&gt;default origin behaviour&lt;/i&gt; set
+     to &lt;i&gt;fail&lt;/i&gt;.&lt;/p&gt;
+ 
+@@ -34406,7 +34436,7 @@
+     any reason (network error, the server returns an error code, a
+     cross-origin check fails, etc), if &lt;var title=&quot;&quot;&gt;URL&lt;/var&gt; is the
+     empty string, or if the &lt;!--sniffed--&gt; type of the resource is not a
+-    supported text track format, then run these steps:
++    supported text track format, then run these steps:&lt;/p&gt;
+ 
+     &lt;ol&gt;&lt;li&gt;&lt;p&gt;&lt;a href=#queue-a-task&gt;Queue a task&lt;/a&gt; to first change the &lt;a href=#text-track-readiness-state&gt;text
+      track readiness state&lt;/a&gt; to &lt;a href=#text-track-failed-to-load title=&quot;text track failed to
+@@ -34421,9 +34451,8 @@
+      &lt;li&gt;&lt;p&gt;Wait until the &lt;a href=#track-url&gt;track URL&lt;/a&gt; is no longer equal
+      to &lt;var title=&quot;&quot;&gt;URL&lt;/var&gt;, at the same time as the &lt;a href=#text-track-mode&gt;text
+      track mode&lt;/a&gt; is set to &lt;a href=#text-track-hidden title=&quot;text track
+-     hidden&quot;&gt;hidden&lt;/a&gt;, &lt;a href=#text-track-showing title=&quot;text track
+-     showing&quot;&gt;showing&lt;/a&gt;, or &lt;a href=#text-track-showing-by-default title=&quot;text track showing by
+-     default&quot;&gt;showing by default&lt;/a&gt;.&lt;/li&gt;
++     hidden&quot;&gt;hidden&lt;/a&gt; or &lt;a href=#text-track-showing title=&quot;text track
++     showing&quot;&gt;showing&lt;/a&gt;.&lt;/li&gt;
+ 
+      &lt;li&gt;&lt;p&gt;Jump to the step labeled &lt;i&gt;top&lt;/i&gt;.&lt;/li&gt;
+ 
+@@ -34454,9 +34483,8 @@
+      &lt;li&gt;&lt;p&gt;Wait until the &lt;a href=#track-url&gt;track URL&lt;/a&gt; is no longer equal
+      to &lt;var title=&quot;&quot;&gt;URL&lt;/var&gt;, at the same time as the &lt;a href=#text-track-mode&gt;text
+      track mode&lt;/a&gt; is set to &lt;a href=#text-track-hidden title=&quot;text track
+-     hidden&quot;&gt;hidden&lt;/a&gt;, &lt;a href=#text-track-showing title=&quot;text track
+-     showing&quot;&gt;showing&lt;/a&gt;, or &lt;a href=#text-track-showing-by-default title=&quot;text track showing by
+-     default&quot;&gt;showing by default&lt;/a&gt;.&lt;/li&gt;
++     hidden&quot;&gt;hidden&lt;/a&gt; or &lt;a href=#text-track-showing title=&quot;text track
++     showing&quot;&gt;showing&lt;/a&gt;.&lt;/li&gt;
+ 
+      &lt;li&gt;&lt;p&gt;Jump back to the step labeled &lt;i&gt;top&lt;/i&gt;.&lt;/li&gt;
+ 
+@@ -34466,14 +34494,13 @@
+     &lt;ul&gt;&lt;li&gt;the &lt;a href=#track-url&gt;track URL&lt;/a&gt; changes so that it is no longer
+      equal to &lt;var title=&quot;&quot;&gt;URL&lt;/var&gt;, while the &lt;a href=#text-track-mode&gt;text track
+      mode&lt;/a&gt; is set to &lt;a href=#text-track-hidden title=&quot;text track
+-     hidden&quot;&gt;hidden&lt;/a&gt;, &lt;a href=#text-track-showing title=&quot;text track
+-     showing&quot;&gt;showing&lt;/a&gt;, or &lt;a href=#text-track-showing-by-default title=&quot;text track showing by
+-     default&quot;&gt;showing by default&lt;/a&gt;; or&lt;/li&gt;
++     hidden&quot;&gt;hidden&lt;/a&gt; or &lt;a href=#text-track-showing title=&quot;text track
++     showing&quot;&gt;showing&lt;/a&gt;; or&lt;/li&gt;
+ 
+-     &lt;li&gt;the &lt;a href=#text-track-mode&gt;text track mode&lt;/a&gt; changes to &lt;a href=#text-track-hidden title=&quot;text track hidden&quot;&gt;hidden&lt;/a&gt;, &lt;a href=#text-track-showing title=&quot;text
+-     track showing&quot;&gt;showing&lt;/a&gt;, or &lt;a href=#text-track-showing-by-default title=&quot;text track
+-     showing by default&quot;&gt;showing by default&lt;/a&gt;, while the
+-     &lt;a href=#track-url&gt;track URL&lt;/a&gt; is not equal to &lt;var title=&quot;&quot;&gt;URL&lt;/var&gt;&lt;/li&gt;
++     &lt;li&gt;the &lt;a href=#text-track-mode&gt;text track mode&lt;/a&gt; changes to &lt;a href=#text-track-hidden title=&quot;text
++     track hidden&quot;&gt;hidden&lt;/a&gt; or &lt;a href=#text-track-showing title=&quot;text track
++     showing&quot;&gt;showing&lt;/a&gt;, while the &lt;a href=#track-url&gt;track URL&lt;/a&gt; is not
++     equal to &lt;var title=&quot;&quot;&gt;URL&lt;/var&gt;&lt;/li&gt;
+ 
+     &lt;/ul&gt;&lt;p&gt;...then the user agent must run the following steps:&lt;/p&gt;
+ 
+@@ -34636,8 +34663,13 @@
+            attribute &lt;a href=#eventhandler&gt;EventHandler&lt;/a&gt; &lt;a href=#handler-texttrack-oncuechange title=handler-TextTrack-oncuechange&gt;oncuechange&lt;/a&gt;;
+ };&lt;/pre&gt;
+ 
+-  &lt;dl class=domintro&gt;&lt;dt&gt;&lt;var title=&quot;&quot;&gt;textTrack&lt;/var&gt; . &lt;code title=dom-TextTrack-kind&gt;&lt;a href=#dom-texttrack-kind&gt;kind&lt;/a&gt;&lt;/code&gt;&lt;/dt&gt;
++  &lt;dl class=domintro&gt;&lt;dt&gt;&lt;var title=&quot;&quot;&gt;textTrack&lt;/var&gt; = &lt;var title=&quot;&quot;&gt;media&lt;/var&gt; . &lt;code title=dom-media-addTextTrack&gt;&lt;a href=#dom-media-addtexttrack&gt;addTextTrack&lt;/a&gt;&lt;/code&gt;( &lt;var title=&quot;&quot;&gt;kind&lt;/var&gt; [, &lt;var title=&quot;&quot;&gt;label&lt;/var&gt; [, &lt;var title=&quot;&quot;&gt;language&lt;/var&gt; ] ] )&lt;/dt&gt;
+    &lt;dd&gt;
++    &lt;p&gt;Creates and returns a new &lt;code&gt;&lt;a href=#texttrack&gt;TextTrack&lt;/a&gt;&lt;/code&gt; object, which is also added to the &lt;a href=#media-element&gt;media element&lt;/a&gt;'s &lt;a href=#list-of-text-tracks&gt;list of text tracks&lt;/a&gt;.&lt;/p&gt;
++   &lt;/dd&gt;
++
++   &lt;dt&gt;&lt;var title=&quot;&quot;&gt;textTrack&lt;/var&gt; . &lt;code title=dom-TextTrack-kind&gt;&lt;a href=#dom-texttrack-kind&gt;kind&lt;/a&gt;&lt;/code&gt;&lt;/dt&gt;
++   &lt;dd&gt;
+     &lt;p&gt;Returns the &lt;a href=#text-track-kind&gt;text track kind&lt;/a&gt; string.&lt;/p&gt;
+    &lt;/dd&gt;
+ 
+@@ -34673,7 +34705,7 @@
+      &lt;/dd&gt;
+      &lt;dt&gt;&quot;&lt;code title=dom-TextTrack-showing&gt;&lt;a href=#dom-texttrack-showing&gt;showing&lt;/a&gt;&lt;/code&gt;&quot;&lt;/dt&gt;
+      &lt;dd&gt;
+-      &lt;p&gt;The &lt;a href=#text-track-showing&gt;text track showing&lt;/a&gt; and &lt;a href=#text-track-showing-by-default title=&quot;text track showing by default&quot;&gt;showing by default&lt;/a&gt; modes.&lt;/p&gt;
++      &lt;p&gt;The &lt;a href=#text-track-showing&gt;text track showing&lt;/a&gt; mode.&lt;/p&gt;
+      &lt;/dd&gt;
+     &lt;/dl&gt;&lt;p&gt;Can be set, to change the mode.&lt;/p&gt;
+    &lt;/dd&gt;
+@@ -34700,14 +34732,85 @@
+     &lt;p&gt;Throws an exception if the argument is associated with another &lt;a href=#text-track&gt;text track&lt;/a&gt; or not in the list of cues.&lt;/p&gt;
+    &lt;/dd&gt;
+ 
+-   &lt;dt&gt;&lt;var title=&quot;&quot;&gt;textTrack&lt;/var&gt; = &lt;var title=&quot;&quot;&gt;media&lt;/var&gt; . &lt;code title=dom-media-addTextTrack&gt;&lt;a href=#dom-media-addtexttrack&gt;addTextTrack&lt;/a&gt;&lt;/code&gt;( &lt;var title=&quot;&quot;&gt;kind&lt;/var&gt; [, &lt;var title=&quot;&quot;&gt;label&lt;/var&gt; [, &lt;var title=&quot;&quot;&gt;language&lt;/var&gt; ] ] )&lt;/dt&gt;
+-   &lt;dd&gt;
+-    &lt;p&gt;Creates and returns a new &lt;code&gt;&lt;a href=#texttrack&gt;TextTrack&lt;/a&gt;&lt;/code&gt; object, which is also added to the &lt;a href=#media-element&gt;media element&lt;/a&gt;'s &lt;a href=#list-of-text-tracks&gt;list of text tracks&lt;/a&gt;.&lt;/p&gt;
+-   &lt;/dd&gt;
+-
+   &lt;/dl&gt;&lt;div class=impl&gt;
+ 
+-  &lt;p&gt;The &lt;dfn id=dom-texttrack-kind title=dom-TextTrack-kind&gt;&lt;code&gt;kind&lt;/code&gt;&lt;/dfn&gt;
++  &lt;p&gt;The &lt;dfn id=dom-media-addtexttrack title=dom-media-addTextTrack&gt;&lt;code&gt;addTextTrack(&lt;var title=&quot;&quot;&gt;kind&lt;/var&gt;, &lt;var title=&quot;&quot;&gt;label&lt;/var&gt;, &lt;var title=&quot;&quot;&gt;language&lt;/var&gt;)&lt;/code&gt;&lt;/dfn&gt; method of &lt;a href=#media-element title=&quot;media
++  element&quot;&gt;media elements&lt;/a&gt;, when invoked, must run the following
++  steps:&lt;/p&gt;
++
++  &lt;ol&gt;&lt;li&gt;
++
++    &lt;p&gt;If &lt;var title=&quot;&quot;&gt;kind&lt;/var&gt; is not one of the following
++    strings, then throw a &lt;code&gt;&lt;a href=#syntaxerror&gt;SyntaxError&lt;/a&gt;&lt;/code&gt; exception and abort
++    these steps:&lt;/p&gt;
++
++    &lt;ul class=brief&gt;&lt;li&gt;&lt;code title=dom-TextTrack-kind-subtitles&gt;&lt;a href=#dom-texttrack-kind-subtitles&gt;subtitles&lt;/a&gt;&lt;/code&gt;
++     &lt;li&gt;&lt;code title=dom-TextTrack-kind-captions&gt;&lt;a href=#dom-texttrack-kind-captions&gt;captions&lt;/a&gt;&lt;/code&gt;
++     &lt;li&gt;&lt;code title=dom-TextTrack-kind-descriptions&gt;&lt;a href=#dom-texttrack-kind-descriptions&gt;descriptions&lt;/a&gt;&lt;/code&gt;
++     &lt;li&gt;&lt;code title=dom-TextTrack-kind-chapters&gt;&lt;a href=#dom-texttrack-kind-chapters&gt;chapters&lt;/a&gt;&lt;/code&gt;
++     &lt;li&gt;&lt;code title=dom-TextTrack-kind-metadata&gt;&lt;a href=#dom-texttrack-kind-metadata&gt;metadata&lt;/a&gt;&lt;/code&gt;
++    &lt;/ul&gt;&lt;/li&gt;
++
++   &lt;li&gt;
++
++    &lt;p&gt;If the &lt;var title=&quot;&quot;&gt;label&lt;/var&gt; argument was omitted, let &lt;var title=&quot;&quot;&gt;label&lt;/var&gt; be the empty string.&lt;/p&gt;
++
++   &lt;/li&gt;
++
++   &lt;li&gt;
++
++    &lt;p&gt;If the &lt;var title=&quot;&quot;&gt;language&lt;/var&gt; argument was omitted, let
++    &lt;var title=&quot;&quot;&gt;language&lt;/var&gt; be the empty string.&lt;/p&gt;
++
++   &lt;/li&gt;
++
++   &lt;li&gt;
++
++    &lt;p&gt;Create a new &lt;code&gt;&lt;a href=#texttrack&gt;TextTrack&lt;/a&gt;&lt;/code&gt; object.&lt;/p&gt;
++
++   &lt;/li&gt;
++
++   &lt;li&gt;
++
++    &lt;p&gt;Create a new &lt;a href=#text-track&gt;text track&lt;/a&gt; corresponding to the new
++    object, and set its &lt;a href=#text-track-kind&gt;text track kind&lt;/a&gt; to &lt;var title=&quot;&quot;&gt;kind&lt;/var&gt;, its &lt;a href=#text-track-label&gt;text track label&lt;/a&gt; to &lt;var title=&quot;&quot;&gt;label&lt;/var&gt;, its &lt;a href=#text-track-language&gt;text track language&lt;/a&gt; to &lt;var title=&quot;&quot;&gt;language&lt;/var&gt;, its &lt;a href=#text-track-readiness-state&gt;text track readiness
++    state&lt;/a&gt; to the &lt;a href=#text-track-loaded&gt;text track loaded&lt;/a&gt; state, its
++    &lt;a href=#text-track-mode&gt;text track mode&lt;/a&gt; to the &lt;a href=#text-track-hidden&gt;text track hidden&lt;/a&gt;
++    mode, and its &lt;a href=#text-track-list-of-cues&gt;text track list of cues&lt;/a&gt; to an empty
++    list.
++    Associate the &lt;a href=#text-track-list-of-cues&gt;text track list of cues&lt;/a&gt; with the
++    &lt;a href=#rules-for-updating-the-display-of-webvtt-text-tracks&gt;rules for updating the display of WebVTT text tracks&lt;/a&gt;
++    as its &lt;a href=#rules-for-updating-the-text-track-rendering&gt;rules for updating the text track rendering&lt;/a&gt;.
++    &lt;a href=#refsWEBVTT&gt;[WEBVTT]&lt;/a&gt;
++    &lt;/p&gt;
++
++   &lt;/li&gt;
++
++   &lt;li&gt;
++
++    &lt;p&gt;Add the new &lt;a href=#text-track&gt;text track&lt;/a&gt; to the &lt;a href=#media-element&gt;media
++    element&lt;/a&gt;'s &lt;a href=#list-of-text-tracks&gt;list of text tracks&lt;/a&gt;.&lt;/p&gt;
++
++   &lt;/li&gt;
++
++   &lt;li&gt;
++
++    &lt;p&gt;&lt;a href=#queue-a-task&gt;Queue a task&lt;/a&gt; to fire an event with the name &lt;code title=event-addtrack&gt;addtrack&lt;/code&gt;, that does not bubble and
++    is not cancelable, and that uses the &lt;code&gt;&lt;a href=#trackevent&gt;TrackEvent&lt;/a&gt;&lt;/code&gt;
++    interface, with the &lt;code title=dom-TrackEvent-track&gt;&lt;a href=#dom-trackevent-track&gt;track&lt;/a&gt;&lt;/code&gt; attribute initialized to
++    the new &lt;a href=#text-track&gt;text track&lt;/a&gt;'s &lt;code&gt;&lt;a href=#texttrack&gt;TextTrack&lt;/a&gt;&lt;/code&gt; object,
++    at the &lt;a href=#media-element&gt;media element&lt;/a&gt;'s &lt;code title=dom-media-textTracks&gt;&lt;a href=#dom-media-texttracks&gt;textTracks&lt;/a&gt;&lt;/code&gt; attribute's
++    &lt;code&gt;&lt;a href=#texttracklist&gt;TextTrackList&lt;/a&gt;&lt;/code&gt; object.&lt;/p&gt;
++
++   &lt;/li&gt;
++
++   &lt;li&gt;
++
++    &lt;p&gt;Return the new &lt;code&gt;&lt;a href=#texttrack&gt;TextTrack&lt;/a&gt;&lt;/code&gt; object.&lt;/p&gt;
++
++   &lt;/li&gt;
++
++  &lt;/ol&gt;&lt;hr&gt;&lt;p&gt;The &lt;dfn id=dom-texttrack-kind title=dom-TextTrack-kind&gt;&lt;code&gt;kind&lt;/code&gt;&lt;/dfn&gt;
+   attribute must return the &lt;a href=#text-track-kind&gt;text track kind&lt;/a&gt; of the
+   &lt;a href=#text-track&gt;text track&lt;/a&gt; that the &lt;code&gt;&lt;a href=#texttrack&gt;TextTrack&lt;/a&gt;&lt;/code&gt; object
+   represents.&lt;/p&gt;
+@@ -34738,7 +34841,7 @@
+    &lt;dt&gt;&quot;&lt;dfn id=dom-texttrack-hidden title=dom-TextTrack-hidden&gt;&lt;code&gt;hidden&lt;/code&gt;&lt;/dfn&gt;&quot;&lt;/dt&gt;
+    &lt;dd&gt;The &lt;a href=#text-track-hidden&gt;text track hidden&lt;/a&gt; mode.&lt;/dd&gt;
+    &lt;dt&gt;&quot;&lt;dfn id=dom-texttrack-showing title=dom-TextTrack-showing&gt;&lt;code&gt;showing&lt;/code&gt;&lt;/dfn&gt;&quot;&lt;/dt&gt;
+-   &lt;dd&gt;The &lt;a href=#text-track-showing&gt;text track showing&lt;/a&gt; and &lt;a href=#text-track-showing-by-default title=&quot;text track showing by default&quot;&gt;showing by default&lt;/a&gt; modes.&lt;/dd&gt;
++   &lt;dd&gt;The &lt;a href=#text-track-showing&gt;text track showing&lt;/a&gt; mode.&lt;/dd&gt;
+   &lt;/dl&gt;&lt;p&gt;On setting, if the new value isn't equal to what the attribute
+   would currently return, the new value must be processed as
+   follows:&lt;/p&gt;
+@@ -34773,13 +34876,7 @@
+ 
+    &lt;/dd&gt;
+ 
+-  &lt;/dl&gt;&lt;p class=note&gt;If the mode is &lt;a href=#text-track-showing-by-default title=&quot;text track showing by
+-  default&quot;&gt;showing by default&lt;/a&gt;, then there is no way to change
+-  it to &lt;a href=#text-track-showing title=&quot;text track showing&quot;&gt;showing&lt;/a&gt; without first
+-  changing it to &lt;a href=#text-track-disabled title=&quot;text track disabled&quot;&gt;disabled&lt;/a&gt; or
+-  &lt;a href=#text-track-hidden title=&quot;text track hidden&quot;&gt;hidden&lt;/a&gt;.&lt;/p&gt;
+-
+-  &lt;p&gt;If the &lt;a href=#text-track-mode&gt;text track mode&lt;/a&gt; of the &lt;a href=#text-track&gt;text
++  &lt;/dl&gt;&lt;p&gt;If the &lt;a href=#text-track-mode&gt;text track mode&lt;/a&gt; of the &lt;a href=#text-track&gt;text
+   track&lt;/a&gt; that the &lt;code&gt;&lt;a href=#texttrack&gt;TextTrack&lt;/a&gt;&lt;/code&gt; object represents is
+   not the &lt;a href=#text-track-disabled&gt;text track disabled&lt;/a&gt; mode, then the &lt;dfn id=dom-texttrack-cues title=dom-TextTrack-cues&gt;&lt;code&gt;cues&lt;/code&gt;&lt;/dfn&gt; attribute must
+   return a &lt;a href=#live&gt;live&lt;/a&gt; &lt;code&gt;&lt;a href=#texttrackcuelist&gt;TextTrackCueList&lt;/a&gt;&lt;/code&gt; object that
+@@ -34852,82 +34949,6 @@
+    &lt;code&gt;&lt;a href=#texttrack&gt;TextTrack&lt;/a&gt;&lt;/code&gt; object's &lt;a href=#text-track&gt;text track&lt;/a&gt;'s
+    &lt;a href=#text-track-list-of-cues&gt;text track list of cues&lt;/a&gt;.&lt;/li&gt;
+ 
+-  &lt;/ol&gt;&lt;hr&gt;&lt;p&gt;The &lt;dfn id=dom-media-addtexttrack title=dom-media-addTextTrack&gt;&lt;code&gt;addTextTrack(&lt;var title=&quot;&quot;&gt;kind&lt;/var&gt;, &lt;var title=&quot;&quot;&gt;label&lt;/var&gt;, &lt;var title=&quot;&quot;&gt;language&lt;/var&gt;)&lt;/code&gt;&lt;/dfn&gt; method of &lt;a href=#media-element title=&quot;media
+-  element&quot;&gt;media elements&lt;/a&gt;, when invoked, must run the following
+-  steps:&lt;/p&gt;
+-
+-  &lt;ol&gt;&lt;li&gt;
+-
+-    &lt;p&gt;If &lt;var title=&quot;&quot;&gt;kind&lt;/var&gt; is not one of the following
+-    strings, then throw a &lt;code&gt;&lt;a href=#syntaxerror&gt;SyntaxError&lt;/a&gt;&lt;/code&gt; exception and abort
+-    these steps:&lt;/p&gt;
+-
+-    &lt;ul class=brief&gt;&lt;li&gt;&lt;code title=dom-TextTrack-kind-subtitles&gt;&lt;a href=#dom-texttrack-kind-subtitles&gt;subtitles&lt;/a&gt;&lt;/code&gt;
+-     &lt;li&gt;&lt;code title=dom-TextTrack-kind-captions&gt;&lt;a href=#dom-texttrack-kind-captions&gt;captions&lt;/a&gt;&lt;/code&gt;
+-     &lt;li&gt;&lt;code title=dom-TextTrack-kind-descriptions&gt;&lt;a href=#dom-texttrack-kind-descriptions&gt;descriptions&lt;/a&gt;&lt;/code&gt;
+-     &lt;li&gt;&lt;code title=dom-TextTrack-kind-chapters&gt;&lt;a href=#dom-texttrack-kind-chapters&gt;chapters&lt;/a&gt;&lt;/code&gt;
+-     &lt;li&gt;&lt;code title=dom-TextTrack-kind-metadata&gt;&lt;a href=#dom-texttrack-kind-metadata&gt;metadata&lt;/a&gt;&lt;/code&gt;
+-    &lt;/ul&gt;&lt;/li&gt;
+-
+-   &lt;li&gt;
+-
+-    &lt;p&gt;If the &lt;var title=&quot;&quot;&gt;label&lt;/var&gt; argument was omitted, let &lt;var title=&quot;&quot;&gt;label&lt;/var&gt; be the empty string.&lt;/p&gt;
+-
+-   &lt;/li&gt;
+-
+-   &lt;li&gt;
+-
+-    &lt;p&gt;If the &lt;var title=&quot;&quot;&gt;language&lt;/var&gt; argument was omitted, let
+-    &lt;var title=&quot;&quot;&gt;language&lt;/var&gt; be the empty string.&lt;/p&gt;
+-
+-   &lt;/li&gt;
+-
+-   &lt;li&gt;
+-
+-    &lt;p&gt;Create a new &lt;code&gt;&lt;a href=#texttrack&gt;TextTrack&lt;/a&gt;&lt;/code&gt; object.&lt;/p&gt;
+-
+-   &lt;/li&gt;
+-
+-   &lt;li&gt;
+-
+-    &lt;p&gt;Create a new &lt;a href=#text-track&gt;text track&lt;/a&gt; corresponding to the new
+-    object, and set its &lt;a href=#text-track-kind&gt;text track kind&lt;/a&gt; to &lt;var title=&quot;&quot;&gt;kind&lt;/var&gt;, its &lt;a href=#text-track-label&gt;text track label&lt;/a&gt; to &lt;var title=&quot;&quot;&gt;label&lt;/var&gt;, its &lt;a href=#text-track-language&gt;text track language&lt;/a&gt; to &lt;var title=&quot;&quot;&gt;language&lt;/var&gt;, its &lt;a href=#text-track-readiness-state&gt;text track readiness
+-    state&lt;/a&gt; to the &lt;a href=#text-track-loaded&gt;text track loaded&lt;/a&gt; state, its
+-    &lt;a href=#text-track-mode&gt;text track mode&lt;/a&gt; to the &lt;a href=#text-track-hidden&gt;text track hidden&lt;/a&gt;
+-    mode, and its &lt;a href=#text-track-list-of-cues&gt;text track list of cues&lt;/a&gt; to an empty
+-    list.
+-    Associate the &lt;a href=#text-track-list-of-cues&gt;text track list of cues&lt;/a&gt; with the
+-    &lt;a href=#rules-for-updating-the-display-of-webvtt-text-tracks&gt;rules for updating the display of WebVTT text tracks&lt;/a&gt;
+-    as its &lt;a href=#rules-for-updating-the-text-track-rendering&gt;rules for updating the text track rendering&lt;/a&gt;.
+-    &lt;a href=#refsWEBVTT&gt;[WEBVTT]&lt;/a&gt;
+-    &lt;/p&gt;
+-
+-   &lt;/li&gt;
+-
+-   &lt;li&gt;
+-
+-    &lt;p&gt;Add the new &lt;a href=#text-track&gt;text track&lt;/a&gt; to the &lt;a href=#media-element&gt;media
+-    element&lt;/a&gt;'s &lt;a href=#list-of-text-tracks&gt;list of text tracks&lt;/a&gt;.&lt;/p&gt;
+-
+-   &lt;/li&gt;
+-
+-   &lt;li&gt;
+-
+-    &lt;p&gt;&lt;a href=#queue-a-task&gt;Queue a task&lt;/a&gt; to fire an event with the name &lt;code title=event-addtrack&gt;addtrack&lt;/code&gt;, that does not bubble and
+-    is not cancelable, and that uses the &lt;code&gt;&lt;a href=#trackevent&gt;TrackEvent&lt;/a&gt;&lt;/code&gt;
+-    interface, with the &lt;code title=dom-TrackEvent-track&gt;&lt;a href=#dom-trackevent-track&gt;track&lt;/a&gt;&lt;/code&gt; attribute initialized to
+-    the new &lt;a href=#text-track&gt;text track&lt;/a&gt;'s &lt;code&gt;&lt;a href=#texttrack&gt;TextTrack&lt;/a&gt;&lt;/code&gt; object,
+-    at the &lt;a href=#media-element&gt;media element&lt;/a&gt;'s &lt;code title=dom-media-textTracks&gt;&lt;a href=#dom-media-texttracks&gt;textTracks&lt;/a&gt;&lt;/code&gt; attribute's
+-    &lt;code&gt;&lt;a href=#texttracklist&gt;TextTrackList&lt;/a&gt;&lt;/code&gt; object.&lt;/p&gt;
+-
+-   &lt;/li&gt;
+-
+-   &lt;li&gt;
+-
+-    &lt;p&gt;Return the new &lt;code&gt;&lt;a href=#texttrack&gt;TextTrack&lt;/a&gt;&lt;/code&gt; object.&lt;/p&gt;
+-
+-   &lt;/li&gt;
+-
+   &lt;/ol&gt;&lt;/div&gt;
+ 
+   &lt;div class=example&gt;
+@@ -35580,8 +35601,7 @@
+   &lt;p&gt;For the purposes of listing chapters in the &lt;a href=#media-resource&gt;media
+   resource&lt;/a&gt;, only &lt;a href=#text-track title=&quot;text track&quot;&gt;text tracks&lt;/a&gt; in
+   the &lt;a href=#media-element&gt;media element&lt;/a&gt;'s &lt;a href=#list-of-text-tracks&gt;list of text tracks&lt;/a&gt;
+-  &lt;a href=#text-track-showing title=&quot;text track showing&quot;&gt;showing&lt;/a&gt; or &lt;a href=#text-track-showing-by-default title=&quot;text
+-  track showing by default&quot;&gt;showing by default&lt;/a&gt; and whose
++  that are &lt;a href=#text-track-showing title=&quot;text track showing&quot;&gt;showing&lt;/a&gt; and whose
+   &lt;a href=#text-track-kind&gt;text track kind&lt;/a&gt; is &lt;code title=dom-TextTrack-kind-chapters&gt;&lt;a href=#dom-texttrack-kind-chapters&gt;chapters&lt;/a&gt;&lt;/code&gt; should be used.
+   Such tracks must be interpreted according to the &lt;a href=#rules-for-constructing-the-chapter-tree-from-a-text-track&gt;rules for
+   constructing the chapter tree from a text track&lt;/a&gt;.&lt;/p&gt;
+@@ -98070,12 +98090,13 @@
+ 
+   &lt;p&gt;When the user agent starts &lt;a href=#expose-a-user-interface-to-the-user title=&quot;expose a user interface
+   to the user&quot;&gt;exposing a user interface&lt;/a&gt; for a
+-  &lt;code&gt;&lt;a href=#the-video-element&gt;video&lt;/a&gt;&lt;/code&gt; element, the user agent should run the &lt;a href=#rules-for-updating-the-text-track-rendering&gt;rules
+-  for updating the text track rendering&lt;/a&gt; of each of the &lt;a href=#text-track title=&quot;text track&quot;&gt;text tracks&lt;/a&gt; in the &lt;code&gt;&lt;a href=#the-video-element&gt;video&lt;/a&gt;&lt;/code&gt;
+-  element's &lt;a href=#list-of-text-tracks&gt;list of text tracks&lt;/a&gt; that are &lt;a href=#text-track-showing title=&quot;text track showing&quot;&gt;showing&lt;/a&gt; or &lt;a href=#text-track-showing-by-default title=&quot;text
+-  track showing by default&quot;&gt;showing by default&lt;/a&gt; (e.g., for &lt;a href=#text-track title=&quot;text track&quot;&gt;text tracks&lt;/a&gt; based on
+-  &lt;a href=#webvtt&gt;WebVTT&lt;/a&gt;, the &lt;a href=#rules-for-updating-the-display-of-webvtt-text-tracks&gt;rules for updating the display of
+-  WebVTT text tracks&lt;/a&gt;). &lt;a href=#refsWEBVTT&gt;[WEBVTT]&lt;/a&gt;&lt;/p&gt;
++  &lt;code&gt;&lt;a href=#the-video-element&gt;video&lt;/a&gt;&lt;/code&gt; element, the user agent should run the
++  &lt;a href=#rules-for-updating-the-text-track-rendering&gt;rules for updating the text track rendering&lt;/a&gt; of each of
++  the &lt;a href=#text-track title=&quot;text track&quot;&gt;text tracks&lt;/a&gt; in the
++  &lt;code&gt;&lt;a href=#the-video-element&gt;video&lt;/a&gt;&lt;/code&gt; element's &lt;a href=#list-of-text-tracks&gt;list of text tracks&lt;/a&gt; that
++  are &lt;a href=#text-track-showing title=&quot;text track showing&quot;&gt;showing&lt;/a&gt; (e.g., for &lt;a href=#text-track title=&quot;text track&quot;&gt;text tracks&lt;/a&gt; based on &lt;a href=#webvtt&gt;WebVTT&lt;/a&gt;,
++  the &lt;a href=#rules-for-updating-the-display-of-webvtt-text-tracks&gt;rules for updating the display of WebVTT text
++  tracks&lt;/a&gt;). &lt;a href=#refsWEBVTT&gt;[WEBVTT]&lt;/a&gt;&lt;/p&gt;
+ 
+   &lt;p class=note&gt;Resizing &lt;code&gt;&lt;a href=#the-video-element&gt;video&lt;/a&gt;&lt;/code&gt; and &lt;code&gt;&lt;a href=#the-canvas-element&gt;canvas&lt;/a&gt;&lt;/code&gt;
+   elements does not interrupt video playback or clear the canvas.&lt;/p&gt;
+
+Modified: source
+===================================================================
+--- source	2012-09-07 21:52:27 UTC (rev 7326)
++++ source	2012-09-11 21:59:07 UTC (rev 7327)
+@@ -306,6 +306,10 @@
+    different text for web+, etc. I haven't fixed these yet since I
+    expect the WHATWG to switch approach at some point soon too. --&gt;
+ 
++   &lt;li&gt;The W3C HTML specification avoids mentioning
++   &lt;code&gt;MouseEventInit&lt;/code&gt;, resulting in a different definition
++   for &lt;code&gt;DragEventInit&lt;/code&gt;.&lt;/li&gt;
++
+   &lt;/ul&gt;
+ 
+   &lt;p&gt;The following sections are only published in the WHATWG
+@@ -30717,11 +30721,10 @@
+   format.&lt;/p&gt;
+ 
+   &lt;p&gt;The &lt;code&gt;video&lt;/code&gt; element also &lt;span&gt;represents&lt;/span&gt; any
+-  &lt;span title=&quot;text track cue&quot;&gt;text track cues&lt;/span&gt; whose
+-  &lt;span&gt;text track cue active flag&lt;/span&gt; is set and whose
+-  &lt;span&gt;text track&lt;/span&gt; is in the &lt;span title=&quot;text track
+-  showing&quot;&gt;showing&lt;/span&gt; or &lt;span title=&quot;text track showing by
+-  default&quot;&gt;showing by default&lt;/span&gt; modes.&lt;/p&gt;
++  &lt;span title=&quot;text track cue&quot;&gt;text track cues&lt;/span&gt; whose &lt;span&gt;text
++  track cue active flag&lt;/span&gt; is set and whose &lt;span&gt;text
++  track&lt;/span&gt; is in the &lt;span title=&quot;text track
++  showing&quot;&gt;showing&lt;/span&gt; mode.&lt;/p&gt;
+ 
+   &lt;p&gt;In addition to the above, the user agent may provide messages to
+   the user (such as &quot;buffering&quot;, &quot;no video loaded&quot;, &quot;error&quot;, or more
+@@ -34639,24 +34642,22 @@
+    &lt;li&gt;&lt;p&gt;Let &lt;var title=&quot;&quot;&gt;current cues&lt;/var&gt; be a list of &lt;span
+    title=&quot;text track cue&quot;&gt;cues&lt;/span&gt;, initialized to contain all the
+    &lt;span title=&quot;text track cue&quot;&gt;cues&lt;/span&gt; of all the &lt;span
+-   title=&quot;text track hidden&quot;&gt;hidden&lt;/span&gt;, &lt;span title=&quot;text track
+-   showing&quot;&gt;showing&lt;/span&gt;, or &lt;span title=&quot;text track showing by
+-   default&quot;&gt;showing by default&lt;/span&gt; &lt;span title=&quot;text track&quot;&gt;text
+-   tracks&lt;/span&gt; of the &lt;span&gt;media element&lt;/span&gt; (not the &lt;span
+-   title=&quot;text track disabled&quot;&gt;disabled&lt;/span&gt; ones) whose &lt;span
+-   title=&quot;text track cue start time&quot;&gt;start times&lt;/span&gt; are less than
+-   or equal to the &lt;span&gt;current playback position&lt;/span&gt; and whose
+-   &lt;span title=&quot;text track cue end time&quot;&gt;end times&lt;/span&gt; are greater
+-   than the &lt;span&gt;current playback position&lt;/span&gt;.&lt;/p&gt;&lt;/li&gt;
++   title=&quot;text track hidden&quot;&gt;hidden&lt;/span&gt; or &lt;span title=&quot;text track
++   showing&quot;&gt;showing&lt;/span&gt; &lt;span title=&quot;text track&quot;&gt;text tracks&lt;/span&gt;
++   of the &lt;span&gt;media element&lt;/span&gt; (not the &lt;span title=&quot;text track
++   disabled&quot;&gt;disabled&lt;/span&gt; ones) whose &lt;span title=&quot;text track cue
++   start time&quot;&gt;start times&lt;/span&gt; are less than or equal to the
++   &lt;span&gt;current playback position&lt;/span&gt; and whose &lt;span title=&quot;text
++   track cue end time&quot;&gt;end times&lt;/span&gt; are greater than the
++   &lt;span&gt;current playback position&lt;/span&gt;.&lt;/p&gt;&lt;/li&gt;
+ 
+    &lt;li&gt;&lt;p&gt;Let &lt;var title=&quot;&quot;&gt;other cues&lt;/var&gt; be a list of &lt;span
+    title=&quot;text track cue&quot;&gt;cues&lt;/span&gt;, initialized to contain all the
+    &lt;span title=&quot;text track cue&quot;&gt;cues&lt;/span&gt; of &lt;span title=&quot;text track
+-   hidden&quot;&gt;hidden&lt;/span&gt;, &lt;span title=&quot;text track
+-   showing&quot;&gt;showing&lt;/span&gt;, and &lt;span title=&quot;text track showing by
+-   default&quot;&gt;showing by default&lt;/span&gt; &lt;span title=&quot;text track&quot;&gt;text
+-   tracks&lt;/span&gt; of the &lt;span&gt;media element&lt;/span&gt; that are not
+-   present in &lt;var title=&quot;&quot;&gt;current cues&lt;/var&gt;.&lt;/p&gt;&lt;/li&gt;
++   hidden&quot;&gt;hidden&lt;/span&gt; and &lt;span title=&quot;text track
++   showing&quot;&gt;showing&lt;/span&gt; &lt;span title=&quot;text track&quot;&gt;text tracks&lt;/span&gt;
++   of the &lt;span&gt;media element&lt;/span&gt; that are not present in &lt;var
++   title=&quot;&quot;&gt;current cues&lt;/var&gt;.&lt;/p&gt;&lt;/li&gt;
+ 
+    &lt;li&gt;&lt;p&gt;Let &lt;var title=&quot;&quot;&gt;last time&lt;/var&gt; be the &lt;span&gt;current
+    playback position&lt;/span&gt; at the time this algorithm was last run
+@@ -34836,12 +34837,10 @@
+    &lt;li&gt;&lt;p&gt;Run the &lt;span&gt;rules for updating the text track
+    rendering&lt;/span&gt; of each of the &lt;span title=&quot;text track&quot;&gt;text
+    tracks&lt;/span&gt; in &lt;var title=&quot;&quot;&gt;affected tracks&lt;/var&gt; that are &lt;span
+-   title=&quot;text track showing&quot;&gt;showing&lt;/span&gt; or &lt;span title=&quot;text
+-   track showing by default&quot;&gt;showing by default&lt;/span&gt;.
+-   For example, for &lt;span title=&quot;text track&quot;&gt;text tracks&lt;/span&gt;
+-   based on &lt;span&gt;WebVTT&lt;/span&gt;, the &lt;span&gt;rules for updating the
+-   display of WebVTT text tracks&lt;/span&gt;. &lt;a href=&quot;#refsWEBVTT&quot;&gt;[WEBVTT]&lt;/a&gt;
+-   &lt;/p&gt;&lt;/li&gt;
++   title=&quot;text track showing&quot;&gt;showing&lt;/span&gt;. For example, for &lt;span
++   title=&quot;text track&quot;&gt;text tracks&lt;/span&gt; based on &lt;span&gt;WebVTT&lt;/span&gt;,
++   the &lt;span&gt;rules for updating the display of WebVTT text
++   tracks&lt;/span&gt;. &lt;a href=&quot;#refsWEBVTT&quot;&gt;[WEBVTT]&lt;/a&gt; &lt;/p&gt;&lt;/li&gt;
+ 
+   &lt;/ol&gt;
+ 
+@@ -36909,7 +36908,6 @@
+      &lt;/dd&gt;
+ 
+      &lt;dt&gt;&lt;dfn title=&quot;text track showing&quot;&gt;Showing&lt;/dfn&gt;
+-     &lt;dt&gt;&lt;dfn title=&quot;text track showing by default&quot;&gt;Showing by default&lt;/dfn&gt;
+ 
+      &lt;dd&gt;
+ 
+@@ -36932,14 +36930,6 @@
+       user can navigate to any point in the &lt;span&gt;media
+       resource&lt;/span&gt; by selecting a cue.&lt;/p&gt;
+ 
+-      &lt;p&gt;The &lt;span title=&quot;text track showing by default&quot;&gt;showing by
+-      default&lt;/span&gt; state is used in conjunction with the &lt;code
+-      title=&quot;attr-track-default&quot;&gt;default&lt;/code&gt; attribute on
+-      &lt;code&gt;track&lt;/code&gt; elements to indicate that the text track was
+-      enabled due to that attribute. This allows the user agent to
+-      override the state if a later track is discovered that is more
+-      appropriate per the user's preferences.&lt;/p&gt;
+-
+      &lt;/dd&gt;
+ 
+     &lt;/dl&gt;
+@@ -36973,19 +36963,22 @@
+   &lt;hr&gt;
+ 
+   &lt;p&gt;Each &lt;span&gt;media element&lt;/span&gt; has a &lt;dfn&gt;list of pending text
+-  tracks&lt;/dfn&gt;, which must initially be empty, and a
+-  &lt;dfn&gt;blocked-on-parser&lt;/dfn&gt; flag, which must initially be false.
+-  When the user agent is required to &lt;dfn&gt;populate the list of pending
+-  text tracks&lt;/dfn&gt; of a &lt;span&gt;media element&lt;/span&gt;, the user agent
+-  must add to the element's &lt;span&gt;list of pending text tracks&lt;/span&gt;
+-  each &lt;span&gt;text track&lt;/span&gt; in the element's &lt;span&gt;list of text
+-  tracks&lt;/span&gt; whose &lt;span&gt;text track mode&lt;/span&gt; is not &lt;span
+-  title=&quot;text track disabled&quot;&gt;disabled&lt;/span&gt; and whose &lt;span&gt;text
+-  track readiness state&lt;/span&gt; is &lt;!--either &lt;span title=&quot;text track
+-  not loaded&quot;&gt;not loaded&lt;/span&gt; or [there can't be any in the 'not
+-  loaded' state that are not 'disabled']--&gt; &lt;span title=&quot;text track
+-  loading&quot;&gt;loading&lt;/span&gt;.&lt;/p&gt;
++  tracks&lt;/dfn&gt;, which must initially be empty, a
++  &lt;dfn&gt;blocked-on-parser&lt;/dfn&gt; flag, which must initially be false,
++  and a &lt;dfn&gt;did-perform-automatic-track-selection&lt;/dfn&gt; flag, which
++  must also initially be false.&lt;/p&gt;
+ 
++  &lt;p&gt;When the user agent is required to &lt;dfn&gt;populate the list of
++  pending text tracks&lt;/dfn&gt; of a &lt;span&gt;media element&lt;/span&gt;, the user
++  agent must add to the element's &lt;span&gt;list of pending text
++  tracks&lt;/span&gt; each &lt;span&gt;text track&lt;/span&gt; in the element's
++  &lt;span&gt;list of text tracks&lt;/span&gt; whose &lt;span&gt;text track mode&lt;/span&gt;
++  is not &lt;span title=&quot;text track disabled&quot;&gt;disabled&lt;/span&gt; and whose
++  &lt;span&gt;text track readiness state&lt;/span&gt; is &lt;!--either &lt;span
++  title=&quot;text track not loaded&quot;&gt;not loaded&lt;/span&gt; or [there can't be
++  any in the 'not loaded' state that are not 'disabled']--&gt; &lt;span
++  title=&quot;text track loading&quot;&gt;loading&lt;/span&gt;.&lt;/p&gt;
++
+   &lt;p&gt;Whenever a &lt;code&gt;track&lt;/code&gt; element's parent node changes, the
+   user agent must remove the corresponding &lt;span&gt;text track&lt;/span&gt;
+   from any &lt;span&gt;list of pending text tracks&lt;/span&gt; that it is in.&lt;/p&gt;
+@@ -37001,8 +36994,9 @@
+   the element's &lt;span&gt;blocked-on-parser&lt;/span&gt; flag to true. When a
+   &lt;span&gt;media element&lt;/span&gt; is popped off the &lt;span&gt;stack of open
+   elements&lt;/span&gt; of an &lt;span&gt;HTML parser&lt;/span&gt; or &lt;span&gt;XML
+-  parser&lt;/span&gt;, the user agent must &lt;span&gt;populate the list of
+-  pending text tracks&lt;/span&gt; and set the element's
++  parser&lt;/span&gt;, the user agent must &lt;span&gt;honor user preferences for
++  automatic text track selection&lt;/span&gt;, &lt;span&gt;populate the list of
++  pending text tracks&lt;/span&gt;, and set the element's
+   &lt;span&gt;blocked-on-parser&lt;/span&gt; flag to false.&lt;/p&gt;
+ 
+   &lt;p&gt;The &lt;span title=&quot;text track&quot;&gt;text tracks&lt;/span&gt; of a &lt;span&gt;media
+@@ -37117,8 +37111,9 @@
+      cue&lt;/span&gt;.&lt;/p&gt;&lt;/li&gt;
+ 
+      &lt;li&gt;&lt;p&gt;If &lt;var title=&quot;&quot;&gt;cue&lt;/var&gt; is not associated with a
+-     &lt;span&gt;text track&lt;/span&gt;, return &amp;#x2212;1 and abort these
+-     steps.&lt;/p&gt;&lt;/li&gt;
++     &lt;span&gt;text track&lt;/span&gt;, or if that &lt;span&gt;text track&lt;/span&gt; is
++     not in the &lt;span&gt;list of text tracks&lt;/span&gt; of a &lt;span&gt;media
++     element&lt;/span&gt;, return &amp;#x2212;1 and abort these steps.&lt;/p&gt;&lt;/li&gt;
+ 
+      &lt;li&gt;&lt;p&gt;Let &lt;var title=&quot;&quot;&gt;track&lt;/var&gt; be the &lt;span&gt;text
+      track&lt;/span&gt; that the &lt;var title=&quot;&quot;&gt;cue&lt;/var&gt; is associated
+@@ -37126,11 +37121,9 @@
+ 
+      &lt;li&gt;&lt;p&gt;Let &lt;var title=&quot;&quot;&gt;n&lt;/var&gt; be the number of &lt;span
+      title=&quot;text track&quot;&gt;text tracks&lt;/span&gt; whose &lt;span&gt;text track
+-     mode&lt;/span&gt; is &lt;span title=&quot;text track showing&quot;&gt;showing&lt;/span&gt; or
+-     &lt;span title=&quot;text track showing by default&quot;&gt;showing by
+-     default&lt;/span&gt; and that are in the &lt;span&gt;media element&lt;/span&gt;'s
+-     &lt;span&gt;list of text tracks&lt;/span&gt; before &lt;var
+-     title=&quot;&quot;&gt;track&lt;/var&gt;.&lt;/p&gt;&lt;/li&gt;
++     mode&lt;/span&gt; is &lt;span title=&quot;text track showing&quot;&gt;showing&lt;/span&gt;
++     and that are in the &lt;span&gt;media element&lt;/span&gt;'s &lt;span&gt;list of
++     text tracks&lt;/span&gt; before &lt;var title=&quot;&quot;&gt;track&lt;/var&gt;.&lt;/p&gt;&lt;/li&gt;
+ 
+      &lt;li&gt;&lt;p&gt;Increment &lt;var title=&quot;&quot;&gt;n&lt;/var&gt; by one.&lt;/p&gt;&lt;/li&gt;
+ 
+@@ -37211,17 +37204,15 @@
+     title=&quot;dom-media-readyState&quot;&gt;readyState&lt;/code&gt; is changed back to
+     &lt;code title=&quot;dom-media-HAVE_NOTHING&quot;&gt;HAVE_NOTHING&lt;/code&gt;. When the
+     flag is unset in this way for one or more cues in &lt;span
+-    title=&quot;text track&quot;&gt;text tracks&lt;/span&gt; that were &lt;span
+-    title=&quot;text track showing&quot;&gt;showing&lt;/span&gt; or &lt;span title=&quot;text
+-    track showing by default&quot;&gt;showing by default&lt;/span&gt; prior to the
+-    relevant incident, the user agent must, after having unset the
+-    flag for all the affected cues, apply the &lt;span&gt;rules for updating
+-    the text track rendering&lt;/span&gt; of those &lt;span title=&quot;text
+-    track&quot;&gt;text tracks&lt;/span&gt;.
+-    For example, for &lt;span title=&quot;text track&quot;&gt;text tracks&lt;/span&gt;
+-    based on &lt;span&gt;WebVTT&lt;/span&gt;, the &lt;span&gt;rules for updating the
+-    display of WebVTT text tracks&lt;/span&gt;. &lt;a href=&quot;#refsWEBVTT&quot;&gt;[WEBVTT]&lt;/a&gt;&lt;/p&gt;
+-   &lt;/dd&gt;
++    title=&quot;text track&quot;&gt;text tracks&lt;/span&gt; that were &lt;span title=&quot;text
++    track showing&quot;&gt;showing&lt;/span&gt; prior to the relevant incident, the
++    user agent must, after having unset the flag for all the affected
++    cues, apply the &lt;span&gt;rules for updating the text track
++    rendering&lt;/span&gt; of those &lt;span title=&quot;text track&quot;&gt;text
++    tracks&lt;/span&gt;. For example, for &lt;span title=&quot;text track&quot;&gt;text
++    tracks&lt;/span&gt; based on &lt;span&gt;WebVTT&lt;/span&gt;, the &lt;span&gt;rules for
++    updating the display of WebVTT text tracks&lt;/span&gt;. &lt;a
++    href=&quot;#refsWEBVTT&quot;&gt;[WEBVTT]&lt;/a&gt;&lt;/p&gt; &lt;/dd&gt;
+ 
+    &lt;dt&gt;The &lt;dfn title=&quot;text track cue display state&quot;&gt;display state&lt;/dfn&gt;
+    &lt;dd&gt;
+@@ -37242,18 +37233,18 @@
+   the &lt;span title=&quot;text track cue&quot;&gt;cues&lt;/span&gt; by their &lt;span&gt;text
+   track&lt;/span&gt;, with the groups being sorted in the same order as
+   their &lt;span title=&quot;text track&quot;&gt;text tracks&lt;/span&gt; appear in the
+-  &lt;span&gt;media element&lt;/span&gt;'s &lt;span&gt;list of text tracks&lt;/span&gt;;
+-  then, within each group, &lt;span title=&quot;text track cue&quot;&gt;cues&lt;/span&gt;
+-  must be sorted by their &lt;span title=&quot;text track cue start
+-  time&quot;&gt;start time&lt;/span&gt;, earliest first; then, any &lt;span
+-  title=&quot;text track cue&quot;&gt;cues&lt;/span&gt; with the same &lt;span title=&quot;text
+-  track cue start time&quot;&gt;start time&lt;/span&gt; must be sorted by their
+-  &lt;span title=&quot;text track cue end time&quot;&gt;end time&lt;/span&gt;, latest
+-  first; and finally, any &lt;span title=&quot;text track cue&quot;&gt;cues&lt;/span&gt;
+-  with identical &lt;span title=&quot;text track cue end time&quot;&gt;end
+-  times&lt;/span&gt; must be sorted in the order they were created (so
+-  e.g. for cues from a &lt;span&gt;WebVTT&lt;/span&gt; file, that would be the
+-  order in which the cues were listed in the file). &lt;a href=&quot;#refsWEBVTT&quot;&gt;[WEBVTT]&lt;/a&gt;&lt;/p&gt;
++  &lt;span&gt;media element&lt;/span&gt;'s &lt;span&gt;list of text tracks&lt;/span&gt;; then,
++  within each group, &lt;span title=&quot;text track cue&quot;&gt;cues&lt;/span&gt; must be
++  sorted by their &lt;span title=&quot;text track cue start time&quot;&gt;start
++  time&lt;/span&gt;, earliest first; then, any &lt;span title=&quot;text track
++  cue&quot;&gt;cues&lt;/span&gt; with the same &lt;span title=&quot;text track cue start
++  time&quot;&gt;start time&lt;/span&gt; must be sorted by their &lt;span title=&quot;text
++  track cue end time&quot;&gt;end time&lt;/span&gt;, latest first; and finally, any
++  &lt;span title=&quot;text track cue&quot;&gt;cues&lt;/span&gt; with identical &lt;span
++  title=&quot;text track cue end time&quot;&gt;end times&lt;/span&gt; must be sorted in
++  the order they were created (so e.g. for cues from a
++  &lt;span&gt;WebVTT&lt;/span&gt; file, that would be the order in which the cues
++  were listed in the file). &lt;a href=&quot;#refsWEBVTT&quot;&gt;[WEBVTT]&lt;/a&gt;&lt;/p&gt;
+ 
+ 
+   &lt;h6&gt;Sourcing in-band text tracks&lt;/h6&gt;
+@@ -37396,11 +37387,11 @@
+    to load the whole media file just to start playing the first
+    frame... --&gt;
+ 
+-   &lt;!-- XXX-MODE-HEURISTIC --&gt;
+    &lt;li&gt;&lt;p&gt;Set the new &lt;span&gt;text track&lt;/span&gt;'s &lt;span title=&quot;text
+    track mode&quot;&gt;mode&lt;/span&gt; to the mode consistent with the user's
+    preferences and the requirements of the relevant specification for
+-   the data.&lt;/p&gt;&lt;/li&gt;
++   the data.&lt;/p&gt;&lt;/li&gt; &lt;!-- it's too late to apply the normal
++   heuristic, so we don't bother --&gt;
+ 
+    &lt;li&gt;&lt;p&gt;Add the new &lt;span&gt;text track&lt;/span&gt; to the &lt;span&gt;media
+    element&lt;/span&gt;'s &lt;span&gt;list of text tracks&lt;/span&gt;.&lt;/p&gt;&lt;/li&gt;
+@@ -37429,6 +37420,9 @@
+   of text tracks&lt;/span&gt; all the &lt;span title=&quot;media-resource-specific
+   text track&quot;&gt;media-resource-specific text tracks&lt;/span&gt;.&lt;/p&gt;
+ 
++  &lt;!-- if, after in-band text tracks have been found, there's no
++  out-of-band text tracks, then apply user prefs? --&gt;
++
+   &lt;/div&gt;
+ 
+ 
+@@ -37487,6 +37481,11 @@
+   &lt;p class=&quot;note&quot;&gt;Changes to the &lt;span&gt;track URL&lt;/span&gt; are handled in
+   the algorithm below.&lt;/p&gt;
+ 
++  &lt;p&gt;The &lt;span&gt;text track readiness state&lt;/span&gt; is initially &lt;span
++  title=&quot;text track not loaded&quot;&gt;not loaded&lt;/span&gt;, and the &lt;span&gt;text
++  track mode&lt;/span&gt; is initially &lt;span title=&quot;text track
++  disabled&quot;&gt;disabled&lt;/span&gt;.&lt;/p&gt;
++
+   &lt;p&gt;The &lt;span&gt;text track list of cues&lt;/span&gt; is initially empty. It
+   is dynamically modified when the referenced file is parsed.
+   Associated with the list are the &lt;span&gt;rules for updating the text
+@@ -37522,115 +37521,150 @@
+   &lt;code title=&quot;dom-media-textTracks&quot;&gt;textTracks&lt;/code&gt; attribute's
+   &lt;code&gt;TextTrackList&lt;/code&gt; object.&lt;/p&gt; &lt;!-- removetrack --&gt;
+ 
++  &lt;hr&gt;
++
+   &lt;p&gt;When a &lt;span&gt;text track&lt;/span&gt; corresponding to a
+   &lt;code&gt;track&lt;/code&gt; element is added to a &lt;span&gt;media
+   element&lt;/span&gt;'s &lt;span&gt;list of text tracks&lt;/span&gt;, the user agent
+-  must set the &lt;span&gt;text track mode&lt;/span&gt; appropriately, as
+-  determined by the following conditions:&lt;/p&gt;
++  must &lt;span&gt;queue a task&lt;/span&gt; to run the following steps for the
++  &lt;span&gt;media element&lt;/span&gt;:&lt;/p&gt;
+ 
+-  &lt;dl class=&quot;switch&quot;&gt;
++  &lt;ol&gt;
+ 
+-   &lt;dt&gt;If the &lt;span&gt;text track kind&lt;/span&gt; is &lt;code
+-   title=&quot;dom-TextTrack-kind-subtitles&quot;&gt;subtitles&lt;/code&gt; or &lt;code
+-   title=&quot;dom-TextTrack-kind-captions&quot;&gt;captions&lt;/code&gt; and the user
+-   has indicated an interest in having a track with this &lt;span&gt;text
+-   track kind&lt;/span&gt;, &lt;span&gt;text track language&lt;/span&gt;, and
+-   &lt;span&gt;text track label&lt;/span&gt; enabled, and there is no other
+-   &lt;span&gt;text track&lt;/span&gt; in the &lt;span&gt;media element&lt;/span&gt;'s
+-   &lt;span&gt;list of text tracks&lt;/span&gt; with a &lt;span&gt;text track
+-   kind&lt;/span&gt; of either &lt;code
+-   title=&quot;dom-TextTrack-kind-subtitles&quot;&gt;subtitles&lt;/code&gt; or &lt;code
+-   title=&quot;dom-TextTrack-kind-captions&quot;&gt;captions&lt;/code&gt; whose
+-   &lt;span&gt;text track mode&lt;/span&gt; is &lt;span title=&quot;text track
+-   showing&quot;&gt;showing&lt;/span&gt;&lt;/dt&gt;
++   &lt;li&gt;&lt;p&gt;If the element's &lt;span&gt;blocked-on-parser&lt;/span&gt; flag is
++   true, abort these steps.&lt;/p&gt;&lt;/li&gt;
+ 
+-   &lt;dt&gt;If the &lt;span&gt;text track kind&lt;/span&gt; is &lt;code
+-   title=&quot;dom-TextTrack-kind-descriptions&quot;&gt;descriptions&lt;/code&gt; and
+-   the user has indicated an interest in having text descriptions with
+-   this &lt;span&gt;text track language&lt;/span&gt; and &lt;span&gt;text track
+-   label&lt;/span&gt; enabled, and there is no other &lt;span&gt;text
+-   track&lt;/span&gt; in the &lt;span&gt;media element&lt;/span&gt;'s &lt;span&gt;list of
+-   text tracks&lt;/span&gt; with a &lt;span&gt;text track kind&lt;/span&gt; of &lt;code
+-   title=&quot;dom-TextTrack-kind-descriptions&quot;&gt;descriptions&lt;/code&gt; whose
+-   &lt;span&gt;text track mode&lt;/span&gt; is &lt;span title=&quot;text track
+-   showing&quot;&gt;showing&lt;/span&gt;&lt;/dt&gt;
++   &lt;li&gt;&lt;p&gt;If the element's
++   &lt;span&gt;did-perform-automatic-track-selection&lt;/span&gt; flag is true,
++   abort these steps.&lt;/p&gt;&lt;/li&gt;
+ 
+-   &lt;dd&gt;
+-    &lt;p&gt;Let the &lt;span&gt;text track mode&lt;/span&gt; be &lt;span title=&quot;text
+-    track showing&quot;&gt;showing&lt;/span&gt;.&lt;/p&gt;
++   &lt;li&gt;&lt;p&gt;&lt;span&gt;Honor user preferences for automatic text track
++   selection&lt;/span&gt; for this element.&lt;/p&gt;&lt;/li&gt;
+ 
+-    &lt;p&gt;If there is a &lt;span&gt;text track&lt;/span&gt; in the &lt;span&gt;media
+-    element&lt;/span&gt;'s &lt;span&gt;list of text tracks&lt;/span&gt; whose
+-    &lt;span&gt;text track mode&lt;/span&gt; is &lt;span title=&quot;text track showing
+-    by default&quot;&gt;showing by default&lt;/span&gt;, the user agent must
+-    furthermore change &lt;em&gt;that&lt;/em&gt; &lt;span&gt;text track&lt;/span&gt;'s
+-    &lt;span&gt;text track mode&lt;/span&gt; to &lt;span title=&quot;text track
+-    hidden&quot;&gt;hidden&lt;/span&gt;.&lt;/p&gt; &lt;!-- so that we still get events and
+-    stuff: we can expect authors to forget that default doesn't mean
+-    that it'll always be turned on, and that they'll still rely on
+-    events firing even if it doesn't show --&gt;
++  &lt;/ol&gt;
+ 
+-   &lt;/dd&gt;
++  &lt;p&gt;When the user agent is required to &lt;dfn&gt;honor user preferences
++  for automatic text track selection&lt;/dfn&gt; for a &lt;span&gt;media
++  element&lt;/span&gt;, the user agent must run the following steps:&lt;/p&gt;
+ 
+-   &lt;dt&gt;If the &lt;span&gt;text track kind&lt;/span&gt; is &lt;code
+-   title=&quot;dom-TextTrack-kind-chapters&quot;&gt;chapters&lt;/code&gt; and the
+-   &lt;span&gt;text track language&lt;/span&gt; is one that the user agent has
+-   reason to believe is appropriate for the user, and there is no
+-   other &lt;span&gt;text track&lt;/span&gt; in the &lt;span&gt;media element&lt;/span&gt;'s
+-   &lt;span&gt;list of text tracks&lt;/span&gt; with a &lt;span&gt;text track
+-   kind&lt;/span&gt; of &lt;code
+-   title=&quot;dom-TextTrack-kind-chapters&quot;&gt;chapters&lt;/code&gt; whose
+-   &lt;span&gt;text track mode&lt;/span&gt; is &lt;span title=&quot;text track
+-   showing&quot;&gt;showing&lt;/span&gt;&lt;/dt&gt;
++  &lt;ol&gt;
+ 
+-   &lt;dd&gt;
+-    &lt;p&gt;Let the &lt;span&gt;text track mode&lt;/span&gt; be &lt;span title=&quot;text
+-    track showing&quot;&gt;showing&lt;/span&gt;.&lt;/p&gt;
+-   &lt;/dd&gt;
++   &lt;li&gt;&lt;p&gt;&lt;span&gt;Perform automatic text track selection&lt;/span&gt; for &lt;code
++   title=&quot;dom-TextTrack-kind-subtitles&quot;&gt;subtitles&lt;/code&gt; and &lt;code
++   title=&quot;dom-TextTrack-kind-captions&quot;&gt;captions&lt;/code&gt;.&lt;/p&gt;&lt;/li&gt;
+ 
+-   &lt;dt&gt;If the &lt;code&gt;track&lt;/code&gt; element has a &lt;code
+-   title=&quot;attr-track-default&quot;&gt;default&lt;/code&gt; attribute specified, and
+-   there is no other &lt;span&gt;text track&lt;/span&gt; in the &lt;span&gt;media
+-   element&lt;/span&gt;'s &lt;span&gt;list of text tracks&lt;/span&gt; whose
+-   &lt;span&gt;text track mode&lt;/span&gt; is &lt;span title=&quot;text track
+-   showing&quot;&gt;showing&lt;/span&gt; or &lt;span title=&quot;text track
+-   showing by default&quot;&gt;showing by default&lt;/span&gt;&lt;/dt&gt;
++   &lt;li&gt;&lt;p&gt;&lt;span&gt;Perform automatic text track selection&lt;/span&gt; for &lt;code
++   title=&quot;dom-TextTrack-kind-descriptions&quot;&gt;descriptions&lt;/code&gt;.&lt;/p&gt;&lt;/li&gt;
+ 
+-   &lt;dd&gt;
+-    &lt;p&gt;Let the &lt;span&gt;text track mode&lt;/span&gt; be &lt;span title=&quot;text
+-    track showing by default&quot;&gt;showing by default&lt;/span&gt;.&lt;/p&gt;
+-   &lt;/dd&gt;
++   &lt;li&gt;&lt;p&gt;&lt;span&gt;Perform automatic text track selection&lt;/span&gt; for &lt;code
++   title=&quot;dom-TextTrack-kind-chapters&quot;&gt;chapters&lt;/code&gt;.&lt;/p&gt;&lt;/li&gt;
+ 
+-   &lt;dt&gt;Otherwise&lt;/dt&gt;
++   &lt;li&gt;&lt;p&gt;&lt;span&gt;Perform automatic text track selection&lt;/span&gt; for &lt;code
++   title=&quot;dom-TextTrack-kind-metadata&quot;&gt;metadata&lt;/code&gt;.&lt;/p&gt;&lt;/li&gt;
+ 
+-   &lt;dd&gt;
+-    &lt;p&gt;Let the &lt;span&gt;text track mode&lt;/span&gt; be &lt;span title=&quot;text
+-    track disabled&quot;&gt;disabled&lt;/span&gt;.&lt;/p&gt;
+-   &lt;/dd&gt;
++   &lt;li&gt;&lt;p&gt;Set the element's
++   &lt;span&gt;did-perform-automatic-track-selection&lt;/span&gt; flag to
++   true.&lt;/p&gt;&lt;/li&gt;
+ 
+-  &lt;/dl&gt;
++  &lt;/ol&gt;
+ 
++  &lt;p&gt;When the steps above say to &lt;dfn&gt;perform automatic text track
++  selection&lt;/dfn&gt; for one or more &lt;span title=&quot;text track kind&quot;&gt;text
++  track kinds&lt;/span&gt;, it means to run the following steps:&lt;/p&gt;
++
++  &lt;ol&gt;
++
++   &lt;li&gt;&lt;p&gt;Let &lt;var title=&quot;&quot;&gt;candidates&lt;/var&gt; be a list consisting of
++   the &lt;span title=&quot;text track&quot;&gt;text tracks&lt;/span&gt; in the &lt;span&gt;media
++   element&lt;/span&gt;'s &lt;span&gt;list of text tracks&lt;/span&gt; whose &lt;span&gt;text
++   track kind&lt;/span&gt; is one of the kinds that were passed to the
++   algorithm, if any.&lt;/p&gt;&lt;/li&gt;
++
++   &lt;li&gt;&lt;p&gt;If &lt;var title=&quot;&quot;&gt;candidates&lt;/var&gt; is empty, then abort these
++   steps.&lt;/p&gt;&lt;/li&gt;
++
++   &lt;li&gt;&lt;p&gt;If any of the &lt;span title=&quot;text track&quot;&gt;text tracks&lt;/span&gt; in
++   &lt;var title=&quot;&quot;&gt;candidates&lt;/var&gt; have a &lt;span&gt;text track mode&lt;/span&gt;
++   set to &lt;span title=&quot;text track showing&quot;&gt;showing&lt;/span&gt;, abort these
++   steps.&lt;/p&gt;&lt;/li&gt;
++
++   &lt;li&gt;
++
++    &lt;p&gt;If the user has expressed an interest in having a track from
++    &lt;var title=&quot;&quot;&gt;candidates&lt;/var&gt; enabled based on its &lt;span&gt;text
++    track kind&lt;/span&gt;, &lt;span&gt;text track language&lt;/span&gt;, and
++    &lt;span&gt;text track label&lt;/span&gt;, then set its &lt;span&gt;text track
++    mode&lt;/span&gt; to &lt;span title=&quot;text track
++    showing&quot;&gt;showing&lt;/span&gt;.&lt;/p&gt;
++
++    &lt;p class=&quot;note&quot;&gt;For example, the user could have set a browser
++    preference to the effect of &quot;I want French captions whenever
++    possible&quot;, or &quot;If there is a subtitle track with 'Commentary' in
++    the title, enable it&quot;, or &quot;If there are audio description tracks
++    available, enable one, ideally in Swiss German, but failing that
++    in Standard Swiss German or Standard German&quot;.&lt;/p&gt;
++
++   &lt;/li&gt;
++
++   &lt;li&gt;&lt;p&gt;If there are any &lt;span title=&quot;text track&quot;&gt;text tracks&lt;/span&gt;
++   in &lt;var title=&quot;&quot;&gt;candidates&lt;/var&gt; that correspond to
++   &lt;code&gt;track&lt;/code&gt; elements with a &lt;code
++   title=&quot;attr-track-default&quot;&gt;default&lt;/code&gt; attribute set whose
++   &lt;span&gt;text track mode&lt;/span&gt; is set to &lt;span title=&quot;text track
++   disabled&quot;&gt;disabled&lt;/span&gt;, then set the &lt;span&gt;text track
++   mode&lt;/span&gt; of each such track to &lt;span title=&quot;text track
++   hidden&quot;&gt;hidden&lt;/span&gt;.&lt;/p&gt; &lt;!-- so that we still get events and
++   stuff: we can expect authors to forget that default doesn't mean
++   that it'll always be turned on, and that they'll still rely on
++   events firing even if it doesn't show --&gt;
++
++  &lt;/ol&gt;
++
+   &lt;p&gt;When a &lt;span&gt;text track&lt;/span&gt; corresponding to a
+-  &lt;code&gt;track&lt;/code&gt; element is created with &lt;span&gt;text track
+-  mode&lt;/span&gt; set to &lt;span title=&quot;text track hidden&quot;&gt;hidden&lt;/span&gt;,
+-  &lt;span title=&quot;text track showing&quot;&gt;showing&lt;/span&gt;, or &lt;span
+-  title=&quot;text track showing by default&quot;&gt;showing by default&lt;/span&gt;, and
+-  when a &lt;span&gt;text track&lt;/span&gt; corresponding to a &lt;code&gt;track&lt;/code&gt;
+-  element is created with &lt;span&gt;text track mode&lt;/span&gt; set to &lt;span
+-  title=&quot;text track disabled&quot;&gt;disabled&lt;/span&gt; and subsequently changes
+-  its &lt;span&gt;text track mode&lt;/span&gt; to &lt;span title=&quot;text track
+-  hidden&quot;&gt;hidden&lt;/span&gt;, &lt;span title=&quot;text track
+-  showing&quot;&gt;showing&lt;/span&gt;, or &lt;span title=&quot;text track showing by
+-  default&quot;&gt;showing by default&lt;/span&gt; for the first time, the user
+-  agent must asynchronously run the following
+-  algorithm. This algorithm interacts closely with the &lt;span&gt;event
+-  loop&lt;/span&gt; mechanism; in particular, it has a &lt;span&gt;synchronous
+-  section&lt;/span&gt; (which is triggered as part of the &lt;span&gt;event
+-  loop&lt;/span&gt; algorithm). The steps in that section are marked with
+-  &amp;#x231B;.&lt;/p&gt;
++  &lt;code&gt;track&lt;/code&gt; element experiences any of the following
++  circumstances, the user agent must &lt;span&gt;start the
++  &lt;code&gt;track&lt;/code&gt; processing model&lt;/span&gt; for that &lt;span&gt;text
++  track&lt;/span&gt; and its &lt;code&gt;track&lt;/code&gt; element:
+ 
++  &lt;ul&gt;
++
++   &lt;li&gt;The &lt;code&gt;track&lt;/code&gt; element is created.&lt;/li&gt;
++
++   &lt;li&gt;The &lt;span&gt;text track&lt;/span&gt; has its &lt;span&gt;text track
++   mode&lt;/span&gt; changed.&lt;/li&gt;
++
++   &lt;li&gt;The &lt;code&gt;track&lt;/code&gt; element's parent element changes and the
++   new parent is a &lt;span&gt;media element&lt;/span&gt;.&lt;/li&gt;
++
++  &lt;/ul&gt;
++
++  &lt;p&gt;When a user agent is to &lt;dfn&gt;start the &lt;code&gt;track&lt;/code&gt;
++  processing model&lt;/dfn&gt; for a &lt;span&gt;text track&lt;/span&gt; and its
++  &lt;code&gt;track&lt;/code&gt; element, it must run the following algorithm.
++  This algorithm interacts closely with the &lt;span&gt;event loop&lt;/span&gt;
++  mechanism; in particular, it has a &lt;span&gt;synchronous section&lt;/span&gt;
++  (which is triggered as part of the &lt;span&gt;event loop&lt;/span&gt;
++  algorithm). The steps in that section are marked with &amp;#x231B;.&lt;/p&gt;
++
+   &lt;ol&gt;
+ 
++   &lt;li&gt;&lt;p&gt;If another occurrence of this algorithm is already running
++   for this &lt;span&gt;text track&lt;/span&gt; and its &lt;code&gt;track&lt;/code&gt;
++   element, abort these steps, letting that other algorithm take care
++   of this element.&lt;/p&gt;&lt;/li&gt;
++
++   &lt;li&gt;&lt;p&gt;If the &lt;span&gt;text track&lt;/span&gt;'s &lt;span&gt;text track
++   mode&lt;/span&gt; is not set to one of &lt;span title=&quot;text track
++   hidden&quot;&gt;hidden&lt;/span&gt; or &lt;span title=&quot;text track
++   showing&quot;&gt;showing&lt;/span&gt;, abort these steps.&lt;/p&gt;&lt;/li&gt;
++
++   &lt;li&gt;&lt;p&gt;If the &lt;span&gt;text track&lt;/span&gt;'s &lt;code&gt;track&lt;/code&gt; element
++   does not have a &lt;span&gt;media element&lt;/span&gt; as a parent, abort these
++   steps.&lt;/p&gt;&lt;/li&gt;
++
++   &lt;li&gt;&lt;p&gt;Run the remainder of these steps asynchronously, allowing
++   whatever caused these steps to run to continue.&lt;/p&gt;&lt;/li&gt;
++
+    &lt;li&gt;&lt;p&gt;&lt;i&gt;Top&lt;/i&gt;: &lt;span&gt;Await a stable state&lt;/span&gt;. The
+    &lt;span&gt;synchronous section&lt;/span&gt; consists of the following steps.
+    (The steps in the &lt;span&gt;synchronous section&lt;/span&gt; are marked with
+@@ -37642,6 +37676,13 @@
+    &lt;li&gt;&lt;p&gt;&amp;#x231B; Let &lt;var title=&quot;&quot;&gt;URL&lt;/var&gt; be the &lt;span&gt;track
+    URL&lt;/span&gt; of the &lt;code&gt;track&lt;/code&gt; element.&lt;/p&gt;&lt;/li&gt;
+ 
++   &lt;li&gt;&lt;p&gt;&amp;#x231B; If the &lt;code&gt;track&lt;/code&gt; element's parent is a
++   &lt;span&gt;media element&lt;/span&gt; then let &lt;var title=&quot;&quot;&gt;CORS mode&lt;/var&gt;
++   be the state of the parent &lt;span&gt;media element&lt;/span&gt;'s &lt;code
++   title=&quot;attr-media-crossorigin&quot;&gt;crossorigin&lt;/code&gt; content
++   attribute. Otherwise, let &lt;var title=&quot;&quot;&gt;CORS mode&lt;/var&gt; be &lt;span
++   title=&quot;attr-crossorigin-none&quot;&gt;No CORS&lt;/span&gt;.&lt;/p&gt;&lt;/li&gt;
++
+    &lt;li&gt;&lt;p&gt;End the &lt;span&gt;synchronous section&lt;/span&gt;, continuing the
+    remaining steps asynchronously.&lt;/p&gt;&lt;/li&gt;
+ 
+@@ -37649,11 +37690,9 @@
+ 
+     &lt;p&gt;If &lt;var title=&quot;&quot;&gt;URL&lt;/var&gt; is not the empty string, perform a
+     &lt;span&gt;potentially CORS-enabled fetch&lt;/span&gt; of &lt;var
+-    title=&quot;&quot;&gt;URL&lt;/var&gt;, with the &lt;i&gt;mode&lt;/i&gt; being the state of the
+-    &lt;span&gt;media element&lt;/span&gt;'s &lt;code
+-    title=&quot;attr-media-crossorigin&quot;&gt;crossorigin&lt;/code&gt; content
+-    attribute, the &lt;i title=&quot;&quot;&gt;origin&lt;/i&gt; being the
+-    &lt;span&gt;origin&lt;/span&gt; of the &lt;span&gt;media element&lt;/span&gt;'s
++    title=&quot;&quot;&gt;URL&lt;/var&gt;, with the &lt;i&gt;mode&lt;/i&gt; being &lt;var title=&quot;&quot;&gt;CORS
++    mode&lt;/var&gt;, the &lt;i title=&quot;&quot;&gt;origin&lt;/i&gt; being the
++    &lt;span&gt;origin&lt;/span&gt; of the &lt;code&gt;track&lt;/code&gt; element's
+     &lt;code&gt;Document&lt;/code&gt;, and the &lt;i&gt;default origin behaviour&lt;/i&gt; set
+     to &lt;i&gt;fail&lt;/i&gt;.&lt;/p&gt;
+ 
+@@ -37700,7 +37739,7 @@
+     any reason (network error, the server returns an error code, a
+     cross-origin check fails, etc), if &lt;var title=&quot;&quot;&gt;URL&lt;/var&gt; is the
+     empty string, or if the &lt;!--sniffed--&gt; type of the resource is not a
+-    supported text track format, then run these steps:
++    supported text track format, then run these steps:&lt;/p&gt;
+ 
+     &lt;ol&gt;
+ 
+@@ -37717,9 +37756,8 @@
+      &lt;li&gt;&lt;p&gt;Wait until the &lt;span&gt;track URL&lt;/span&gt; is no longer equal
+      to &lt;var title=&quot;&quot;&gt;URL&lt;/var&gt;, at the same time as the &lt;span&gt;text
+      track mode&lt;/span&gt; is set to &lt;span title=&quot;text track
+-     hidden&quot;&gt;hidden&lt;/span&gt;, &lt;span title=&quot;text track
+-     showing&quot;&gt;showing&lt;/span&gt;, or &lt;span title=&quot;text track showing by
+-     default&quot;&gt;showing by default&lt;/span&gt;.&lt;/p&gt;&lt;/li&gt;
++     hidden&quot;&gt;hidden&lt;/span&gt; or &lt;span title=&quot;text track
++     showing&quot;&gt;showing&lt;/span&gt;.&lt;/p&gt;&lt;/li&gt;
+ 
+      &lt;li&gt;&lt;p&gt;Jump to the step labeled &lt;i&gt;top&lt;/i&gt;.&lt;/p&gt;&lt;/li&gt;
+ 
+@@ -37754,9 +37792,8 @@
+      &lt;li&gt;&lt;p&gt;Wait until the &lt;span&gt;track URL&lt;/span&gt; is no longer equal
+      to &lt;var title=&quot;&quot;&gt;URL&lt;/var&gt;, at the same time as the &lt;span&gt;text
+      track mode&lt;/span&gt; is set to &lt;span title=&quot;text track
+-     hidden&quot;&gt;hidden&lt;/span&gt;, &lt;span title=&quot;text track
+-     showing&quot;&gt;showing&lt;/span&gt;, or &lt;span title=&quot;text track showing by
+-     default&quot;&gt;showing by default&lt;/span&gt;.&lt;/p&gt;&lt;/li&gt;
++     hidden&quot;&gt;hidden&lt;/span&gt; or &lt;span title=&quot;text track
++     showing&quot;&gt;showing&lt;/span&gt;.&lt;/p&gt;&lt;/li&gt;
+ 
+      &lt;li&gt;&lt;p&gt;Jump back to the step labeled &lt;i&gt;top&lt;/i&gt;.&lt;/p&gt;&lt;/li&gt;
+ 
+@@ -37770,16 +37807,13 @@
+      &lt;li&gt;the &lt;span&gt;track URL&lt;/span&gt; changes so that it is no longer
+      equal to &lt;var title=&quot;&quot;&gt;URL&lt;/var&gt;, while the &lt;span&gt;text track
+      mode&lt;/span&gt; is set to &lt;span title=&quot;text track
+-     hidden&quot;&gt;hidden&lt;/span&gt;, &lt;span title=&quot;text track
+-     showing&quot;&gt;showing&lt;/span&gt;, or &lt;span title=&quot;text track showing by
+-     default&quot;&gt;showing by default&lt;/span&gt;; or&lt;/li&gt;
++     hidden&quot;&gt;hidden&lt;/span&gt; or &lt;span title=&quot;text track
++     showing&quot;&gt;showing&lt;/span&gt;; or&lt;/li&gt;
+ 
+-     &lt;li&gt;the &lt;span&gt;text track mode&lt;/span&gt; changes to &lt;span
+-     title=&quot;text track hidden&quot;&gt;hidden&lt;/span&gt;, &lt;span title=&quot;text
+-     track showing&quot;&gt;showing&lt;/span&gt;, or &lt;span title=&quot;text track
+-     showing by default&quot;&gt;showing by default&lt;/span&gt;, while the
+-     &lt;span&gt;track URL&lt;/span&gt; is not equal to &lt;var
+-     title=&quot;&quot;&gt;URL&lt;/var&gt;&lt;/li&gt;
++     &lt;li&gt;the &lt;span&gt;text track mode&lt;/span&gt; changes to &lt;span title=&quot;text
++     track hidden&quot;&gt;hidden&lt;/span&gt; or &lt;span title=&quot;text track
++     showing&quot;&gt;showing&lt;/span&gt;, while the &lt;span&gt;track URL&lt;/span&gt; is not
++     equal to &lt;var title=&quot;&quot;&gt;URL&lt;/var&gt;&lt;/li&gt;
+ 
+     &lt;/ul&gt;
+ 
+@@ -37967,6 +38001,11 @@
+ 
+   &lt;dl class=&quot;domintro&quot;&gt;
+ 
++   &lt;dt&gt;&lt;var title=&quot;&quot;&gt;textTrack&lt;/var&gt; = &lt;var title=&quot;&quot;&gt;media&lt;/var&gt; . &lt;code title=&quot;dom-media-addTextTrack&quot;&gt;addTextTrack&lt;/code&gt;( &lt;var title=&quot;&quot;&gt;kind&lt;/var&gt; [, &lt;var title=&quot;&quot;&gt;label&lt;/var&gt; [, &lt;var title=&quot;&quot;&gt;language&lt;/var&gt; ] ] )&lt;/dt&gt;
++   &lt;dd&gt;
++    &lt;p&gt;Creates and returns a new &lt;code&gt;TextTrack&lt;/code&gt; object, which is also added to the &lt;span&gt;media element&lt;/span&gt;'s &lt;span&gt;list of text tracks&lt;/span&gt;.&lt;/p&gt;
++   &lt;/dd&gt;
++
+    &lt;dt&gt;&lt;var title=&quot;&quot;&gt;textTrack&lt;/var&gt; . &lt;code title=&quot;dom-TextTrack-kind&quot;&gt;kind&lt;/code&gt;&lt;/dt&gt;
+    &lt;dd&gt;
+     &lt;p&gt;Returns the &lt;span&gt;text track kind&lt;/span&gt; string.&lt;/p&gt;
+@@ -38005,7 +38044,7 @@
+      &lt;/dd&gt;
+      &lt;dt&gt;&quot;&lt;code title=&quot;dom-TextTrack-showing&quot;&gt;showing&lt;/code&gt;&quot;&lt;/dt&gt;
+      &lt;dd&gt;
+-      &lt;p&gt;The &lt;span&gt;text track showing&lt;/span&gt; and &lt;span title=&quot;text track showing by default&quot;&gt;showing by default&lt;/span&gt; modes.&lt;/p&gt;
++      &lt;p&gt;The &lt;span&gt;text track showing&lt;/span&gt; mode.&lt;/p&gt;
+      &lt;/dd&gt;
+     &lt;/dl&gt;
+     &lt;p&gt;Can be set, to change the mode.&lt;/p&gt;
+@@ -38033,15 +38072,104 @@
+     &lt;p&gt;Throws an exception if the argument is associated with another &lt;span&gt;text track&lt;/span&gt; or not in the list of cues.&lt;/p&gt;
+    &lt;/dd&gt;
+ 
+-   &lt;dt&gt;&lt;var title=&quot;&quot;&gt;textTrack&lt;/var&gt; = &lt;var title=&quot;&quot;&gt;media&lt;/var&gt; . &lt;code title=&quot;dom-media-addTextTrack&quot;&gt;addTextTrack&lt;/code&gt;( &lt;var title=&quot;&quot;&gt;kind&lt;/var&gt; [, &lt;var title=&quot;&quot;&gt;label&lt;/var&gt; [, &lt;var title=&quot;&quot;&gt;language&lt;/var&gt; ] ] )&lt;/dt&gt;
+-   &lt;dd&gt;
+-    &lt;p&gt;Creates and returns a new &lt;code&gt;TextTrack&lt;/code&gt; object, which is also added to the &lt;span&gt;media element&lt;/span&gt;'s &lt;span&gt;list of text tracks&lt;/span&gt;.&lt;/p&gt;
+-   &lt;/dd&gt;
+-
+   &lt;/dl&gt;
+ 
+   &lt;div class=&quot;impl&quot;&gt;
+ 
++  &lt;p&gt;The &lt;dfn title=&quot;dom-media-addTextTrack&quot;&gt;&lt;code&gt;addTextTrack(&lt;var
++  title=&quot;&quot;&gt;kind&lt;/var&gt;, &lt;var title=&quot;&quot;&gt;label&lt;/var&gt;, &lt;var
++  title=&quot;&quot;&gt;language&lt;/var&gt;)&lt;/code&gt;&lt;/dfn&gt; method of &lt;span title=&quot;media
++  element&quot;&gt;media elements&lt;/span&gt;, when invoked, must run the following
++  steps:&lt;/p&gt;
++
++  &lt;ol&gt;
++
++   &lt;li&gt;
++
++    &lt;p&gt;If &lt;var title=&quot;&quot;&gt;kind&lt;/var&gt; is not one of the following
++    strings, then throw a &lt;code&gt;SyntaxError&lt;/code&gt; exception and abort
++    these steps:&lt;/p&gt;
++
++    &lt;ul class=&quot;brief&quot;&gt;
++     &lt;li&gt;&lt;code title=&quot;dom-TextTrack-kind-subtitles&quot;&gt;subtitles&lt;/code&gt;
++     &lt;li&gt;&lt;code title=&quot;dom-TextTrack-kind-captions&quot;&gt;captions&lt;/code&gt;
++     &lt;li&gt;&lt;code title=&quot;dom-TextTrack-kind-descriptions&quot;&gt;descriptions&lt;/code&gt;
++     &lt;li&gt;&lt;code title=&quot;dom-TextTrack-kind-chapters&quot;&gt;chapters&lt;/code&gt;
++     &lt;li&gt;&lt;code title=&quot;dom-TextTrack-kind-metadata&quot;&gt;metadata&lt;/code&gt;
++    &lt;/ul&gt;
++
++   &lt;/li&gt;
++
++   &lt;li&gt;
++
++    &lt;p&gt;If the &lt;var title=&quot;&quot;&gt;label&lt;/var&gt; argument was omitted, let &lt;var
++    title=&quot;&quot;&gt;label&lt;/var&gt; be the empty string.&lt;/p&gt;
++
++   &lt;/li&gt;
++
++   &lt;li&gt;
++
++    &lt;p&gt;If the &lt;var title=&quot;&quot;&gt;language&lt;/var&gt; argument was omitted, let
++    &lt;var title=&quot;&quot;&gt;language&lt;/var&gt; be the empty string.&lt;/p&gt;
++
++   &lt;/li&gt;
++
++   &lt;li&gt;
++
++    &lt;p&gt;Create a new &lt;code&gt;TextTrack&lt;/code&gt; object.&lt;/p&gt;
++
++   &lt;/li&gt;
++
++   &lt;li&gt;
++
++    &lt;p&gt;Create a new &lt;span&gt;text track&lt;/span&gt; corresponding to the new
++    object, and set its &lt;span&gt;text track kind&lt;/span&gt; to &lt;var
++    title=&quot;&quot;&gt;kind&lt;/var&gt;, its &lt;span&gt;text track label&lt;/span&gt; to &lt;var
++    title=&quot;&quot;&gt;label&lt;/var&gt;, its &lt;span&gt;text track language&lt;/span&gt; to &lt;var
++    title=&quot;&quot;&gt;language&lt;/var&gt;, its &lt;span&gt;text track readiness
++    state&lt;/span&gt; to the &lt;span&gt;text track loaded&lt;/span&gt; state, its
++    &lt;span&gt;text track mode&lt;/span&gt; to the &lt;span&gt;text track hidden&lt;/span&gt;
++    mode, and its &lt;span&gt;text track list of cues&lt;/span&gt; to an empty
++    list.
++    Associate the &lt;span&gt;text track list of cues&lt;/span&gt; with the
++    &lt;span&gt;rules for updating the display of WebVTT text tracks&lt;/span&gt;
++    as its &lt;span&gt;rules for updating the text track rendering&lt;/span&gt;.
++    &lt;a href=&quot;#refsWEBVTT&quot;&gt;[WEBVTT]&lt;/a&gt;
++    &lt;/p&gt;
++
++   &lt;/li&gt;
++
++   &lt;li&gt;
++
++    &lt;p&gt;Add the new &lt;span&gt;text track&lt;/span&gt; to the &lt;span&gt;media
++    element&lt;/span&gt;'s &lt;span&gt;list of text tracks&lt;/span&gt;.&lt;/p&gt;
++
++   &lt;/li&gt;
++
++   &lt;li&gt;
++
++    &lt;p&gt;&lt;span&gt;Queue a task&lt;/span&gt; to fire an event with the name &lt;code
++    title=&quot;event-addtrack&quot;&gt;addtrack&lt;/code&gt;, that does not bubble and
++    is not cancelable, and that uses the &lt;code&gt;TrackEvent&lt;/code&gt;
++    interface, with the &lt;code
++    title=&quot;dom-TrackEvent-track&quot;&gt;track&lt;/code&gt; attribute initialized to
++    the new &lt;span&gt;text track&lt;/span&gt;'s &lt;code&gt;TextTrack&lt;/code&gt; object,
++    at the &lt;span&gt;media element&lt;/span&gt;'s &lt;code
++    title=&quot;dom-media-textTracks&quot;&gt;textTracks&lt;/code&gt; attribute's
++    &lt;code&gt;TextTrackList&lt;/code&gt; object.&lt;/p&gt;
++
++   &lt;/li&gt;
++
++   &lt;li&gt;
++
++    &lt;p&gt;Return the new &lt;code&gt;TextTrack&lt;/code&gt; object.&lt;/p&gt;
++
++   &lt;/li&gt;
++
++  &lt;/ol&gt;
++
++  &lt;hr&gt;
++
+   &lt;p&gt;The &lt;dfn title=&quot;dom-TextTrack-kind&quot;&gt;&lt;code&gt;kind&lt;/code&gt;&lt;/dfn&gt;
+   attribute must return the &lt;span&gt;text track kind&lt;/span&gt; of the
+   &lt;span&gt;text track&lt;/span&gt; that the &lt;code&gt;TextTrack&lt;/code&gt; object
+@@ -38076,7 +38204,7 @@
+    &lt;dt&gt;&quot;&lt;dfn title=&quot;dom-TextTrack-hidden&quot;&gt;&lt;code&gt;hidden&lt;/code&gt;&lt;/dfn&gt;&quot;&lt;/dt&gt;
+    &lt;dd&gt;The &lt;span&gt;text track hidden&lt;/span&gt; mode.&lt;/dd&gt;
+    &lt;dt&gt;&quot;&lt;dfn title=&quot;dom-TextTrack-showing&quot;&gt;&lt;code&gt;showing&lt;/code&gt;&lt;/dfn&gt;&quot;&lt;/dt&gt;
+-   &lt;dd&gt;The &lt;span&gt;text track showing&lt;/span&gt; and &lt;span title=&quot;text track showing by default&quot;&gt;showing by default&lt;/span&gt; modes.&lt;/dd&gt;
++   &lt;dd&gt;The &lt;span&gt;text track showing&lt;/span&gt; mode.&lt;/dd&gt;
+   &lt;/dl&gt;
+ 
+   &lt;p&gt;On setting, if the new value isn't equal to what the attribute
+@@ -38117,12 +38245,6 @@
+ 
+   &lt;/dl&gt;
+ 
+-  &lt;p class=&quot;note&quot;&gt;If the mode is &lt;span title=&quot;text track showing by
+-  default&quot;&gt;showing by default&lt;/span&gt;, then there is no way to change
+-  it to &lt;span title=&quot;text track showing&quot;&gt;showing&lt;/span&gt; without first
+-  changing it to &lt;span title=&quot;text track disabled&quot;&gt;disabled&lt;/span&gt; or
+-  &lt;span title=&quot;text track hidden&quot;&gt;hidden&lt;/span&gt;.&lt;/p&gt;
+-
+   &lt;p&gt;If the &lt;span&gt;text track mode&lt;/span&gt; of the &lt;span&gt;text
+   track&lt;/span&gt; that the &lt;code&gt;TextTrack&lt;/code&gt; object represents is
+   not the &lt;span&gt;text track disabled&lt;/span&gt; mode, then the &lt;dfn
+@@ -38211,100 +38333,6 @@
+ 
+   &lt;/ol&gt;
+ 
+-  &lt;hr&gt;
+-
+-  &lt;p&gt;The &lt;dfn title=&quot;dom-media-addTextTrack&quot;&gt;&lt;code&gt;addTextTrack(&lt;var
+-  title=&quot;&quot;&gt;kind&lt;/var&gt;, &lt;var title=&quot;&quot;&gt;label&lt;/var&gt;, &lt;var
+-  title=&quot;&quot;&gt;language&lt;/var&gt;)&lt;/code&gt;&lt;/dfn&gt; method of &lt;span title=&quot;media
+-  element&quot;&gt;media elements&lt;/span&gt;, when invoked, must run the following
+-  steps:&lt;/p&gt;
+-
+-  &lt;ol&gt;
+-
+-   &lt;li&gt;
+-
+-    &lt;p&gt;If &lt;var title=&quot;&quot;&gt;kind&lt;/var&gt; is not one of the following
+-    strings, then throw a &lt;code&gt;SyntaxError&lt;/code&gt; exception and abort
+-    these steps:&lt;/p&gt;
+-
+-    &lt;ul class=&quot;brief&quot;&gt;
+-     &lt;li&gt;&lt;code title=&quot;dom-TextTrack-kind-subtitles&quot;&gt;subtitles&lt;/code&gt;
+-     &lt;li&gt;&lt;code title=&quot;dom-TextTrack-kind-captions&quot;&gt;captions&lt;/code&gt;
+-     &lt;li&gt;&lt;code title=&quot;dom-TextTrack-kind-descriptions&quot;&gt;descriptions&lt;/code&gt;
+-     &lt;li&gt;&lt;code title=&quot;dom-TextTrack-kind-chapters&quot;&gt;chapters&lt;/code&gt;
+-     &lt;li&gt;&lt;code title=&quot;dom-TextTrack-kind-metadata&quot;&gt;metadata&lt;/code&gt;
+-    &lt;/ul&gt;
+-
+-   &lt;/li&gt;
+-
+-   &lt;li&gt;
+-
+-    &lt;p&gt;If the &lt;var title=&quot;&quot;&gt;label&lt;/var&gt; argument was omitted, let &lt;var
+-    title=&quot;&quot;&gt;label&lt;/var&gt; be the empty string.&lt;/p&gt;
+-
+-   &lt;/li&gt;
+-
+-   &lt;li&gt;
+-
+-    &lt;p&gt;If the &lt;var title=&quot;&quot;&gt;language&lt;/var&gt; argument was omitted, let
+-    &lt;var title=&quot;&quot;&gt;language&lt;/var&gt; be the empty string.&lt;/p&gt;
+-
+-   &lt;/li&gt;
+-
+-   &lt;li&gt;
+-
+-    &lt;p&gt;Create a new &lt;code&gt;TextTrack&lt;/code&gt; object.&lt;/p&gt;
+-
+-   &lt;/li&gt;
+-
+-   &lt;li&gt;
+-
+-    &lt;p&gt;Create a new &lt;span&gt;text track&lt;/span&gt; corresponding to the new
+-    object, and set its &lt;span&gt;text track kind&lt;/span&gt; to &lt;var
+-    title=&quot;&quot;&gt;kind&lt;/var&gt;, its &lt;span&gt;text track label&lt;/span&gt; to &lt;var
+-    title=&quot;&quot;&gt;label&lt;/var&gt;, its &lt;span&gt;text track language&lt;/span&gt; to &lt;var
+-    title=&quot;&quot;&gt;language&lt;/var&gt;, its &lt;span&gt;text track readiness
+-    state&lt;/span&gt; to the &lt;span&gt;text track loaded&lt;/span&gt; state, its
+-    &lt;span&gt;text track mode&lt;/span&gt; to the &lt;span&gt;text track hidden&lt;/span&gt;
+-    mode, and its &lt;span&gt;text track list of cues&lt;/span&gt; to an empty
+-    list.
+-    Associate the &lt;span&gt;text track list of cues&lt;/span&gt; with the
+-    &lt;span&gt;rules for updating the display of WebVTT text tracks&lt;/span&gt;
+-    as its &lt;span&gt;rules for updating the text track rendering&lt;/span&gt;.
+-    &lt;a href=&quot;#refsWEBVTT&quot;&gt;[WEBVTT]&lt;/a&gt;
+-    &lt;/p&gt;
+-
+-   &lt;/li&gt;
+-
+-   &lt;li&gt;
+-
+-    &lt;p&gt;Add the new &lt;span&gt;text track&lt;/span&gt; to the &lt;span&gt;media
+-    element&lt;/span&gt;'s &lt;span&gt;list of text tracks&lt;/span&gt;.&lt;/p&gt;
+-
+-   &lt;/li&gt;
+-
+-   &lt;li&gt;
+-
+-    &lt;p&gt;&lt;span&gt;Queue a task&lt;/span&gt; to fire an event with the name &lt;code
+-    title=&quot;event-addtrack&quot;&gt;addtrack&lt;/code&gt;, that does not bubble and
+-    is not cancelable, and that uses the &lt;code&gt;TrackEvent&lt;/code&gt;
+-    interface, with the &lt;code
+-    title=&quot;dom-TrackEvent-track&quot;&gt;track&lt;/code&gt; attribute initialized to
+-    the new &lt;span&gt;text track&lt;/span&gt;'s &lt;code&gt;TextTrack&lt;/code&gt; object,
+-    at the &lt;span&gt;media element&lt;/span&gt;'s &lt;code
+-    title=&quot;dom-media-textTracks&quot;&gt;textTracks&lt;/code&gt; attribute's
+-    &lt;code&gt;TextTrackList&lt;/code&gt; object.&lt;/p&gt;
+-
+-   &lt;/li&gt;
+-
+-   &lt;li&gt;
+-
+-    &lt;p&gt;Return the new &lt;code&gt;TextTrack&lt;/code&gt; object.&lt;/p&gt;
+-
+-   &lt;/li&gt;
+-
+-  &lt;/ol&gt;
+-
+   &lt;/div&gt;
+ 
+   &lt;div class=&quot;example&quot;&gt;
+@@ -39031,7 +39059,6 @@
+    &lt;li&gt;&lt;dfn&gt;Text track kind&lt;/dfn&gt;
+    &lt;li&gt;&lt;dfn&gt;Text track mode&lt;/dfn&gt;
+    &lt;li&gt;&lt;dfn&gt;Text track showing&lt;/dfn&gt;
+-   &lt;li&gt;&lt;dfn&gt;Text track showing by default&lt;/dfn&gt;
+    &lt;li&gt;&lt;dfn&gt;Text track cue&lt;/dfn&gt;
+    &lt;li&gt;&lt;dfn&gt;Text track list of cues&lt;/dfn&gt;
+    &lt;li&gt;&lt;dfn&gt;Text track cue order&lt;/dfn&gt;
+@@ -41408,8 +41435,7 @@
+   &lt;p&gt;For the purposes of listing chapters in the &lt;span&gt;media
+   resource&lt;/span&gt;, only &lt;span title=&quot;text track&quot;&gt;text tracks&lt;/span&gt; in
+   the &lt;span&gt;media element&lt;/span&gt;'s &lt;span&gt;list of text tracks&lt;/span&gt;
+-  &lt;span title=&quot;text track showing&quot;&gt;showing&lt;/span&gt; or &lt;span title=&quot;text
+-  track showing by default&quot;&gt;showing by default&lt;/span&gt; and whose
++  that are &lt;span title=&quot;text track showing&quot;&gt;showing&lt;/span&gt; and whose
+   &lt;span&gt;text track kind&lt;/span&gt; is &lt;code
+   title=&quot;dom-TextTrack-kind-chapters&quot;&gt;chapters&lt;/code&gt; should be used.
+   Such tracks must be interpreted according to the &lt;span&gt;rules for
+@@ -113399,15 +113425,14 @@
+ 
+   &lt;p&gt;When the user agent starts &lt;span title=&quot;expose a user interface
+   to the user&quot;&gt;exposing a user interface&lt;/span&gt; for a
+-  &lt;code&gt;video&lt;/code&gt; element, the user agent should run the &lt;span&gt;rules
+-  for updating the text track rendering&lt;/span&gt; of each of the &lt;span
+-  title=&quot;text track&quot;&gt;text tracks&lt;/span&gt; in the &lt;code&gt;video&lt;/code&gt;
+-  element's &lt;span&gt;list of text tracks&lt;/span&gt; that are &lt;span
+-  title=&quot;text track showing&quot;&gt;showing&lt;/span&gt; or &lt;span title=&quot;text
+-  track showing by default&quot;&gt;showing by default&lt;/span&gt; (e.g., for &lt;span
+-  title=&quot;text track&quot;&gt;text tracks&lt;/span&gt; based on
+-  &lt;span&gt;WebVTT&lt;/span&gt;, the &lt;span&gt;rules for updating the display of
+-  WebVTT text tracks&lt;/span&gt;). &lt;a href=&quot;#refsWEBVTT&quot;&gt;[WEBVTT]&lt;/a&gt;&lt;/p&gt;
++  &lt;code&gt;video&lt;/code&gt; element, the user agent should run the
++  &lt;span&gt;rules for updating the text track rendering&lt;/span&gt; of each of
++  the &lt;span title=&quot;text track&quot;&gt;text tracks&lt;/span&gt; in the
++  &lt;code&gt;video&lt;/code&gt; element's &lt;span&gt;list of text tracks&lt;/span&gt; that
++  are &lt;span title=&quot;text track showing&quot;&gt;showing&lt;/span&gt; (e.g., for &lt;span
++  title=&quot;text track&quot;&gt;text tracks&lt;/span&gt; based on &lt;span&gt;WebVTT&lt;/span&gt;,
++  the &lt;span&gt;rules for updating the display of WebVTT text
++  tracks&lt;/span&gt;). &lt;a href=&quot;#refsWEBVTT&quot;&gt;[WEBVTT]&lt;/a&gt;&lt;/p&gt;
+ 
+   &lt;p class=&quot;note&quot;&gt;Resizing &lt;code&gt;video&lt;/code&gt; and &lt;code&gt;canvas&lt;/code&gt;
+   elements does not interrupt video playback or clear the canvas.&lt;/p&gt;
+@@ -113476,8 +113501,7 @@
+    as their &lt;span&gt;rules for updating the text track rendering&lt;/span&gt;
+    these &lt;span&gt;rules for updating the display of WebVTT text
+    tracks&lt;/span&gt;, and whose &lt;span&gt;text track mode&lt;/span&gt; is &lt;span
+-   title=&quot;text track showing&quot;&gt;showing&lt;/span&gt; or &lt;span title=&quot;text
+-   track showing by default&quot;&gt;showing by default&lt;/span&gt;.&lt;/p&gt;&lt;/li&gt;
++   title=&quot;text track showing&quot;&gt;showing&lt;/span&gt;.&lt;/p&gt;&lt;/li&gt;
+ 
+    &lt;li&gt;&lt;p&gt;Let &lt;var title=&quot;&quot;&gt;cues&lt;/var&gt; be an empty list of &lt;span
+    title=&quot;text track cue&quot;&gt;text track cues&lt;/span&gt;.&lt;/p&gt;&lt;/li&gt;
+
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="014189.html">[html5] r7326 - [giow] (1) &lt;track&gt; loading algorithm updates (part	1) Affected topics: Video Tex [...]
+</A></li>
+	<LI>Next message: <A HREF="014191.html">[html5] r7328 - [giow] (1) Make text track cues more forgiving:	drop the concept of cues being ' [...]
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#14190">[ date ]</a>
+              <a href="thread.html#14190">[ thread ]</a>
+              <a href="subject.html#14190">[ subject ]</a>
+              <a href="author.html#14190">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/commit-watchers-whatwg.org">More information about the Commit-Watchers
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

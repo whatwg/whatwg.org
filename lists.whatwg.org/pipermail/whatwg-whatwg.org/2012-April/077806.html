@@ -1,0 +1,144 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] [canvas] matrix based changes on bitmaps
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20%5Bcanvas%5D%20matrix%20based%20changes%20on%20bitmaps&In-Reply-To=%3C4F96143D.8070806%40jumis.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="077804.html">
+   <LINK REL="Next"  HREF="035541.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] [canvas] matrix based changes on bitmaps</H1>
+<!--htdig_noindex-->
+    <B>Charles Pritchard</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20%5Bcanvas%5D%20matrix%20based%20changes%20on%20bitmaps&In-Reply-To=%3C4F96143D.8070806%40jumis.com%3E"
+       TITLE="[whatwg] [canvas] matrix based changes on bitmaps">chuck at jumis.com
+       </A><BR>
+    <I>Mon Apr 23 19:47:25 PDT 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="077804.html">[whatwg] [canvas] matrix based changes on bitmaps
+</A></li>
+        <LI>Next message: <A HREF="035541.html">[whatwg] File based permission files?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#77806">[ date ]</a>
+              <a href="thread.html#77806">[ thread ]</a>
+              <a href="subject.html#77806">[ subject ]</a>
+              <a href="author.html#77806">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On 4/23/2012 6:18 PM, Boris Zbarsky wrote:
+&gt;<i> On 4/23/12 5:57 PM, Charles Pritchard wrote:
+</I>&gt;&gt;<i> Currently, if you want to do &quot;fast&quot; operations on a Canvas, you need to
+</I>&gt;&gt;<i> load it into WebGL and use GLSL to do your quick vector math.
+</I>&gt;&gt;<i> It'd be nice to see a math object for Typed Arrays with similar power.
+</I>&gt;<i>
+</I>&gt;<i> <A HREF="http://software.intel.com/en-us/articles/opencl-river-trail/">http://software.intel.com/en-us/articles/opencl-river-trail/</A> is worth 
+</I>&gt;<i> looking at in this context.
+</I>&gt;<i>
+</I>&gt;<i> -Boris
+</I>
+Neither introduce multiply/add methods. They do improve on typical JS 
+methods.
+
+<A HREF="http://cloud.github.com/downloads/RiverTrail/RiverTrail/rivertrail-api-draft-02-2012.pdf">http://cloud.github.com/downloads/RiverTrail/RiverTrail/rivertrail-api-draft-02-2012.pdf</A>
+<A HREF="https://github.com/sheremetyev/w16">https://github.com/sheremetyev/w16</A>
+
+Example from RiverTrail:
+var myPA = new ParallelArray([1.0, 2.0, 3,0]);  // &lt;1.0, 2.0, 3.0&gt;
+var myPlusPA = myPA(function(element){return element+1;}; // &lt;2.0, 3.0, 
+4.0&gt; [sic]
+
+The partition method (for map):
+pa = new ParallelArray([1,2,3,4])   // &lt;1,2,3,4&gt;
+pa.partition(2)                    // &lt;&lt;1,2&gt;,&lt;3,4&gt;&gt;
+
+W16 looks a little more like typical processing, chunked into batches.
+<A HREF="https://github.com/sheremetyev/w16/blob/master/w16/primes.js">https://github.com/sheremetyev/w16/blob/master/w16/primes.js</A>
+
+ParallelArray(TypedArray) seems ok; it'd be nice though to have methods 
+on that object, instead of relying on callbacks.
+
+
+Seems like convolution would go something like this:
+var d = ctx.getImageData(0,0,ctx.width,ctx.height);
+var pa = new ParallelArray(new Float32Array(d.data));
+pa.partition(d.width);
+pa.combine(2,function(y,i) {
+     this[y][i] = this[y][i-1]... etc;
+});
+
+It's just that our methods are typically in a for loop, such as the W16 
+primes.js example.
+
+
+We'd probably end up with something like this instead of the cleaner 
+combine:
+
+if(pa.isReal) { pa.batchSize = 1; pa.stride = 1; }
+else { pa.batchSize = d.height; pa.stride = d.width; }
+pa.combine(2, function(y,i) {
+     for(var height=pa.batchSize,width=pa.stride; y&lt;height y++) for(; 
+i&lt;width; i++) { var offset = y * width;
+     this[offset + i] = this[offset + (i-1)]... etc;
+}});
+
+
+The for loop could be optimized out for items like RiverTrail, W16 could 
+use batchSize for its own batch semantics, typical polyfill/JS 
+implementations would just run apply or call.
+
+It'd be nice to have progress events:
+pa.onprogressevent = function() {
+     if(!e.readyState) console.log(&quot;processing&quot;);
+     if(e.readyState == 4) {
+         ctx.putImageData(d.data,0,0);
+     }
+     else {
+         console.log(&quot;.&quot;);
+     }
+};
+
+And it'd be nice to have basic matrix operations anyway. I'd like to see 
+mul and add. I've tried to abuse CSSMatrix for that purpose. It works, 
+but it's slow and not really intended for that purpose. It could be sped 
+up, if nothing else comes up.
+
+
+-Charles
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="077804.html">[whatwg] [canvas] matrix based changes on bitmaps
+</A></li>
+	<LI>Next message: <A HREF="035541.html">[whatwg] File based permission files?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#77806">[ date ]</a>
+              <a href="thread.html#77806">[ thread ]</a>
+              <a href="subject.html#77806">[ subject ]</a>
+              <a href="author.html#77806">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

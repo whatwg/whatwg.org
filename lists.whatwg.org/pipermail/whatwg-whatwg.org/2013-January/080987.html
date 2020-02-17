@@ -1,0 +1,127 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Implementation issue: step mismatch handling for &lt;input type=range&gt;
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Implementation%20issue%3A%20step%20mismatch%20handling%20for%0A%20%3Cinput%20type%3Drange%3E&In-Reply-To=%3CPine.LNX.4.64.1301172004520.2101%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="080985.html">
+   <LINK REL="Next"  HREF="080998.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Implementation issue: step mismatch handling for &lt;input type=range&gt;</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Implementation%20issue%3A%20step%20mismatch%20handling%20for%0A%20%3Cinput%20type%3Drange%3E&In-Reply-To=%3CPine.LNX.4.64.1301172004520.2101%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg] Implementation issue: step mismatch handling for &lt;input type=range&gt;">ian at hixie.ch
+       </A><BR>
+    <I>Thu Jan 17 12:13:23 PST 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="080985.html">[whatwg] Implementation issue: step mismatch handling for &lt;input type=range&gt;
+</A></li>
+        <LI>Next message: <A HREF="080998.html">[whatwg] Implementation issue: step mismatch handling for &lt;input type=range&gt;
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#80987">[ date ]</a>
+              <a href="thread.html#80987">[ thread ]</a>
+              <a href="subject.html#80987">[ subject ]</a>
+              <a href="author.html#80987">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Thu, 17 Jan 2013, Jonathan Watt wrote:
+&gt;<i>
+</I>&gt;<i> I'm working on implementing &lt;input type=range&gt; for Gecko and have 
+</I>&gt;<i> encountered what I believe to be an issue in the spec.
+</I>&gt;<i> 
+</I>&gt;<i> Step 1 of the algorithm to find the &quot;step base&quot;:
+</I>&gt;<i> 
+</I>&gt;<i> <A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/common-input-element-attributes.html#concept-input-min-zero">http://www.whatwg.org/specs/web-apps/current-work/multipage/common-input-element-attributes.html#concept-input-min-zero</A>
+</I>&gt;<i> 
+</I>&gt;<i> says &quot;If the element has a min content attribute...to the value of the 
+</I>&gt;<i> min content attribute...&quot;. Should this not talk about &quot;minimum&quot; rather 
+</I>&gt;<i> than &quot;min content attribute&quot;? It would otherwise seem to give bad 
+</I>&gt;<i> results in the case of &lt;input type=range&gt;, which has a default minimum 
+</I>&gt;<i> of zero (a default minimum makes sense in the case of type=range, since 
+</I>&gt;<i> an unbounded slider would be impossible for a user to interact with). 
+</I>&gt;<i> Consider for example:
+</I>&gt;<i> 
+</I>&gt;<i>   &lt;input type=range value=-1 max=1 step=3&gt;
+</I>&gt;<i> 
+</I>&gt;<i> As it stands, the current spec text says that the &quot;step base&quot; is -1 
+</I>&gt;<i> (from the 'value' content attribute), the 'minimum' is zero (from the 
+</I>&gt;<i> default minimum), the 'maximum' is 1, and the step is 3.
+</I>
+Right.
+
+
+&gt;<i> As a result, an implementation would seem to be directed to enter an 
+</I>&gt;<i> infinite loop applying the paragraphs beginning with &quot;When the element 
+</I>&gt;<i> is suffering from an underflow...&quot; and &quot;When the element is suffering 
+</I>&gt;<i> from a step mismatch...&quot; in:
+</I>&gt;<i> 
+</I>&gt;<i> <A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/states-of-the-type-attribute.html#range-state-%28type=range%29">http://www.whatwg.org/specs/web-apps/current-work/multipage/states-of-the-type-attribute.html#range-state-%28type=range%29</A>
+</I>
+First the element is suffering from an underflow but not a step mismatch, 
+so the user agent must set the element's value to a valid floating-point 
+number that represents the minimum (0).
+
+Now the element is suffering from a step mismatch but not an underflow, so 
+the user agent must round the element's value to the nearest number for 
+which the element would not suffer from a step mismatch, and which is 
+greater than or equal to the minimum, and, if the maximum is not less than 
+the minimum, which is less than or equal to the maximum.
+
+There's no such value. This isn't an infinite loop, but it is indeed an 
+error. Fixed, by adding &quot;if there is a number that matches these 
+constraints&quot;, which means that the value now ends up at 0 and remains 
+suffering from a step mismatch.
+
+
+&gt;<i> If the step base considered the 'minimum' instead of the 'min' content 
+</I>&gt;<i> attribute, then the step base would be zero, and thus the value would 
+</I>&gt;<i> settle at zero.
+</I>
+Right, but that would be highly unlikely to make sense, because it would 
+mean the value the author set was an invalid value. You shouldn't be 
+forced to specify the minimum if you're already specifying a step and a 
+value and the default minimum of zero is adequate.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="080985.html">[whatwg] Implementation issue: step mismatch handling for &lt;input type=range&gt;
+</A></li>
+	<LI>Next message: <A HREF="080998.html">[whatwg] Implementation issue: step mismatch handling for &lt;input type=range&gt;
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#80987">[ date ]</a>
+              <a href="thread.html#80987">[ thread ]</a>
+              <a href="subject.html#80987">[ subject ]</a>
+              <a href="author.html#80987">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

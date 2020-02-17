@@ -1,0 +1,159 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Hit regions and events
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Hit%20regions%20and%20events&In-Reply-To=%3Calpine.DEB.2.00.1403042343460.32463%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="084398.html">
+   <LINK REL="Next"  HREF="084405.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Hit regions and events</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Hit%20regions%20and%20events&In-Reply-To=%3Calpine.DEB.2.00.1403042343460.32463%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg] Hit regions and events">ian at hixie.ch
+       </A><BR>
+    <I>Tue Mar  4 15:53:18 PST 2014</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="084398.html">[whatwg] hit regions: type of events that are intercepted
+</A></li>
+        <LI>Next message: <A HREF="084405.html">[whatwg] Hit regions and events
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#84402">[ date ]</a>
+              <a href="thread.html#84402">[ thread ]</a>
+              <a href="subject.html#84402">[ subject ]</a>
+              <a href="author.html#84402">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Fri, 28 Feb 2014, Rik Cabanier wrote:
+&gt;<i>
+</I>&gt;<i> Reading the hit region spec [1] on event handling, I was wondering how 
+</I>&gt;<i> event bubbling is supposed to be handled. Let's say you have the 
+</I>&gt;<i> following markup:
+</I>&gt;<i> 
+</I>&gt;<i> &lt;canvas id=&quot;cnv&quot;&gt;
+</I>&gt;<i> &lt;a id=&quot;a&quot; href=&quot;...&quot;&gt;&lt;/a&gt;
+</I>&gt;<i> &lt;a id=&quot;b&quot; href=&quot;...&quot;&gt;&lt;/a&gt;
+</I>&gt;<i> &lt;/canvas&gt;
+</I>&gt;<i> 
+</I>&gt;<i> and the following code:
+</I>&gt;<i> 
+</I>&gt;<i> var ctx = document.getElementById(&quot;cnv&quot;).getContext(&quot;2d&quot;);
+</I>&gt;<i> var a = document.getElementById(&quot;a&quot;);
+</I>&gt;<i> a.addEventListener(&quot;click&quot;, function(){...});
+</I>&gt;<i> var b = document.getElementById(&quot;b&quot;);
+</I>&gt;<i> // draw region for a
+</I>&gt;<i> ctx.addHitRegion({control: a, id: &quot;a&quot;});
+</I>&gt;<i> // draw region for b
+</I>&gt;<i> ctx.addHitRegion({control: b, parentID: &quot;a&quot;});
+</I>&gt;<i> 
+</I>&gt;<i> Now, if there's a mouse click for control b, should the event be handled 
+</I>&gt;<i> by the handler for control a?
+</I>
+What do you mean by &quot;a mouse click for control b&quot;?
+
+If you mean a click on the region for b, then isn't the algorithm for 
+routing mouse events on canvases unambiguous here?
+
+Step 3 gets the region for b, step 5 gets nothing interesting, step 7 gets 
+the &quot;b&quot; element, step 8 sets the target to that element, and step 9 
+dispatches it.
+
+
+&gt;<i> Also, should event from the fallback content bubble out of the canvas 
+</I>&gt;<i> element or should it act as a barrier?
+</I>
+Since the HTML spec doesn't say anything about this, the DOM spec applies, 
+and so bubbling behaviour is as per normal for the event.
+
+
+On Mon, 3 Mar 2014, Rik Cabanier wrote:
+&gt;<i>
+</I>&gt;<i> The current hit region specification doesn't state what events are routed
+</I>&gt;<i> to the fallback content.
+</I>
+It states &quot;When a MouseEvent is to be fired at a canvas element&quot;, which 
+seems pretty unambiguous.
+
+
+&gt;<i> Probably only mouse and touch events should be intercepted and 
+</I>&gt;<i> forwarded.
+</I>
+Currently touch events are not routed. Should those be added?
+
+
+&gt;<i> Thinking a bit more about this feature, it's a bit weird how events are 
+</I>&gt;<i> rerouted. Does this happen in any other place in the browser?
+</I>
+Bindings and (in the future, there's a pending bug on this for DOM) 
+seamless iframes are two places that come to mind.
+
+
+&gt;<i> For instance, if the fallback is an edit control and the user 
+</I>&gt;<i> drag-selects some text on the canvas, is it expected that this text is 
+</I>&gt;<i> also selected in the edit control?
+</I>
+You can't validly include a text field in canvas fallback precisely 
+because of this kind of thing. See:
+
+   <A HREF="http://whatwg.org/html#best-practices">http://whatwg.org/html#best-practices</A>
+
+
+On Tue, 4 Mar 2014, Rik Cabanier wrote:
+&gt;<i>
+</I>&gt;<i> Talking to roc, event retargeting will be very complex to implement.
+</I>
+Why would it be complicated?
+
+
+&gt;<i> To make it simpler for authors and browser vendors, we should not intercept
+</I>&gt;<i> the events. Instead, just keep sending them to the canvas object but add
+</I>&gt;<i> the region's ID to it.
+</I>&gt;<i> If the author wants to do the retargeting, he could easily do this in JS.
+</I>
+Having the event rerouted makes life significantly easier for authors. For 
+example, it means they don't have to do any hit testing or click 
+management for buttons, checkboxes, radio buttons, etc. It all just works.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="084398.html">[whatwg] hit regions: type of events that are intercepted
+</A></li>
+	<LI>Next message: <A HREF="084405.html">[whatwg] Hit regions and events
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#84402">[ date ]</a>
+              <a href="thread.html#84402">[ thread ]</a>
+              <a href="subject.html#84402">[ subject ]</a>
+              <a href="author.html#84402">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

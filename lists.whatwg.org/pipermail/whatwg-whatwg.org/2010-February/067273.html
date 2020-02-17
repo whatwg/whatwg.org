@@ -1,0 +1,173 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Codecs for &lt;audio&gt; and &lt;video&gt;
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Codecs%20for%20%3Caudio%3E%20and%20%3Cvideo%3E&In-Reply-To=%3C20100205172745.GA20814%40mccormick.cx%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="067190.html">
+   <LINK REL="Next"  HREF="067192.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Codecs for &lt;audio&gt; and &lt;video&gt;</H1>
+<!--htdig_noindex-->
+    <B>Chris McCormick</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Codecs%20for%20%3Caudio%3E%20and%20%3Cvideo%3E&In-Reply-To=%3C20100205172745.GA20814%40mccormick.cx%3E"
+       TITLE="[whatwg] Codecs for &lt;audio&gt; and &lt;video&gt;">chris at mccormick.cx
+       </A><BR>
+    <I>Fri Feb  5 09:27:45 PST 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="067190.html">[whatwg] Codecs for &lt;audio&gt; and &lt;video&gt;
+</A></li>
+        <LI>Next message: <A HREF="067192.html">[whatwg] Codecs for &lt;audio&gt; and &lt;video&gt;
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#67273">[ date ]</a>
+              <a href="thread.html#67273">[ thread ]</a>
+              <a href="subject.html#67273">[ subject ]</a>
+              <a href="author.html#67273">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Mon, Feb 01, 2010 at 04:10:51PM -0800, David Singer wrote:
+&gt;<i> 
+</I>&gt;<i> On Feb 1, 2010, at 14:02 , Silvia Pfeiffer wrote:
+</I>&gt;<i> 
+</I>&gt;<i> &gt; On Tue, Feb 2, 2010 at 4:05 AM, Chris McCormick &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">chris at mccormick.cx</A>&gt; wrote:
+</I>&gt;<i> &gt;&gt; I think I speak for all procedural audio people when I say, can't we get
+</I>&gt;<i> &gt;&gt; the browsers to allow sample-block access to audio?
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; Sounds like a solid argument to me. But I'm not the one who counts. :-)
+</I>&gt;<i> 
+</I>&gt;<i> I think that the browser vendors are currently trying to nail basic HTML5
+</I>&gt;<i> multimedia, then accessibility, then they'll take a breath and ask what's
+</I>&gt;<i> next.  But do you have ideas as to how?
+</I>
+Hi David,
+
+Since you ask, I'll volunteer my opionion on how this interface should look.
+First of all, it would be great to have the audio equivalent of the pixel-level
+access that Canvas exposes. In the other post on this thread we can see a
+reasonable start at an implementation of that in Firefox:
+
+mozSetup(channels, rate, volume) // called to create the audio stream
+mozWriteAudio(buffer[], bufferCount) // called to write buffer to the stream
+
+So building from that, ideally you'd have something like:
+
+// Set up a new audio output stream.
+// 'callback' specifies a javascript function which will be called each time
+// the buffer is empty.
+// This should probably be double buffered to allow javascript time to fill
+// the next buffer, or else just ask for two buffers to start with so the audio
+// is always one buffer ahead of the callback.
+
+o = setupAudioOutput(channels, rate, bufferSize, callback);
+// direct write immediately into the audio buffer (should happen at the callback)
+o.writeAudioToOutput(buffer);
+
+// The following is the input equivalent for accessing the microphone.
+// 'callback' specifies a javascript function which will be called each time
+// a new buffer of audio data is available and will pass that audio.
+
+callback = function(buf) {
+	// buf will contain a javascript array, or an AudioBuffer object
+	// (see below)
+}
+
+// set up an listen to the microphone
+i = setupAudioInput(channels, rate, bufferSize, callback);
+// immediately read what is in the mic buffer at the moment
+buffer = i.readAudioFromInput();
+
+Those are the truly essential bits. Code level access to audio in and out.
+
+Once those basics are in place, it would be great to be able to do fast vector
+operations on buffers of audio data. It would be cool to have an AudioBuffer
+type to enable this. This would basically be a javascript array, but with
+convenience audio functions.
+
+a = AudioBuffer([0, 0.5, 0.2, ... (64 samples) ...]);
+o.writeAudioToOutput(a);
+
+For example, if you wanted to apply a volume ramp to a chunk of audio data you
+might have an operation like this:
+
+// this could be a buffer of audio that has come in, e.g. from the microphone
+myBuffer = i.readAudioFromInput();
+
+// this is a buffer of audio data going from 1 to 0 (a 'fade' over one block)
+lineBuffer = AudioBuffer([1, 0.9, 0.8, ... (buffer-length number of samples)]);
+
+// multiply our buffer by the fade ramp
+newBuffer = myBuffer.multiply(otherBuffer);
+
+// post our audio into the device
+o.writeAudioToOutput(newBuffer);
+
+Some other fast AudioBuffer functions for operating on vectors of audio data
+would be:
+
+multiply() -&gt; multiply two vectors together (or a constant with a vector)
+add() -&gt; add two vectors together (or a constant with a vector)
+shift(x) -&gt; delay a vector in time by x samples
+   * shift would return the remaining samples
+   * this would be useful for building filters and other audio effects
+fft() -&gt; perform a fast fourier transform
+   * returns an array of two buffers with the result - real + imaginary
+ifft(r, i) -&gt; perform an inverse fast fourier transform with two buffers
+   * returns an array of audio data
+copy() -&gt; fast copy of an entire buffer of audio data
+
+Ideally some of those could operate on sigle-value floats as well as vectors of
+audio data, where appropriate. Additionally, if two vectors are different
+sizes, the default behaviour should be to 'wrap' the shorter vector to match up
+with the longer one.
+
+So the developer would do this stuff in the output-buffer callback. If just
+these few functions could be implemented it would take us a huge distance
+towards being able to do amazing audio stuff right inside the browser without
+requiring flash.
+
+Thanks very much for your time.
+
+Best regards,
+
+Chris.
+
+-------------------
+<A HREF="http://mccormick.cx">http://mccormick.cx</A>
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="067190.html">[whatwg] Codecs for &lt;audio&gt; and &lt;video&gt;
+</A></li>
+	<LI>Next message: <A HREF="067192.html">[whatwg] Codecs for &lt;audio&gt; and &lt;video&gt;
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#67273">[ date ]</a>
+              <a href="thread.html#67273">[ thread ]</a>
+              <a href="subject.html#67273">[ subject ]</a>
+              <a href="author.html#67273">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

@@ -1,0 +1,148 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] parsing nested forms
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20parsing%20nested%20forms&In-Reply-To=%3CPine.LNX.4.62.0812020254300.17414%40hixie.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="059933.html">
+   <LINK REL="Next"  HREF="059935.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] parsing nested forms</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20parsing%20nested%20forms&In-Reply-To=%3CPine.LNX.4.62.0812020254300.17414%40hixie.dreamhostps.com%3E"
+       TITLE="[whatwg] parsing nested forms">ian at hixie.ch
+       </A><BR>
+    <I>Mon Dec  1 19:06:15 PST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="059933.html">[whatwg] &quot;end body tag&quot; parsing clarification
+</A></li>
+        <LI>Next message: <A HREF="059935.html">[whatwg] li start tag algorithm clarification.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#59934">[ date ]</a>
+              <a href="thread.html#59934">[ thread ]</a>
+              <a href="subject.html#59934">[ subject ]</a>
+              <a href="author.html#59934">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Thu, 6 Nov 2008, Tommy Thorsen wrote:
+&gt;<i> 
+</I>&gt;<i> Before I get to the real issue, I think I should give you a little bit 
+</I>&gt;<i> of background. I'm working for a company which makes a web browser. 
+</I>&gt;<i> We've been having some problems with our algorithm for parsing illegal 
+</I>&gt;<i> html, so we decided to scrap the whole module and implement the 
+</I>&gt;<i> algorithm exactly as outlined in the html5 spec. So far this has been a 
+</I>&gt;<i> great success. We're already way better than we used to be, but there 
+</I>&gt;<i> are some situations where the html5 parsing algorithm does not quite 
+</I>&gt;<i> give us the result we expected.
+</I>
+This is great feedback!
+
+
+&gt;<i> Yesterday I noticed that we were not displaying the site 
+</I>&gt;<i> <A HREF="http://bankrate.com">http://bankrate.com</A> correctly. The problem we had on that page boils 
+</I>&gt;<i> down to the following markup:
+</I>&gt;<i> 
+</I>&gt;<i> &lt;div id=&quot;firstdiv&quot;&gt;
+</I>&gt;<i>    A
+</I>&gt;<i>    &lt;div id=&quot;seconddiv&quot;&gt;
+</I>&gt;<i>        &lt;form id=&quot;firstform&quot;&gt;
+</I>&gt;<i>            &lt;div id=&quot;thirddiv&quot;&gt;
+</I>&gt;<i>                &lt;form id=&quot;secondform&quot;&gt;&lt;/form&gt;
+</I>&gt;<i>            &lt;/div&gt;
+</I>&gt;<i>        &lt;/form&gt;
+</I>&gt;<i>    &lt;/div&gt;
+</I>&gt;<i>    B
+</I>&gt;<i> &lt;/div&gt;
+</I>&gt;<i> 
+</I>&gt;<i> I'll walk you through it; Everything is normal until we reach the start 
+</I>&gt;<i> tag for the &quot;secondform&quot;. It is ignored, since we're already in a form 
+</I>&gt;<i> (the form element pointer points to &quot;firstform&quot;.) Then we see the end 
+</I>&gt;<i> tag which was meant for &quot;secondform&quot;. We pop elements from the stack of 
+</I>&gt;<i> open elements until we find a form element (which is &quot;firstform&quot;) 
+</I>&gt;<i> popping off &quot;thirddiv&quot; in the process. The next token we get is the end 
+</I>&gt;<i> div tag which was meant for &quot;thirddiv&quot;. Since &quot;thirddiv&quot; is already 
+</I>&gt;<i> gone, we pop &quot;seconddiv&quot; instead, and now we're sort of off-balance. The 
+</I>&gt;<i> result is that A and B does not end up as children of the same div.
+</I>&gt;<i> 
+</I>&gt;<i> I've applied a fix to our code which makes us handle this particular 
+</I>&gt;<i> case better. I haven't tested it very thoroughly, but the change is to 
+</I>&gt;<i> implement the 'An end tag whose tag name is &quot;form&quot;' section in &quot;in body&quot; 
+</I>&gt;<i> as if it said:
+</I>&gt;<i> 
+</I>&gt;<i> ------
+</I>&gt;<i> An end tag whose tag name is &quot;form&quot;
+</I>&gt;<i> 
+</I>&gt;<i>    Let /node/ be the form element pointer
+</I>&gt;<i>    Set the form element pointer to null.
+</I>&gt;<i> 
+</I>&gt;<i>    If the stack of open elements does not have an element in scope with the
+</I>&gt;<i> same tag name as that of the token, then this is a parse error; ignore the
+</I>&gt;<i> token.
+</I>&gt;<i> 
+</I>&gt;<i>    Otherwise, run these steps:
+</I>&gt;<i> 
+</I>&gt;<i>       1. Generate implied end tags.
+</I>&gt;<i>       2. If the current node is not an element with the same tag name as that
+</I>&gt;<i> of the token, then this is a parse error.
+</I>&gt;<i>       3. Remove /node/ from the stack of open elements
+</I>&gt;<i> ------
+</I>&gt;<i> 
+</I>&gt;<i> This seems to give us pretty much the same behaviour as Opera for the 
+</I>&gt;<i> simple example above. Can any of you see any potential problems with 
+</I>&gt;<i> this approach? In any case, I do believe that the specification needs to 
+</I>&gt;<i> be changed one way or another, so that it handles this case better.
+</I>
+I concurr that this is closer to what we need. I have updated the spec 
+accordingly.
+
+
+&gt;<i> I think I have a couple of other instances where we've had to deviate 
+</I>&gt;<i> from the specification in order to tackle problems discovered by our 
+</I>&gt;<i> testers, and if any of you are interested in this kind of feedback, I'll 
+</I>&gt;<i> dig them out and post them on this list.
+</I>
+Yes, please do!
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="059933.html">[whatwg] &quot;end body tag&quot; parsing clarification
+</A></li>
+	<LI>Next message: <A HREF="059935.html">[whatwg] li start tag algorithm clarification.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#59934">[ date ]</a>
+              <a href="thread.html#59934">[ thread ]</a>
+              <a href="subject.html#59934">[ subject ]</a>
+              <a href="author.html#59934">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

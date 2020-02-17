@@ -1,0 +1,278 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] TCPConnection feedback
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20TCPConnection%20feedback&In-Reply-To=%3C24f9a1ba0806171830x183f59aao4d29f3eceedcc6f8%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="015100.html">
+   <LINK REL="Next"  HREF="015109.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] TCPConnection feedback</H1>
+<!--htdig_noindex-->
+    <B>Michael Carter</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20TCPConnection%20feedback&In-Reply-To=%3C24f9a1ba0806171830x183f59aao4d29f3eceedcc6f8%40mail.gmail.com%3E"
+       TITLE="[whatwg] TCPConnection feedback">michael.carter at kaazing.com
+       </A><BR>
+    <I>Tue Jun 17 18:30:50 PDT 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="015100.html">[whatwg] Sandboxing to accommodate user generated content.
+</A></li>
+        <LI>Next message: <A HREF="015109.html">[whatwg] TCPConnection feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#15108">[ date ]</a>
+              <a href="thread.html#15108">[ thread ]</a>
+              <a href="subject.html#15108">[ subject ]</a>
+              <a href="author.html#15108">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Hello,
+
+We've had a number of discussions in the #whatwg channel thus far about the
+TCPConnection specification in section 6, and the consesus is that there is
+utility in an asynchronous, bi-directional communication mechanism, but the
+current proposal has a number of issues that need to be resolved.
+
+There are a list of requirements for the protocol:
+
+&lt;Hixie&gt; basically my main requirements are that:
+HIXIE.1) there be the ability for one process to have a full-duplex
+communication channel to the script running in the web page
+HIXIE.2) the server-side be implementable in a fully conformant way in just
+a few lines of perl without support libraries
+HIXIE.3) that it be safe from abuse (e.g. can't connect to smtp servers)
+HIXIE.4) that it work from within fascist firewalls
+
+
+There are some issues with the specification as it stands:
+-----------
+&lt;othermaciej&gt; my two problems with it are: (1) it uses port/host addressing
+instead of URI addressing, which is a poor fit for the Web model
+&lt;othermaciej&gt; (2) it's bad to send non-http over the assigned ports for http
+and https
+&lt;othermaciej&gt; (3) I am worried that connection to arbitrary ports could lead
+to security issues, although Hixie tried hard to avoid them
+----------
+
+The complete list from multiple discussions, I believe, is:
+ISSUE.1) lack of URI addressing
+ISSUE.2) sending non-http(s) over http(s) ports
+ISSUE.3) inability to traverse forward proxies
+ISSUE.4) lack of cross-domain access control
+ISSUE.5) DNS rebinding security holes
+ISSUE.6) lack of load balancing integration
+ISSUE.7) lack of authentication integration
+ISSUE.8) virtual hosting with secure communication (no Host header, and even
+if there was, there's no way to indicate this header *before* the secure
+handshake)
+
+I propose that we
+PROPOSAL.1) change the initial handshake of the protocol to be HTTP based to
+leverage existing solutions to these problems.
+PROPOSAL.2) modify the API to use URIs instead of port/host pairs
+
+I believe that the HTTP/1.1 OPTIONS method, Upgrade header, and &quot;101
+Switching Protocols&quot; response is the best avenue to take because these parts
+of HTTP were specifically designed to: (1) See if the server can speak the
+new protocol (2) switch the protocol mid-stream.
+
+How the changes solve the problems
+=================================
+ISSUE.1) We added URI addressing
+ISSUE.2) We now only send valid HTTP(s) over HTTP(s) ports.
+ISSUE.3) We can send a CONNECT to the proxy, thus eliminating this problem.
+ISSUE.4) We can use the Access-Control header to solve this problem.
+ISSUE.5) The Host header solves this problem
+ISSUE.6) Many load balancers use cookies or urls. Using HTTP allows both
+cookies and urls, so we can integrate with existing HTTP load balancers.
+ISSUE.7) Cookies allow standard authentication mechansisms to be applied to
+the TCPConnection
+ISSUE.8) We can follow RFC 2817 for TLS upgrading mid stream,
+
+
+Examples
+========
+
+Normal Handshake
+----------------
+In javascript on a page served from the domain &quot;example.com&quot;, the following
+call is issued:
+
+tcp  = new TCPConnection(&quot;<A HREF="http://example.com/some/url&quot;">http://example.com/some/url&quot;</A>)
+
+C:
+OPTIONS /some/url HTTP/1.1\r\n
+Host: example.com\r\n
+Upgrade: TCPConnection/1.0\r\n
+Connection: Upgrade\r\n
+\r\n
+S:
+HTTP/1.1 101 Switching Protocols\r\n
+Connection: Upgrade\r\n
+Upgrade: TCPConnection/1.0\r\n
+\r\n
+
+C, S:
+
+[ Bi-directional communication ]
+
+
+Secure Handshake
+----------------
+In javascript on a page served from the domain &quot;example.com&quot;, the following
+call is issued:
+
+tcp  = new TCPConnection(&quot;<A HREF="https://example.com/some/url&quot;">https://example.com/some/url&quot;</A>)
+
+C, S (port 443):
+[ SSL handshake ]
+C:
+OPTIONS /some/url HTTP/1.1\r\n
+Host: example.com\r\n
+Upgrade: TCPConnection/1.0\r\n
+Connection: Upgrade\r\n
+\r\n
+S:
+HTTP/1.1 101 Switching Protocols\r\n
+Connection: Upgrade\r\n
+Upgrade: TCPConnection/1.0\r\n
+\r\n
+C, S:
+[ Bi-directional communication ]
+
+
+Cross-domain Access Controlled Handshake
+----------------------------------------
+In javascript on a page served from the domain &quot;example.com&quot;, the following
+call is issued:
+
+tcp  = new TCPConnection(&quot;<A HREF="http://www.example.com/some/url&quot;">http://www.example.com/some/url&quot;</A>)
+
+C:
+OPTIONS /some/url HTTP/1.1\r\n
+Host: www.example.com\r\n
+Upgrade: TCPConnection/1.0\r\n
+Connection: Upgrade\r\n
+\r\n
+S:
+HTTP/1.1 101 Switching Protocols\r\n
+Connection: Upgrade\r\n
+Upgrade: TCPConnection/1.0\r\n
+Access-Control: allow &lt;example.com&gt;\r\n
+\r\n
+
+C, S:
+[ Bi-directional communication ]
+
+
+Handshake Through a Forward Proxy (with Proxy Authentication)
+-------------------------------------------------------------
+In javascript from a page served in the domain &quot;example.com&quot;, and the
+browser is behind a forward proxy, the following call is issued:
+
+tcp  = new TCPConnection(&quot;<A HREF="http://example.com/some/url&quot;">http://example.com/some/url&quot;</A>)
+
+C:
+CONNECT example.com:80 HTTP/1.1\r\n
+Proxy-authorization: basic aGVsbG86d29ybGQ=\r\n
+\r\n
+OPTIONS /some/url HTTP/1.1\r\n
+Host: example.com\r\n
+Upgrade: TCPConnection/1.0\r\n
+Connection: Upgrade\r\n
+\r\n
+S:
+HTTP/1.1 101 Switching Protocols\r\n
+Connection: Upgrade\r\n
+Upgrade: TCPConnection/1.0\r\n
+\r\n
+C, S:
+[ Bi-directional communication ]
+
+
+TLS Upgrade
+-----------
+
+A potential server-side requirement of TCPConnection is virtual hosting
+TCPConnection servers by domain while allowing secure communication. RFC
+2817 specifies how to do TLS upgrades over HTTP so as to allow the initial
+Host header to be read by the server before the secure channel is created.
+We can use the same strategy with the TCPConnection protocol:
+
+C:
+OPTIONS /some/url HTTP/1.1\r\n
+Host: example.com\r\n
+Upgrade: TLS/1.0\r\n
+Connection: Upgrade\r\n
+\r\n
+S:
+HTTP/1.1 101 Switching Protocols\r\n
+Connection: Upgrade\r\n
+Upgrade: TLS/1.0, HTTP/1.1\r\n
+\r\n
+C:
+OPTIONS /some/url HTTP/1.1\r\n
+Host: example.com\r\n
+Upgrade: TCPConnection/1.0\r\n
+Connection: Upgrade\r\n
+\r\n
+S:
+HTTP/1.1 101 Switching Protocols\r\n
+Connection: Upgrade\r\n
+Upgrade: TCPConnection/1.0\r\n
+\r\n
+C, S:
+[ Secure Handshake ]
+C, S:
+[ Bi-directional communication ]
+
+
+Conclusion
+==========
+This proposal fits within the original requirements.
+
+HIXIE.1) We've provided full-duplex communication in the browser
+HIXIE.2) Its a single line of perl code to parse the http headers, and
+another to make sure the proper headers exist
+HIXIE.3) No existing SMTP server (or any non-TCPConnection server) is going
+to send back the appropriate handshake response.
+HIXIE.4) TCPConnection will be able to navigate forward proxies and
+firewalls due to our use of CONNECT.
+
+
+
+-Michael Carter
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: &lt;<A HREF="http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20080617/86fc47d1/attachment.htm">http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20080617/86fc47d1/attachment.htm</A>&gt;
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="015100.html">[whatwg] Sandboxing to accommodate user generated content.
+</A></li>
+	<LI>Next message: <A HREF="015109.html">[whatwg] TCPConnection feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#15108">[ date ]</a>
+              <a href="thread.html#15108">[ thread ]</a>
+              <a href="subject.html#15108">[ subject ]</a>
+              <a href="author.html#15108">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

@@ -1,0 +1,166 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Workers and queue of events
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Workers%20and%20queue%20of%20events&In-Reply-To=%3CPine.LNX.4.62.0812160533450.30225%40hixie.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017829.html">
+   <LINK REL="Next"  HREF="017831.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Workers and queue of events</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Workers%20and%20queue%20of%20events&In-Reply-To=%3CPine.LNX.4.62.0812160533450.30225%40hixie.dreamhostps.com%3E"
+       TITLE="[whatwg] Workers and queue of events">ian at hixie.ch
+       </A><BR>
+    <I>Mon Dec 15 22:38:04 PST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017829.html">[whatwg] Workers feedback
+</A></li>
+        <LI>Next message: <A HREF="017831.html">[whatwg] Terminate a Worker algorithm
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17830">[ date ]</a>
+              <a href="thread.html#17830">[ thread ]</a>
+              <a href="subject.html#17830">[ subject ]</a>
+              <a href="author.html#17830">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Tue, 18 Nov 2008, Dmitry Titov wrote:
+&gt;<i>
+</I>&gt;<i> Pages communicate with their workers (dedicated) via queue of 
+</I>&gt;<i> events.
+</I>&gt;<i>
+</I>&gt;<i> What happens if the queue gets more and more events queued (as a result 
+</I>&gt;<i> of postMessage or timer callbacks) and the worker thread does not 
+</I>&gt;<i> consume them fast enough?
+</I>&gt;<i> 
+</I>&gt;<i>    - setInterval can skip posting a callback if the previously posted one
+</I>&gt;<i>    was not yet consumed.
+</I>&gt;<i>    - setTimeout is probably ok as it is but if the worker script adds them
+</I>&gt;<i>    in a loop it can be a problem.
+</I>&gt;<i>    - postMessage could somehow indicate a queue overflow and ignore the
+</I>&gt;<i>    attempt to post a message if the queue length exceeds some specific
+</I>&gt;<i>    threshold.
+</I>&gt;<i> 
+</I>&gt;<i> Basically, the queue probably should have a limit on it and once the 
+</I>&gt;<i> limit is reached, the queue-based operations should start to fail, 
+</I>&gt;<i> optionally with some indication.
+</I>
+As the spec says: &quot;User agents may impose implementation-specific limits 
+on otherwise unconstrained inputs, e.g. to prevent denial of service 
+attacks, to guard against running out of memory, or to work around 
+platform-specific limitations.&quot;
+
+
+On Tue, 18 Nov 2008, Dmitry Titov wrote:
+&gt;<i>
+</I>&gt;<i> It does seem like OOM indeed but it may be different because with 
+</I>&gt;<i> multiple threads it's much easier to get into effects like this, you 
+</I>&gt;<i> don't need to allocate a lot of objects.For example, lets say there is 
+</I>&gt;<i> something like this:
+</I>&gt;<i> 
+</I>&gt;<i> function computeStuff() { ... }  // takes 100ms to compute stuff
+</I>&gt;<i> setInterval(computeStuff, 10);
+</I>&gt;<i> 
+</I>&gt;<i> in normal situation, the single-threaded JS implementation would not 
+</I>&gt;<i> normally post another callback until the computeStuff() returns - since 
+</I>&gt;<i> timers are not checked nor timer events fetched until the previous 
+</I>&gt;<i> callback yields control, it's hard to implement this in a way that can 
+</I>&gt;<i> produce out-of-memory. In multithreaded implementation (with Workers) 
+</I>&gt;<i> the main thread that processes timers could stuff the Worker's queue at 
+</I>&gt;<i> 10ms intervals while the Worker will process those callbacks at 100ms 
+</I>&gt;<i> interval.
+</I>&gt;<i> 
+</I>&gt;<i> Same can happen with postMessage. On a fast computer it will just work, 
+</I>&gt;<i> on a slow it can go out of memory.
+</I>&gt;<i> 
+</I>&gt;<i> Not sure if it should be reflected in the spec itself though...
+</I>
+I don't know what we can say beyond what we already say, really.
+
+
+On Wed, 19 Nov 2008, Robert O'Callahan wrote:
+&gt;<i> 
+</I>&gt;<i> You're not allocating JS objects but you are allocating event objects 
+</I>&gt;<i> internally, and everything's going to work fine until you actually do 
+</I>&gt;<i> hit OOM. So I think you should treat it like any other OOM and it should 
+</I>&gt;<i> not be exposed to the Web author in any special way.
+</I>
+I agree.
+
+
+On Tue, 18 Nov 2008, Dmitry Titov wrote:
+&gt;<i>
+</I>&gt;<i> SharedWorkers potentially would run cross-process. IPC can stop/stuck 
+</I>&gt;<i> for many reasons, taret process can die in the midflight (killed by the 
+</I>&gt;<i> user from TaskManager for example). I guess in this case 
+</I>&gt;<i> Worker.postMessage() could still just return as if everything is ok, but 
+</I>&gt;<i> nothing would happen. Is it the right behavior?
+</I>
+Yeah. That's what happens when you postMessage() to an unentangled port 
+too.
+
+
+On Tue, 18 Nov 2008, Jonas Sicking wrote:
+&gt;<i> 
+</I>&gt;<i> And if it becomes a problem we might in a future version be able to add 
+</I>&gt;<i> something like a 'messagepostfailed' event that is fired on the sending 
+</I>&gt;<i> port in case a message failed to reach its target for one reason or 
+</I>&gt;<i> another.
+</I>
+Right.
+
+
+On Wed, 19 Nov 2008, Robert O'Callahan wrote:
+&gt;<i> 
+</I>&gt;<i> I don't think that would be useful. What if the message reaches the 
+</I>&gt;<i> target but the target dies while the message is queued? Or it dies after 
+</I>&gt;<i> executing the first JS statement in the message handler?
+</I>
+Indeed.
+
+
+&gt;<i> If I was implementing workers in their own processes, I'd be tempted to 
+</I>&gt;<i> make abnormal termination of the worker fatal to any Web page that was 
+</I>&gt;<i> aware of the existence of the worker. The principle of &quot;if you can't 
+</I>&gt;<i> follow the spec, destroy the evidence so no-one can prove it&quot;.
+</I>
+Agreed.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017829.html">[whatwg] Workers feedback
+</A></li>
+	<LI>Next message: <A HREF="017831.html">[whatwg] Terminate a Worker algorithm
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17830">[ date ]</a>
+              <a href="thread.html#17830">[ thread ]</a>
+              <a href="subject.html#17830">[ subject ]</a>
+              <a href="author.html#17830">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

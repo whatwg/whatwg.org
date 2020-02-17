@@ -1,0 +1,889 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Proposal for separating script downloads and execution
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Proposal%20for%20separating%20script%20downloads%20and%20execution&In-Reply-To=%3CE654DDD1995243708B035C1B57AD0543%40spartacus%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="031807.html">
+   <LINK REL="Next"  HREF="031861.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Proposal for separating script downloads and execution</H1>
+<!--htdig_noindex-->
+    <B>Kyle Simpson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Proposal%20for%20separating%20script%20downloads%20and%20execution&In-Reply-To=%3CE654DDD1995243708B035C1B57AD0543%40spartacus%3E"
+       TITLE="[whatwg] Proposal for separating script downloads and execution">getify at gmail.com
+       </A><BR>
+    <I>Mon May 30 12:52:17 PDT 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="031807.html">[whatwg] Proposal for separating script downloads and execution
+</A></li>
+        <LI>Next message: <A HREF="031861.html">[whatwg] Proposal for separating script downloads and execution
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#31858">[ date ]</a>
+              <a href="thread.html#31858">[ thread ]</a>
+              <a href="subject.html#31858">[ subject ]</a>
+              <a href="author.html#31858">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>[Apologies for being out of the loop on this thread thus far, as I was one 
+of the main proponents of it earlier this year. I am now going to dive in 
+and offer some feedback, both to Ian's comments as well as to others that 
+have replied. I also apologize that this will be an exceedingly long message 
+to address all that Ian brought up.]
+
+
+&gt;<i> Problem A:
+</I>&gt;<i>
+</I>&gt;<i> On Tue, 8 Feb 2011, John Tamplin wrote:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> simply parsing the downloaded script takes a lot of time and interferes
+</I>&gt;&gt;<i> with user interaction with the UI, so as awkward as it seems,
+</I>&gt;&gt;<i> downloading the script in a comment in the background, and then
+</I>&gt;&gt;<i> evaluating it when needed does provide a better user experience on
+</I>&gt;&gt;<i> mobile devices.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> See
+</I>&gt;&gt;<i> <A HREF="http://googlecode.blogspot.com/2009/09/gmail-for-mobile-html5-series-reducing.html">http://googlecode.blogspot.com/2009/09/gmail-for-mobile-html5-series-reducing.html</A>
+</I>&gt;&gt;<i> for the official blog post about this technique.
+</I>&gt;<i>
+</I>&gt;<i> The problem here seems to boil down to &quot;we want our script-heavy page to
+</I>&gt;<i> load fast without blocking UI, but browsers block the UI thread while
+</I>&gt;<i> parsing after downloading but before executing&quot;.
+</I>&gt;<i>
+</I>&gt;<i> .... .... .... .... .....................................
+</I>
+There's a whole bunch of other comments later in this thread, as well as in 
+the original threads, which seem to focus on the performance side of this 
+proposal's justification. I think we've beat this horse to death a dozen 
+times now, so I think belaboring it further is counter-productive.
+
+But you must understand that performance impact of execution/parsing was 
+only PART (and in fact in my mind, only a smaller minority part) of the 
+justification for wanting to have separatable download vs. parse/execute.
+
+However, *performance optimizations* as a general goal of web applications 
+is much more broad than just the question of if a background thread can 
+handle parsing of a script in a non-UI-blocking way.
+
+For instance, the whole concept of dynamic script loading (loading multiple 
+scripts in parallel, but executing them in order) is all about performance 
+optimization. THAT is a much more compelling set of arguments for this 
+feature being requested. So, *performance* is important, but the performance 
+of parsing/execution is perhaps a little less important in the overall 
+scheme of things.
+
+This thread seems to be so easily side-tracked into the minutia of 
+conjecturing about background thread parsing and different implementation 
+details. I wish we could just take as a given that parsing/execution of a 
+script are not zero-cost (though they may be smaller cost, depending on 
+various things), and that ANY control that a web performance optimization 
+expert can get in terms of when non-zero cost items happen is, in general, a 
+good thing.
+
+
+&gt;<i> PROPOSALS
+</I>&gt;<i>
+</I>&gt;<i> The simplest solution to problem A seems to be to have the browsers do the
+</I>&gt;<i> script parsing on a background thread, rather than blocking the UI. This
+</I>&gt;<i> requires no changes to the specification at all. It can be combined with
+</I>&gt;<i> lazy downloading by inserting a &lt;script&gt; node when the script is needed;
+</I>&gt;<i> basically, it is combining the &quot;downloading&quot; and &quot;parsing&quot; background
+</I>&gt;<i> steps into one.
+</I>
+The thread also makes a lot of references to &lt;script async&gt; and how that 
+seems to be the silver-bullet solution. The problem is two-fold:
+
+1. &lt;script async&gt; only effectively tells a user-agent to make the loading of 
+that script resource happen in parallel with other tasks, and that it can 
+choose to execute that script at any point whenever it feels is good. This 
+means that the script in fact can be executed still before DOM-ready, or 
+between DOM-ready and window.onload, or after window.onload. Thus, the 
+script's execution effects the page's rendering in an intermittent way, 
+depending on network speeds, etc.
+
+&lt;script defer&gt; on the other hand specifically tells the script to wait on 
+its execution until after onload.
+
+2. &lt;script async&gt; only effectively delays a script if that script is 
+completely self-contained, and doesn't have any other dependencies (such as 
+needing two scripts to defer/async themselves). If you need to tell two or 
+more dependent scripts to wait until &quot;later&quot; to execute, &lt;script async&gt; is 
+not helpful, as (per spec) the execution order of the scripts is not 
+guaranteed. Dynamically loading a script element, and setting async=false, 
+will ensure execution order, but will not alleviate the problem that 
+execution of the script (and its affects thereof) may happen earlier than 
+they would like (like during critical page-loading activities, animations, 
+etc).
+
+
+&gt;<i> There doesn't seem to be any need to treat them as separate steps for 
+</I>&gt;<i> solving problem A.
+</I>
+I believe in the thread earlier in the year, it was (mostly) a consensus 
+that while parsing and execution were separate, all that was really desired 
+was to separate (aka, delay) execution from the loading, which had the side 
+effect of providing a larger window of buffer between load-finished and 
+script-executing in which parsing will occur. This allows the user-agent to 
+defer parsing to a later time, perhaps even entirely deferred until the page 
+asks for a script to be executed.
+
+As tech currently stands, because loading is (almost) immediately followed 
+by parsing and then execution, there's no way to prevent the 
+parsing/execution from happening right away, because they're all smashed 
+together into one (mostly) inseparable sequence. The feature request is to 
+be able to stretch out the execution to a later, on-demand time, which will 
+also allow parsing to happen somewhere in between, with less of a chance 
+that it affects performance.
+
+
+&gt;<i> Given that script execution (as opposed to the preprocessing that occurs
+</I>&gt;<i> before execution, including parsing and compilation) can be trivially
+</I>&gt;<i> fast (e.g. by making the script do nothing but expose an object), what is
+</I>&gt;<i> the benefit of delaying the execution?
+</I>
+There's a whole bunch of comments in this thread which allude to the idea 
+that the problems being expressed are simple to fix if authors just change 
+how they write their code. While that may (or may not) be true, it's 
+irrelevant to the real-world web we're trying to fix *right now*, because 
+the vast majority of JavaScript is not written this way (such that it's 
+entirely modular and causes no side-effects on &quot;execution&quot;).
+
+Moreover, it's an anti-pattern to suggest that an author must, to achieve 
+better performance, stop referring to a third-party script location on a CDN 
+(for shared caching benefit), and must instead host that third-party script 
+themselves, AND modify that script in such a way as to insulate it from 
+causing immediate effects upon load-execute.
+
+The spirit of the main proposals is to be able to load-but-not-execute (or, 
+load-but-have-no-execution-side-effects) *any* script, even ones which we do 
+not control, or are not in a position to modify (and then be forced to 
+maintain update patches to). Continuing to suggest in this thread that the 
+solution is to modify the script is both aggravating and unhelpful, as it 
+completely misses the most important majority use-case: loading (almost) all 
+the current JavaScript on the web.
+
+
+&gt;<i> Given that the time the script takes to execute is already under the
+</I>&gt;<i> control of the author, and can be trivially short, this solution doesn't
+</I>&gt;<i> seem to address problem A: anything the browser does in the background
+</I>&gt;<i> before the &lt;script&gt; is inserted can just as easily be done in the
+</I>&gt;<i> background after the &lt;script&gt; is inserted.
+</I>
+Huh? This argument makes no sense. You're referring to my proposal to 
+standardize what IE already does, which is that it loads a script but will 
+not execute the script until the &lt;script&gt; element is actually added to the 
+DOM. The purpose of that proposal is that I as an author can wait until a 
+much later time (like when a user clicks a button) to decide that I now want 
+a script executed, at which point I then add the corresponding script 
+element to the DOM to express that I'm ready for it to be executed.
+
+Whether the parsing happens right at the point where I add the script 
+element to the DOM, or whether it's happened at some point between then and 
+the point earlier when the script arrived (finished loading), the point is 
+that the script parsing didn't HAVE to happen right at the moment the script 
+finished loading.
+
+In fact, as we agreed (mostly) in the earlier thread from back in Jan/Feb, 
+an author being able to signal to a user-agent that parsing CAN be deferred 
+is a generally useful thing, such that if a user-agent finishes download of 
+a script but the script isn't yet flagged for execution, the user-agent can 
+see this as a signal that this code is in fact lower priority, and it can 
+wait to a later/idle time before tackling it. Compared to now, when a 
+user-agent must parse and execute it right away, this should be an obvious 
+win in terms of giving the user-agent a longer/more-flexible window in which 
+to spend find time to spend on parsing that script.
+
+
+
+&gt;&gt;<i> IE goes one step further, which I think is useful, which is to give a
+</I>&gt;&gt;<i> `readyState` (and `onreadystatechange` event handling) to the script
+</I>&gt;&gt;<i> element, which notifies the code of the state of this &quot;preloading&quot;. Why
+</I>&gt;&gt;<i> this is useful is that you may choose to wait until all scripts have
+</I>&gt;&gt;<i> finished loading before starting to execute them. Being notified of when
+</I>&gt;&gt;<i> they finish loading (but not executing) can be a very useful addition to
+</I>&gt;&gt;<i> this technique.
+</I>&gt;<i>
+</I>&gt;<i> The problem with this technique is that there's no guarantee that the
+</I>&gt;<i> script will be downloaded at all -- it depends on the UA's belief about
+</I>&gt;<i> what will lead to the best experience. For example, if the system has idle
+</I>&gt;<i> cycles, it might happen sooner than if the UA is extremely busy already.
+</I>&gt;<i> That's rather the point of the feature. :-)
+</I>
+The user-agent can decide not to load a script, regardless of the use of 
+this preloading or not. If I create and append to the DOM a &lt;script&gt; 
+element, that requests an external resource, and the user-agent is 
+sufficiently convinced that requesting such a resource is not a good idea, 
+the user-agent will in fact not request it. So I'm not sure why that's an 
+argument against the before-DOM-append-preloading mechanism that IE does, 
+and the spec suggests?
+
+The user-agent can't be forced into downloading a resource, so it's a moot 
+argument to suggest that the lack of a load-guarantee is a mark against the 
+preloading technique. I don't see any evidence there's any more guarantee 
+between either case.
+
+If I as an author am using script before-DOM-append-preloading, and I'm 
+waiting on a signal to tell me that it's completed, and that signal never 
+comes (because the user-agent feels it's a bad idea to load the script), 
+then I'm in exactly the same consequence (that my page's script won't 
+load/execute) as if I was NOT using any preloading, and had just made a 
+&lt;script&gt; to request the code, and the user-agent had ignored my request. 
+Either way, my page won't ever load and run the script.
+
+
+&gt;<i> Also, readyState isn't actually especially useful here, at least not in
+</I>&gt;<i> the context of problem A. Consider the two possibilities: (1) by the time
+</I>&gt;<i> you want to run the script, it is already loaded, and (2) by the time you
+</I>&gt;<i> want to run the script, it is not yet loaded. In (1), you can insert the
+</I>&gt;<i> element into the DOM and it'll just work. And in (2)... well you want the
+</I>&gt;<i> script to run ASAP, so why wait? You just insert the element into the DOM
+</I>&gt;<i> and as soon as it can, the UA will execute it, and so again, it just
+</I>&gt;<i> works. No need to track when it is ready.
+</I>
+Tracking when it's ready is useful in the case of more than one script, 
+where the author is negotiating when to execute things because of 
+dependencies.
+
+
+&gt;<i> If you need to track when it's ready to make sure you execute another
+</I>&gt;<i> script after it, then just using the 'load' event on &lt;script&gt; is
+</I>&gt;<i> sufficent: just wait for the previous script to have run, then insert the
+</I>&gt;<i> one you care about.
+</I>
+This suggestion is way more complicated than you make it out to be, unless 
+the dependency chain is only simple and linear (B.js only depends on A.js, 
+etc).
+
+It's quite common for a script to have more than one co-dependency. Example: 
+C.js uses functions from (thus is dependent on) both A.js and B.js. All 3 
+are pre-loaded in parallel.
+
+C.js cannot be directly executed inside of the `onload` of either A.js or 
+B.js, as it must be in a gate where BOTH have finished. So, an external flag 
+registry (aka, some script loader, or global variables, etc) for A and B 
+must be employed, which is consulted in both `onload` handlers, such that 
+only in the SECOND of those two handlers being run (thus A and B are in fact 
+already executed), is C then executed.
+
+--------
+Also, your suggestion completely leaves out an important use-case... I may 
+not want to execute *any* of the 3 scripts, until all of them are present. 
+In other words, I may not be satisified if A and B both run, but C isn't yet 
+ready, and doesn't run until later, because that gap in execution may 
+(depending on my scenario) leave my scripts in an in-between state that is 
+undesirable.
+
+If I want to wait until A, B, and C have finished loading, before beginning 
+to execute the group of them, then I *have* to have some signal (like 
+`readyState`) of each of them finishing loading. `onload` isn't sufficient 
+for that purpose, because it only executes after the script has run, not 
+after it's loaded (as its name confusingly implies).
+
+
+&gt;<i> But really, it seems better to structure your scripts
+</I>&gt;<i> so that they don't do anything when they are run except expose a callback
+</I>&gt;<i> that you can run when you want the code to run.
+</I>
+Sure, it's better. But it's also unrealistic to expect all the millions of 
+scripts on the web to change simply because I want my pages to load faster. 
+And as I said, it's untenable to suggest that my ONLY remedy is to self-host 
+and modify such scripts. We need a more flexible load-and-execute mechanism 
+to bridge the gap in a way that respects the goals of those of us who obsess 
+about web performance optimization.
+
+
+&gt;<i> (As a side-note, in the HTML spec the words &quot;shall&quot; and &quot;will&quot; don't have
+</I>&gt;<i> any normative meaning. See the &quot;Conformance requirements&quot; section.)
+</I>&gt;<i>
+</I>&gt;<i> We could change &quot;may&quot; to &quot;must&quot;, but it would merely constrain
+</I>&gt;<i> implementations further: instead of being able to optimise in certain
+</I>&gt;<i> situations by _not_ fetching scripts that might never be used, it would
+</I>&gt;<i> force the network to be used in these situations. That seems like a loss,
+</I>&gt;<i> and does nothing to address problem A.
+</I>
+User-agents still have the freedom to decide not to start the preload right 
+away. Nothing in the proposals suggests that preload must immediately occur. 
+It simply suggests that, unless there's some overriding reason why a 
+user-agent intends never to fetch a script, that it MUST start fetching the 
+script at some point at, or later than, when the script's `src` 
+attribute/property is set.
+
+Also, it clearly DOES assist problem A, because (as I said above) it gives a 
+larger window between the finish of a download and the time when the script 
+is requested to be executed, at any point in between of which the parsing 
+could occur. The bigger that window of freedom for the user-agent to 
+&quot;schedule&quot; the parsing, the more likely it is that the parsing won't occur 
+in a time-sensitive period of time (such as while an image is rendering, or 
+while an animation is occuring).
+
+
+&gt;&gt;<i> The major issue I have with the way the spec is written is that there is
+</I>&gt;&gt;<i> no way to feature detect this capability.
+</I>&gt;<i>
+</I>&gt;<i> That is entirely intentional: it's a UA optimisation; we don't want to
+</I>&gt;<i> expose those, as it constrains what UAs can do to improve.
+</I>
+This is nonsense. Just because you make something detectable doesn't mean 
+that it's handcuffing the UA for the future, as any changes (either in 
+build-features or in run-time performance detection and adjustment) would 
+affect that feature-test in a predictable way. In fact, the whole point of 
+detection is so that assumptions aren't made, and that only when something 
+is actually true can another something proceed to occur.
+
+I'd argue that the behavior of how a script is loaded is precisely the sort 
+of thing that should be detectable, so that script loaders (like LABjs) 
+don't have to make assumptions about a browser based on brittle inferences 
+or worse.
+
+Example: let's assume I want to only use some behavior on a page if I can 
+detect that the user-agent rendering that page is of sufficient capability 
+performance-wise to do so. One such detection I may want to make is to see 
+if the UA is capable of doing preloading. If it is, then I may opt for the 
+more complicated series of parallel-downloaded scripts for some complex 
+widget. If it's not, then I may want to assume (especially if I'm dealing 
+with a mobile-targeted page) that I should serve up a simpler set of 
+behavior (less scripts, fewer dependencies), and thus not rely on the 
+optimization of preloading being available.
+
+Clearly, &quot;preload&quot; functionality in that light is both a UA optimization 
+*and* a author-centric optimization, and it's an obvious benefit if an 
+author can detect that such an optimization is available for opt-in from the 
+UA.
+
+I can't hardly think of any argument (other than maybe security/privacy) 
+where exposing a detection for any feature/behavior of a browser is a bad 
+thing. The more detections are available to authors, the more they will 
+properly author their pages around feature-tests, instead of around 
+ugly/hacky UA sniffing, etc.
+
+There are clearly *many* things which UA's do that aren't necessarily that 
+useful to expose detects for, but I think it's absurd to suggest that 
+exposing a detect for a performance behavior is bad thing, in a case where a 
+UA behavior has a clear overlap with something authors want/need to detect 
+and build around.
+
+
+&gt;&gt;<i> &lt;html&gt;
+</I>&gt;&gt;<i> &lt;head&gt;
+</I>&gt;&gt;<i> &lt;script src=a.js noexecute onload=&quot;...&quot;&gt;
+</I>&gt;&gt;<i> &lt;script src=b.js noexecute onload=&quot;...&quot;&gt;
+</I>&gt;&gt;<i> &lt;script src=c.js noexecute onload=&quot;...&quot;&gt;
+</I>&gt;&gt;<i> &lt;/head&gt;
+</I>&gt;<i>
+</I>&gt;<i> What would the onload=&quot;...&quot;s be? I don't understand the benefit of not
+</I>&gt;<i> executing the scripts here. If you want your scripts to not do anything,
+</I>&gt;<i> just have them not do anything except expose a function that you can call
+</I>&gt;<i> whenever you want the actual code to run.
+</I>
+This pattern was debunked back in the Jan/Feb thread, because `onload` 
+doesn't fire when the script finishes *loading*, but when it finishes 
+executing. So such an example would cause none of the 3 scripts specified to 
+ever run, unless some other script (not listed) came along and started the 
+execution sequence by somehow forcing &quot;a.js&quot; to execute.
+
+Again, in that Jan/Feb thread, I asserted (and IIRC it was uncontested to 
+any reasonable degree) that the only practical use for script preloading as 
+proposed is for dynamic script loaders (those which insert script elements 
+dynamically) and that the markup-only use case was both impractical and 
+distracting to the conversation.
+
+
+&gt;&gt;<i> Doesn't &lt;link rel=prefetch&gt; mostly address the use-case of
+</I>&gt;&gt;<i> load-but-don't-execute in markup?
+</I>&gt;<i>
+</I>&gt;<i> &lt;link rel=prefetch&gt; doesn't solve problem A because it doesn't give the UA
+</I>&gt;<i> any hint that the resource is a script it should compile.
+</I>
+This is ALSO a distraction because it's merely a suggestion that a resource 
+be prefetched into the cache, not that a script be loaded and ready for 
+execution. &quot;Cache preloading&quot; (the technique of loading a script resource 
+into cache by some hacky means, in such a way that it's loaded but NOT 
+executed, and *then* later executing it by recalling that item from the 
+cache with a normal &lt;script&gt; element) is brittle, hacky, and dangerous for 
+the web (as not all scripts are sent with proper caching headers -- in fact, 
+a recent estimate was ~50% are not, web-wide). &lt;link rel=prefetch&gt; simply 
+feeds into that same sub-optimal &quot;cache preloading&quot; bucket. It's wholly 
+insufficient for the proposers' needs.
+
+
+&gt;&gt;<i> [problem A] has driven crude hacks like the comment hack, which in fact
+</I>&gt;&gt;<i> precludes the browsers [ever] getting smarter about doing the
+</I>&gt;&gt;<i> parsing/etc in the background or during idle time.
+</I>&gt;<i>
+</I>&gt;<i> I don't see why it would preclude them from getting smarter. The smarts
+</I>&gt;<i> wouldn't improve the pages with the hacks, but that's ok. It doesn't hurt
+</I>&gt;<i> them either.
+</I>
+It hurts them indirectly because it leads to more and more authors hiding 
+more and more code from the engine (via comment wrapping). It's shooting the 
+engine in the foot so that another performance optimization can be tended 
+to. The better mechanism would allow direct loading/parsing of real (not 
+comment-wrapped) JavaScript and still give the author control over when 
+execution happens.
+
+
+&gt;&gt;<i> This proposal is about a way to hint to the browser that only the
+</I>&gt;&gt;<i> download part should happen now, and the parsing/execution of the
+</I>&gt;&gt;<i> downloaded script will happen later, which in fact enables smarter
+</I>&gt;&gt;<i> browsers to make smarter decisions.
+</I>&gt;<i>
+</I>&gt;<i> That doesn't solve problem A: you still end up blocking the UI when you do
+</I>&gt;<i> the parsing if that's all you change.
+</I>
+Sure, but... at least in the case where I was able to direct the execution 
+to happen when I wanted it to, I could, as the author, guarantee that I only 
+do so at a time when nothing else important (like an animation) is happening 
+on the page, so as to mitigate the side-effects.
+
+I'm not suggesting that background-thread-parsing is a bad or unhelpful 
+improvement. I'm simply saying that it's not sufficient to meet the needs of 
+the proposers (Nicholas and myself).
+
+
+&gt;&gt;<i> Well, there is only a certain amount of processing power to go around.
+</I>&gt;&gt;<i> No matter how well it is implemented, time spent parsing is time that
+</I>&gt;&gt;<i> can't be spent doing other things if the app is pushing the client to
+</I>&gt;&gt;<i> the limit, and it makes sense to let the app provide hints of when is a
+</I>&gt;&gt;<i> good time to spend that effort and when isn't a good time.
+</I>&gt;<i>
+</I>&gt;<i> It seems like &quot;when there's nothing else going on&quot; is the best time. How
+</I>&gt;<i> would the script know when that is better than the UA?
+</I>
+Because the page's author can suspend certain activities which would be 
+impacted, like animations, video, audio, etc, when it's about to perform 
+some task which might lock up the UI thread.
+
+And btw, &quot;when there's nothing else going on&quot; is a gross 
+over-generalization/assumption. The even &quot;better&quot; time is &quot;never&quot;. A page's 
+author may be able to detect (something the UA could never do as well) that 
+it's in a condition where some of the code it asked to be pre-downloaded 
+will never actually get executed (at least during this page-view), and so 
+allowing the author's code to simply say that such parsing should never 
+occur (by not ever actually asking the code to execute) is a win in terms of 
+that author's ability to keep a page's device resource utilization to a 
+minimum (gmail for instance wanting to be battery-life conscious, etc).
+
+Whether such parsing would happen in a background thread or on the main UI 
+thread, avoiding any unnecessary parsing is a win in terms of device 
+resource utilization.
+
+-------
+For instance, on page 1 of a site, I may need scripts A and B to download 
+and run. I may also want to go ahead and preload C and D (to take advantage 
+of connection keep-alives, for instance), even though I know that there's a 
+good chance neither C nor D will be used on page 1. NOTE: I *may* need C or 
+D on page 1, but only if a user clicks a special button, etc, so I only want 
+to pay the parsing penalty in those rare cases, and not all page-views.
+
+I also may know that either/both of C and D are particularly complicated 
+scripts, and their parsing is something I'd like to avoid paying any penalty 
+for (either in terms of UI locking up or in terms on device resource 
+utilization), unless it's definitely going to be used.
+
+On the flip side, for page 2 (which not all users get to), I may know that C 
+and D are definitely required early in the page view, so having them already 
+in cache (to avoid network fetch latency) is a good thing. And it's 
+acceptable (of course) to pay the parsing penalty on *this* page, because I 
+know for sure I now need C and D.
+
+This type of performance-savvy thinking is something a web performance 
+optimization engineer can do, but it's likely not something a browser will 
+ever be able to figure out automatically.
+
+Bottom-line: Putting the tools in the hands of the engineer to be able to 
+optimize, especially in cases where a browser wouldn't or couldn't, is a 
+performance win in the long-run.
+
+
+&gt;<i> It's clear that the parsing/compiling has to happen between download and
+</I>&gt;<i> execution, it seems that the browser is in the best position to know when
+</I>&gt;<i> it could do it with minimal impact on the rest of the system.
+</I>
+Making that assumption is rather na&#239;ve given the expounding of use-cases 
+I've been trying to explain throughout this message and in the previous 
+Jan/Feb thread. You could assert that the UA is usually in the best 
+position, but saying it ALWAYS knows better than the author is quite 
+short-sighted.
+
+
+&gt;<i> If you just want it to happen soon but don't care exactly when, we have 
+</I>&gt;<i> &quot;async&quot;.
+</I>
+&lt;script async&gt; is &quot;as soon as possible&quot;, which is in some cases quite 
+different than just &quot;soon&quot;.
+
+Moreover, the spirit of this discussion is about deferring the execution 
+(and by implication, at least stretching out the window of when parsing can 
+occur)... neither of these are impacted in any meaningful way by &lt;script 
+async&gt;, because a &lt;script async&gt; still parses and executes &quot;immediately&quot; 
+after it finishes loading.
+
+In the case of a dynamic script loader adding script elements to the page 
+(again, script loading is the only meaninful context to have these 
+discussions in -- markup-only is moot and irrelevant), &lt;script async&gt; isn't 
+going to execute any sooner or later than just &lt;script&gt;. The *only* 
+functional difference between the two is if execution order will be 
+preserved or not, not the behavior of parsing vs. execution.
+
+
+&gt;<i> If you want it to happen now, then the spec also supports that.
+</I>
+&quot;happen now&quot;? How so?
+
+
+&gt;<i> It's not clear why anything else is needed.
+</I>
+Because you haven't provided any answer as to how I achieve &quot;happen (much) 
+later&quot; -- you only suggested &quot;now&quot; and &quot;soon&quot;.
+
+
+&gt;<i> The &quot;preload&quot;/onpreload part of this seems unnecesssary to solve problem
+</I>&gt;<i> A: by the time the event fires, all the difficult work is done, and the
+</I>&gt;<i> execution (the only thing this would allow you to delay, and the only
+</I>&gt;<i> thing that has to block the UI thread) can be trivial in comparison.
+</I>
+This is an incorrect assertion. The earlier Jan/Feb thread arrived at the 
+conclusion that parsing could be separate from execution, and while not 
+directly controlled, could happen at any point in between the load-finish 
+and the execute-start. So, in that sense, the &quot;hard part&quot; (the 
+parsing/compliation) may or may not have happened at the point that the 
+&quot;preload&quot; event is fired.
+
+The parsing/compliation could only be forced to happen sooner (if the UA was 
+planning to defer it) if the script was then requested to execute, at which 
+point the UA would have to respond by parsing/compiling before it could 
+execute. Otherwise, the window between load-finish and execute-start could 
+be quite wide, and could allow the UA much flexibility in deciding when such 
+activity should best occur.
+
+
+
+&gt;&gt;<i> Loading JavaScript onto a page poses several performance issues.
+</I>&gt;<i>
+</I>&gt;<i> Which issues?
+</I>
+Seriously? Can we not just cite the hundreds of blog posts and books on the 
+subject as prior evidence? The performance impacts of loading JavaScript are 
+extremely well known and common knowledge in a lot of the development 
+community.
+
+But for the sake of this discussion, a few biggies:
+
+1. a &lt;script&gt; tag (either as an external resource or as an inline script 
+block) blocks all DOM processing after it, because the UA has to assume that 
+a document.write() might occur inside it, which could alter how the UA needs 
+to interpret the rest of the DOM.
+
+2. Until the most recent generation of browsers (FF4, IE9), &lt;script&gt; tags 
+would load in parallel to each other, but would still block downloading of 
+subsequent resources (like images), again because of the assumption that 
+something like a &lt;base&gt; tag may be `document.write()`en that would change 
+the effective URL of such subsequent resource loadings. I guess these newest 
+browsers simply abort and restart such loads if such a case occurs. That's 
+debatable if that's a good behavior or not (good maybe for the UA, bad 
+probably for the server bandwidth, which will deliver the whole resource 
+regardless of an abort, etc).
+
+3. There are well documented quirks with &lt;script&gt; and &lt;link&gt; tags in 
+proximity to each other, where in certain cases one right after the other 
+will cause blocking of the page rendering.
+
+There are many others. The bottom line is that for almost all of those 
+performance concerns, dynamic script loading is the best available solution. 
+But dynamic script loading is handcuffed in some ways without preloading. 
+Thus, preloading would allow script loaders to solve a wider range of 
+use-cases around these performance issues, and possibly solve them in more 
+efficient ways than they currently are able to (without hacks).
+
+I cite the fact that dozens of popular script loaders use hacky &quot;cache 
+preloading&quot; techniques as a way to get preloading. The fact that they do 
+this, and that so many sites use them for that purpose, should prove that 
+the (negative) performance of JavaScript loading demonstrates the de facto 
+need for preloading.
+
+
+&gt;&gt;<i> With a regular &lt;script&gt; tag, the UA waits for download and then waits
+</I>&gt;&gt;<i> for execution. The defer attribute helps by not blocking on download and
+</I>&gt;&gt;<i> deferring execution until later but preserves execution order; the async
+</I>&gt;&gt;<i> attribute helps by not blocking on download but does block on execution
+</I>&gt;&gt;<i> (the timing of which cannot be controlled) and does not preserve order.
+</I>&gt;<i>
+</I>&gt;<i> This doesn't seem to be a problem.
+</I>
+Ummm.... &quot;doesn't seem to be a problem&quot;? Do you remember the whole 
+async=false thread and all the rabbit trails it led to? Clearly, the order 
+of scripts executing is still quite an issue on the broader web, and so just 
+patently using something like &lt;script async&gt; DOES in fact create lots of 
+&quot;problems&quot;.
+
+
+&gt;&gt;<i> 1. Preloading JS without execution
+</I>&gt;&gt;<i> (<A HREF="http://www.phpied.com/preload-cssjavascript-without-execution/">http://www.phpied.com/preload-cssjavascript-without-execution/</A>) by
+</I>&gt;&gt;<i> Stoyan Stefanov, which describes how to download JavaScript without
+</I>&gt;&gt;<i> execution it, as a cache-warming technique.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> 2. ControlJS (<A HREF="http://stevesouders.com/controljs/">http://stevesouders.com/controljs/</A>) by Steve Souders,
+</I>&gt;&gt;<i> which extends Stoyan's model to allow on-demand execution of scripts.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> 3. Gmail putting JavaScript in comments and then parsing later
+</I>&gt;&gt;<i> (<A HREF="http://googlecode.blogspot.com/2009/09/gmail-for-mobile-html5-series-reducing.html">http://googlecode.blogspot.com/2009/09/gmail-for-mobile-html5-series-reducing.html</A>)
+</I>&gt;&gt;<i> to enable download without execution and then execution on-demand.
+</I>&gt;<i>
+</I>&gt;<i> What problems do these solutions solve?
+</I>
+Specifically, they solve this problem:
+
+I want to load two or more scripts that I don't control, from locations that 
+aren't my own, in parallel (for performance), and I want them to execute in 
+order..... BUT I want to control when that execution starts.
+
+Why? Because I want to load things early (to take advantage of keep-alive, 
+etc), but I want to have execution happen later, so that the perception of 
+my page loading quicker is preserved (script executions modifying the DOM 
+can be quite time expensive and obvious).
+
+For instance, I want to download the code for rendering a complex calendar 
+widget early, but I only want to run that calendar widget code to modify my 
+DOM *when/if* the user expresses interest in seeing the calendar (maybe only 
+10% of users click the calendar icon button).
+
+It's not an option for me to host that code (as I don't have a world-wide 
+CDN that can get the same shared-caching), nor is it an option for me to 
+modify the code (since it's third party code). So, I can't just change that 
+code to not run upon execution. I have to control when the script itself 
+executes.
+
+
+&gt;&gt;<i> For the purposes of this discussion, we are combining (but safely so, I
+</I>&gt;&gt;<i> believe) &quot;execution&quot; and &quot;parsing&quot;, and saying that we want to be able
+</I>&gt;&gt;<i> to defer the &quot;parse/execution&quot; phase of script loading.
+</I>&gt;<i>
+</I>&gt;<i>I don't see any good reason to combine them. They seem emminently separable
+</I>
+Wait... earlier in your message, you said: &quot;There doesn't seem to be any 
+need to treat them as separate steps&quot;. So which is it? Do you think we 
+should talk about execution and parsing as a single step, or separately?
+
+FWIW, what I meant was that we (as proposers of the functionality) want to 
+defer both parsing and execution, but not that we wanted to defer both 
+equally. In other words, both are things that we want to defer, but they 
+don't have to remain happening together.
+
+As I've already said earlier in this message, one of the conclusions of the 
+Jan/Feb thread was that they in fact can be separable, and that it was 
+sufficient (as far as I'm concerned) for parsing to simply be hinted to 
+happen any time during the window between load-finish and execute-start, as 
+this gives a greater likelihood that the UA won't do the parsing at an 
+inopportune time (from the author's or user's perspective).
+
+The first major goal in my mind is still to accomplish the execution 
+deferral (for scripts which can't otherwise be modified to do that 
+directly). The second goal, which follows from the first, is that this 
+allows a larger window of time between load-finish and execute-start as 
+relief from the current system, which insists and requires that parsing 
+happen &quot;immediately&quot; after load-finish, because (as stated many times), 
+there are reasons you want to load a script much earlier than when you want 
+to use it, like taking advantage of keep-alive, or (on mobile) taking 
+advantage of when the mobile's radio is still transmitting (during initial 
+page load), etc.
+
+
+&gt;&gt;<i>   Consider the controljs example in which the menu code does not load
+</I>&gt;&gt;<i> until it is clicked.  There's no requirement that it run synchronously
+</I>&gt;&gt;<i> so it is acceptable for the script's execution to simply be scheduled in
+</I>&gt;&gt;<i> response to the click event.  A non-prefetching browser would not be as
+</I>&gt;&gt;<i> &quot;performant&quot; but would still work.
+</I>&gt;<i>
+</I>&gt;<i> Why not just run the code sometime before it is needed, while the page is
+</I>&gt;<i> idle? Why is it necessary to delay the load until the last possible
+</I>&gt;<i> minute? What problem are we solving? Problem A can't be the problem being
+</I>&gt;<i> solved here, since the execution takes a trivially short time compared to
+</I>&gt;<i> the download and compiling.
+</I>
+(see above -- the problem being solved here is NOT the deferral of parsing, 
+but the deferral of execution, for a script that can't otherwise be modified 
+to allow that to happen directly)
+
+
+&gt;&gt;<i> The problem is that scripts loaded dynamically are not guaranteed to
+</I>&gt;&gt;<i> execute in any particular order. A mechanism for loading files in
+</I>&gt;&gt;<i> parallel but controlling (or enforcing) their execution order, is
+</I>&gt;&gt;<i> necessary.
+</I>&gt;<i>
+</I>&gt;<i> There are a number of solutions to this problem now (onload, defer/async,
+</I>&gt;<i> .async, the careful definitions of insertion/execution order, etc). What
+</I>&gt;<i> is wrong with them that we need more solutions?
+</I>&gt;<i>
+</I>&gt;&gt;<i> For instance, if I have two groups of scripts (&quot;A.js&quot;, &quot;B.js&quot; and
+</I>&gt;&gt;<i> &quot;C.js&quot;) and (&quot;D.js&quot;, &quot;E.js&quot;, and &quot;F.js&quot;). Within each group, the order
+</I>&gt;&gt;<i> must be maintained, but the two groups are completely independent. As
+</I>&gt;&gt;<i> &quot;async=false&quot; is currently implemented, you cannot accomplish isolating
+</I>&gt;&gt;<i> the two groups of scripts from affecting each other. The &quot;D,E,F&quot; group
+</I>&gt;&gt;<i> will be forced to wait for the &quot;A,B,C&quot; group to finish executing.
+</I>&gt;<i>
+</I>&gt;<i> When does this happen? Do you have a concrete example?
+</I>
+I don't have a concrete example of this in practice because the above is not 
+currently possible (at least not without bad hacks). But I often find I want 
+something like this to be possible:
+
+Group A:
+1. jquery.js
+2. jquery-ui.js
+3. plugins.jquery.js
+4. plugin init code
+
+Group B:
+1. ga.js
+2. google-analytics init code
+
+Group C:
+1. twitter-api .js file(s)
+2. twitter init code
+
+
+Within these 3 groups, execution order must be preserved. The groups 
+themselves are completely independent of each other, however. I want all 
+files to load in parallel (for performance), but I want each group to 
+execute as soon as that group is ready. In other words, I don't want Group B 
+to wait on A, if B is ready to go before A. Similarly, I don't want C to 
+wait on A or B, if it's ready earlier.
+
+This scenario is currently impossible (or nearly so, without hacks). In some 
+(spec-conforming) browsers, I can use async=false on all those script 
+elements, and their order will be preserved. But that means that also it 
+will force Group C to wait for B, and group B to wait for A, because 
+`async=false` only specifies one global queue for such scripts.
+
+Preloading would let me load all of these scripts in parallel, but execute 
+any group as soon as I was notified that all the scripts in that group were 
+finished loading.
+
+
+&gt;<i> Note that there are multiple solutions to this already:
+</I>&gt;<i>
+</I>&gt;<i> - put A,B,C into one file and D,E,F into one file.
+</I>
+Already covered numerous times why this isn't sufficient... because I don't 
+control all of the files, nor do I host them (they're on 
+performance-optimized CDNs).
+
+
+&gt;<i> - write the scripts so that they don't rely on each other during
+</I>&gt;<i>   execution, but instead expose a function that you can call when you
+</I>&gt;<i>   want, e.g. when they are all loaded.
+</I>
+(ditto above)
+
+&gt;<i> - run the scripts in two iframes.
+</I>
+Are you serious? That may be the most hacky of all suggested solutions to 
+date. The scripts need to run in my main page, not in a separate iframe. AT 
+BEST, this would be the hacky &quot;cache preloading&quot; that simply gets the 
+scripts into the cache but basically ignores their side effects (in a hidden 
+iframe). But as stated above, cache-preloading is wholly insufficient for 
+our needs.
+
+
+&gt;<i> - create &lt;script&gt; elements ahead of time and insert then in order,
+</I>&gt;<i>   allowing the browser to download and compile them in parallel, but
+</I>&gt;<i>   insert them in the order you need them, when they are ready, using
+</I>&gt;<i>   onload to trigger B from A and C from B, etc.
+</I>
+What do you mean: &quot;ahead of time&quot; and &quot;when they are ready&quot;? Are you 
+assuming the presence of a preloading mechanism (and the signals of such 
+preloading completing) that we are proposing? That's certainly *begging the 
+question*.
+
+As current tech stands (IE not withstanding), I cannot request scripts in 
+parallel, but control in what order they are executed using onload chaining, 
+because the scripts won't be fetched until they are added to the DOM, and 
+once they are in the DOM, they will all execute themselves as soon as each 
+finishes, regardless of `onload`. The order of execution will depend on the 
+browser type, and if async=false was used or not. But `onload` chaining as 
+you suggest is a nonsense/non-functioning scenario if preloading doesn't 
+exist (which it doesn't yet, except for IE).
+
+
+&gt;&gt;<i> 2. Another plausible use-case that occurs to me is loading two
+</I>&gt;&gt;<i> overlapping plugins (like for jQuery, for instance). The author may have
+</I>&gt;&gt;<i> a simple calendar widget and a much more complex calendar widget, and
+</I>&gt;&gt;<i> the two may conflict or overlap in such a way that only one should be
+</I>&gt;&gt;<i> executed. But for speed of response, the author may want to &quot;preload&quot;
+</I>&gt;&gt;<i> both plugins and have them waiting on hand, and depending on what action
+</I>&gt;&gt;<i> the user takes (or the state of data from an Ajax request), may then
+</I>&gt;&gt;<i> decide at run-time which of the two plugins to execute.
+</I>&gt;<i>
+</I>&gt;<i> Do you have a page that tries to do that kind of thing? I don't think I've
+</I>&gt;<i> ever come across this kind of thing.
+</I>
+The reason I brought it up is I've got two different sites where I've wanted 
+to do this (or at least explore if the performance savings would be as big 
+as I think they would be) but it's really almost impossible (or implausible) 
+to do such a thing thus far. It would be trivial to do with the preload 
+functionality being suggested.
+
+
+&gt;<i> Incidentally, just as a parting note: a lot of e-mails on this thread
+</I>&gt;<i> seemed concerned about how hard something was to spec, for example
+</I>&gt;<i> preferring solutions grounded in existing spec text
+</I>
+In the case of two proposals which both address the use-case, I think that 
+preference should absolutely be given to the one which has the least change 
+to the spec, because that proposal has the least chance for unintended side 
+effects (both in the spec and in spec-conforming implementations).
+
+The implications I made of the benefits of using existing spec precedent had 
+nothing to do with whether or not you (Ian) would be more inclined if it 
+were &quot;less work&quot;. I was entirely talking about the surface of risk being 
+smaller the fewer the changes that are made. And I still insist that, all 
+other things being equal, that's a perfectly valid assertion for making a 
+decision, in a case where the only other differences in effect are 
+subjective opinion.
+
+
+--Kyle
+
+
+ 
+
+</PRE>
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="031807.html">[whatwg] Proposal for separating script downloads and execution
+</A></li>
+	<LI>Next message: <A HREF="031861.html">[whatwg] Proposal for separating script downloads and execution
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#31858">[ date ]</a>
+              <a href="thread.html#31858">[ thread ]</a>
+              <a href="subject.html#31858">[ subject ]</a>
+              <a href="author.html#31858">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

@@ -1,0 +1,156 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] pushState
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20pushState&In-Reply-To=%3CPine.LNX.4.62.0901150139490.7181%40hixie.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="060464.html">
+   <LINK REL="Next"  HREF="060470.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] pushState</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20pushState&In-Reply-To=%3CPine.LNX.4.62.0901150139490.7181%40hixie.dreamhostps.com%3E"
+       TITLE="[whatwg] pushState">ian at hixie.ch
+       </A><BR>
+    <I>Wed Jan 14 18:25:42 PST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="060464.html">[whatwg] number-related feedback
+</A></li>
+        <LI>Next message: <A HREF="060470.html">[whatwg] E4X and attribute values
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18196">[ date ]</a>
+              <a href="thread.html#18196">[ thread ]</a>
+              <a href="subject.html#18196">[ subject ]</a>
+              <a href="author.html#18196">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Fri, 25 Jul 2008, Jonas Sicking wrote:
+&gt;<i>
+</I>&gt;<i> So to back up. There are a few things that are important to me:
+</I>&gt;<i> 
+</I>&gt;<i> 1. The session history (SH) entries created in this way should act
+</I>&gt;<i>    as much like normal SH entries as possible to the user.
+</I>&gt;<i>    I.e. the user doesn't care if clicking what looks like a link
+</I>&gt;<i>    results in a navigation or a .pushState call.
+</I>&gt;<i> 2. That this API allows pages to be written that survives a browser
+</I>&gt;<i>    restart.
+</I>&gt;<i>    This is to prevent data loss in case of crash, and to increase
+</I>&gt;<i>    chances that users install security updates which require restart
+</I>&gt;<i>    as soon as possible.
+</I>&gt;<i> 3. That the API encourages bug-free pages. I.e. pages that use the API
+</I>&gt;<i>    'correctly'.
+</I>&gt;<i> 
+</I>&gt;<i> Just 1 in itself means that we can't just kill SH entries just because
+</I>&gt;<i> the Document they were created from goes away from fastback. If I browse
+</I>&gt;<i> away from a gmail and see 5 pages in my SH list then I would be very
+</I>&gt;<i> disappointed if those 5 pages just disappeared because I happened to be
+</I>&gt;<i> browsing around in another window which ate up the fastback cache.
+</I>&gt;<i> 
+</I>&gt;<i> Similarly, a mobile device might not have a fastback cache at all. It
+</I>&gt;<i> would look very strange if while i'm staying on the gmail site i'm able
+</I>&gt;<i> to go 'back' to what to me looks like various different pages. But as
+</I>&gt;<i> soon as i go to some other site, I loose all those pages and can only go
+</I>&gt;<i> back directly to the first gmail page.
+</I>&gt;<i> 
+</I>&gt;<i> So we must definitely store the pushed SH data in such a way that if the
+</I>&gt;<i> Document is recreated the data survives.
+</I>&gt;<i> 
+</I>&gt;<i> This applies whether the URL of my browser changes or not while I'm
+</I>&gt;<i> doing this browsing. The rendering changing is more important than the
+</I>&gt;<i> URL changing for a user.
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> So what I think we should do is to enforce that 'data' is a JSON
+</I>&gt;<i> serializable object. When a Document is destroyed (due to eviction from
+</I>&gt;<i> the fastback cache or due to not being cachable) we don't touch the SH
+</I>&gt;<i> entries associated with that document.
+</I>
+Ok. I've used the new &quot;structured clone&quot; concept to sanitise the data and 
+make a copy instead of storing the actual object. This enables us to keep 
+them around even when the Document is evicted.
+
+One thing I had to change is that now if you go from state 1 to state 3, 
+state 2 is no longer popped. You can move discontinuously through the 
+states.
+
+
+&gt;<i> When entering a SH state for which a Document has been destroyed, we
+</I>&gt;<i> load the URL associated with that SH entry. After the 'load' event for
+</I>&gt;<i> the Document has fired, and if a data object was provided in the
+</I>&gt;<i> pushState call for the SH entry, we fire a PopStateEvent event
+</I>&gt;<i> containing the data stored for the object.
+</I>&gt;<i> 
+</I>&gt;<i> The same thing happens if the user clicks the reload button while on an
+</I>&gt;<i> SH entry created using pushState. The URL for that entry is loaded and
+</I>&gt;<i> after the 'load' event has fired, if a data object was provided during
+</I>&gt;<i> the pushState call, a PopStateEvent is fired with that data.
+</I>
+The timing here is difficult. What should happen if while the page is 
+loading, the user navigates to a link with a fragment identifier, or 
+invokes pushState, or navigates to another SH entry with a state object?
+
+I'll see what I can come up with. It may be that I'll just delay all 
+popstate and hashchanged events until the 'load' event has fired, and then 
+I'll fire both for the current state.
+
+
+&gt;<i> To minimize the difference between when a SH entry is recovered from the 
+</I>&gt;<i> fastback cache, compared to when the document is reparsed, the Location 
+</I>&gt;<i> object should be changed to reflect the new URL whenever pushState is 
+</I>&gt;<i> called with a url. The advantage of changing the Location object is that 
+</I>&gt;<i> this makes the page behave the same no matter of if it has been reloaded 
+</I>&gt;<i> or not. Setting the Location objects value will cause reloading vs. 
+</I>&gt;<i> scrolling vs. do nothing in the same cases. Similarly reading the 
+</I>&gt;<i> Location will return the same thing no matter of if there has been a 
+</I>&gt;<i> reload or not.
+</I>
+I just found that I wasn't even updating the Location for fragment 
+identifier changes. Oops. I'll fix that and give the behavior you describe 
+when I fix bug 6437.
+
+   <A HREF="http://www.w3.org/Bugs/Public/show_bug.cgi?id=6437">http://www.w3.org/Bugs/Public/show_bug.cgi?id=6437</A>
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+
+</PRE>
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="060464.html">[whatwg] number-related feedback
+</A></li>
+	<LI>Next message: <A HREF="060470.html">[whatwg] E4X and attribute values
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18196">[ date ]</a>
+              <a href="thread.html#18196">[ thread ]</a>
+              <a href="subject.html#18196">[ subject ]</a>
+              <a href="author.html#18196">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

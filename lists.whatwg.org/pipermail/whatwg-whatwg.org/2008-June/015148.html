@@ -1,0 +1,145 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Implementation of a good HTTPSocket (TCP-socket)
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Implementation%20of%20a%20good%20HTTPSocket%20%28TCP-socket%29&In-Reply-To=%3C31fb000f0806191426o3719890agc6b2adb025018e06%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="015140.html">
+   <LINK REL="Next"  HREF="015152.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Implementation of a good HTTPSocket (TCP-socket)</H1>
+<!--htdig_noindex-->
+    <B>Frode B&#248;rli</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Implementation%20of%20a%20good%20HTTPSocket%20%28TCP-socket%29&In-Reply-To=%3C31fb000f0806191426o3719890agc6b2adb025018e06%40mail.gmail.com%3E"
+       TITLE="[whatwg] Implementation of a good HTTPSocket (TCP-socket)">frode at seria.no
+       </A><BR>
+    <I>Thu Jun 19 14:26:47 PDT 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="015140.html">[whatwg] Implementation of a good HTTPSocket (TCP-socket)
+</A></li>
+        <LI>Next message: <A HREF="015152.html">[whatwg] Implementation of a good HTTPSocket (TCP-socket)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#15148">[ date ]</a>
+              <a href="thread.html#15148">[ thread ]</a>
+              <a href="subject.html#15148">[ subject ]</a>
+              <a href="author.html#15148">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>&gt;&gt;<i> Web pages should only be allowed to access other servers when the
+</I>&gt;&gt;<i> script has been digitally signed, and when the user has agreed to
+</I>&gt;&gt;<i> giving the script elevated privileges - or there should be a
+</I>&gt;&gt;<i> certificate on the origin server which is checked against DNS records
+</I>&gt;&gt;<i> for each server that the script attempts to connect to.
+</I>
+I have changed my view on this. Only a DNS record is required:
+
+1. A script by default can only connect to the server that it was
+downloaded from.
+2. Server A has a script that tries to connect to Server B. Server B
+must have a record in its DNS that allows scripts originating from
+Server A.
+
+Nothing more should be needed, a DDOS attack using javascript can
+never succed unless the attacker controls the DNS servers. I think
+this DNS method could be used for all cross site scripting security
+policies (java applets, flash etc). Additionally, the client can have
+policies disallowing reconnects in for example one minute, if the
+server responds with HTTP 401 Access Denied.
+
+&gt;&gt;<i> So what we want is a http based protocol which allow the client to
+</I>&gt;&gt;<i> continue communicating with the script that handles the initial
+</I>&gt;&gt;<i> request.
+</I>&gt;<i> I absolutely agree that this would be the best way. However, couldn't
+</I>&gt;<i> we use Michaels proposal for that? It seems to solve the same problems
+</I>&gt;<i> and is actually compliant HTTP (in theory at least).
+</I>
+We should have both a pure TCPConnection, and a ServerConnection
+object. It could possibly be based on the BEEP protocol, i dont know
+that protocol. All I know is that HTTP has mechanisms for switching
+protocols (HTTP 101 Switching Protocols), and is a good basis for
+browser to webserver communications already.
+
+The ServerConnection should have some mechanisms in the protocol that
+allows transmission of events from the server and to the server - as
+well as sending variables/structures. Example:
+
+var data = { name: &quot;Frode B&#248;rli&quot;, address: &quot;Norway&quot; }
+document.serverConnection.send(data)
+
+Also the client can add arbitrary event listeners to the
+serverConnection object:
+
+document.serverConnection.onwhatever = function(message) {
+alert(message.city); }
+
+The server should be able to listen to all DOM events also.
+
+&gt;<i> I find the SessionID header a very good idea though.What are the
+</I>&gt;<i> thoughts on that?
+</I>&gt;<i>
+</I>&gt;<i> I'm sorry if that has already been discussed, but if we use HTTP, why
+</I>&gt;<i> can't we use the Access Control spec as an &quot;opt in mechanism&quot; that is
+</I>&gt;<i> a little easier to implement than DNS? If you modify the behaviour a
+</I>&gt;<i> little, you could even use it against DDOS attacks:
+</I>
+Without DNS records (or an alternative implementation) i think the
+TCPConnection and the ServerConnection object should be restricted by
+the same rules as XMLHttpRequest.
+
+&gt;<i> &quot;Counter suggestion&quot;: When a WebSocket objects attempts to connect,
+</I>&gt;<i> perform Access Control checks the way you would for POST requests.
+</I>&gt;<i> If the check fails and if the server response contains an
+</I>&gt;<i> Access-Control-Max-Age header, agents must immediately close the
+</I>&gt;<i> connection and must not open a connection to that resource again (or,
+</I>&gt;<i> if Access-Control-Policy-Path is present, to any resource specified)
+</I>&gt;<i> until the specified time has elapsed.
+</I>&gt;<i> That way, administrators that are hit by a DDOS can simply put
+</I>
+By securing with DNS records, administrators will not have to do
+anything to prevent ddos, as it can't happen. Without DNS records, the
+script is allowed only to connect to the same server that it was
+fetched from. (Same as Java applets, Flash applets and XMLHttpRequest)
+
+&gt;<i> Access-Control: allow &lt;*&gt; exclude &lt;evilsite.example.com&gt;
+</I>&gt;<i> Access-Control-Max-Age: 86400
+</I>&gt;<i> Access-Control-Policy-Path: /
+</I>
+I think the idea is good, but I do not like the exact implementation.
+I think the server should be able to see which script is initiating
+the connection (header sent from the client), and then the server can
+respond with a HTTP 401 Access Denied. No need to specify anything
+more. No need to specify which hosts that are allowed, since the
+script can decide that on a number of parameters (like IP-address
+etc).
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="015140.html">[whatwg] Implementation of a good HTTPSocket (TCP-socket)
+</A></li>
+	<LI>Next message: <A HREF="015152.html">[whatwg] Implementation of a good HTTPSocket (TCP-socket)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#15148">[ date ]</a>
+              <a href="thread.html#15148">[ thread ]</a>
+              <a href="subject.html#15148">[ subject ]</a>
+              <a href="author.html#15148">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

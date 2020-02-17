@@ -1,0 +1,174 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Canvas color serialisation
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Canvas%20color%20serialisation&In-Reply-To=%3CPine.LNX.4.62.0705112050340.17396%40dhalsim.dreamhost.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="053508.html">
+   <LINK REL="Next"  HREF="053554.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Canvas color serialisation</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Canvas%20color%20serialisation&In-Reply-To=%3CPine.LNX.4.62.0705112050340.17396%40dhalsim.dreamhost.com%3E"
+       TITLE="[whatwg] Canvas color serialisation">ian at hixie.ch
+       </A><BR>
+    <I>Fri May 11 13:57:14 PDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="053508.html">[whatwg] return lowercase hex values for fillStyle and	strokeStyle
+</A></li>
+        <LI>Next message: <A HREF="053554.html">[whatwg]  Canvas color serialisation
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#53541">[ date ]</a>
+              <a href="thread.html#53541">[ thread ]</a>
+              <a href="subject.html#53541">[ subject ]</a>
+              <a href="author.html#53541">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Sun, 15 Apr 2007, Jordan OSETE wrote:
+&gt;<i>
+</I>&gt;<i> Reading colors can be complex. Right now it returns a string either in 
+</I>&gt;<i> the form #xxxxxx or rgba(...), depending on the alpha value. It means 
+</I>&gt;<i> the reader must be able to parse both, because he never knows if the 
+</I>&gt;<i> color's alpha is 255 or less. Maybe always returning rgba() would be 
+</I>&gt;<i> easier to parse? Or a second property wich would return an array of the 
+</I>&gt;<i> integer/float RGBA values when read?
+</I>
+On Tue, 17 Apr 2007, Philip Taylor wrote:
+&gt;<i> 
+</I>&gt;<i> Since parsing strings in JS is not entirely trivial, I think it would be 
+</I>&gt;<i> nicest if the colours were returned as an array [r,g,b,a] (range 0-255), 
+</I>&gt;<i> similar to getImageData. Assignment would accept any CSS colour string, 
+</I>&gt;<i> or an [r,g,b,a] array, or a CanvasGradient/CanvasPattern. Existing code 
+</I>&gt;<i> that does &quot;var c = ctx.fillStyle; ...; ctx.fillStyle = c&quot; would not be 
+</I>&gt;<i> affected - only code that parses the returned colours would be affected, 
+</I>&gt;<i> and I can't think why anybody would want to do that, so I'd guess it's 
+</I>&gt;<i> pretty rare.
+</I>&gt;<i> 
+</I>&gt;<i> Anybody parsing colours has to be very careful anyway, since 
+</I>&gt;<i> implementations disagree - Opera 9 returns &quot;rgba(0, 0, 0, 0)&quot;/&quot;#AABBCC&quot;, 
+</I>&gt;<i> Safari 2.0.4 returns &quot;rgba(0,0,0,0)&quot;/&quot;#abc&quot; (maybe changed in newer 
+</I>&gt;<i> versions?), Firefox 3 returns &quot;rgba(0, 0, 0, 0.0)&quot;/&quot;#aabbcc&quot;, and the 
+</I>&gt;<i> spec currently says &quot;rgba(0, 0, 0, 0.0)&quot;/&quot;#AABBCC&quot;. If the spec was 
+</I>&gt;<i> changed, the situation might not be worse - old implementations would 
+</I>&gt;<i> still be incompatible with the spec, and you'd still have to test in the 
+</I>&gt;<i> browsers you want to support to discover how they're doing it 
+</I>&gt;<i> differently, but at least the future implementations would be much 
+</I>&gt;<i> easier to use.
+</I>
+It's not clear to me why the author ever needs to read this value. The 
+value, when set, is set by the author's code -- if you need to know what 
+the value is in some more detailed way then just remember what you set it 
+to (e.g. with a wrapper function). The ability to &quot;get&quot; this attribute is 
+primarily to allow for things like:
+
+   var old = context.fillStyle;
+   context.fillStyle = 'green';
+   context.fillRect(0,0,100,100);
+   context.fillStyle = old;
+
+
+On Mon, 16 Apr 2007, Jordan OSETE wrote:
+&gt;<i> 
+</I>&gt;<i> In that case, we could detect if the application tries to set an array 
+</I>&gt;<i> to the properties fillStyle or strokeStyle, and if it is the case, then 
+</I>&gt;<i> it means that the given application is more recent than the change from 
+</I>&gt;<i> string to array, and we can switch to an array-like reading.
+</I>&gt;<i>
+</I>&gt;<i> An internal &quot;colorsAsArray&quot; flag could then be set, and any reading from 
+</I>&gt;<i> any color property would after that return an array.
+</I>&gt;<i>
+</I>&gt;<i> Maybe let the possibility to switch back to the original behaviour by 
+</I>&gt;<i> setting to a string?
+</I>&gt;<i>
+</I>&gt;<i> Note that setting any color to a zero-length array should not modify the 
+</I>&gt;<i> property itself, but still set the internal &quot;colorsAsArray&quot; flag.
+</I>&gt;<i> 
+</I>&gt;<i> Ie:
+</I>&gt;<i> ctx.fillStyle = [];		//sets the global internal colorsAsArray flag
+</I>&gt;<i> without changing the fill-color value
+</I>&gt;<i> alert( ctx.strokeStyle.length );//should display 4
+</I>&gt;<i> ctx.fillStyle[4] = 0.5;		//only affect transparency
+</I>&gt;<i> ctx.strokeStyle = '';		//clears flag colorsAsArray without changing
+</I>&gt;<i> the value
+</I>&gt;<i> alert( ctx.strokeStyle );	//displays either a &quot;#xxxxxx&quot; or a &quot;rgba(...)&quot;
+</I>&gt;<i> string depending on the alpha value
+</I>
+This seems way, way more complex than necessary. We really want to keep 
+this API as simple as possible.
+
+
+Regarding the actual case of the text:
+
+On Thu, 10 May 2007, Nicholas Shanks wrote:
+&gt;<i> 
+</I>&gt;<i> Would it not make more sense to fix the UAs. lower-case hex is horrible 
+</I>&gt;<i> to read.
+</I>
+On Thu, 10 May 2007, Anne van Kesteren wrote:
+&gt;<i> 
+</I>&gt;<i> Feel free to convince the Microsoft Internet Explorer team. Then again, 
+</I>&gt;<i> it's not like you'd actually read the return value of .fillStyle and 
+</I>&gt;<i> .strokeStyle yourself anyway...
+</I>
+On Thu, 10 May 2007, Nicholas Shanks wrote:
+&gt;<i> 
+</I>&gt;<i> I assume one would use these getters primarily when debugging a website 
+</I>&gt;<i> during its development, and as such they would be read by human eyes, 
+</I>&gt;<i> and readability is quite important in the case of debugging.  It is easy 
+</I>&gt;<i> to scan over DECA67 but deca67 might appear more like a variable name, 
+</I>&gt;<i> distracting the developer, if only momentarily.
+</I>
+On Thu, 10 May 2007, mozer wrote:
+&gt;<i>
+</I>&gt;<i> what about alert(xxx.fillStyle.toUppercase()) ?
+</I>
+Given the existence of this workaround, the value of consistency across 
+the platform, and the unlikelihood of changing the older parts of the 
+platform, I am going to leave it as lowercase.
+
+It's really not a big deal what the case of the attribute's return value 
+is, in practice...
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="053508.html">[whatwg] return lowercase hex values for fillStyle and	strokeStyle
+</A></li>
+	<LI>Next message: <A HREF="053554.html">[whatwg]  Canvas color serialisation
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#53541">[ date ]</a>
+              <a href="thread.html#53541">[ thread ]</a>
+              <a href="subject.html#53541">[ subject ]</a>
+              <a href="author.html#53541">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

@@ -1,0 +1,216 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Canvas in Workers
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Canvas%20in%20Workers&In-Reply-To=%3CCAKZ%2BBNr2ihUeMr8Pw4eJOEzSWOoaBb5Cn3uzjzg1qkywTsPRZg%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="038505.html">
+   <LINK REL="Next"  HREF="080829.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Canvas in Workers</H1>
+<!--htdig_noindex-->
+    <B>Gregg Tavares</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Canvas%20in%20Workers&In-Reply-To=%3CCAKZ%2BBNr2ihUeMr8Pw4eJOEzSWOoaBb5Cn3uzjzg1qkywTsPRZg%40mail.gmail.com%3E"
+       TITLE="[whatwg] Canvas in Workers">gman at google.com
+       </A><BR>
+    <I>Thu Jan  3 17:06:49 PST 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="038505.html">[whatwg] Canvas in Workers
+</A></li>
+        <LI>Next message: <A HREF="080829.html">[whatwg] Canvas in Workers
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#80781">[ date ]</a>
+              <a href="thread.html#80781">[ thread ]</a>
+              <a href="subject.html#80781">[ subject ]</a>
+              <a href="author.html#80781">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>So I've been thinking more about this and I'm wondering, for the time
+being,
+why have canvas.setContext and why expose the Canvas2DRenderingContext
+constructor?
+
+I'm assuming those ideas were influenced by the WebGL one context multiple
+canvas
+discussions but I have a feeling this issues are orthogonal to single
+canvas single
+context.
+
+What if instead of &quot;canvas.setContext&quot; and &quot;new Canvas2DRenderingContext()&quot;
+we
+just have CanvasProxy and it has the same API as Canvas minus the
+HTMLElement stuff?
+
+Then you'd do this
+
+   // main.html
+   &lt;canvas&gt;&lt;/canvas&gt;
+   &lt;script&gt;
+    var canvas = document.getElementsByTagName('canvas')[0];
+    var worker = new Worker('clock.js');
+    var proxy = canvas.transferControlToProxy());
+    worker.postMessage(proxy, [proxy]);
+   &lt;/script&gt;
+
+   // clock.js worker
+   onmessage = function (event) {
+     var proxy = event.data;
+     var ctx = proxy.getContext(&quot;2d&quot;);  // same API as Canvas
+     setInterval(function () {
+       context.clearRect(0, 0, context.width, context.height);
+       context.fillText(0, 100, new Date());
+       context.commit();
+     }, 1000);
+   };
+
+That would mean for the simple case of single context in worker and single
+canvas
+nothing really changes. CanvasProxy is a proxy for the Canvas. The
+CanvasProxy
+can be passed anywhere the Canvas can currently be used (drawImage)
+
+You can call proxy.toDataURL() etc...
+
+That means we can solve the 1 context multiple canvases issue later making
+this
+a minimal api change?
+
+Is there some reason that won't work?
+
+There is some weirdness in that calling this in a worker
+
+    someOtherCanvasProxy.drawImage(proxy)
+
+Will give you different results than calling this in a main thread
+
+    someOtherCanvas.drawImage(canvas);
+
+Since the proxy is drawing to a different buffer than the canvas. commit()
+still copies from the proxy to the canvas.
+
+This direction though seems more forward compatible (or at least less
+likely to conflict)
+with whatever solutions comes up later for 1 context and multiple canvases.
+
+
+
+
+
+
+
+
+
+
+
+On Thu, Jan 3, 2013 at 4:46 PM, Gregg Tavares &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">gman at google.com</A>&gt; wrote:
+
+&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> On Tue, Dec 11, 2012 at 9:04 AM, Ian Hickson &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">ian at hixie.ch</A>&gt; wrote:
+</I>&gt;<i>
+</I>&gt;&gt;<i> On Tue, 11 Dec 2012, Gregg Tavares (&#31038;&#231;~T&#168;) wrote:
+</I>&gt;&gt;<i> &gt;
+</I>&gt;&gt;<i> &gt; discussion seems to have died down here but I'd like to bring up another
+</I>&gt;&gt;<i> &gt; issue
+</I>&gt;&gt;<i> &gt;
+</I>&gt;&gt;<i> &gt; In WebGL land we have creation attributes on the drawingbuffer made for
+</I>&gt;&gt;<i> a
+</I>&gt;&gt;<i> &gt; canvas. Example
+</I>&gt;&gt;<i> &gt;
+</I>&gt;&gt;<i> &gt;     gl = canvas.getContext(&quot;webgl&quot;, { preserveDrawingBuffer: false });
+</I>&gt;&gt;<i> &gt;
+</I>&gt;&gt;<i> &gt; We're working out the details on how to set those options for the case
+</I>&gt;&gt;<i> &gt; where we have 1 context and multiple canvases.
+</I>&gt;&gt;<i> &gt;
+</I>&gt;&gt;<i> &gt; The particular option above would apparently be a huge perf win for
+</I>&gt;&gt;<i> &gt; canvas 2d for mobile. Which suggests that whatever API is decided on it
+</I>&gt;&gt;<i> &gt; would be nice if it worked for both APIs the same.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> What does it do?
+</I>&gt;&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> Effectively it makes the canvas double buffered.
+</I>&gt;<i>
+</I>&gt;<i> Right now by 2d canvases are effectively single buffered. At the
+</I>&gt;<i> appropriate time a copy
+</I>&gt;<i> of the canvas is made and passed to the compositor. This copy is slow,
+</I>&gt;<i> especially on
+</I>&gt;<i> mobile.
+</I>&gt;<i>
+</I>&gt;<i> Apple requested that for WebGL the default be for double buffering. When
+</I>&gt;<i> double buffered, when the canvas is composited (when the current
+</I>&gt;<i> JavaScript event exits)
+</I>&gt;<i> the canvas's buffer is given to the compositor and the canvas is given a
+</I>&gt;<i> new buffer (or
+</I>&gt;<i> an old one). That new buffer is cleared, meaning the contents is gone.
+</I>&gt;<i> It's up to the app to
+</I>&gt;<i> draw stuff into again. If nothing is drawn the compositor will continue to
+</I>&gt;<i> use the
+</I>&gt;<i> buffer it acquired earlier.
+</I>&gt;<i>
+</I>&gt;<i> In WebGL you can opt into the slower &quot;copy&quot; path. For Canvas 2D while the
+</I>&gt;<i> default
+</I>&gt;<i> has to remain the slow &quot;copy&quot; path it would be nice to be able to opt into
+</I>&gt;<i> the faster
+</I>&gt;<i> &quot;swap&quot; double buffered path.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> In the 2D canvas, whenever you bind to a new canvas, the context is reset
+</I>&gt;&gt;<i> to its default state, the context's hit region list is reset, and the
+</I>&gt;&gt;<i> context's bitmap is reset. The next time the context is flushed, the
+</I>&gt;&gt;<i> canvas itself is always reset (since flushing the context causes the
+</I>&gt;&gt;<i> bitmap and hit region list to be pushed to the canvas, replacing whatever
+</I>&gt;&gt;<i> was there before).
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> --
+</I>&gt;&gt;<i> Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+</I>&gt;&gt;<i> <A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+</I>&gt;&gt;<i> Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</I>&gt;&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="038505.html">[whatwg] Canvas in Workers
+</A></li>
+	<LI>Next message: <A HREF="080829.html">[whatwg] Canvas in Workers
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#80781">[ date ]</a>
+              <a href="thread.html#80781">[ thread ]</a>
+              <a href="subject.html#80781">[ subject ]</a>
+              <a href="author.html#80781">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

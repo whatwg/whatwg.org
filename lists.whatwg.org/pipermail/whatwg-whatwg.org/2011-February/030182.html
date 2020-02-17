@@ -1,0 +1,308 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] HTML-to-plaintext conversion (innerText	and	Selection.toString())
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20HTML-to-plaintext%20conversion%20%28innerText%0A%09and%09Selection.toString%28%29%29&In-Reply-To=%3C4D49DB0C.4080206%40mit.edu%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="030179.html">
+   <LINK REL="Next"  HREF="030188.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] HTML-to-plaintext conversion (innerText	and	Selection.toString())</H1>
+<!--htdig_noindex-->
+    <B>Boris Zbarsky</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20HTML-to-plaintext%20conversion%20%28innerText%0A%09and%09Selection.toString%28%29%29&In-Reply-To=%3C4D49DB0C.4080206%40mit.edu%3E"
+       TITLE="[whatwg] HTML-to-plaintext conversion (innerText	and	Selection.toString())">bzbarsky at MIT.EDU
+       </A><BR>
+    <I>Wed Feb  2 14:30:36 PST 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="030179.html">[whatwg] HTML-to-plaintext conversion (innerText and	Selection.toString())
+</A></li>
+        <LI>Next message: <A HREF="030188.html">[whatwg] HTML-to-plaintext conversion (innerText and	Selection.toString())
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#30182">[ date ]</a>
+              <a href="thread.html#30182">[ thread ]</a>
+              <a href="subject.html#30182">[ subject ]</a>
+              <a href="author.html#30182">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On 2/2/11 4:51 PM, Aryeh Gregor wrote:
+&gt;<i> I've based the spec entirely on CSS, with no reference to
+</I>&gt;<i> specific HTML elements, because this matches what the user sees.
+</I>
+This doesn't work for disconnected subtrees.  Or rather, it presupposes 
+certain things about the browser's architecture that I don't think we 
+want to presuppose.
+
+That may be ok for Selection (though not sure it is for programmatic 
+ones; see <A HREF="https://bugzilla.mozilla.org/show_bug.cgi?id=585229">https://bugzilla.mozilla.org/show_bug.cgi?id=585229</A>), but I 
+fail to see why it's OK for a DOM property like innerText.
+
+&gt;<i> A CSS dependency is unavoidable anyway because of things like display:
+</I>&gt;<i> none, so I see no reason to minimize it.
+</I>
+Note that until recently Gecko had no such dependency in 
+selection.toString().   We made some changes because of the &quot;it's not 
+what the user sees&quot; issue, but it's a pretty complicated problem, 
+because due to CSS out-of-flows &quot;what the user sees&quot; and &quot;a DOM range&quot; 
+might have very little to do with each other.
+
+You may want to read <A HREF="https://bugzilla.mozilla.org/show_bug.cgi?id=39098">https://bugzilla.mozilla.org/show_bug.cgi?id=39098</A> 
+for some background on this part.
+
+&gt;<i> * Currently the algorithm ignores generated content, matching all
+</I>&gt;<i> browsers.  I think it should generally include generated content,
+</I>&gt;<i> because that's what's visible to the user.  Would implementers be
+</I>&gt;<i> willing to do this?
+</I>
+Generated content is tough, because there's no way to capture it with 
+DOM ranges.  So if you're using DOM ranges to represent your selections, 
+there's just no sane way to handle generated content.
+
+I assume you also read the non-noise parts of 
+<A HREF="https://bugzilla.mozilla.org/show_bug.cgi?id=12460">https://bugzilla.mozilla.org/show_bug.cgi?id=12460</A> (but they mostly say 
+what I said above).
+
+&gt;<i> * Are there any important special cases in how browsers behave that my
+</I>&gt;<i> tests omit?  I haven't tested all the display types yet, for example.
+</I>
+Looking briefly over the code we use to serialize to text for copy/paste 
+(but also for other purposes, so this code has several different modes, 
+which complicates things), there's stuff there to deal specially with 
+tabs, nested ordered lists, &lt;h*&gt; vertical spacing and indentation, 
+non-breaking spaces, blockquote (especially of type=&quot;cite&quot;), 
+noscript/noframes/iframe, &lt;p&gt;, &lt;pre&gt; (especially inside blockquotes), 
+&lt;tr&gt;, &lt;td&gt;/&lt;th&gt;, &lt;dl&gt;/&lt;dt&gt;, &lt;span&gt; (nesting level affects whether pretty 
+line-wrapping happens or something like that), &lt;q&gt;, tags that are 
+&quot;block-level&quot; in the HTML4 sense, &lt;sup&gt; and &lt;sub&gt;, &lt;code&gt;, &lt;strong&gt; and 
+&lt;b&gt;, &lt;em&gt; and &lt;i&gt;, &lt;u&gt;.
+
+Plus there's the black magic about when to rewrap things and when to 
+preserve the original whitespace or whatnot.
+
+See 
+<A HREF="http://hg.mozilla.org/mozilla-central/file/1c2d53a2dcfb/content/base/src/nsPlainTextSerializer.cpp">http://hg.mozilla.org/mozilla-central/file/1c2d53a2dcfb/content/base/src/nsPlainTextSerializer.cpp</A> 
+for details.
+
+I should note that it's not clear to me how much we want to standardize 
+what browsers actually copy when the user copies.  This seems like 
+something that users may want to configure and where we want to let 
+browsers experiment with heuristics and such; I have a really hard time 
+believing that the current browser behavior here is the best we can do.
+
+That leaves the question of whether Selection.toString should produce 
+the same string as the user copying and pasting would, of course. 
+Perhaps it shouldn't.  I'm not sure we'd want to make what toString 
+produce depend on new CSS layout modes, for example, since that could 
+break scripts... but the user-facing copied text might want to depend on 
+those.  Something like CSS3 Template Layout is even less amenable to 
+having selections represented as a range than what people do now with 
+out-of-flows.
+
+-Boris
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="030179.html">[whatwg] HTML-to-plaintext conversion (innerText and	Selection.toString())
+</A></li>
+	<LI>Next message: <A HREF="030188.html">[whatwg] HTML-to-plaintext conversion (innerText and	Selection.toString())
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#30182">[ date ]</a>
+              <a href="thread.html#30182">[ thread ]</a>
+              <a href="subject.html#30182">[ subject ]</a>
+              <a href="author.html#30182">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

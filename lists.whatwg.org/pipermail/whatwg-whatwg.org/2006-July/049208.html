@@ -1,0 +1,173 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] [WA1] Formatting elements
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20%5BWA1%5D%20Formatting%20elements&In-Reply-To=%3CPine.LNX.4.62.0607182209100.4826%40dhalsim.dreamhost.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="049204.html">
+   <LINK REL="Next"  HREF="049214.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] [WA1] Formatting elements</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20%5BWA1%5D%20Formatting%20elements&In-Reply-To=%3CPine.LNX.4.62.0607182209100.4826%40dhalsim.dreamhost.com%3E"
+       TITLE="[whatwg] [WA1] Formatting elements">ian at hixie.ch
+       </A><BR>
+    <I>Tue Jul 18 16:15:32 PDT 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="049204.html">[whatwg] [WA1] Formatting elements
+</A></li>
+        <LI>Next message: <A HREF="049214.html">[whatwg] [WA1] Formatting elements
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#49208">[ date ]</a>
+              <a href="thread.html#49208">[ thread ]</a>
+              <a href="subject.html#49208">[ subject ]</a>
+              <a href="author.html#49208">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Mon, 17 Jul 2006, Stewart Brodie wrote:
+&gt;<i> 
+</I>&gt;<i> I tried dry-running the algorithm for handling mis-nested formatting 
+</I>&gt;<i> elements, but I ended up with a tree that looked very odd.  I can't 
+</I>&gt;<i> believe that the output I ended up with is what the desired result of 
+</I>&gt;<i> the algorithm is, so there is a mistake somewhere: either in my 
+</I>&gt;<i> execution of the algorithm or in the algorithm itself.  I took the 
+</I>&gt;<i> following fragment of HTML:
+</I>&gt;<i> 
+</I>&gt;<i> &lt;DIV&gt; abc &lt;B&gt; def &lt;I&gt; ghi &lt;P&gt; jkl &lt;/B&gt; mno &lt;/I&gt; pqr &lt;/P&gt; stu
+</I>
+With that as input, my implementation outputs:
+
+   5: Parse error: missing document type declaration.
+   38: Parse error: mismatched b element end tag (misnested tags).
+   47: Parse error: mismatched i element end tag (misnested tags).
+   57: Parse error: mismatched body element end tag (premature end of 
+   file?).
+   &lt;html&gt;&lt;head&gt;&lt;/head&gt;&lt;body&gt;&lt;div&gt; abc &lt;b&gt; def &lt;i&gt; ghi 
+   &lt;/i&gt;&lt;/b&gt;&lt;i&gt;&lt;/i&gt;&lt;p&gt;&lt;i&gt;&lt;b&gt; jkl &lt;/b&gt; mno &lt;/i&gt; pqr &lt;/p&gt; 
+   stu&lt;/div&gt;&lt;/body&gt;&lt;/html&gt;
+
+
+&gt;<i> One filled whiteboard later [...]
+</I>
+Yeah, I have a bunch of whiteboards full of this stuff too. ;-)
+
+
+&gt;<i> the result I ended up with was equivalent to:
+</I>&gt;<i> 
+</I>&gt;<i> &lt;DIV&gt; abc &lt;B&gt; def &lt;I&gt; ghi &lt;/I&gt; &lt;/B&gt; &lt;I&gt; &lt;/I&gt; &lt;P&gt; &lt;I&gt; &lt;B&gt; jkl &lt;/B&gt; mno &lt;/I&gt;
+</I>&gt;<i> pqr &lt;/P&gt; stu &lt;/DIV&gt;
+</I>
+Looks right.
+
+
+&gt;<i> I know it's hard to see when written out textually, but note that for 
+</I>&gt;<i> the text node 'jkl', the I and B elements are the wrong way around!
+</I>
+Wrong way with respect to what? They're the &quot;right way&quot; if you look at the 
+end tags: &lt;/b&gt; closes first, so it must be innermost! ;-)
+
+The point is this is error-correction logic, there is no &quot;right way&quot; 
+(well, until the spec is a standard, I guess).
+
+
+&gt;<i> It all seems to start going wrong for me in step 7 of the algorithm.  
+</I>&gt;<i> During the handling of the &lt;/B&gt; tag, the clone of I gets created and 
+</I>&gt;<i> that's the node that ends up being the childless I node that has the DIV 
+</I>&gt;<i> as its parent (during step 5 of handling the &lt;/I&gt; tag when the I is 
+</I>&gt;<i> cloned for a second time to be the child of the P and adopt the original 
+</I>&gt;<i> children of the P) Firefox generates what I think I would expect and 
+</I>&gt;<i> prefer:
+</I>&gt;<i> 
+</I>&gt;<i> &lt;DIV&gt; abc &lt;B&gt; def &lt;I&gt; ghi &lt;/I&gt; &lt;/B&gt; &lt;P&gt; &lt;B&gt; &lt;I&gt; jkl &lt;/I&gt; &lt;/B&gt; &lt;I&gt; mno &lt;/I&gt;
+</I>&gt;<i> pqr &lt;/P&gt; stu &lt;/DIV&gt;
+</I>
+It's the same number of tags, in this case.
+
+It gets more obviously bad to do what Mozilla does when you consider a 
+case like:
+
+   &lt;b&gt;&lt;p&gt;...&lt;p&gt;...&lt;p&gt;...&lt;p&gt;...&lt;p&gt;...&lt;p&gt;...
+
+...which is very common. With that exact markup, Safari, IE7, and the spec 
+all end up with the exact same DOM tree (from the &lt;body&gt; down, at least), 
+and with the same number of element nodes (from &lt;body&gt; down, 8).
+
+Mozilla ends up with 13 nodes (from the body down). That doesn't scale -- 
+there are pages with hundreds of nodes like this.
+
+
+&gt;<i> For comparison, Internet Explorer 6 on the other hand treats the P no
+</I>&gt;<i> differently to the B or I and ends up with:  &lt;DIV&gt; abc &lt;B&gt; def &lt;I&gt; ghi &lt;P&gt;
+</I>&gt;<i> jkl &lt;/P&gt; &lt;/I&gt; &lt;/B&gt; &lt;I&gt; &lt;P&gt; mno &lt;/P&gt; &lt;/I&gt; &lt;P&gt; pqr &lt;/P&gt; stu &lt;/DIV&gt;
+</I>
+Actually IE has only one P element (and only one B and only one I). Look 
+closer and you'll find that the P element isn't closed -- it's just that 
+the &quot;mno&quot; and &quot;pqr&quot; text nodes' parentNodes point to the P, while the DIV 
+element's childNodes array actually also mentions those text nodes. Yes, 
+IE generates DOM trees that aren't trees. See also:
+
+   <A HREF="http://ln.hixie.ch/?start=1037910467&amp;count=1">http://ln.hixie.ch/?start=1037910467&amp;count=1</A>
+   <A HREF="http://ln.hixie.ch/?start=1138169545&amp;count=1">http://ln.hixie.ch/?start=1138169545&amp;count=1</A>
+   <A HREF="http://ln.hixie.ch/?start=1137740632&amp;count=1">http://ln.hixie.ch/?start=1137740632&amp;count=1</A>
+   <A HREF="http://ln.hixie.ch/?start=1026485588&amp;count=1">http://ln.hixie.ch/?start=1026485588&amp;count=1</A>
+   <A HREF="http://ln.hixie.ch/?start=1137799947&amp;count=1">http://ln.hixie.ch/?start=1137799947&amp;count=1</A>
+
+
+&gt;<i> The problem here may simply be that appending any node due to opening 
+</I>&gt;<i> any non-formatting/non-phrasing open tag when in &quot;in body&quot; should cause 
+</I>&gt;<i> any formatting/phrasing elements to be popped off the stack of open 
+</I>&gt;<i> elements, and then NOT execute &quot;reconstruct the active formatting 
+</I>&gt;<i> elements&quot; (because it'll be executed automatically when opening the next 
+</I>&gt;<i> formatting/phrasing element or text node anyway)
+</I>
+Isn't that already the case? You only reconstruct for inline elements and 
+text nodes, as far as I can tell.
+
+
+BTW while looking at this stuff this page may be of use:
+
+   <A HREF="http://software.hixie.ch/utilities/js/live-dom-viewer/">http://software.hixie.ch/utilities/js/live-dom-viewer/</A>
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="049204.html">[whatwg] [WA1] Formatting elements
+</A></li>
+	<LI>Next message: <A HREF="049214.html">[whatwg] [WA1] Formatting elements
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#49208">[ date ]</a>
+              <a href="thread.html#49208">[ thread ]</a>
+              <a href="subject.html#49208">[ subject ]</a>
+              <a href="author.html#49208">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

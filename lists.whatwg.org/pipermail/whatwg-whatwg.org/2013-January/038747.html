@@ -1,0 +1,288 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Proposal: HTMLCanvasElement.printCallback API
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Proposal%3A%20HTMLCanvasElement.printCallback%20API&In-Reply-To=%3C51004407.10007%40gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="038744.html">
+   <LINK REL="Next"  HREF="081037.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Proposal: HTMLCanvasElement.printCallback API</H1>
+<!--htdig_noindex-->
+    <B>Julian Viereck</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Proposal%3A%20HTMLCanvasElement.printCallback%20API&In-Reply-To=%3C51004407.10007%40gmail.com%3E"
+       TITLE="[whatwg] Proposal: HTMLCanvasElement.printCallback API">julian.viereck at googlemail.com
+       </A><BR>
+    <I>Wed Jan 23 12:11:51 PST 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="038744.html">[whatwg] comments on 'position: absolute-anchored'
+</A></li>
+        <LI>Next message: <A HREF="081037.html">[whatwg] Proposal: HTMLCanvasElement.printCallback API
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#38747">[ date ]</a>
+              <a href="thread.html#38747">[ thread ]</a>
+              <a href="subject.html#38747">[ subject ]</a>
+              <a href="author.html#38747">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Discussing the proposal with Robert &quot;roc&quot; O'Callahan, we came up with 
+the following adjustments. They are targeting the &quot;Some more details on 
+the behavior of the API&quot; from before:
+
+(1) With the previous proposal, printCallbacks are executed even after 
+the window is unloaded. We think this is not a good idea. There 
+shouldn't be any JavaScript execution after a window is unloaded. 
+Therefore let's add the following:
+
+     Encourage the UA to prevent closing the window while print 
+callbacks are pending. If the window is nevertheless closed and while 
+some printCallbacks have not completed yet, all printCallbacks are 
+canceled, the JavaScript execution is stopped and the print job is 
+aborted. Canceling the printCallbacks is done to prevent any JavaScript 
+execution after the window is unloaded.
+
+
+(2) Given the change in (1), we can now change the following point:
+
+&gt;<i> * the &quot;canvas&quot; property on the printContext points to the canvas on 
+</I>&gt;<i> the page and not the canvas element that is printed. Otherwise it's 
+</I>&gt;<i> possible to change the layout of the printing while printing. As the 
+</I>&gt;<i> canvas on the page might not be available anymore (e.g. the canvas was 
+</I>&gt;<i> removed and garbage collected from the document before the 
+</I>&gt;<i> printCallback gets invoked), the &quot;canvas&quot; property might be 
+</I>&gt;<i> &quot;undefined&quot; or &quot;null&quot;.
+</I>
+to:
+
+* the &quot;canvas&quot; property on the printContext points to the canvas on the 
+page and not the canvas element that is printed. Otherwise it's possible 
+to change the layout of the printing while printing.
+
+Simply saying, if the window object is always alive while the 
+printCallbacks are happening (thanks to (1)), the &quot;canvas&quot; property on 
+the printContext can always point to the canvas on the page.
+
+Best regards,
+
+Julian
+
+On 9/26/12 2:46 PM, Julian Viereck wrote:
+&gt;<i> Hello WHATWG members,
+</I>&gt;<i>
+</I>&gt;<i> This email is about proposing a new attribute &quot;printCallback&quot; on the 
+</I>&gt;<i> HTMLCanvasElement (in the following called &quot;Canvas&quot;). This new API 
+</I>&gt;<i> allows to:
+</I>&gt;<i>
+</I>&gt;<i> * define the content of a canvas element during the printing progress
+</I>&gt;<i> * send the canvas' content without rasterization to the printer
+</I>&gt;<i>
+</I>&gt;<i> The basic API was implemented in [1] and is available in Firefox 
+</I>&gt;<i> Nightly 18.
+</I>&gt;<i>
+</I>&gt;<i> ## Motivation And Use-Case
+</I>&gt;<i>
+</I>&gt;<i> The motivation for designing and implementing the API was to add 
+</I>&gt;<i> proper printing support for the PDF.JS project. The PDF.JS project is 
+</I>&gt;<i> an implementation of aPDF viewer using only web technologies. Without 
+</I>&gt;<i> this API it is not possible to:
+</I>&gt;<i>
+</I>&gt;<i> * render only the pages needed for printing. A webpage is printed with 
+</I>&gt;<i> the content visible at the moment the print action is started. For 
+</I>&gt;<i> PDF.JS this means that all pages are required to be rendered before 
+</I>&gt;<i> printing. Rendering all the pages takes quite some time for complex 
+</I>&gt;<i> and huge documents (&gt; 100 pages). But the user might only want to 
+</I>&gt;<i> print the first page. That means, the user waits for unnecessary 
+</I>&gt;<i> computation to finish.
+</I>&gt;<i> * print the content of a canvas element without rasterization 
+</I>&gt;<i> artifacts on the printout. One could increase the size of the canvas 
+</I>&gt;<i> such that the rasterization doesn't becomes visible, but this is not 
+</I>&gt;<i> possible due to the large usage of memory going with this. Using a 
+</I>&gt;<i> different way to render the pages than using canvas (e.g. SVG) is not 
+</I>&gt;<i> possible, due to memory and performance issues.
+</I>&gt;<i>
+</I>&gt;<i> Although not directly relevant to PDF.JS - it's also not possible to
+</I>&gt;<i>
+</I>&gt;<i> * define the content of a printed page that looks exactly the same 
+</I>&gt;<i> cross all user agents. There are small variations, that cause breaks 
+</I>&gt;<i> and styles to look slightly different between user agents. Using CSS 
+</I>&gt;<i> it's possible to make one canvas element take up one physical page and 
+</I>&gt;<i> then precisely layout contenton the canvas.
+</I>&gt;<i>
+</I>&gt;<i> (I will later describe briefly how the API was used to solve these 
+</I>&gt;<i> issues.)
+</I>&gt;<i>
+</I>&gt;<i> ## Actual API
+</I>&gt;<i>
+</I>&gt;<i> The actual API looks like this:
+</I>&gt;<i>
+</I>&gt;<i> The &quot;printCallback&quot; attribute on a Canvas takes a callback. This 
+</I>&gt;<i> callback is invoked when the canvas with a printCallback is printed. A 
+</I>&gt;<i> &quot;printState&quot; object is passed as argument to the callback. The 
+</I>&gt;<i> printState object has a &quot;context&quot; property, which points to a 
+</I>&gt;<i> CanvasRenderingContext2D object. Against this context all known 
+</I>&gt;<i> operations of the CanvasRenderingContext2D are executable. However, 
+</I>&gt;<i> the CanvasRenderingContext2D doesn't rasterize the operations but 
+</I>&gt;<i> instead forward them directly to the printer - instead of drawing to a 
+</I>&gt;<i> pixel surface it's more like drawing to a vector surface. The result 
+</I>&gt;<i> of the operations show up on the canvas when printed, but are not 
+</I>&gt;<i> visible on the screen. The &quot;printState.done()&quot; function  must be 
+</I>&gt;<i> called once all drawing operations for the canvas are done andthe 
+</I>&gt;<i> printing should progress.This was added to allow the printCallback to 
+</I>&gt;<i> perform asynchronous tasks.
+</I>&gt;<i>
+</I>&gt;<i> A simple example of the API looks like this:
+</I>&gt;<i>
+</I>&gt;<i> ```
+</I>&gt;<i> var canvas = document.getElementById('canvas');
+</I>&gt;<i> var ctx = canvas.getContext('2d');
+</I>&gt;<i> ctx.fillText('Hi there.', 50, 50);
+</I>&gt;<i>
+</I>&gt;<i> canvas.printCallback = function(printState) {
+</I>&gt;<i>   var printCtx = printState.context;
+</I>&gt;<i>   printCtx.fillText('I\'m only visible when printed.', 50, 50);
+</I>&gt;<i>   printState.done();
+</I>&gt;<i> };
+</I>&gt;<i> ```
+</I>&gt;<i>
+</I>&gt;<i> You can try this example out in [2] using Firefox Nighlty and see the 
+</I>&gt;<i> results as a PDF in [3]. Notice that you can select the text in the 
+</I>&gt;<i> PDF linked in [3]. (Note: in the linked example [2], the callback is 
+</I>&gt;<i> called &quot;mozPrintCallback&quot; as the API is currently prefixed in Gecko. 
+</I>&gt;<i> The canvas output is rasterized on Windows and Linux due to a bug in 
+</I>&gt;<i> Gecko at the moment.)
+</I>&gt;<i>
+</I>&gt;<i> Some more details on the behavior of the API:
+</I>&gt;<i>
+</I>&gt;<i> * the printCallback function is only invoked on the canvases that will 
+</I>&gt;<i> be visible in the print output.
+</I>&gt;<i> * there is only one printCallback called at the time. After the 
+</I>&gt;<i> &quot;printState.done()&quot; function is called, the next printCallback 
+</I>&gt;<i> function gets invoked assuming there is another canvas that gets 
+</I>&gt;<i> printed and has a printCallback specified.
+</I>&gt;<i> * the order the printCallbacks of the canvases are called follows the 
+</I>&gt;<i> output order of the canvases in the printout.
+</I>&gt;<i> * the resolution on the printContext is the same as when drawing to 
+</I>&gt;<i> the canvas on the page. E.g. if a canvas has the attribute &quot;width&quot; set 
+</I>&gt;<i> to &quot;100&quot; and by using CSS the canvas takes 10 cm in width on the 
+</I>&gt;<i> printout, then 1 unit on the context corresponds to 0.1 cm.
+</I>&gt;<i> * the putImageData and getImageData functions on the 
+</I>&gt;<i> CanvasRenderingContext2D use the same pixel resolution (width/height) 
+</I>&gt;<i> as the canvas on the page (this results in the data of the 
+</I>&gt;<i> getImageData function to be rasterized).
+</I>&gt;<i> * the &quot;canvas&quot; property on the printContext points to the canvas on 
+</I>&gt;<i> the page and not the canvas element that is printed. Otherwise it's 
+</I>&gt;<i> possible to change the layout of the printing while printing. As the 
+</I>&gt;<i> canvas on the page might not be available anymore (e.g. the canvas was 
+</I>&gt;<i> removed and garbage collected from the document before the 
+</I>&gt;<i> printCallback gets invoked), the &quot;canvas&quot; property might be 
+</I>&gt;<i> &quot;undefined&quot; or &quot;null&quot;.
+</I>&gt;<i> * the window.onafterprint event is called either
+</I>&gt;<i>   1. after all printCallbacks are done and the page is ready for printing
+</I>&gt;<i>   2. the printing got aborted using the print dialog.
+</I>&gt;<i> * the printContext holds no content when passed to the callback and 
+</I>&gt;<i> takes the default values (for transformation matrix, styles etc.) of a 
+</I>&gt;<i> CanvasRenderingContext2D
+</I>&gt;<i> * the printContext is a CanvasRenderingContext2D but instead of using 
+</I>&gt;<i> a pixel map to store the drawing operations result, the operations are 
+</I>&gt;<i> forwarded to the printer without rasterization.
+</I>&gt;<i> * the API does not change the layout of the canvas element on the page.
+</I>&gt;<i>
+</I>&gt;<i> ## Open Discussion:
+</I>&gt;<i>
+</I>&gt;<i> * There is no way to abort in case something goes wrong. E.g. printing 
+</I>&gt;<i> to the canvas might require a successful network request, but the 
+</I>&gt;<i> request failed.
+</I>&gt;<i> * The printState.done() function gets eventually never called and 
+</I>&gt;<i> therefore printing the document might never finish.
+</I>&gt;<i>
+</I>&gt;<i> ## How The PrintCallback-API Solved The Problems For PDF.JS
+</I>&gt;<i>
+</I>&gt;<i> * using CSS all content except a single div is hidden during printing
+</I>&gt;<i> * when the beforePrint event is fired it is checked if the webpage is 
+</I>&gt;<i> setup for printing or not. If it is not, the webpage is setup and the 
+</I>&gt;<i> print action is canceled. Otherwise, the printing is not prevented and 
+</I>&gt;<i> happens as regular
+</I>&gt;<i> * the &quot;setup webpage for printing&quot; consists of the following steps
+</I>&gt;<i> 1. for each page of the PDF document, a canvas element is created and 
+</I>&gt;<i> insert to the div that is visible during printing
+</I>&gt;<i> 2. using CSS, the canvas inside the print-visible div take up an 
+</I>&gt;<i> entire page in the later printout
+</I>&gt;<i> 3. for each canvas the `mozPrintCallback` is set. If the callback 
+</I>&gt;<i> function is called, the pdf page corresponding to the canvas is loaded 
+</I>&gt;<i> and drawn on the canvas. Once finished, the `printState.done()` 
+</I>&gt;<i> function is called
+</I>&gt;<i> * after the user set the print settings in the print dialog, the 
+</I>&gt;<i> webpage is printed
+</I>&gt;<i> * for the pages that are required for the printout, the 
+</I>&gt;<i> mozPrintCallback is called on the canvas for these pages
+</I>&gt;<i> * after the printing finished (detected by listening to the afterPrint 
+</I>&gt;<i> event), the created canvases are removed again to save memory.
+</I>&gt;<i>
+</I>&gt;<i> Best regards and looking for feedback on this,
+</I>&gt;<i>
+</I>&gt;<i> Julian
+</I>&gt;<i>
+</I>&gt;<i> ---
+</I>&gt;<i>
+</I>&gt;<i> [1]: Mozilla Bug 745025 - Implement CanvasElement.mozPrintCallback: 
+</I>&gt;<i> <A HREF="https://bugzilla.mozilla.org/show_bug.cgi?id=745025">https://bugzilla.mozilla.org/show_bug.cgi?id=745025</A>
+</I>&gt;<i> [2]: <A HREF="http://jsfiddle.net/FPNMM/2/embedded/js%2Cresult/">http://jsfiddle.net/FPNMM/2/embedded/js%2Cresult/</A>
+</I>&gt;<i> [3]: <A HREF="http://n.ethz.ch/~jviereck/drop/mozPrintCallback_output.pdf">http://n.ethz.ch/~jviereck/drop/mozPrintCallback_output.pdf</A> 
+</I>&gt;<i> &lt;<A HREF="http://n.ethz.ch/%7Ejviereck/drop/mozPrintCallback_output.pdf">http://n.ethz.ch/%7Ejviereck/drop/mozPrintCallback_output.pdf</A>&gt;
+</I>&gt;<i>
+</I>
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="038744.html">[whatwg] comments on 'position: absolute-anchored'
+</A></li>
+	<LI>Next message: <A HREF="081037.html">[whatwg] Proposal: HTMLCanvasElement.printCallback API
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#38747">[ date ]</a>
+              <a href="thread.html#38747">[ thread ]</a>
+              <a href="subject.html#38747">[ subject ]</a>
+              <a href="author.html#38747">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

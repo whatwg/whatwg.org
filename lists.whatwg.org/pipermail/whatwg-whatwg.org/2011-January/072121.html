@@ -1,0 +1,146 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] WebWorkers and images
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20WebWorkers%20and%20images&In-Reply-To=%3CAANLkTin6c1Ax-w5u0e5FmWni0p7%3DyPAHx9-GtvHH0%2BDp%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="072148.html">
+   <LINK REL="Next"  HREF="072122.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] WebWorkers and images</H1>
+<!--htdig_noindex-->
+    <B>Glenn Maynard</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20WebWorkers%20and%20images&In-Reply-To=%3CAANLkTin6c1Ax-w5u0e5FmWni0p7%3DyPAHx9-GtvHH0%2BDp%40mail.gmail.com%3E"
+       TITLE="[whatwg] WebWorkers and images">glenn at zewt.org
+       </A><BR>
+    <I>Thu Jan 13 13:37:32 PST 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="072148.html">[whatwg] WebWorkers and images
+</A></li>
+        <LI>Next message: <A HREF="072122.html">[whatwg] WebWorkers and images
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#72121">[ date ]</a>
+              <a href="thread.html#72121">[ thread ]</a>
+              <a href="subject.html#72121">[ subject ]</a>
+              <a href="author.html#72121">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Thu, Jan 13, 2011 at 9:41 AM, Boris Zbarsky &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">bzbarsky at mit.edu</A>&gt; wrote:
+&gt;<i> In any case, to implement the 4ms thing on Windows Chrome has to have a
+</I>&gt;<i> dedicated thread polling the multimedia timer, which is a huge PITA in terms
+</I>&gt;<i> of things like wakeups and battery life... And for what it's worth on my Mac
+</I>&gt;<i> they don't manage to hit the 4ms thing either; they get closer to 4.7ms on
+</I>&gt;<i> average, though I haven't looked at the distribution. &#160;And if I lower
+</I>&gt;<i> Gecko's clamp to 4ms, I get a similar 4.7ms average on Mac, so that might
+</I>&gt;<i> just be an OS limitation too.
+</I>
+Well, there are two very separate use cases competing here:
+
+- trying to actually get very short, accurate timers, and
+- using timers simply to return to the browser, run any pending UI
+events, and then immediately start work again with no additional
+delay.
+
+You don't need any trickery to get the latter, and in my experience
+that's far more often the goal with zero-second timeouts.
+
+&gt;&gt;<i> Why was the&gt;= 10ms minimum timer duration spec'ed this way ?
+</I>&gt;<i>
+</I>&gt;<i> The current spec draft says the floor is 4ms.
+</I>
+I strongly disagree with this.  Browsers should be allowed to permit
+0ms &quot;return, run events then run this code immediately&quot; timers.  It
+takes some heuristics to do this safely, to prevent code which
+(usually accidentally) assumes a minimum delay from busy looping, but
+browsers should be free to attempt such a heuristic, not required by
+spec to clamp to 4ms.
+
+Non-looping 0ms timers are common, to run code when the current call
+finishes.  It's unfortunate that they're all forced to have an
+arbitrary delay, and the spec should permit browsers to do better if
+they're able.
+
+Timeouts in workers shouldn't require this, either, since there's no
+legacy code to worry about.
+
+&gt;&gt;<i> But I think that the workers desperately need a mechanism that permitted
+</I>&gt;&gt;<i> to pass objects *quickly*, and *quickly* most likely means by reference not
+</I>&gt;&gt;<i> by copy.
+</I>&gt;<i>
+</I>&gt;<i> Then it needs to be something that passes the object and _forgets_ it on the
+</I>&gt;<i> caller side.
+</I>
+For code that renders an entire scene at a time and displays it (most
+typical double-buffered OpenGL-like rendering), this might be useful,
+but I'm not sure it helps here.  He's incrementally rendering the
+result, so he needs to keep a copy of it to continue rendering the
+scene.
+
+I suspect there's something simpler going on here, though--as you
+said, copying a 10 MB buffer really should be very quick.
+
+&gt;<i> For arbitrary objects this is harder, but could be done, actually. Gecko
+</I>&gt;<i> already does something similar for Window objects when their origin changes:
+</I>&gt;<i> you might still have a reference to the original object, but you can no
+</I>&gt;<i> longer actually touch any of it. &#160;Under the hood, this is implemented in a
+</I>&gt;<i> way that could be used for sending objects to a worker too, I think.
+</I>
+I think there's also another problem: he's drawing the image, and
+rendering the image incrementally as he goes.  To do that from a
+worker, you'd need to keep sending the ImageData in a message to the
+UI thread to display it.
+
+That leads to a problem: how fast do you send it?  postMessage doesn't
+wait for messages to be received; if the worker doesn't know that the
+UI thread has actually received and processed the message, it won't
+know whether it should send a new message yet.  If it simply sends
+messages periodically, it may send them faster than the UI thread is
+taking them, queuing up a bunch of messages containing huge payloads.
+
+And there's trouble there: there's no way for the worker thread to
+receive a &quot;got your message, ready for the next one&quot; message, unless
+it returns to caller to allow those events to be delivered.
+
+This seems like another important class of use cases for the
+&quot;synchronously handling events&quot; thread on webapps.
+
+-- 
+Glenn Maynard
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="072148.html">[whatwg] WebWorkers and images
+</A></li>
+	<LI>Next message: <A HREF="072122.html">[whatwg] WebWorkers and images
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#72121">[ date ]</a>
+              <a href="thread.html#72121">[ thread ]</a>
+              <a href="subject.html#72121">[ subject ]</a>
+              <a href="author.html#72121">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

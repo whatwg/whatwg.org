@@ -1,0 +1,157 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] When closing the browser
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20When%20closing%20the%20browser&In-Reply-To=%3C4943F178.4020808%40email.it%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017785.html">
+   <LINK REL="Next"  HREF="017765.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] When closing the browser</H1>
+<!--htdig_noindex-->
+    <B>Calogero Alex Baldacchino</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20When%20closing%20the%20browser&In-Reply-To=%3C4943F178.4020808%40email.it%3E"
+       TITLE="[whatwg] When closing the browser">alex.baldacchino at email.it
+       </A><BR>
+    <I>Sat Dec 13 09:31:36 PST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017785.html">[whatwg] When closing the browser
+</A></li>
+        <LI>Next message: <A HREF="017765.html">[whatwg] salvaging work while navigating away from a web app -- onunload=&quot;confirm('save before quitting?')
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17786">[ date ]</a>
+              <a href="thread.html#17786">[ thread ]</a>
+              <a href="subject.html#17786">[ subject ]</a>
+              <a href="author.html#17786">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Ian Hickson ha scritto:
+&gt;<i> On Fri, 12 Dec 2008, Bil Corry wrote:
+</I>&gt;<i>   
+</I>&gt;&gt;<i> Speaking of 'onbeforeunload' and 'beforeunload' -- it'd be helpful if 
+</I>&gt;&gt;<i> there was a way to distinguish between the user taking an action which 
+</I>&gt;&gt;<i> leaves the site vs. taking an action that returns to the site.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> For privacy, it shouldn't reveal which specific action triggered the 
+</I>&gt;&gt;<i> event, but knowing if the user is leaving the site means webapps can 
+</I>&gt;&gt;<i> finally auto-logout the user, which in turn greatly improves security.
+</I>&gt;&gt;<i>     
+</I>&gt;<i>
+</I>&gt;<i> If the goal is auto-logout, then what you describe wouldn't help, as it 
+</I>&gt;<i> would have false-positives (leaving the site when another tab still has 
+</I>&gt;<i> the site open)
+</I>
+As well as any tab-restricted session data, if not aware of other 
+tabs/windows (as Philipp Serafin suggested, whatever is done to make a 
+tab aware of other tabs with the same domain, can be done for an 
+attribute telling wheter the user is leaving a certain domain).
+
+&gt;<i>  and false-negatives (a crash wouldn't log out the user).
+</I>&gt;<i>
+</I>&gt;<i>   
+</I>
+Which may affect persistent cookies, but can be a concern for any 
+solution, when it comes with cookie theft (that is, some communication 
+with the server may be needed, beside the use of cookies or anything 
+else, and such may fail because of a crash).
+
+&gt;<i> Why do session cookies not address this already?
+</I>&gt;<i>
+</I>&gt;<i>   
+</I>
+Both session and persistent cookies may address this (with the concern 
+of false negatives, specially for persistent cookies, but not only). 
+Both need to be enabled in a browser to work (usually they are, session 
+cookies most of times). Both may fail alone (that is, if an immediate 
+invalidation of login data is required - this is a side, related issue).
+
+If the goal is auto-logout *as soon as the user leaves the site*, 
+whenever the downside of a possible new login request during the same 
+session is not a usability concern, a (session) cookie lifetime must be 
+shortened, for instance by adding an expiration timing (e.g., for a 
+session cookie, something like 'sessionID=asdf1234fdas.exp=&lt;current gmt 
+date + 3 seconds&gt;;'), this way if the user reloads the page or navigates 
+a tab history the server will likely recieve such modified cookie before 
+its 'expiration' and abort  an atuo-logout process (a cached webapp may 
+check cookies as well), otherwise, whenever recieving an 'expired' 
+cookie, the logout would trigger immediately; if the client-side script 
+knew the user is leaving the site, any cookie might be removed.
+
+But such wouldn't solve the server-side logout concern: to invalidate 
+any login data, in the above scenario an expired cookie must be 
+recieved, thus possibly giving a cookie thief a longer time to work. Of 
+course, there are solutions to address that. A first one may consist of 
+telling the server to trigger a delayed logout process, waiting for a 
+cookie before timing out (in this case, there might not be any need to 
+modify cookies, though such might be done as well, e.g. with a random 
+value communicated to the server in order to prevent an attacker from 
+using a stolen cookie - or to mitigate the effectiveness of a cookie 
+theft). Nontheless, such a solution may fail because of a crash, thus a 
+server-side timeout may be preferred (even just setting a date value 
+after which any recieved cookie is no more valid); a more complex 
+scenario may involve both a server timeout, a client-side-triggered 
+logout (for immediate logout), and bidirectional communications (to 
+reset any timeout and eventually to update cookies).
+
+The above won't prevent false positives; a further cookie might be used 
+as a counter to be incremented by any loaded page and decreased by any 
+left page, delegating effective logout to the last page (unless a 
+server-side timeout-only solution were preferred, but such wouldn't 
+address the 'immediate auto-logout' goal we started from).
+
+All fine, although based on the assumption at least session cookies are 
+avalaible, which is true most of times, and, when false (a 
+privacy-paranoid user?), just telling the user he needs to enable 
+cookies works. However, a kind of &quot;DOM-only&quot; alternative, not bothering 
+the user to change his privacy settings and perhaps a bit easier to 
+handle (script-side) than cookies in some cases, might be appreciable: 
+an attribute telling when the site is about to be left during current 
+session, and cross-windows messaging, with some blessed origin checking, 
+when some cooperation is needed (e.g. to tell a widget inside an iframe 
+to keep logged in, or to share a secret ID with pages from the same domain).
+
+Best regards,
+Alex.
+
+ 
+ 
+ --
+ Caselle da 1GB, trasmetti allegati fino a 3GB e in piu' IMAP, POP3 e SMTP autenticato? GRATIS solo con Email.it <A HREF="http://www.email.it/f">http://www.email.it/f</A>
+ 
+ Sponsor:
+ CheBanca! La prima banca che ti d&#224; gli interessi in anticipo.
+* Fino al 4,70% sul Conto Deposito, zero spese e interessi subito. Aprilo!
+ Clicca qui: <A HREF="http://adv.email.it/cgi-bin/foclick.cgi?mid=7918&amp;d=13-12">http://adv.email.it/cgi-bin/foclick.cgi?mid=7918&amp;d=13-12</A>
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017785.html">[whatwg] When closing the browser
+</A></li>
+	<LI>Next message: <A HREF="017765.html">[whatwg] salvaging work while navigating away from a web app -- onunload=&quot;confirm('save before quitting?')
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17786">[ date ]</a>
+              <a href="thread.html#17786">[ thread ]</a>
+              <a href="subject.html#17786">[ subject ]</a>
+              <a href="author.html#17786">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

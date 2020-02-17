@@ -1,0 +1,179 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Web Workers
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Web%20Workers&In-Reply-To=%3C20100721201134.GE7577%40erno%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="069500.html">
+   <LINK REL="Next"  HREF="069503.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Web Workers</H1>
+<!--htdig_noindex-->
+    <B>Ryan Heise</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Web%20Workers&In-Reply-To=%3C20100721201134.GE7577%40erno%3E"
+       TITLE="[whatwg] Web Workers">ryan at ryanheise.com
+       </A><BR>
+    <I>Wed Jul 21 13:11:34 PDT 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="069500.html">[whatwg] iframes with potential for independent navigation controls
+</A></li>
+        <LI>Next message: <A HREF="069503.html">[whatwg] Web Workers
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#69502">[ date ]</a>
+              <a href="thread.html#69502">[ thread ]</a>
+              <a href="subject.html#69502">[ subject ]</a>
+              <a href="author.html#69502">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Web Workers offer reliability and performance benefits on multi-core
+CPUs to a certain class of parallelisable tasks that are primarily
+concerned with raw computation over data access. It can clearly be seen
+that the lower the ratio of data access to raw computation, the more
+performance benefits there are to be gained. This is due to the fact
+that data must be serialised and copied to reach a child Web Worker, and
+serialised and copied again before the resulting data can be stored in
+the parent application.
+
+However, there is also a significant class of parallelisable tasks that
+are primarily concerned with data access over raw computation. Many of
+these tasks occur in games programming and include array sorting,
+texture generation, artificial intelligence and various other kinds of
+data analysis. Unfortunately, as the the ratio of data access to raw
+computation increases, the utilisation of multi-core CPUs approaches
+zero. It is not uncommon in this class of parallelisable tasks for the
+bandwidth cost of a postMessage call to equal or even &quot;exceed&quot; the
+benefit to be gained from parallel processing. The result of this being
+that a data-heavy parallel algorithm based on the Web Workers API might
+run at the same speed no matter whether a single core is being utilised
+or 8 cores are being utilised. Or worse yet, it can reach the level
+where the more cores your CPU has, the slower your algorithm will run.
+In such a case, the best performance will be achieved by coding to
+utilise only a single core.
+
+To make things more concrete, consider the following scenarios:
+
+1. Implementing a parallel quicksort using Web Workers. The best
+performance is achievable with an array of plain numbers. If instead, we
+have an array of complex objects which are to be sorted by data keys
+within those objects, then we quickly lose the ability to exploit the
+multi-core CPU as the size of the objects increase because the cost of
+copying the data outweighs any performance benefit from the parallel
+execution of (relatively small amount of) raw computation per array
+index.
+
+2. Texture generation. The problem is that a simple loop that needs to
+generate an array of numbers may do very little processing besides the
+actual memory access. A simple example is initialising an array of
+random numbers (i.e. a noise texture) which can later be used by image
+drawing routines. Similar example textures can be imagined. You might
+suggest that this could be worked around by generating the noise texture
+in one Web Worker, and generating each other independent texture in
+separate Web Workers. However, this approach is not scalable because the
+number of CPU cores may increase to 32 or 64 in the future whereas the
+number of textures used in the program may remain at 3 or 4. You would
+still like to utilise all 64 cores even in this case.
+
+3. Artificial intelligence. Typically an artificial intelligence needs
+to analyse data and choose the best option based on the data available,
+something that is often parallisable. However, it is also sometimes the
+case that each parallel web worker will need to navigate a small portion
+of large data set without it necessarily being easy to predict in
+advance which small portion it will end up navigating. Hence, each web
+worker will require random access to the entire data set.
+
+While Web workers are undoubtedly provide both reliability and
+performance benefits to a certain class of parallisable tasks, they are
+not sufficient on their own to handle the class of data-heavy
+parallelisable tasks described above. Note that things might have been
+different had Javascript been a purely functional language. If this were
+the case, then there would be much safer and more efficient alternatives
+to making whole copies of data that could be implemented under the hood.
+That being said, Javascript is not a purely functional language, and so
+this approach to concurrency will come at a significant cost when
+dealing with this specific class of parallelisable tasks.
+
+Is this an important issue to address? I believe, yes. In my view,
+Javascript is a general purpose, multi-paradigm language. It does not
+really try to enforce any particular style of programming upon you and
+supports many. Limiting Javascript's concurrency offer to Web Workers
+would seem to be out of line with this.
+
+Secondly, just as it is the case with Flash, we should expect that a
+popular use of HTML5 will be games development. As we move into the era
+of multi-core CPUs, developers will want to exploit multi-core
+performance in their games. Unfortunately, Web Workers do not offer the
+desired performance benefits in a significant set of cases. Games
+programmers would not necessarily care about the reliability benefits of
+the Web Workers model, or its ability to potentially scale to multi-cpu
+architectures lacking shared memory. After all, in games we are dealing
+with desktop computers, local processing, and architectures that almost
+certainly provide us with shared memory for performance reasons. We will
+want to make use of it.
+
+For all of the reasons above, I would like to see something like threads
+in Javascript. Yes, threads give rise to race conditions and deadlocks,
+but this seems to be in line with Javascript's apparent philosophy of
+doing very little static error checking, and letting things just happen
+at runtime (e.g. nonexistent static type system). In other words, this
+may be simply a case of: yes, javascript allows runtime errors to
+happen. Is not allowing deadlocks important enough that we should make
+it impossible for a certain class of algorithms to exploit multi-core
+CPUs?
+
+As a final thought, I would like to say that it is actually possible to
+detect deadlock conditions at runtime and immediately throw an exception
+rather than simply hang the web browser. This, in my mind, makes
+deadlocks as good a user experience as any other sort of runtime error.
+
+Before I sign off, there is one more feature which (correct me if I'm
+wrong) is lacking from the current specification. There is currently no
+way for a program to find out how many cores are present in the host
+system. Without this, there is no way to know how many Web Workers to
+create for an algorithm that could easily be parallelised to any number
+of Web Workers / threads. Even, say, a parallel quicksort should not
+just create a new thread for each recursive invocation, as deep as it
+goes. For efficiency, this thread creation should stop as soon as enough
+threads have been created to match the number of physical cores. After
+this point, each core should handle its load by reverting to a
+single-threaded quicksort.
+
+-- 
+Ryan Heise
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="069500.html">[whatwg] iframes with potential for independent navigation controls
+</A></li>
+	<LI>Next message: <A HREF="069503.html">[whatwg] Web Workers
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#69502">[ date ]</a>
+              <a href="thread.html#69502">[ thread ]</a>
+              <a href="subject.html#69502">[ subject ]</a>
+              <a href="author.html#69502">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

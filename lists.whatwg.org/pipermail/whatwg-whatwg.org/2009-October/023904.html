@@ -1,0 +1,164 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] localStorage feedback
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20localStorage%20feedback&In-Reply-To=%3Cbd8f24d20910310753g4bc4409cq10d15ca0a02b065f%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023888.html">
+   <LINK REL="Next"  HREF="023547.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] localStorage feedback</H1>
+<!--htdig_noindex-->
+    <B>Darin Fisher</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20localStorage%20feedback&In-Reply-To=%3Cbd8f24d20910310753g4bc4409cq10d15ca0a02b065f%40mail.gmail.com%3E"
+       TITLE="[whatwg] localStorage feedback">darin at chromium.org
+       </A><BR>
+    <I>Sat Oct 31 07:53:28 PDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023888.html">[whatwg] localStorage feedback
+</A></li>
+        <LI>Next message: <A HREF="023547.html">[whatwg] Issues with Web Sockets API
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23904">[ date ]</a>
+              <a href="thread.html#23904">[ thread ]</a>
+              <a href="subject.html#23904">[ subject ]</a>
+              <a href="author.html#23904">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Fri, Oct 30, 2009 at 1:36 AM, Robert O'Callahan &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">robert at ocallahan.org</A>&gt;wrote:
+
+&gt;<i> On Fri, Oct 30, 2009 at 7:27 PM, Darin Fisher &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">darin at chromium.org</A>&gt; wrote:
+</I>&gt;<i>
+</I>&gt;&gt;<i> You are right that the conditions are specific, but I don't know that that
+</I>&gt;&gt;<i> is the
+</I>&gt;&gt;<i> exhaustive list.  Rather than defining unlock points, I would implement
+</I>&gt;&gt;<i> implicit
+</I>&gt;&gt;<i> unlocking by having any nested attempt to acquire a lock cause the
+</I>&gt;&gt;<i> existing lock
+</I>&gt;&gt;<i> to be dropped.  Nesting can happen in the cases you mention, but depending
+</I>&gt;&gt;<i> on
+</I>&gt;&gt;<i> the UA, it may happen for other reasons too.
+</I>&gt;&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> What reasons?
+</I>&gt;<i>
+</I>&gt;<i> If these reasons are situations where it's fundamentally difficult,
+</I>&gt;<i> impossible, or non-performant to follow the spec, we should change the spec.
+</I>&gt;<i> Otherwise this would just be a bug in the UA.
+</I>&gt;<i>
+</I>
+My point is that it is difficult to ensure that all situations where nesting
+can occur are understood apriori and that the list doesn't change over time.
+ Because we are talking about multi-threading synchronization in a very
+complex system, I would much prefer a more isolated and less fragile
+solution.
+
+Unlock if yieldForStorageUpdates is called.
+Unlock when returning from script execution.
+Unlock if another attempt to lock occurs (any form of nesting).
+
+In the third case, I'd probably log something to the JS console to alert
+developers.
+
+I believe this simple implementation covers most of the cases enumerated in
+the spec, and it has the property of being easier to reason about and easier
+to support (more future proof).
+
+
+
+&gt;<i>
+</I>&gt;<i> For example, a JS library might evolve to use flash for something small
+</I>&gt;&gt;<i> (like
+</I>&gt;&gt;<i> storage or sound) that it previously didn't use when I first developed my
+</I>&gt;&gt;<i> code.
+</I>&gt;&gt;<i> Voila, now my storage lock is released out from under me.
+</I>&gt;&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> This example still sounds overly contrived to me. Nevertheless, it seems
+</I>&gt;<i> strange to say that because there might be a few unexpected race conditions,
+</I>&gt;<i> you have decided to allow a much larger set of unexpected race conditions.
+</I>&gt;<i>
+</I>
+Why is it contrived?  Many developers use high level toolkits to get their
+work done (e.g., jquery, prototype, dojo, google maps api, etc.).  People
+are often one step removed from working directly with the web platform APIs.
+ They have no idea what all is going on under the covers of those libraries,
+and that's a fine thing.
+
+The idea of unlocking whenever there is nesting occurred to me when Jeremy
+and I were discussing how to implement unlocking for all of the cases
+enumerated in the spec.  It equates to a good number of places in the code
+that are quite separated from one another.  It seems very fragile to ensure
+that all of those cases continue to be hooked properly.  I think it is very
+hard to test that we get it right now and in the future.
+
+But, if we step back, we realize that the implicit unlocking is all about
+dealing with nesting of locks.  So, I think it is _way_ better to just
+unlock the existing lock if an attempt is made to acquire a nested lock.
+
+
+
+&gt;<i>
+</I>&gt;<i> At this point, I'm not favoring implementing the storage mutex in Chrome.
+</I>&gt;&gt;<i>  I
+</I>&gt;&gt;<i> don't think we will have it in our initial implementation of LocalStorage.
+</I>&gt;&gt;<i>  I think
+</I>&gt;&gt;<i> web developers that care will have to find another way to manage locking,
+</I>&gt;&gt;<i> like
+</I>&gt;&gt;<i> using a Web Database transaction or coordinating with a Shared Worker.
+</I>&gt;&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> Have you considered just not implementing LocalStorage? If it's so
+</I>&gt;<i> difficult for authors to use correctly and to implement according to the
+</I>&gt;<i> spec, this seems like the best path to me.
+</I>&gt;<i>
+</I>
+I have definitely considered it.  I would of course prefer to drop
+LocalStorage and focus on something better.  Chrome is unfortunately in a
+difficult spot given that everyone else has implemented LocalStorage (though
+not necessarily to spec).
+
+So, we are currently on track to support this feature without locking.  In
+the future, we might add locking.  I've also considered other solutions,
+like copy-on-write, which could obviously lead to data loss, but at least it
+would ensure stability/consistency within a scripts execution.  I would like
+it if the spec were open to such implementations.
+
+What will you do for Gecko when it supports content processes?
+
+-Darin
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: &lt;<A HREF="http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20091031/c2a641d9/attachment.htm">http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20091031/c2a641d9/attachment.htm</A>&gt;
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023888.html">[whatwg] localStorage feedback
+</A></li>
+	<LI>Next message: <A HREF="023547.html">[whatwg] Issues with Web Sockets API
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23904">[ date ]</a>
+              <a href="thread.html#23904">[ thread ]</a>
+              <a href="subject.html#23904">[ subject ]</a>
+              <a href="author.html#23904">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

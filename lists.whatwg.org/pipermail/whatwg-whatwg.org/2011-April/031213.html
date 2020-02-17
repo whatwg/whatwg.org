@@ -1,0 +1,442 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg]  PeerConnection feedback
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20%20PeerConnection%20feedback&In-Reply-To=%3CPine.LNX.4.64.1104120027010.19153%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="031173.html">
+   <LINK REL="Next"  HREF="031217.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg]  PeerConnection feedback</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20%20PeerConnection%20feedback&In-Reply-To=%3CPine.LNX.4.64.1104120027010.19153%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg]  PeerConnection feedback">ian at hixie.ch
+       </A><BR>
+    <I>Mon Apr 11 19:09:23 PDT 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="031173.html">[whatwg] PeerConnection constructor: Init string format
+</A></li>
+        <LI>Next message: <A HREF="031217.html">[whatwg] PeerConnection feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#31213">[ date ]</a>
+              <a href="thread.html#31213">[ thread ]</a>
+              <a href="subject.html#31213">[ subject ]</a>
+              <a href="author.html#31213">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Tue, 29 Mar 2011, Robert O'Callahan wrote:
+&gt;<i> Ian Hickson wrote:
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; I agree that (on the long term) we should support stream filters on 
+</I>&gt;<i> &gt; streams, but I'm not sure I understand &lt;video&gt;'s role in this. 
+</I>&gt;<i> &gt; Wouldn't it be more efficient to have something that takes a Stream on 
+</I>&gt;<i> &gt; one side and outputs a Stream on the other, possibly running some 
+</I>&gt;<i> &gt; native code or JS in the middle?
+</I>&gt;<i> 
+</I>&gt;<i> We could.
+</I>&gt;<i> 
+</I>&gt;<i> I'm trying to figure out how this is going to fit in with audio APIs. 
+</I>&gt;<i> Chris Rogers from Google is proposing a graph-based audio API to the W3C 
+</I>&gt;<i> Audio incubator group which would overlap considerably with a Stream 
+</I>&gt;<i> processing API like you're suggesting (although in his proposal 
+</I>&gt;<i> processing nodes, not streams, are first-class).
+</I>
+Indeed. I think it would make sense to have nodes in this graph that could 
+take Streams as input, or output the resulting data as Streams.
+
+
+&gt;<i> A fundamental problem here is that HTML media elements have the 
+</I>&gt;<i> functionality of both sources and sinks.
+</I>
+Indeed. Unfortunately, at the time that we were designing &lt;video&gt;, the 
+later needs of multitrack video and video conferencing were not completely 
+clear. If we could go back, I think it would make sense to split the part 
+of &lt;video&gt; that does network traffic and the part of &lt;video&gt; that does 
+rendering and UI control from each other, if only to make it possible 
+now to have them be split further for video conferencing and multitrack. 
+Sadly, that's not really an option.
+
+
+&gt;<i> You want to see &lt;video&gt; and &lt;audio&gt; only as sinks which accept streams. 
+</I>&gt;<i> But in that case, if we create an audio processing API using Streams, 
+</I>&gt;<i> we'll need a way to download stream data for processing that doesn't use 
+</I>&gt;<i> &lt;audio&gt; and &lt;video&gt;, which means we'll need to replicate &lt;src&gt; elements, 
+</I>&gt;<i> the type attribute, networkstates, readystates, possibly the 'loop' 
+</I>&gt;<i> attribute... should we introduce a new object or element that provides 
+</I>&gt;<i> those APIs? How much can be shared with &lt;video&gt; and &lt;audio&gt;? Should we 
+</I>&gt;<i> be trying to share? (In Chris Rogers' proposal, &lt;audio&gt; elements are 
+</I>&gt;<i> used as sources, not sinks.)
+</I>
+I think at this point we should probably just make media elements (&lt;video&gt; 
+and &lt;audio&gt;) support being used both as sources and as sinks. They'll just 
+be a little overweight when used just for one of those purposes.
+
+Basically I'm suggesting viewing media elements like this:
+
+   URL to network resource
+   URL to Stream object
+   URL to Blob object
+   |
+   |   ----------------------------
+   +-&gt; :SINK                SOURCE: -+
+       ------------. T .-----------  |
+                   |   |             |
+                   |   |            Input for
+                   |   |            Audio API
+                   |   |
+                   \   /
+                    \ /
+                     V
+                  DISPLAY
+                    AND
+                SOUND BOARD
+
+It's a source that happens to have built-in monitor output. Or a sink that 
+happens to have a monitor output port. Depending on how you want to see it.
+
+
+On Tue, 29 Mar 2011, Harald Alvestrand wrote:
+&gt;<i>
+</I>&gt;<i> A lot of firewalls (including Google's, I believe) drop the subsequent 
+</I>&gt;<i> part of fragmented UDP packets, because it's impossible to apply 
+</I>&gt;<i> firewall rules to fragments without keeping track of all fragmented UDP 
+</I>&gt;<i> packets that are in the process of being transmitted (and keeping track 
+</I>&gt;<i> would open the firewalls to an obvious resource exhaustion attack).
+</I>&gt;<i> 
+</I>&gt;<i> This has made UDP packets larger than the MTU pretty useless.
+</I>
+So I guess the question is do we want to limit the input to a fixed value 
+that is the lowest used MTU (576 bytes per IPv4), or dynamically and 
+regularly determine what the lowest possible MTU is?
+
+The former has a major advantage: if an application works in one 
+environment, you know it'll work elsewhere, because the maximum packet 
+size won't change. This is a erious concern on the Web, where authors tend 
+to do limited testing and thus often fail to handle rare edge cases well.
+
+The latter has a major disadvantage: the path MTU might change, meaning we 
+might start dropping data if we don't keep trying to determine the Path 
+MTU. Also, it's really hard to determine the Path MTU in practice.
+
+For now I've gone with the IPv4 &quot;minimum maximum&quot; of 576 minus overhead, 
+leaving 504 bytes for user data per packet. It seems small, but I don't 
+know how much data people normally send along these low-latency unreliable 
+channels.
+
+However, if people want to instead have the minimum be dynamically 
+determined, I'm open to that too. I think the best way to approach that 
+would be to have UAs implement it as an experimental extension at first, 
+and for us to get implementation experience on how well it works. If 
+anyone is interested in doing that I'm happy to work with them to work out 
+a way to do this that doesn't interfere with UAs that don't yet implement 
+that extension.
+
+
+On Tue, 29 Mar 2011, Harald Alvestrand wrote:
+&gt;<i> On 03/29/11 03:00, Ian Hickson wrote:
+</I>&gt;<i> &gt; On Wed, 23 Mar 2011, Harald Alvestrand wrote:
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; Is there really an advantage to not using SRTP and reusing the RTP 
+</I>&gt;<i> &gt; &gt; &gt; format for the data messages?
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Could you elaborate on how (S)RTP would be used for this? I'm all in 
+</I>&gt;<i> &gt; favour of defering as much of this to existing protocols as possible, 
+</I>&gt;<i> &gt; but RTP seemed like massive overkill for sending game status packets.
+</I>&gt;<i>
+</I>&gt;<i> If &quot;data&quot; was defined as an RTP codec (&quot;application/packets?&quot;), SRTP 
+</I>&gt;<i> could be applied to the packets.
+</I>&gt;<i>
+</I>&gt;<i> It would impose a 12-byte header in front of the packet and the 
+</I>&gt;<i> recommended authentication tag at the end, but would ensure that we 
+</I>&gt;<i> could use exactly the same procedure for key exchange
+</I>
+We already use SDP for key exchange for the data stream.
+
+
+&gt;<i> multiplexing of multiple data streams on the same channel using SSRC, 
+</I>
+I don't follow. What benefit would that have?
+
+
+&gt;<i> and procedures for identifying the stream in SDP (if we continue to use 
+</I>&gt;<i> SDP) - I believe SDP implicitly assumes that all the streams it 
+</I>&gt;<i> describes are RTP streams.
+</I>
+That doesn't seem to be the case, but I could be misinterpreting SDP. 
+Currently, the HTML spec includes instructions on how to identify the 
+stream in SDP; if those instructions are meaningless due to a 
+misunderstanding of SDP then we should fix it (and in that case, it might 
+indeed make a lot of sense to use RTP to carry this data).
+
+
+&gt;<i> I've been told that defining RTP packetization formats for a codec needs 
+</I>&gt;<i> to be done carefully, so I don't think this is a full specification, but 
+</I>&gt;<i> it seems that the overhead of doing so is on the same order of magnitude 
+</I>&gt;<i> as the currently proposed solution, and the security properties then 
+</I>&gt;<i> become very similar to the properties for media streams.
+</I>
+There are very big differences in the security considerations for media 
+data and the security considerations for the data stream. In particular, 
+the media data can't be generated by the author in any meaningful way, 
+whereas the data is entirely under author control. I don't think it is 
+safe to assume that the security properties that we have for media streams 
+necessarily work for data streams.
+
+
+On Tue, 29 Mar 2011, Harald Alvestrand wrote:
+&gt;<i> &gt; &gt; &gt; 
+</I>&gt;<i> &gt; &gt; &gt; Recording any of these requires much more specification than just
+</I>&gt;<i> &gt; &gt; &gt; &quot;record here&quot;.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Could you elaborate on what else needs specifying?
+</I>&gt;<i>
+</I>&gt;<i> One thing I remember from an API design talk I viewed: &quot;An ability to 
+</I>&gt;<i> record to a file means that the file format is part of your API.&quot;
+</I>
+Indeed.
+
+
+&gt;<i> For instance, for audio recording, it's likely that you want control 
+</I>&gt;<i> over whether the resulting file is in Ogg Vorbis format or in MP3 
+</I>&gt;<i> format; for video, it's likely that you may want to specify that it will 
+</I>&gt;<i> be stored using the VP8 video codec, the Vorbis audio codec and the 
+</I>&gt;<i> Matroska container format. These desires have to be communicated to the 
+</I>&gt;<i> underlying audio/video engine, so that the proper transforms can be 
+</I>&gt;<i> inserted into the processing stream
+</I>
+Yes, we will absolutely need to add these features in due course. Exactly 
+what we should add is something we have to determine from implementation 
+experience.
+
+
+&gt;<i> and I think they have to be communicated across this interface; since 
+</I>&gt;<i> the output of these operations is a blob without any inherent type 
+</I>&gt;<i> information, the caller has to already know which format the media is 
+</I>&gt;<i> in.
+</I>
+Depending on the use case and on implementation trajectories, this isn't a 
+given. For example, if all UAs end up implementing one of two 
+codec/container combinations and we don't expose any controls, it may be 
+that the first few bytes of the output file are in practice enough to 
+fully identify the format used.
+
+Note also that Blob does have a MIME type, so even without looking at the 
+data itself, or at the UA string, it may be possible to get a general idea 
+of the container and maybe even codecs.
+
+
+On Wed, 30 Mar 2011, Stefan H&#229;kansson LK wrote:
+&gt;<i>
+</I>&gt;<i> This is absolutely correct, and it is not only about codecs or container 
+</I>&gt;<i> formats. Maybe you need to supply info like audio sampling rate, video 
+</I>&gt;<i> frame rate, video resolution, ... There was an input on this already 
+</I>&gt;<i> last November: 
+</I>&gt;<i> <A HREF="http://lists.whatwg.org/htdig.cgi/whatwg-whatwg.org/2010-November/029069.html">http://lists.whatwg.org/htdig.cgi/whatwg-whatwg.org/2010-November/029069.html</A>
+</I>
+Indeed. The situation hasn't changed since then:
+
+   <A HREF="http://lists.whatwg.org/htdig.cgi/whatwg-whatwg.org/2011-February/030484.html">http://lists.whatwg.org/htdig.cgi/whatwg-whatwg.org/2011-February/030484.html</A>
+
+
+On Tue, 29 Mar 2011, Stefan H&#229;kansson LK wrote:
+&gt;<i> &gt; &gt; &gt; &gt; The web application must be able to define the media format to 
+</I>&gt;<i> &gt; &gt; &gt; &gt; be used for the streams sent to a peer.
+</I>&gt;<i> &gt; &gt; &gt; 
+</I>&gt;<i> &gt; &gt; &gt; Shouldn't this be automatic and renegotiated dynamically via SDP 
+</I>&gt;<i> &gt; &gt; &gt; offer/answer?
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; Yes, this should be (re)negotiated via SDP, but what is unclear is 
+</I>&gt;<i> &gt; &gt; how the SDP is populated based on the application's preferences.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; Why would the Web application have any say on this? Surely the user 
+</I>&gt;<i> &gt; agent is in a better position to know what to negotiate, since it will 
+</I>&gt;<i> &gt; be doing the encoding and decoding itself.
+</I>&gt;<i>
+</I>&gt;<i> The best format of the coded media being streamed from UA a to UA b 
+</I>&gt;<i> depends on a lot of factors. An obvious one is that the codec used is 
+</I>&gt;<i> supported by both UAs.... As you say much of it can be handled without 
+</I>&gt;<i> any involvement from the application.
+</I>&gt;<i> 
+</I>&gt;<i> But let's say that the app in UA a does &quot;addStream&quot;. The application in 
+</I>&gt;<i> UA b (the same application as in UA a) has two &lt;video&gt; elements, one 
+</I>&gt;<i> using a large display size, one using a small size. The UAs don't know 
+</I>&gt;<i> in which element the stream will be rendered at this stage (that will be 
+</I>&gt;<i> known first when the app in UA b connects the stream to one of the 
+</I>&gt;<i> elements at &quot;onaddstream&quot;), so I don't understand how the UAs can select 
+</I>&gt;<i> a suitable video resolution without the application giving some input. 
+</I>&gt;<i> (Once the stream is being rendered in an element the situation is 
+</I>&gt;<i> different - then UA b has knowledge about the rendering and could 
+</I>&gt;<i> somehow inform UA a.)
+</I>
+I had assumed that the video would at first be sent with some more or less 
+arbitrary dimensions (maybe the native ones), and that the receiving UA 
+would then renegotiate the dimensions once the stream was being displayed 
+somewhere. Since the page can let the user change the &lt;video&gt; size 
+dynamically, it seems the UA would likely need to be able to do that kind 
+of dynamic update anyway.
+
+
+On Thu, 31 Mar 2011, Lachlan Hunt wrote:
+&gt;<i>
+</I>&gt;<i> When getUserMedia() is invoked with unknown options, the spec currently 
+</I>&gt;<i> implicitly requires a PERMISSION_DENIED error to be thrown.
+</I>&gt;<i> 
+</I>&gt;<i> e.g. navigator.getUserMedia(&quot;foo&quot;);
+</I>&gt;<i> 
+</I>&gt;<i> In this case, the option for &quot;foo&quot; is unknown.  Presumably, this would 
+</I>&gt;<i> fall under platform limitations, and would thus jump from step 11 to the 
+</I>&gt;<i> failure case, and throw a permission denied error.
+</I>&gt;<i> 
+</I>&gt;<i> We are wondering if this is the most ideal error to throw in this case, 
+</I>&gt;<i> as opposed to introducing a more logical NOT_SUPPORTED error, and if it 
+</I>&gt;<i> might be useful to authors to distinguish these cases?
+</I>&gt;<i> 
+</I>&gt;<i> We assume, however, that if the author requests &quot;audio,foo&quot;, and the 
+</I>&gt;<i> user grants access to audio, then the success callback would be invoked, 
+</I>&gt;<i> despite the unknown option for &quot;foo&quot;.
+</I>
+Good point. I've updated the spec to fire NOT_SUPPORTED_ERR if there's no 
+known value.
+
+
+On Fri, 8 Apr 2011, Harald Alvestrand wrote:
+&gt;<i> 
+</I>&gt;<i> The current (April 8) version of section 9.4 says that the config string for a
+</I>&gt;<i> PeerConnection object is this:
+</I>&gt;<i> ---------------------------
+</I>&gt;<i> The allowed formats for this string are:
+</I>&gt;<i> 
+</I>&gt;<i> &quot;TYPE 203.0.113.2:3478&quot;
+</I>&gt;<i> Indicates a specific IP address and port for the server.
+</I>&gt;<i> 
+</I>&gt;<i> &quot;TYPE relay.example.net:3478&quot;
+</I>&gt;<i> Indicates a specific host and port for the server; the user agent will look up
+</I>&gt;<i> the IP address in DNS.
+</I>&gt;<i> 
+</I>&gt;<i> &quot;TYPE example.net&quot;
+</I>&gt;<i> Indicates a specific domain for the server; the user agent will look up the IP
+</I>&gt;<i> address and port in DNS.
+</I>&gt;<i> 
+</I>&gt;<i> The &quot;TYPE&quot; is one of:
+</I>&gt;<i> 
+</I>&gt;<i> STUN
+</I>&gt;<i> Indicates a STUN server
+</I>&gt;<i> STUNS
+</I>&gt;<i> Indicates a STUN server that is to be contacted using a TLS session.
+</I>&gt;<i> TURN
+</I>&gt;<i> Indicates a TURN server
+</I>&gt;<i> TURNS
+</I>&gt;<i> Indicates a TURN server that is to be contacted using a TLS session.
+</I>&gt;<i> -------------------------------
+</I>&gt;<i> I believe this is insufficient, for a number of reasons:
+</I>&gt;<i> - For future extensibility, new forms of init data needs to be passed without
+</I>&gt;<i> invalidating old implementations. This indicates that a serialized JSON object
+</I>&gt;<i> with a few keys of defined meaning is a better basic structure than a format
+</I>&gt;<i> string with no format identifier.
+</I>
+The format is already defined in a forward-compatible manner. 
+Specifically, UAs are currently required to ignore everything past the 
+first line feed character. In a future version, we could extend this API 
+by simply including additional data after the linefeed.
+
+
+&gt;<i> - For use with STUN and TURN, we need to support the case where we need a STUN
+</I>&gt;<i> server and a TURN server, and they're different.
+</I>
+TURN servers are STUN servers, at least according to the relevant RFCs, as 
+far as I can tell. Can you elaborate on which TURN servers do not 
+implement STUN, or explain the use cases for having different TURN and 
+STUN servers? This is an area where I am most definitely not an expert, so 
+any information here would be quite helpful.
+
+
+&gt;<i> - The method of DNS lookup is not specified. In particular, it is not
+</I>&gt;<i> specified whether SRV records are looked up or not.
+</I>
+This seems to be entirely specified. Please ensure that you are reading 
+the normative conformance criteria for user agents, and not the 
+non-normative authoring advice, which is only a brief overview.
+
+
+&gt;<i> - We have no evaluation that shows that we'll never need the unencrypted 
+</I>&gt;<i> TCP version of STUN or TURN, or that we need to support the encrypted 
+</I>&gt;<i> STUN version. We should either support all formats that the spec can 
+</I>&gt;<i> generate, or we should get a reasonable survey of implementors on what 
+</I>&gt;<i> they think is needed.
+</I>
+If anyone has any data on this, that would indeed be quite useful.
+
+
+On Fri, 8 Apr 2011, Harald Alvestrand wrote:
+&gt;<i>
+</I>&gt;<i> BTW, I haven't been on this list that long... if anyone has advice on 
+</I>&gt;<i> whether such discussions are better as buganizer threads or as whatwg 
+</I>&gt;<i> mailing list threads, please give it!
+</I>
+Discussion is best on the mailing list. In general Bugzilla is best for 
+straight-forward bugs rather than design discussions.
+
+
+On Fri, 8 Apr 2011, Glenn Maynard wrote:
+&gt;<i> 
+</I>&gt;<i> FWIW, I thought the block-of-text configuration string was peculiar and 
+</I>&gt;<i> unlike anything else in the platform.  I agree that using a 
+</I>&gt;<i> configuration object (of some kind) makes more sense.
+</I>
+An object wouldn't work very well as it would add additional steps in the 
+case where someone just wants to transmit the configuration information to 
+the client as data. Using JSON strings as input as Harald suggested could 
+work, but seems overly verbose for such a simple data.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="031173.html">[whatwg] PeerConnection constructor: Init string format
+</A></li>
+	<LI>Next message: <A HREF="031217.html">[whatwg] PeerConnection feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#31213">[ date ]</a>
+              <a href="thread.html#31213">[ thread ]</a>
+              <a href="subject.html#31213">[ subject ]</a>
+              <a href="author.html#31213">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

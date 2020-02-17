@@ -1,0 +1,585 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Proposal to extend registerProtocolHandler
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Proposal%20to%20extend%20registerProtocolHandler&In-Reply-To=%3CPine.LNX.4.64.1108232233520.32136%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="075133.html">
+   <LINK REL="Next"  HREF="032739.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Proposal to extend registerProtocolHandler</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Proposal%20to%20extend%20registerProtocolHandler&In-Reply-To=%3CPine.LNX.4.64.1108232233520.32136%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg] Proposal to extend registerProtocolHandler">ian at hixie.ch
+       </A><BR>
+    <I>Thu Aug 25 15:23:55 PDT 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="075133.html">[whatwg] Proposal to extend registerProtocolHandler
+</A></li>
+        <LI>Next message: <A HREF="032739.html">[whatwg] Why children of datalist elements are barred from constraint validation?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#75259">[ date ]</a>
+              <a href="thread.html#75259">[ thread ]</a>
+              <a href="subject.html#75259">[ subject ]</a>
+              <a href="author.html#75259">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>
+On Tue, 26 Jul 2011, James Kozianski wrote:
+&gt;<i> 
+</I>&gt;<i> Here are the use cases I had in mind:
+</I>&gt;<i> 
+</I>&gt;<i> 1. Allow sites to conditionally show UI to promote the advantages of 
+</I>&gt;<i> registering the site as a handler.
+</I>&gt;<i>
+</I>&gt;<i> 2. Allow sites to provide settings screens which allow users to register 
+</I>&gt;<i> [and] deregister handlers from within the site.
+</I>
+There are several states a browser could be in:
+
+A + registerFoo() has never been called.
+B + registerFoo() has been called, but user was not notified.
+  - registerFoo() has been called, user has been notified, and:
+C    + user has not responded
+D    + user has declined once but is open to future notifications
+     - user has accepted (or user agent has implicitly accepted) and:
+E       + the handler is a non-default handler, and there is no default
+F       + the handler is the default handler
+G       + some other handler is the default handler
+H       + user since unregistered handler, but is open to readding it
+I       + user since unregistered handler permanently (blocked site)
+J    + user has declined permanently (blocked site)
+K    + site has unregistered itself but user is open to seeing it again
+L    + site unregistered itself; user made that permanent (blocked site)
+
+Of these, the page can, without help from the user agent, distinguish
+case A from all other cases, and cases K and L from all other cases.
+
+Cases A, K, and L, from the perspective of the page, are more or less
+equivalent, and can therefore be treated as identical in the API.
+
+This leaves cases B through J. 
+
+For the use case of determining whether to show a promotional UI,
+distinguishing A, K and L, and B through J is sufficient.
+Distinguishing A from K and L is possible at the site level (the site
+knows if it unregistered or not); if in the API we group those three
+and make them separate from B through J, then that use case is
+handled.
+
+Moving to the second use case, settings, we see a need for
+distinguishing the states where calling the registration method is
+useful from the states where calling the method would not help, either
+because it's already registered or because it's blocked.
+
+Cases B, E, F, G, I, and J are cases where calling the method again
+will have no useful effect:
+
+ B - the UA isn't showing the notification for some reason
+ E, F, G - the handler is registered already
+ I and J - the user has blocked the site from calling the method
+
+The remaining cases, C, D, and H, are cases where calling the method
+again would potentially allow the user to register the handler again:
+
+ C - if the user didn't respond last time, he might respond the next
+     time. So you can show the UI again just in case. Note that this
+     applies to browsers that show an immediate notification about the
+     handler; personally I prefer UIs where the methods always succeed
+     but the user doesn't find out about it until the next time they
+     try to use a particular scheme or content-type, at which point
+     they find a list of handlers for that scheme/type, and they can
+     explicitly select one from the list (i.e. the browser is in state
+     E after the method call, and the user can switch it to F, G, H,
+     or I the next time he would actually use it).
+
+ D - if the user declined once but without blocking the site, then it
+     makes sense to offer UI to the user saying that he can still
+     register the handler.
+
+ H - the user once accepted then declined; it's a bit like declining
+     in the first place, and so is equivalent to D.
+
+So we need to expose the following three states:
+
+1. Handler is not registered and no attempt has yet been made to
+   register it: registerFoo() has never been called, or the site has
+   since unregistered its handler. The site should consider showing a
+   notification that the feature is available.
+   Call this &quot;new&quot;.
+
+2. Handler is registered or site is blocked: registerFoo() has been
+   called, and either the user accepted and the handler is registered,
+   or the user blocked the site permanently from registering the
+   handler again. In either case, there is no benefit to the site
+   trying to register the handler again.
+   Call this &quot;registered&quot;.
+
+3. Handler is not registered but the user has not blocked the site
+   from again offering to register the handler: either the user has
+   not responded to previous attempts to register the handler, or the
+   user has declined or unregistered the handler in the past but not
+   in a permanent fashion.
+   Call this &quot;declined&quot;.
+
+Since there's two registration methods, this means two discovery methods. 
+We also need a mechanism for the site to unregister itself (e.g. when the 
+feature has been removed), so that's two unregistration methods also.
+
+Thus:
+
+  void registerProtocolHandler(DOMString scheme, DOMString url, DOMString title);
+  void registerContentHandler(DOMString mimeType, DOMString url, DOMString title);
+  DOMString isProtocolHandlerRegistered(DOMString scheme, DOMString url);
+  DOMString isContentHandlerRegistered(DOMString mimeType, DOMString url);
+  void unregisterProtocolHandler(DOMString scheme, DOMString url);
+  void unregisterContentHandler(DOMString mimeType, DOMString url);
+
+
+On Tue, 9 Aug 2011, James Kozianski wrote:
+&gt;<i> 
+</I>&gt;<i> [1] <A HREF="http://t1.gstatic.com/images?q=tbn:ANd9GcSqpKN5FmbWKiC-6e-ptj6KJ_qbiyPuPj2M1YZO2wwIOAf6qdX8">http://t1.gstatic.com/images?q=tbn:ANd9GcSqpKN5FmbWKiC-6e-ptj6KJ_qbiyPuPj2M1YZO2wwIOAf6qdX8</A>
+</I>&gt;<i> [2] <A HREF="http://img.technified.net/tf/Gmail-Desktop-notifications-for_14988/gmail-desktop-notification-settings.png">http://img.technified.net/tf/Gmail-Desktop-notifications-for_14988/gmail-desktop-notification-settings.png</A>
+</I>
+This kind of thing seems possible with the above methods.
+
+
+On Mon, 18 Jul 2011, Ben Schwarz wrote:
+&gt;<i>
+</I>&gt;<i> After recently discovering custom protocol handlers[1], it struck me 
+</I>&gt;<i> that it would be difficult to provide a decent user experience for those 
+</I>&gt;<i> who used browsers which did not support the feature. [...]
+</I>&gt;<i> 
+</I>&gt;<i> I want to be able to tell when registration of protocols/schemes has 
+</I>&gt;<i> either failed or been successful So that I can provide a fluid user 
+</I>&gt;<i> experience.
+</I>
+Do the above methods adequately provide this ability?
+
+
+&gt;<i> As a web developer, I want to be able to ascertain whether the 
+</I>&gt;<i> user-agent supports the registerProtocolHandler feature, So that I can 
+</I>&gt;<i> have an alternate experience for the user.
+</I>
+You can easily test this using JS reflection:
+
+   if (navigator.registerProtocolHandler) { ... } else { ... }
+
+
+&gt;<i> As a web designer / developer, I want to be able to ascertain if another 
+</I>&gt;<i> website has registered a custom protocol handler in the user&#8217;s 
+</I>&gt;<i> browser, So that I can knowingly design and implement an integration 
+</I>&gt;<i> experience.
+</I>
+This isn't possible. I can't work out a way to do it that wouldn't be a 
+privacy leak (e.g. suppose a porn site registered a handler -- letting 
+other sites determine handler registrations cross-site would leak 
+information about the user visiting the porn site).
+
+
+&gt;<i> As a web designer / developer, I want to be able to ascertain whether 
+</I>&gt;<i> the user has &quot;installed&quot; a custom protocol handler within their 
+</I>&gt;<i> operating system, So that I can knowingly design and implement an 
+</I>&gt;<i> integration experience.
+</I>
+This has a similar privacy leak problem, but with native apps instead of 
+Web sites.
+
+
+On Thu, 21 Apr 2011, James Kozianski wrote:
+&gt;<i> 
+</I>&gt;<i> Currently if a site wants its users to register it as a handler for a 
+</I>&gt;<i> given protocol it has two options:
+</I>&gt;<i> 
+</I>&gt;<i>     a) It can call registerProtocolHandler() on page load. (This 
+</I>&gt;<i> approach was suggested in [1])
+</I>&gt;<i> 
+</I>&gt;<i>     b) It can have a button that the user clicks (or similar) to enact 
+</I>&gt;<i> the registration.
+</I>&gt;<i> 
+</I>&gt;<i> The former is problematic because the call to registerProtocolHandler 
+</I>&gt;<i> will cause the browser's UI to notify them of the registration (or 
+</I>&gt;<i> prompt them to make a decision), which is redundant if it occurs on 
+</I>&gt;<i> every page load.
+</I>
+This is not necessarily true. In fact, I'd go further and say that it 
+would be false in good browser implementations. IMHO the 
+registerProtocolHandler() method's ideal implementation is to do nothing 
+at all, or at most display a minor notification along the lines of:
+
+   &quot;Example Corp Authenticator.
+    This site (www.example.com) supports the web+auth: protocol.&quot;
+
+The registration would always succeed by default, and the next time the 
+user tries to use a link of the appropriate scheme, the user would be 
+presented with a dialog saying something like:
+
+   The web+auth: protocol is supported by the following sites:
+
+     www.example.com  Example Corp Authenticator  [Block] [Set as default]
+     hostile.invalid  Evil Authenticator          [Block] [Set as default]
+     facebook.com     Facebook Login              [Block] [Set as default]
+     twitter.com      Your Twitter Identity       [Block] [Set as default]
+
+   Select the site you wish to use this time.          (( Cancel ))
+
+With this kind of approach, sites would always be able to call the 
+registration method and there would not be a need for sites to show promos 
+to their users. 
+
+But other UIs are equally legitimate, granted.
+
+With the new methods mentioned above, the page can decide whether to show 
+the prompt or not, if user agents prefer a more immediate mechanism rather 
+than a more passive one as described above.
+
+
+&gt;<i> 2. Introduce an unregisterProtocolHandler() function.
+</I>&gt;<i> 
+</I>&gt;<i> Such a function is desirable because it allows sites to remove outdated 
+</I>&gt;<i> handlers from clients and would enable clients to provide a UI for 
+</I>&gt;<i> managing their registered protocol handlers.
+</I>
+Agreed.
+
+
+&gt;<i> 3. Require all URL arguments to have the same origin as the page 
+</I>&gt;<i> executing the call.
+</I>&gt;<i> 
+</I>&gt;<i> This would would make the behaviour of this set of functions more 
+</I>&gt;<i> consistent (isRegistered() should only work for same-domain queries, to 
+</I>&gt;<i> prevent information leaking).
+</I>
+Yeah, that makes sense.
+
+
+On Fri, 1 Jul 2011, Peter Kasting wrote:
+&gt;<i> 
+</I>&gt;<i> From my work on the Chrome UI side of this, I would very much like to 
+</I>&gt;<i> see something like isRegistered().  This would allow sites to 
+</I>&gt;<i> conditionalize requests for the protocol handler.  This is important to 
+</I>&gt;<i> me because I would also like to experiment (after that point) with 
+</I>&gt;<i> requiring a user gesture for this request (much like browsers typically 
+</I>&gt;<i> require user gestures for window.open()), so sites cannot hammer the 
+</I>&gt;<i> user with requests outside of some sort of interaction-based workflow.
+</I>
+The great thing about the silent (or quiet) mechanism described above is 
+that sites really can't do much in the way of hammering the user. The 
+worst they can do is add spam to the dialog the next time it comes up, 
+and that's only until the user picks a default handler (after which the 
+dialog doesn't show).
+
+
+On Fri, 1 Jul 2011, Michael Davidson wrote:
+&gt;<i>
+</I>&gt;<i> From my perspective on Gmail, I would prefer to know if the user hasn't 
+</I>&gt;<i> registered because they declined previously or haven't been asked. If 
+</I>&gt;<i> they've declined previously, then calling registerProtocolHandler() in 
+</I>&gt;<i> today's UAs will not do anything. If I can't detect that state, then 
+</I>&gt;<i> they'll keep clicking and I'll keep calling and they'll get frustrated.
+</I>&gt;<i> 
+</I>&gt;<i> I'd prefer if isRegistered() was something like registeredState() and 
+</I>&gt;<i> returned REGISTERED, DECLINED, or NOTASKED. Then I could make a UI that 
+</I>&gt;<i> really reflects reality.
+</I>
+Will the methods above adequately handle this?
+
+
+On Fri, 1 Jul 2011, Michael Davidson wrote:
+&gt;<i> 
+</I>&gt;<i> FWIW, notifications already exposes this:
+</I>&gt;<i> 
+</I>&gt;<i> <A HREF="http://dev.w3.org/2006/webapi/WebNotifications/publish/FeaturePermissions.html">http://dev.w3.org/2006/webapi/WebNotifications/publish/FeaturePermissions.html</A>
+</I>
+That seems like a rather over-engineered API. It also wouldn't really 
+handle the case here since we have to pass two arguments to the check in 
+addition to the name of hte permission.
+
+Also, it's not a permission we're talking about here. :-)
+
+
+On Tue, 5 Jul 2011, Rich Tibbett wrote:
+&gt;<i> 
+</I>&gt;<i> The idea would be to emulate window.open functionality to the point that 
+</I>&gt;<i> something happens only if a _user-initiated_ click event occurs. If an 
+</I>&gt;<i> event is invoked by a script synthesizing its event via e.g. 
+</I>&gt;<i> anchor.click() then that should not invoke any UI stuff. Only if 
+</I>&gt;<i> window.open is invoked by a user does the popup blocker not kick-in and 
+</I>&gt;<i> the popup pages open. It would be nice to have that same principle work 
+</I>&gt;<i> for registerProtocolHandler.
+</I>
+This makes sense if the method fires a dialog, but is that really 
+something we ever want to encourage? I would think that if any UI beyond a 
+simple notifications appeared at all when the method was called, it would 
+at most be an info-bar-style non-modal UI.
+
+
+&gt;<i> window.open seems a little under-defined when it comes to the 
+</I>&gt;<i> pseudo-standard behavior of blocking window.open calls outside of a 
+</I>&gt;<i> user-initiated event.
+</I>
+Agreed. I've filed a bug to address this.
+
+
+On Sun, 3 Jul 2011, timeless wrote:
+&gt;<i> 
+</I>&gt;<i> I don't look forward to being blackmailed by sites into me allowing them 
+</I>&gt;<i> to register for X or else I don't get their content.
+</I>
+Agreed. The way I specced it above, if the user blocks the site it appears 
+to the site as being accepted. This seems to me like it would work around 
+this problem.
+
+
+On Mon, 4 Jul 2011, Peter Kasting wrote:
+&gt;<i> 
+</I>&gt;<i> It's not a problem on the UA side, but the web page side.  Assume we 
+</I>&gt;<i> want to limit action on this call to cases where there's a user gesture 
+</I>&gt;<i> (to prevent bad sites from annoying you quite as easily, though I admit 
+</I>&gt;<i> it is not a huge roadblock).  Now you're Gmail and you want to give the 
+</I>&gt;<i> user the ability to register you as a mailto: handler.  So you whip up 
+</I>&gt;<i> some button that will make the rPH() call and some UI around it that 
+</I>&gt;<i> calls attention to it. Without the ability to check if you're already 
+</I>&gt;<i> the default handler, you have to show this UI all the time, which is not 
+</I>&gt;<i> at all appealing, or else bury it somewhere, which means it will never 
+</I>&gt;<i> get seen by most users.
+</I>
+Do you think we need to expose whether the page is the _default_ handler? 
+That seems like a more fine-grained distinction than is strictly 
+necessary. A browser may not even have a concept of &quot;default handler&quot;.
+
+
+On Mon, 4 Jul 2011, timeless wrote:
+&gt;<i>
+</I>&gt;<i> Or we could use a &lt;link&gt; and have the UA only show the option to the 
+</I>&gt;<i> user if it feels like it. The UA could choose not to show it if it's 
+</I>&gt;<i> already active. It could also choose to only show it if the user has 
+</I>&gt;<i> visited repeatedly or whatever.
+</I>&gt;<i> 
+</I>&gt;<i> This is closer to ATOM discovery, but it's also a deployed style.
+</I>
+We couldn't use a simple rel value, it would have to involve at least two 
+new attributes and one of them would have to accept a URL that isn't a URL 
+(the %s magic). We could do this, though, it's true. At this stage it 
+seems people are more interested in being able to programatically decide 
+when to offer the feature; I don't know what to make of that, but if we 
+are to address that need, a declarative solution is not particularly 
+better than an imperative API.
+
+
+On Tue, 5 Jul 2011, Michael Davidson wrote:
+&gt;<i>
+</I>&gt;<i> For rPH, please don't require a user-initiated click for the call. 
+</I>&gt;<i> That's one very annoying thing about notifications - it takes users two 
+</I>&gt;<i> clicks to enable them, and every app has to find some suitable in-page 
+</I>&gt;<i> UI to ask users to make the first click. Since both notifications and 
+</I>&gt;<i> rPH are confirmed by the UA, it seems silly to require a user-initiated 
+</I>&gt;<i> click. Prompting for permissions is much less annoying than opening a 
+</I>&gt;<i> new window, so I don't think the same standards should apply. It's also 
+</I>&gt;<i> very easy for users to prevent sites from asking in the future by just 
+</I>&gt;<i> denying the permission.
+</I>
+Notifications shouldn't require any clicks at all. They should just work, 
+initially constrained to the browser page, with an in-notification UI to 
+allow the user to decide where the notifications should appear (e.g. only 
+in the browser page, or promote them to desktop level, or promote them to 
+&quot;send me an SMS to page me whenever this goes off&quot;, or whatever).
+
+
+On Tue, 5 Jul 2011, Peter Kasting wrote:
+&gt;<i> 
+</I>&gt;<i> To be truly honest, requiring a user gesture probably doesn't work for 
+</I>&gt;<i> rPH() because it doesn't actually work for window.open, or allowing 
+</I>&gt;<i> executable files to download, or any other purpose we've keyed off in 
+</I>&gt;<i> UAs so far. That's because a click is not at all a good indicator of 
+</I>&gt;<i> some sort of of user understanding and intent.  The only thing it buys 
+</I>&gt;<i> you is the possibility that a visible UI change happens immediately 
+</I>&gt;<i> after a user's click and thus that in theory the user _might_ be able to 
+</I>&gt;<i> guess that the click triggered the UI change.
+</I>
+For popups it works ok (not great) because it means that if the user sees 
+a popup appear, he can limit the damage by not clicking any more (a 
+natural reaction to seeing a popup). This contrasts to the worst-case 
+scenario without this restriction, which is a flood of popups that the 
+user can do nothing about.
+
+That is to say, the user gesture requirement for popups is a rate limiter, 
+not a blocker.
+
+
+On Wed, 6 Jul 2011, Robert O'Callahan wrote:
+&gt;<i>
+</I>&gt;<i> I don't think browsers need to prompt for registerProtocolHandler. 
+</I>&gt;<i> Instead, I would simply allow any site to register as a protocol handler 
+</I>&gt;<i> for almost anything, and remember all such registrations. When the user 
+</I>&gt;<i> navigates to a URI whose protocol has had an app newly registered for it 
+</I>&gt;<i> since the last such navigation, then prompt the user to choose which app 
+</I>&gt;<i> to use. The UI for that prompt would give prominence to the previously- 
+</I>&gt;<i> seected app (if any), followed by any newly registered app(s), and would 
+</I>&gt;<i> remember the choice.
+</I>
+Hear hear.
+
+
+&gt;<i> It seems to me that this approach would address the issues James 
+</I>&gt;<i> Kozianski raised in part 1 of his email, obviating the need for an 
+</I>&gt;<i> isRegistered() function.
+</I>
+I've still added the isFooRegistered() methods because it seems not all 
+UAs agree with us here.
+
+Also:
+
+On Wed, 6 Jul 2011, Ojan Vafai wrote:
+&gt;<i>
+</I>&gt;<i> All the arguments for registering handlers aside, it ought to be 
+</I>&gt;<i> possible for a website to provide some UI for deregistering. For 
+</I>&gt;<i> example, many users will expect to go into gmail's settings to stop 
+</I>&gt;<i> having gmail handle email links. Gmail's help section needing to give 
+</I>&gt;<i> users instructions on each browser's UI for deregistering is not a good 
+</I>&gt;<i> user experience.
+</I>&gt;<i>
+</I>&gt;<i> If they're going to have a UI for deregistering, it makes sense for them 
+</I>&gt;<i> to be able to show it only when actually registered.
+</I>
+This is a good reason to still have an isFooRegistered() method.
+
+
+On Wed, 6 Jul 2011, Olli Pettay wrote:
+&gt;<i> 
+</I>&gt;<i> So all the ad sites (which are embedded via iframe or something) would 
+</I>&gt;<i> just register all the possible protocols so that some user might 
+</I>&gt;<i> accidentally use their site for protocol handling - especially if the 
+</I>&gt;<i> site was the first one to register the protocol. Doesn't sound too good.
+</I>
+On Thu, 7 Jul 2011, Robert O'Callahan wrote:
+&gt;<i> 
+</I>&gt;<i> I think you could sequester the new app options sufficiently that that 
+</I>&gt;<i> would not be worth doing.
+</I>
+Indeed. Also, you could set it up so that blocking a site for one scheme 
+or MIME type would block all the site's registrations. We could maybe even 
+cause it to make iframes from that site display a roadblock (&quot;You 
+previously blocked this site because it registered a handler for the 
+'web+auth:' protocol. ((Visit the site anyway...))&quot;).
+
+
+On Thu, 7 Jul 2011, Robert O'Callahan wrote:
+&gt;<i> 
+</I>&gt;<i> You could also just deny all registerProtocolHandler() attempts from 
+</I>&gt;<i> non-toplevel frames.
+</I>
+That seems like a bad idea. It would preclude services from being offered 
+by iframes, which seem like a very likely scenario here.
+
+
+On Thu, 7 Jul 2011, Rich Tibbett wrote:
+&gt;<i> 
+</I>&gt;<i> For registration, we could allow _auto-registration_ of protocol 
+</I>&gt;<i> handlers only if a.) this is the first time the protocol is being 
+</I>&gt;<i> registered and b.) when the registration request is coming directly from 
+</I>&gt;<i> the top-most window context only (i.e. from a web page that users are 
+</I>&gt;<i> actually visiting).
+</I>&gt;<i> 
+</I>&gt;<i> In all other cases (if you're the nth provider to attempt to register an 
+</I>&gt;<i> already registered protocol handler or you're not requesting from 
+</I>&gt;<i> window.top) then the UA would ask the user whether they wish to install 
+</I>&gt;<i> this handler as the default for the given protocol or not (replacing the 
+</I>&gt;<i> previous default handler).
+</I>&gt;<i> 
+</I>&gt;<i> For usage, the ideal situation would be for the user to click on a link 
+</I>&gt;<i> and be auto-directed somewhere without having to select from multiple 
+</I>&gt;<i> providers each time.
+</I>&gt;<i> 
+</I>&gt;<i> When the user wants to override the default protocol handler then the UA 
+</I>&gt;<i> could allow e.g. ctrl-shift-click to force show the protocol handler 
+</I>&gt;<i> dialog to the user. There the user would be free to select any handler 
+</I>&gt;<i> that the UA has come in to contact with during the course of the user's 
+</I>&gt;<i> previous browsing sessions (i.e. those handlers that the user decided 
+</I>&gt;<i> not to set as defaults at the time).
+</I>&gt;<i> 
+</I>&gt;<i> Users should be able to easily detach protocol handlers from this list 
+</I>&gt;<i> with either [delete] or [delete all handlers for this domain] on this 
+</I>&gt;<i> interface.
+</I>
+That could work too.
+
+
+On Fri, 8 Jul 2011, Jonas Sicking wrote:
+&gt;<i>
+</I>&gt;<i> I definitely have privacy concerns regarding a isRegistered function. 
+</I>&gt;<i> Such a function might be ok in some contexts, but I'd like to avoid it 
+</I>&gt;<i> as far as possible.
+</I>&gt;<i> 
+</I>&gt;<i> For example I don't think we need to think in terms of the, arguably 
+</I>&gt;<i> crappy, UI that browsers currently use. One simple improvement that 
+</I>&gt;<i> browsers could do is to simply have UI that shows &quot;yes&quot;, &quot;not now&quot; and 
+</I>&gt;<i> &quot;never&quot;. If the user chooses &quot;never&quot; then no UI would be displayed the 
+</I>&gt;<i> next time that the site calls registerProtocolHandler.
+</I>
+Right, that's what I mean by &quot;blocked&quot;. The proposal above (now in the 
+spec) exposes this to the site as a &quot;registered&quot; case, to avoid the 
+privacy leak (it makes cases where a user hates the site equivalent to the 
+cases where a user likes the site but has no use for the feature).
+
+
+&gt;<i> Similarly, having a unregisterProtocolHandler without a isRegistered 
+</I>&gt;<i> function makes a lot of sense to me. I agree it might not let you create 
+</I>&gt;<i> the perfect UI, but you can get pretty far.
+</I>
+Why shouldn't we aim for a more perfect UI?
+
+
+On Fri, 8 Jul 2011, Jonas Sicking wrote:
+&gt;<i> On Fri, Jul 8, 2011 at 9:44 AM, Ojan Vafai &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">ojan at chromium.org</A>&gt; wrote:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Just to be clear, you have privacy concerns for an isRegistered 
+</I>&gt;<i> &gt; function that is same-domain restricted?
+</I>&gt;<i> 
+</I>&gt;<i> Yes.
+</I>
+Could you elaborate on these? A site can presumably tell if it's being 
+used or not anyway, so what information does this leak?
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="075133.html">[whatwg] Proposal to extend registerProtocolHandler
+</A></li>
+	<LI>Next message: <A HREF="032739.html">[whatwg] Why children of datalist elements are barred from constraint validation?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#75259">[ date ]</a>
+              <a href="thread.html#75259">[ thread ]</a>
+              <a href="subject.html#75259">[ subject ]</a>
+              <a href="author.html#75259">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

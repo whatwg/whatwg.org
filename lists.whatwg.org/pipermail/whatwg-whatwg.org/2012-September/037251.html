@@ -1,0 +1,178 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Including HTML more directly into SVG
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Including%20HTML%20more%20directly%20into%20SVG&In-Reply-To=%3CCAAWBYDAieAdkipyazHHW92WD8%3DQOKzM5VEmAtR4D%2B_kd28GsCA%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="079521.html">
+   <LINK REL="Next"  HREF="079529.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Including HTML more directly into SVG</H1>
+<!--htdig_noindex-->
+    <B>Tab Atkins Jr.</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Including%20HTML%20more%20directly%20into%20SVG&In-Reply-To=%3CCAAWBYDAieAdkipyazHHW92WD8%3DQOKzM5VEmAtR4D%2B_kd28GsCA%40mail.gmail.com%3E"
+       TITLE="[whatwg] Including HTML more directly into SVG">jackalmage at gmail.com
+       </A><BR>
+    <I>Mon Sep 10 16:59:47 PDT 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="079521.html">[whatwg] WebIDL nested interfaces
+</A></li>
+        <LI>Next message: <A HREF="079529.html">[whatwg] Including HTML more directly into SVG
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#37251">[ date ]</a>
+              <a href="thread.html#37251">[ thread ]</a>
+              <a href="subject.html#37251">[ subject ]</a>
+              <a href="author.html#37251">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>This is a continuation of a discussion started in the #whatwg IRC
+room, so I'll start somewhat abruptly.
+
+1. Check out &lt;<A HREF="http://www.xanthir.com/etc/railroad-diagrams/example.html">http://www.xanthir.com/etc/railroad-diagrams/example.html</A>&gt;.
+ See all those boxes full of text in the diagrams?  Looks simple,
+right?  Just a box filled with text, with a border and background set
+on it.  Wrong!  SVG doesn't have any primitives like that.  Instead,
+you have to position the text, measure its dimensions (or, like I've
+done, guess at the dimensions based on the font-size and such), then
+create and position an *independent* &lt;rect&gt; element behind it, so that
+it *looks* like there's a box with text inside of it.
+
+This would be a lot easier if I could somehow invoke the CSS box model
+inside of SVG, but the &lt;text&gt; element doesn't allow that.
+
+Closely related to this, SVG doesn't do automatic linebreaking at all.
+ If you want text to break, you have to do it manually, not only
+determining the break points but also manually setting the
+line-spacing separation for each individual line.  Again, it would be
+cool to invoke the CSS box model here, so we get full-power inline
+layout.
+
+2. Unfortunately I don't remember the name of the product I'm about to
+describe, so I can't link to it, but there is an a11y tool that lets
+low-vision users interact better with SVG diagrams.  They can print
+out an SVG, attach it over a pressure-sensitive touchpad, then bring
+up the diagram on the screen as well.  Using the touchpad, they can
+then zoom/pan the SVG, or even ask the computer to read out text at
+the location they've pressed.  Unfortunately, the textual semantics in
+SVG are pretty impoverished right now; there *aren't* any semantics,
+besides &quot;here is text&quot;.  It seems pretty obvious that you'd sometimes
+want to, say, emphasize a span of text inside a larger text block in a
+diagram, but right now the only way to do that is by using  &lt;tspan
+style=&quot;font-style:italic;&gt; and hoping that the reader supports enough
+CSS to guess that italicized text should be emphasized.  It would be
+pretty nice if you could use &lt;em&gt; or the other textual HTML elements
+here, for the same reason it's nice to use them in HTML rather than
+relying on visual presentation.
+
+3. Related to the above, it seems useful to be able to embed &quot;special&quot;
+elements like &lt;input type=date&gt;, &lt;video&gt;, or &lt;details&gt; into SVG, for
+the same reasons you'd include them in HTML.
+
+Right now, all three of the above *could* be done by using the
+&lt;foreignContent&gt; element.  This is a horrible solution, though.  To
+use &lt;foreignContent&gt;, you need to specify a width and height (and
+we're back to measuring or guessing at the dimensions...) and specify
+a namespace.  This is a lot of weight to put into a document when all
+you want to do is include some simple text.
+
+Another solution could be SVG inventing their own elements for these
+kinds of things.  For example, #1 could be solved with an &lt;svg:span&gt;
+or &lt;svg:p&gt; element.  Having duplicate elements in multiple namespaces
+is regarded as an antipattern, however.  Having elements which are
+duplicates save for their tagname is just as bad - less &quot;chameleon
+namespace&quot; problems, more gratuitous and needless naming differences
+between components of the web platform.
+
+My preferred solution is to simply include HTML directly into SVG.
+This solves #1 perfectly - all that needs to be done is to specify the
+SVG rendering model in terms of the CSS box model (it's simple, just a
+slight diff on position:absolute), then &lt;span&gt; or &lt;p&gt; works great.
+This solves #2 as well - you get &lt;em&gt; and the gang coming along for
+free, not to mention the block-level elements like &lt;hn&gt;, lists, etc.,
+all of which can reasonable be used inside of something which is
+mostly SVG, like a diagram.  Finally, it solves #3 just as cleanly, by
+letting us just use the languages together in a nice, friendly way
+without duplication or lots of boilerplate wrapper.
+
+This requires some minor parsing changes in HTML.  Specifically, in
+<A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/tree-construction.html#parsing-main-inforeign">http://www.whatwg.org/specs/web-apps/current-work/multipage/tree-construction.html#parsing-main-inforeign</A>
+(section 12.2.5.5 &quot;The rules for parsing tokens in foreign content&quot;),
+the rule that makes any HTML element pop the stack of open elements
+until it closes the SVG element would need to be removed.  I'm aware
+that this was put in place to avoid breaking a few pages that,
+seemingly for no reason, include an &lt;svg&gt; tag at the start of their
+page with no matching &lt;/svg&gt;, as including the HTML directly in the
+&lt;svg&gt; element would suppress their rendering.  However, with my
+suggested change, these pages would continue working, albeit probably
+with a slightly different rendering.
+
+If this is unacceptable, it's acceptable to me to require a small,
+simple wrapper element that accomplishes the same thing as
+&lt;foreignContent&gt;, but automatically places its contents in the HTML
+namespace and auto-sizes itself, and have the parser key off of that.
+This should be avoided if possible, though, as it's annoying for
+authors with no direct benefit to them.
+
+~TJ
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="079521.html">[whatwg] WebIDL nested interfaces
+</A></li>
+	<LI>Next message: <A HREF="079529.html">[whatwg] Including HTML more directly into SVG
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#37251">[ date ]</a>
+              <a href="thread.html#37251">[ thread ]</a>
+              <a href="subject.html#37251">[ subject ]</a>
+              <a href="author.html#37251">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

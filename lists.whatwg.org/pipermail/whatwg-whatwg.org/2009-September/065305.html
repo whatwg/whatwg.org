@@ -1,0 +1,157 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] LocalStorage in workers
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20LocalStorage%20in%20workers&In-Reply-To=%3Cf965ae410909160958n72c9ac78pe049fa537b412e16%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="065271.html">
+   <LINK REL="Next"  HREF="065307.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] LocalStorage in workers</H1>
+<!--htdig_noindex-->
+    <B>Drew Wilson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20LocalStorage%20in%20workers&In-Reply-To=%3Cf965ae410909160958n72c9ac78pe049fa537b412e16%40mail.gmail.com%3E"
+       TITLE="[whatwg] LocalStorage in workers">atwilson at google.com
+       </A><BR>
+    <I>Wed Sep 16 09:58:19 PDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="065271.html">[whatwg] LocalStorage in workers
+</A></li>
+        <LI>Next message: <A HREF="065307.html">[whatwg] LocalStorage in workers
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#65305">[ date ]</a>
+              <a href="thread.html#65305">[ thread ]</a>
+              <a href="subject.html#65305">[ subject ]</a>
+              <a href="author.html#65305">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Jeremy, what's the use case here - do developers want workers to have access
+to shared local storage with pages? Or do they just want workers to have
+access to their own non-shared local storage?
+Because we could just give workers their own separate WorkerLocalStorage and
+let them have at it. A worker could block all the other accesses to
+WorkerLocalStorage within that domain, but so be it - it wouldn't affect
+page access, and we already had that issue with the (now removed?)
+synchronous SQL API.
+
+I think a much better case can be made for WorkerLocalStorage than for &quot;give
+workers access to page LocalStorage&quot;, and the design issues are much
+simpler.
+
+-atw
+
+On Tue, Sep 15, 2009 at 8:27 PM, Jonas Sicking &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">jonas at sicking.cc</A>&gt; wrote:
+
+&gt;<i> On Tue, Sep 15, 2009 at 6:56 PM, Jeremy Orlow &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">jorlow at chromium.org</A>&gt; wrote:
+</I>&gt;<i> &gt; One possible solution is to add an asynchronous callback interface for
+</I>&gt;<i> &gt; LocalStorage into workers.  For example:
+</I>&gt;<i> &gt; function myCallback(localStorage) {
+</I>&gt;<i> &gt;   localStorage.accountBalance = localStorage.accountBalance + 100;
+</I>&gt;<i> &gt; }
+</I>&gt;<i> &gt; executeLocalStorageCallback(myCallback);  // TODO: Make this name better
+</I>&gt;<i> &gt;  :-)
+</I>&gt;<i> &gt; The interface is simple.  You can only access localStorage via a
+</I>&gt;<i> callback.
+</I>&gt;<i> &gt;  Any use outside of the callback is illegal and would raise an exception.
+</I>&gt;<i> &gt;  The callback would acquire the storage mutex during execution, but the
+</I>&gt;<i> &gt; worker's execution would not block during this time.  Of course, it's
+</I>&gt;<i> still
+</I>&gt;<i> &gt; possible for a poorly behaving worker to do large amounts
+</I>&gt;<i> of computation in
+</I>&gt;<i> &gt; the callback, but hopefully the fact they're executing in a callback
+</I>&gt;<i> makes
+</I>&gt;<i> &gt; the developer more aware of the problem.
+</I>&gt;<i>
+</I>&gt;<i> First off, I agree that not having localStorage in workers is a big
+</I>&gt;<i> problem that we need to address.
+</I>&gt;<i>
+</I>&gt;<i> If I were designing the localStorage interface today I would use the
+</I>&gt;<i> above interface that you suggest. Grabbing localStorage can only be
+</I>&gt;<i> done asynchronously, and while you're using it, no one else can get a
+</I>&gt;<i> reference to it. This way there are no race conditions, but also no
+</I>&gt;<i> way for anyone to have to lock.
+</I>&gt;<i>
+</I>&gt;<i> So one solution is to do that in parallel to the current localStorage
+</I>&gt;<i> interface. Let's say we introduce a 'clientStorage' object. You can
+</I>&gt;<i> only get a reference to it using a 'getClientStorage' function. This
+</I>&gt;<i> function is available both to workers and windows. The storage is
+</I>&gt;<i> separate from localStorage so no need to worry about the 'storage
+</I>&gt;<i> mutex'.
+</I>&gt;<i>
+</I>&gt;<i> There is of course a risk that a worker grabs on to the clientStorage
+</I>&gt;<i> and holds it indefinitely. This would result in the main window (or
+</I>&gt;<i> another worker) never getting a reference to it. However it doesn't
+</I>&gt;<i> affect responsiveness of that window, it's just that the callback will
+</I>&gt;<i> never happen. While that's not ideal, it seems like a smaller problem
+</I>&gt;<i> than any other solution that I can think of. And the WebDatabase
+</I>&gt;<i> interfaces are suffering from the same problem if I understand things
+</I>&gt;<i> correctly.
+</I>&gt;<i>
+</I>&gt;<i> There's a couple of other interesting things we could expose on top of
+</I>&gt;<i> this:
+</I>&gt;<i>
+</I>&gt;<i> First, a synchronous API for workers. We could allow workers to
+</I>&gt;<i> synchronously get a reference to clientStorage. If someone is
+</I>&gt;<i> currently using clientStorage then the worker blocks until the storage
+</I>&gt;<i> becomes available. We could either use a callback as the above, which
+</I>&gt;<i> blocks until the clientStorage is acquired and only holds the storage
+</I>&gt;<i> until the callback exists. Or we could expose clientStorage as a
+</I>&gt;<i> property which holds the storage until control is returned to the
+</I>&gt;<i> worker eventloop, or until some explicit release API is called. The
+</I>&gt;<i> latter would be how localStorage is now defined, with the important
+</I>&gt;<i> difference that localStorage exposes the synchronous API to windows.
+</I>&gt;<i>
+</I>&gt;<i> Second, allow several named storage areas. We could add an API like
+</I>&gt;<i> getNamedClientStorage(name, callback). This would allow two different
+</I>&gt;<i> workers to simultaneously store things in a storage areas, as long as
+</I>&gt;<i> they don't need to use the *same* storage area. It would also allow a
+</I>&gt;<i> worker and the main window to simultaneously use separate storage
+</I>&gt;<i> areas.
+</I>&gt;<i>
+</I>&gt;<i> However we need to be careful if we add both above features. We can't
+</I>&gt;<i> allow a worker to grab multiple storage areas at the same time since
+</I>&gt;<i> that could cause deadlocks. However with proper APIs I believe we can
+</I>&gt;<i> avoid that.
+</I>&gt;<i>
+</I>&gt;<i> / Jonas
+</I>&gt;<i>
+</I>-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: &lt;<A HREF="http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20090916/6a2c1b67/attachment-0002.htm">http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20090916/6a2c1b67/attachment-0002.htm</A>&gt;
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="065271.html">[whatwg] LocalStorage in workers
+</A></li>
+	<LI>Next message: <A HREF="065307.html">[whatwg] LocalStorage in workers
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#65305">[ date ]</a>
+              <a href="thread.html#65305">[ thread ]</a>
+              <a href="subject.html#65305">[ subject ]</a>
+              <a href="author.html#65305">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

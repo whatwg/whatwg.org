@@ -1,0 +1,199 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] &lt;canvas&gt; drawing with singular transforms and zero-sized gradients
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20%3Ccanvas%3E%20drawing%20with%20singular%20transforms%20and%0A%20zero-sized%20gradients&In-Reply-To=%3CPine.LNX.4.64.1109212137290.11191%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="033264.html">
+   <LINK REL="Next"  HREF="033278.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] &lt;canvas&gt; drawing with singular transforms and zero-sized gradients</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20%3Ccanvas%3E%20drawing%20with%20singular%20transforms%20and%0A%20zero-sized%20gradients&In-Reply-To=%3CPine.LNX.4.64.1109212137290.11191%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg] &lt;canvas&gt; drawing with singular transforms and zero-sized gradients">ian at hixie.ch
+       </A><BR>
+    <I>Wed Sep 21 15:19:24 PDT 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="033264.html">[whatwg] Erroneous description of h1, h2, h3,	etc. elements on Whatwg.org
+</A></li>
+        <LI>Next message: <A HREF="033278.html">[whatwg] The placeholder attribute
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#33276">[ date ]</a>
+              <a href="thread.html#33276">[ thread ]</a>
+              <a href="subject.html#33276">[ subject ]</a>
+              <a href="author.html#33276">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Fri, 24 Jun 2011, Robert O'Callahan wrote:
+&gt;<i>
+</I>&gt;<i> Consider this testcase:
+</I>&gt;<i> <A HREF="http://people.mozilla.org/~roc/SingularCanvasMatrix.html">http://people.mozilla.org/~roc/SingularCanvasMatrix.html</A>
+</I>&gt;<i> It sets up a rectangle to fill, then sets the current matrix to a singular
+</I>&gt;<i> matrix (yy=0 in this case), then fills with different fillStyles. It's not
+</I>&gt;<i> clear from the spec how this is supposed to behave
+</I>
+I've clarified the spec so that hopefully it is now defined, if maybe 
+still not really clear.
+
+The spec now says that solid colours aren't affect by the transformation 
+matrix, gradients are (this was already defined), and patterns are 
+affected _after_ the repetition is applied.
+
+Thus solid colours should fill fine, but canvases and patterns would do 
+fill nothing (though while still applying globalCompositeOperator), 
+because they are scaled to an image with one dimension having zero width.
+
+
+&gt;<i> For CanvasPatterns, I can't see any reasonable way to define any 
+</I>&gt;<i> rendering, so I suggest they should just paint nothing when the current 
+</I>&gt;<i> transform is singular. This needs a spec update I think.
+</I>
+That's effectively what I specced (though by saying that the pattern is 
+scaled after being repeated, so there's no question of how you repeat a 
+zero-width image).
+
+
+&gt;<i> For linear CanvasGradients, I think we can follow the spec and simply 
+</I>&gt;<i> transform the gradient points. That would mean drawing the horizontal 
+</I>&gt;<i> gradient normally and drawing nothing for the vertical gradient. This 
+</I>&gt;<i> wouldn't need a spec change.
+</I>
+Agreed.
+
+
+&gt;<i> I'm not sure what to do about radial CanvasGradients. We can transform 
+</I>&gt;<i> the center points but the effect on the radii can't be described by 
+</I>&gt;<i> simply transforming points. Perhaps the most logical approach would be 
+</I>&gt;<i> to fill with the &quot;outside&quot; color (black in my testcase). This needs a 
+</I>&gt;<i> spec update.
+</I>
+Would it make more sense to define that what is transformed is the 
+resulting radial gradient, rather than the points while the gradient is 
+drawn? (I'm not really sure what the latter really means.) I've changed 
+the spec to do this.
+
+
+&gt;<i> For solid colors I think it's logical to just fill with the color. This 
+</I>&gt;<i> wouldn't need a spec change.
+</I>
+It needed a change to indicate that the transformation matrix doesn't 
+apply.
+
+I've also added some text to define that the color of a fill or stroke 
+where the pattern or radial gradient has been collapsed to a point is 
+transparent black.
+
+
+On Sun, 26 Jun 2011, Aryeh Gregor wrote:
+&gt;<i> 
+</I>&gt;<i> I'm thinking of the source color, gradient, or pattern conceptually 
+</I>&gt;<i> filling the plane (possibly almost all transparent in the case of a 
+</I>&gt;<i> pattern), then being transformed by the matrix, then being clipped to 
+</I>&gt;<i> fill the shape before being painted.  Thus in my mind it's still being 
+</I>&gt;<i> collapsed before being painted, even if it's just a solid color.  That 
+</I>&gt;<i> way a solid color is conceptually the same as a gradient with all color 
+</I>&gt;<i> stops the same, or a solid-colored image.
+</I>
+That makes sense. It's not how the spec is written.
+
+
+&gt;<i> It seems like a useful invariant if the different styles behave the same 
+</I>&gt;<i> reliably when they should logically be the same.  That way authors can 
+</I>&gt;<i> learn about patterns first (which is very concrete -- &quot;give it an 
+</I>&gt;<i> image&quot;), then understand gradients and solid colors as special cases of 
+</I>&gt;<i> patterns, and be consistently right.  Authors might be surprised by the 
+</I>&gt;<i> behavior in this particular case, but it's a fairly pathological case 
+</I>&gt;<i> anyway, and it doesn't seem worthwhile to trade away consistency to get 
+</I>&gt;<i> more intuitive behavior in this special case.
+</I>&gt;<i> 
+</I>&gt;<i> I guess one big problem with this approach is you have a singularity at 
+</I>&gt;<i> determinant zero, and that's really awkward because you can't rely on 
+</I>&gt;<i> floating-point equality comparisons unless you allow some tolerance for 
+</I>&gt;<i> rounding error, and in that case equality is no longer transitive. By my 
+</I>&gt;<i> theory, a transformation matrix with determinant zero should result in 
+</I>&gt;<i> solid colors doing nothing, but one with determinant e for any e &gt; 0 
+</I>&gt;<i> should result in the color being painted.  This is obviously bad.
+</I>&gt;<i> 
+</I>&gt;<i> So this is probably my pure math background showing through rather than 
+</I>&gt;<i> a very useful contribution to the discussion.  If the API were designed 
+</I>&gt;<i> for mathematicians, now . . .
+</I>
+I could see an argument either way.
+
+
+On Mon, 27 Jun 2011, Robert O'Callahan wrote:
+&gt;<i>
+</I>&gt;<i> Gradients already aren't continuous where the start and end points are 
+</I>&gt;<i> equal.
+</I>
+That's an interesting point. Legacy reasons? I haven't changed this, but 
+it is inconsistent.
+
+
+On Sat, 25 Jun 2011, Robert O'Callahan wrote:
+&gt;<i> 
+</I>&gt;<i> If you set up a path covering the entire canvas, call ctx.scale(e, e) 
+</I>&gt;<i> for infinitesimal e, and then fill with an image pattern, conceptually 
+</I>&gt;<i> you're scaling the image to be incredibly small and then repeating it a 
+</I>&gt;<i> very large number of times to fill the canvas. So I guess the logical 
+</I>&gt;<i> behavior for e=0 would be to compute the average color of the image 
+</I>&gt;<i> pixels and do a solid fill with that color, which would give you that 
+</I>&gt;<i> consistency you're asking for. But is that worth implementing? No-one 
+</I>&gt;<i> does that today.
+</I>
+I've gotten around this by defining that the scaling happens after the 
+repeating.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="033264.html">[whatwg] Erroneous description of h1, h2, h3,	etc. elements on Whatwg.org
+</A></li>
+	<LI>Next message: <A HREF="033278.html">[whatwg] The placeholder attribute
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#33276">[ date ]</a>
+              <a href="thread.html#33276">[ thread ]</a>
+              <a href="subject.html#33276">[ subject ]</a>
+              <a href="author.html#33276">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

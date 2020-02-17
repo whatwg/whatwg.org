@@ -1,0 +1,221 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Drag-and-drop folders/files support with directory structure using DirectoryEntry
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Drag-and-drop%20folders/files%20support%20with%20directory%0A%20structure%20using%20DirectoryEntry&In-Reply-To=%3CPine.LNX.4.64.1209121720340.27765%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="079565.html">
+   <LINK REL="Next"  HREF="079567.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Drag-and-drop folders/files support with directory structure using DirectoryEntry</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Drag-and-drop%20folders/files%20support%20with%20directory%0A%20structure%20using%20DirectoryEntry&In-Reply-To=%3CPine.LNX.4.64.1209121720340.27765%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg] Drag-and-drop folders/files support with directory structure using DirectoryEntry">ian at hixie.ch
+       </A><BR>
+    <I>Thu Sep 13 14:58:42 PDT 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="079565.html">[whatwg] Problem in the Section &quot;4 Elements of HTML =&gt; 4.4 Sections =&gt; 4.4.2 The Section element
+</A></li>
+        <LI>Next message: <A HREF="079567.html">[whatwg] Drag-and-drop folders/files support with directory structure using DirectoryEntry
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#37291">[ date ]</a>
+              <a href="thread.html#37291">[ thread ]</a>
+              <a href="subject.html#37291">[ subject ]</a>
+              <a href="author.html#37291">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Tue, 15 Nov 2011, Kinuko Yasuda wrote:
+&gt;<i> 
+</I>&gt;<i> Many sites have 'upload your files' feature, like for your photo images. 
+</I>&gt;<i> HTML5 allows you to do this via &lt;input type=&quot;file&quot; multiple&gt; or 
+</I>&gt;<i> drag-and-drop feature, but the current solution does not provide clean 
+</I>&gt;<i> solution for cases with folders, files/folder mixed cases, or folders 
+</I>&gt;<i> with subfolders cases.
+</I>&gt;<i> 
+</I>&gt;<i> For context, back then we have proposed (and implemented) 'directory' 
+</I>&gt;<i> attribute for &lt;input type=file&gt; specifically to upload a directory, but 
+</I>&gt;<i> the approach does not provide useful information to webapps about which 
+</I>&gt;<i> file comes from which folder, neither does it allow apps to control how 
+</I>&gt;<i> and when to enumerate directories (e.g. app cannot show progress meter 
+</I>&gt;<i> etc even the enumerating part takes long time). 
+</I>&gt;<i> <A HREF="http://lists.whatwg.org/htdig.cgi/whatwg-whatwg.org/2010-April/025764.html">http://lists.whatwg.org/htdig.cgi/whatwg-whatwg.org/2010-April/025764.html</A>
+</I>
+This isn't really about directories, it's a problem with file I/O in 
+general, made worse when there are large numbers of files -- it's just 
+that when you have directories you're more likely to have many files. 
+Other situations also make this difficult, e.g. if the files are on a 
+network drive with high latency, or a removable drive such as a DVD or 
+tape drive.
+
+Fundamentally the problem is that the objects in drag-and-drop and in 
+&lt;input type=file&gt; synchronously expose all the files, and we just don't 
+necessarily have the time to get all the files' sizes before that starts 
+to be noticably slow. We could have the UA show progress UI, but while 
+that could work for &lt;input type=file&gt;, it would be quite jarring for drag 
+and drop.
+
+There are various ways we could fix this if we were starting afresh, but 
+if we're trying to keep backwards compatibility there's basically no 
+solution: the spec already requires this sync API, and pages might depend 
+on it.
+
+So we have a problem: do we not fix the problem, do we break all pages 
+always, break all pages but only when the user drags in a lot of files (so 
+authors might not notice), break all pages whenever there's more than one 
+file (so authors will notice but pages still support one file at a time), 
+break pages only when the user drags in one or more directories?
+
+There's various ways we could fix the problem, if we're ok with breaking 
+things. We could expose all the files in a flat list, incrementally. We 
+could expose the directory hiearchy, with asynchronous access. If we do 
+incremental access, there's various ways to do that: event-based 
+notification that there's more data; an enumerator / callback mechanism; a 
+lazy array where reading the number of files, or reading the nth file, is 
+asynchronous... We can extend FileList and DataTransferItemList to support 
+this, or we can add a new object that they point to, or we can just update 
+FileList and make DataTransferItemList support the new object...
+
+In many cases, exposing the actual hierarchy can reduce the total amount 
+of work that's needed, because many use cases don't actually need to crawl 
+everything. For example, people gave examples of just wanting Subversion's 
+internal .svn directories in a big tree, not the actual data; or indeed in 
+other cases vice-versa.
+
+However, both exposing the hiearchy and flattening it have all kinds of 
+risks. It's possible for the user to accidentally expose his entire 
+computer's hard drive without realising it. On some systems (including at 
+least modern Mac OS and Linux OSes, not sure about Windows), it's possible 
+to have hard-link loops. On some systems, it's possible to drag special 
+directories like &quot;..&quot;, and it's not clear what that would mean. When the 
+user drags files from multiple parts of the file system (e.g. from a 
+Windows virtual folder), it's not clear what parts of the path we should 
+expose -- even exposing just the common parts can expose sensitive 
+information like the profile path if one file is in the user's profile and 
+another is not.
+
+Also, none of these solutions helps with DataTransfer.types or exposing 
+the types in DataTransfer.items while the drag is occurring, if the goal 
+is to expose a deep crawl there. If we limit ourselves to just exposing 
+the files that were dragged, then I think the OS will give us the list of 
+files, so the problem is only statting them to get the sizes when you drop.
+
+
+On Tue, 15 Nov 2011, Glenn Maynard wrote:
+&gt;<i> 
+</I>&gt;<i> Entry (and subclasses) should also be supported by structured clone.  
+</I>&gt;<i> That would allow passing a DirectoryEntry received from file inputs to 
+</I>&gt;<i> be passed to a worker.  This is something for later, of course, but 
+</I>&gt;<i> combined with an API to convert between Entry and EntrySync (and 
+</I>&gt;<i> DE/DESync), this would allow using the much more convenient sync API in 
+</I>&gt;<i> a worker, even if the only way to retrieve the Entry in the first place 
+</I>&gt;<i> is in the UI thread.
+</I>
+Any spec can define how they work with the structured clone algorithm. 
+I'll let the Filesystem API editors consider this.
+
+
+On Thu, 5 Apr 2012, Kinuko Yasuda wrote:
+&gt;<i> 
+</I>&gt;<i> Based on the feedbacks we got on this list we've implemented the following
+</I>&gt;<i> API to do experiments in Chrome:
+</I>&gt;<i>    DataTransferItem.getAsEntry(in EntryCallback callback)
+</I>&gt;<i> which takes a callback that returns FileEntry or DirectoryEntry if it's for
+</I>&gt;<i> drop event and the item's kind is 'file'.
+</I>&gt;<i> [later changed to be synchronous]
+</I>&gt;<i>
+</I>&gt;<i> We use kind=='file' in a broader definition here (i.e. a file path which
+</I>&gt;<i> can be either regular file or directory file) and didn't add a specific
+</I>&gt;<i> kind for directories.
+</I>&gt;<i>
+</I>&gt;<i> (Btw we've also implemented DataTransferItem.getAsFile(), so apps can call
+</I>&gt;<i> either getAsFile or webkitGetAsEntry for kind=='file' item)
+</I>
+This doesn't seem to solve the problems. It mitigates the problem of 
+having to do a deep crawl, but it risks exposing file system loops and the 
+other issues listed above.
+
+In any case, Opera and Mozilla have both indicated they are not interested 
+in using the Filesystem API here, so I haven't added this to the spec.
+
+It's not clear to me how to move forward on this.
+
+My intuition is that we should assume that dragging in lots of files will 
+not hurt due to the statted filed having been recently cached, and then 
+expose the tree via objects, not via flattening. I don't see how to avoid 
+exposing undetectable loops if we do this. Things like the meaning of &quot;..&quot; 
+would be left to the UA, but &quot;..&quot; wouldn't ever be exposed as a folder 
+name, certainly. Disjoint nodes would be treated as separate nodes in the 
+drag, so there's no problem with exposing common paths with sensitive 
+data, except if the user drags a sensitive path's parent (e.g. C:\). Not 
+sure what to do with that, though.
+
+Concretely, the least invasive way to do this is probably to piggy-back on 
+the FileList and getAsFile solutions, and make a Directory object that 
+parallels File and provides a list of files in the directory, with either 
+getAsDirectory() being async or, more likely, the Directory object being 
+enumerable in an async manner to get all the files.
+
+For UAs that implement the FileSystem API, I would then recommend that the 
+FlieSystem API provide ways to get from File and Directory objects to 
+FileEntry and DirectoryEntry objects.
+
+
+I haven't added any of this to the spec, mostly because it's not clear to 
+me that there is consensus amongst browser vendors that this is a problem 
+they want to solve, let alone how to solve it.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="079565.html">[whatwg] Problem in the Section &quot;4 Elements of HTML =&gt; 4.4 Sections =&gt; 4.4.2 The Section element
+</A></li>
+	<LI>Next message: <A HREF="079567.html">[whatwg] Drag-and-drop folders/files support with directory structure using DirectoryEntry
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#37291">[ date ]</a>
+              <a href="thread.html#37291">[ thread ]</a>
+              <a href="subject.html#37291">[ subject ]</a>
+              <a href="author.html#37291">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

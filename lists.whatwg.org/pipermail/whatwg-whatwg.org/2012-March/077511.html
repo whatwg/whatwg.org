@@ -1,0 +1,201 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Endianness of typed arrays
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Endianness%20of%20typed%20arrays&In-Reply-To=%3CCAMttkK%2BZyX8FWv0YOfHu3JqbO7L%2BjzOjaP9acO6s1G19cuLKcw%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="077510.html">
+   <LINK REL="Next"  HREF="077513.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Endianness of typed arrays</H1>
+<!--htdig_noindex-->
+    <B>Brandon Jones</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Endianness%20of%20typed%20arrays&In-Reply-To=%3CCAMttkK%2BZyX8FWv0YOfHu3JqbO7L%2BjzOjaP9acO6s1G19cuLKcw%40mail.gmail.com%3E"
+       TITLE="[whatwg] Endianness of typed arrays">tojiro at gmail.com
+       </A><BR>
+    <I>Wed Mar 28 14:27:27 PDT 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="077510.html">[whatwg] Endianness of typed arrays
+</A></li>
+        <LI>Next message: <A HREF="077513.html">[whatwg] Endianness of typed arrays
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#77511">[ date ]</a>
+              <a href="thread.html#77511">[ thread ]</a>
+              <a href="subject.html#77511">[ subject ]</a>
+              <a href="author.html#77511">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>I was initially on the &quot;just make it little endian and don't make me worry
+about it&quot; side of the fence, but on further careful consideration I've
+changed my mind: I think having typed arrays use the platform endianness is
+the right call.
+
+As Ken pointed out, if you are populating your arrays from javascript or a
+JSON file or something similar this is a non-issue. The problem only occurs
+when you are attempting to load a binary blob directly into a typed array.
+Unless that blob is entirely homogenous (ie: all Float32's or all Int16's,
+etc) it's impossible to trivially swap endianness without being provided a
+detailed breakdown of the data patterns contained within the blob.
+
+Consider this example (using WebGL, but the same could apply elsewhere): I
+download a binary file containing tightly packed interleaved vertices that
+I want to pass directly to a WebGL buffer. The data contains little endian
+vertex positions, texture coordinates, texture ID's and a 32 bit color per
+vertex, so the data looks something like this:
+
+struct {
+    Float32[3] pos,
+    Float32[4] uv,
+    Uint16 textureId,
+    Uint32 color
+};
+
+I will receive this data from XHR as an opaque TypedArray, and if the
+platform is little endian I can pass it directly to the GPU. But on big
+endian systems, a translation needs to be done somewhere:
+
+xhr.responseType = &quot;arraybuffer&quot;;
+xhr.onload = function() {
+    var vertBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, vertBuffer);
+
+    // If bigEndian then... magic!
+
+    gl.bufferData(gl.ARRAY_BUFFER, this.response, gl.STATIC_DRAW);
+}
+
+So the question is: What exactly are we expecting that &quot;magic&quot; to be? We
+can't just swizzle every 4 bytes. Either the graphics driver must do the
+endian swap as it processes the buffer, which is possible but entirely out
+of the browsers control, or we would have to provide data packing
+information to the browser so that it could do the appropriate swap for us.
+And if I'm going to have to build up a data definition and pass that
+through to the browser anyway... well I've just destroyed the whole &quot;don't
+make me care about endianness&quot; ideal, haven't I? I might as well just do
+the swap in my own code via a DataView, or better yet cache a big endian
+version of the same file on the server side if I'm worried about
+performance.
+
+So yeah, it sucks that we have to plan for devices that are practically
+non-existant and difficult to test for, but I don't really see a nicer
+(practical) solution.
+
+That said, one thing that DataView doesn't handle too nicely right now is
+arrays. You're basically stuck for-looping over your data, even if it's all
+the same type. I would fully support having new DataView methods available
+like:
+
+Int32Array getInt32Array(unsigned long byteOffset, unsigned long elements,
+optional boolean littleEndian);
+
+Which would be a nice, sensible optimization since I'm pretty sure the
+browser backend could do that faster than a JS loop.
+
+--Brandon
+
+On Wed, Mar 28, 2012 at 1:39 PM, Kenneth Russell &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">kbr at google.com</A>&gt; wrote:
+
+&gt;<i> On Wed, Mar 28, 2012 at 12:34 PM, Benoit Jacob &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">bjacob at mozilla.com</A>&gt; wrote:
+</I>&gt;<i> &gt; Before I joined this mailign list, Boris Zbarsky wrote:
+</I>&gt;<i> &gt;&gt; C)  Try to guess based on where the array buffer came from and have
+</I>&gt;<i> &gt;&gt; different behavior for different array buffers.  With enough luck (or
+</I>&gt;<i> &gt;&gt; good enough heuristics), would make at least some WebGL work, while also
+</I>&gt;<i> &gt;&gt; making non-WebGL things loaded over XHR work.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; FWIW, here is a way to do this that will always work and won't rely on
+</I>&gt;<i> &quot;luck&quot;. The key idea is that by the time one draws stuff, all the
+</I>&gt;<i> information about how vertex attributes use buffer data must be known.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; 1. In webgl.bufferData implementation, don't call glBufferData, instead
+</I>&gt;<i> just cache the buffer data.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; 2. In webgl.vertexAttribPointer, record the attributes structure (their
+</I>&gt;<i> types, how they use buffer data). Do not convert/upload buffers yet.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; 3. In the first WebGL draw call (like webgl.drawArrays) since the last
+</I>&gt;<i> bufferData/vertexAttribPointer call, do the conversion of buffers and the
+</I>&gt;<i> glBufferData calls. Use some heuristics to drop the buffer data cache, as
+</I>&gt;<i> most WebGL apps will not have a use for it anymore.
+</I>&gt;<i>
+</I>&gt;<i> It would never be possible to drop the CPU side buffer data cache. A
+</I>&gt;<i> subsequent draw call may set up the vertex attribute pointers
+</I>&gt;<i> differently for the same buffer object, which would necessitate going
+</I>&gt;<i> back through the buffer's data and generating new, appropriately
+</I>&gt;<i> byte-swapped data for the GPU.
+</I>&gt;<i>
+</I>&gt;<i> &gt;&gt; In practice, if forced to implement a UA on a big-endian system today, I
+</I>&gt;<i> &gt;&gt; would likely pick option (C)....  I wouldn't classify that as a victory
+</I>&gt;<i> &gt;&gt; for standardization, but I'm also not sure what we can do at this point
+</I>&gt;<i> &gt;&gt; to fix the brokenness.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; I agree that seems to be the only way to support universal webgl content
+</I>&gt;<i> on big-endian UAs. It's not great due to the memory overhead, but at least
+</I>&gt;<i> it shouldn't incur a significant performance overhead, and it typically
+</I>&gt;<i> only incurs a temporary memory overhead as we should be able to drop the
+</I>&gt;<i> buffer data caches quickly in most cases. Also, buffers are typically 10x
+</I>&gt;<i> smaller than textures, so the memory overhead would typically be ~ 10% in
+</I>&gt;<i> corner cases where we couldn't drop the caches.
+</I>&gt;<i>
+</I>&gt;<i> Our emails certainly crossed, but please refer to my other email.
+</I>&gt;<i> WebGL applications that assemble vertex data for the GPU using typed
+</I>&gt;<i> arrays will already work correctly on big-endian architectures. This
+</I>&gt;<i> was a key consideration when these APIs were being designed. The
+</I>&gt;<i> problems occur when binary data is loaded via XHR and uploaded to
+</I>&gt;<i> WebGL directly. DataView is supposed to be used in such cases to load
+</I>&gt;<i> the binary data, because the endianness of the file format must
+</I>&gt;<i> necessarily be known.
+</I>&gt;<i>
+</I>&gt;<i> The possibility of forcing little-endian semantics was considered when
+</I>&gt;<i> typed arrays were originally being designed. I don't have absolute
+</I>&gt;<i> performance numbers to quote you, but based on previous experience
+</I>&gt;<i> with Java's NIO Buffer classes, I am positive that the performance
+</I>&gt;<i> impact for WebGL applications on big-endian architectures would be
+</I>&gt;<i> very large. It would prevent applications which manipulate vertices in
+</I>&gt;<i> JavaScript from running acceptably on big-endian machines.
+</I>&gt;<i>
+</I>&gt;<i> -Ken
+</I>&gt;<i>
+</I>&gt;<i> &gt; In conclusion: WebGL is not the worst here, there is a pretty reasonable
+</I>&gt;<i> avenue for big-endian UAs to implement it in a way that allows running the
+</I>&gt;<i> same unmodified content as little-endian UAs.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Benoit
+</I>&gt;<i>
+</I>
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="077510.html">[whatwg] Endianness of typed arrays
+</A></li>
+	<LI>Next message: <A HREF="077513.html">[whatwg] Endianness of typed arrays
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#77511">[ date ]</a>
+              <a href="thread.html#77511">[ thread ]</a>
+              <a href="subject.html#77511">[ subject ]</a>
+              <a href="author.html#77511">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

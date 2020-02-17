@@ -1,0 +1,143 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Prioritizing subresources (Was Script preloading)
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Prioritizing%20subresources%20%28Was%20Script%20preloading%29&In-Reply-To=%3C86A0181F-5695-4801-9254-D2B0E0CA5928%40apple.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="082955.html">
+   <LINK REL="Next"  HREF="082959.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Prioritizing subresources (Was Script preloading)</H1>
+<!--htdig_noindex-->
+    <B>Ryosuke Niwa</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Prioritizing%20subresources%20%28Was%20Script%20preloading%29&In-Reply-To=%3C86A0181F-5695-4801-9254-D2B0E0CA5928%40apple.com%3E"
+       TITLE="[whatwg] Prioritizing subresources (Was Script preloading)">rniwa at apple.com
+       </A><BR>
+    <I>Tue Sep  3 20:00:45 PDT 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="082955.html">[whatwg] Script preloading
+</A></li>
+        <LI>Next message: <A HREF="082959.html">[whatwg] Prioritizing subresources (Was Script preloading)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#82957">[ date ]</a>
+              <a href="thread.html#82957">[ thread ]</a>
+              <a href="subject.html#82957">[ subject ]</a>
+              <a href="author.html#82957">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Sep 3, 2013, at 5:01 PM, William Chan (&#38472;&#26234;&#26124;) &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">willchan at chromium.org</A>&gt; wrote:
+
+&gt;<i> Hello folks. Sorry for the late response to several comments in this
+</I>&gt;<i> mega-thread, I've mostly been traveling/vacationing for the past 2 months.
+</I>&gt;<i> A teammate asked me to look at this in case I had comments. I don't know
+</I>&gt;<i> web dev issues very well, so I'm going to restrain myself from offering
+</I>&gt;<i> many opinions about the new proposals other than wow, all this dependency
+</I>&gt;<i> stuff looks complicated, but maybe it's worth it? I'll keep to some
+</I>&gt;<i> observations from a networking performance perspective, in case it's
+</I>&gt;<i> relevant to the discussion:
+</I>&gt;<i> 
+</I>&gt;<i> * Any advantages the preloader currently gives is probably only going to be
+</I>&gt;<i> magnified with HTTP/2. Browsers today will in key situations hold back
+</I>&gt;<i> lower priority resource loads, even after the resource has been discovered
+</I>&gt;<i> by the parser/preloader, in order to reduce network contention and
+</I>&gt;<i> prioritize resources. But with HTTP/2, the browser almost never has to do
+</I>&gt;<i> this since it can express the request priority in the HTTP/2 protocol
+</I>&gt;<i> itself, and let the server order responses appropriately.
+</I>&gt;<i> * &lt;link rel=subresource&gt; is great for resource discovery. Given the above
+</I>&gt;<i> observation, note that it has some deficiencies. Most obviously, it does
+</I>&gt;<i> not indicate the resource type. Browsers today can heuristically assign a
+</I>&gt;<i> priority based on the resource type (script/image/stylesheet/etc).
+</I>&gt;<i> Arguably, browsers could just use the filename extension as a hint to the
+</I>&gt;<i> resource type, and that'd get us most of the way there. In any case,
+</I>&gt;<i> Chromium, when it encounters &lt;link rel=subresource&gt; is going to assign the
+</I>&gt;<i> resource load the lowest priority level, and only when the parser
+</I>&gt;<i> encounters the actual resource via a &lt;script&gt; tag or something, will
+</I>&gt;<i> another resource load be issued with the &quot;appropriate&quot; priority. Almost all
+</I>&gt;<i> modern browsers will hold back low priority resource loads before first
+</I>&gt;<i> paint in order to get critical scripts and stylesheets in &lt;head&gt; ASAP
+</I>&gt;<i> without contention. Anything marked with &lt;link rel=subresource&gt; will be
+</I>&gt;<i> considered low priority and in all likelihood not requested early. Note
+</I>&gt;<i> that HTTP/2 currently does not support re-prioritization (and that feature
+</I>&gt;<i> is being debated), so that means that when the resource load for &lt;link
+</I>&gt;<i> rel=subresource&gt; gets issued over an HTTP/2 connection, it will have the
+</I>&gt;<i> lowest priority, which is probably undesirable. FWIW, I think &lt;link
+</I>&gt;<i> rel=subresource&gt; was a good initial start, but suffers from key weaknesses
+</I>&gt;<i> and should be thrown out and replaced.
+</I>&gt;<i> * Given current browser heuristics for resource prioritization based on
+</I>&gt;<i> resource type, all &lt;script&gt; resources will have the same priority. Within
+</I>&gt;<i> HTTP/1.X, that means you'll get some amount of parallelization based on the
+</I>&gt;<i> connection per host limit and what origins the script resources are hosted,
+</I>&gt;<i> and then get FIFO. New additions like lazyload attributes (and perhaps
+</I>&gt;<i> leveraging the defer attribute) may affect this. With HTTP/2, there is a
+</I>&gt;<i> very high (effectively infinite) parallelization limit. With
+</I>&gt;<i> prioritization, there's no contention across priority levels. But since
+</I>&gt;<i> script resources today generally all have the same priority, they will all
+</I>&gt;<i> contend and most naive servers are going to round robin the response bytes,
+</I>&gt;<i> which is the worst thing you could do with script resources, since current
+</I>&gt;<i> JS VMs do not incrementally process script resources, but process them as a
+</I>&gt;<i> whole. So round-robining all the response bytes will just push out start
+</I>&gt;<i> time of JS processing for all scripts, which is rather terrible.
+</I>&gt;<i> * Obviously, given what I've said above, some level of hinting of
+</I>&gt;<i> prioritization/dependency amongst scripts/resources within the web platform
+</I>&gt;<i> would be useful to the networking layer since the networking layer can much
+</I>&gt;<i> more effectively prioritize resources and thus mitigate network contention.
+</I>&gt;<i> If finer grained priority/dependency information isn't provided in the web
+</I>&gt;<i> platform, my browser's networking stack is likely going to have to, even
+</I>&gt;<i> with HTTP/2, do HTTP/1.X style contention mitigation by restricting
+</I>&gt;<i> parallelization within a priority level. Which is a shame since web
+</I>&gt;<i> developers probably think that with HTTP/2, they can have as many fine
+</I>&gt;<i> grained resources as they want.
+</I>
+Why don't we simply add &quot;priority&quot; content attribute to link element then?
+
+&lt;link rel=subresource href=&quot;high-priority-resource.js&quot; priority=&quot;high&quot;&gt;
+&lt;link rel=subresource href=&quot;low-priority-resource.js&quot; priority=&quot;low&quot;&gt;
+
+
+But can we modify these priorities dynamically?   I have one specific use case that requires this.
+
+Use case D:
+A web page wants to load and execute a script widget.js if the script is already cached in the browser.  However, it wants to load other essential assets such as images first if it's not already in the cache except as long as the user had not started interacting with the parts of the page that require widget.js.
+
+i.e. it (loads and) executes the script immediately when and only when the script had already been cached or the user had started interacting with the parts of the page that requires the script.  Otherwise, the script is loaded with a low priority.
+
+- R. Niwa
+
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="082955.html">[whatwg] Script preloading
+</A></li>
+	<LI>Next message: <A HREF="082959.html">[whatwg] Prioritizing subresources (Was Script preloading)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#82957">[ date ]</a>
+              <a href="thread.html#82957">[ thread ]</a>
+              <a href="subject.html#82957">[ subject ]</a>
+              <a href="author.html#82957">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

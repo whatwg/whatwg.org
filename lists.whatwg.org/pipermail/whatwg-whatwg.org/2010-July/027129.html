@@ -1,0 +1,215 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] The vision behind the &lt;device&gt; element and the ConnectionPeer interface
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20The%20vision%20behind%20the%20%3Cdevice%3E%20element%20and%20the%0A%20ConnectionPeer%20interface&In-Reply-To=%3CPine.LNX.4.64.1007132253160.7242%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="027128.html">
+   <LINK REL="Next"  HREF="027130.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] The vision behind the &lt;device&gt; element and the ConnectionPeer interface</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20The%20vision%20behind%20the%20%3Cdevice%3E%20element%20and%20the%0A%20ConnectionPeer%20interface&In-Reply-To=%3CPine.LNX.4.64.1007132253160.7242%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg] The vision behind the &lt;device&gt; element and the ConnectionPeer interface">ian at hixie.ch
+       </A><BR>
+    <I>Tue Jul 13 16:49:52 PDT 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="027128.html">[whatwg] Proposal: @srctype or @type on &lt;iframe&gt;
+</A></li>
+        <LI>Next message: <A HREF="027130.html">[whatwg] The vision behind the &lt;device&gt; element and the ConnectionPeer interface
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#27129">[ date ]</a>
+              <a href="thread.html#27129">[ thread ]</a>
+              <a href="subject.html#27129">[ subject ]</a>
+              <a href="author.html#27129">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>
+Several people have asked me to elaborate on the vision I have for the 
+&lt;device&gt; element and the ConnectionPeer interface which are currently 
+specified in draft form here:
+
+   <A HREF="http://www.whatwg.org/specs/web-apps/current-work/complete/commands.html#devices">http://www.whatwg.org/specs/web-apps/current-work/complete/commands.html#devices</A>
+   <A HREF="http://www.whatwg.org/specs/web-apps/current-work/complete/commands.html#connectionpeer">http://www.whatwg.org/specs/web-apps/current-work/complete/commands.html#connectionpeer</A>
+
+There are several use cases that are informing this work:
+
+ - Video conferencing
+ - Real-time games
+ - Peer-to-peer file transfer
+
+For video conferencing, we need a mechanism through which a local camera 
+and microphone setup can be enabled and access to which can be granted to 
+scripts in the page, but only with the user's consent and without being 
+vulnerable to the user being tricked (e.g. through click-jacking). There 
+then needs to be a way to transmit this stream of video to another peer's 
+browser, for display. There is also a need to display the stream locally.
+
+For real-time games, we need a mechanism that can send data to a peer or 
+server, where the latency is more important than reliability. That is, 
+it's not critical that packets arrive in order (or at all); once a packet 
+is late, it's useless and there is no reason to resend it. For example, 
+transient game state information becomes stale quickly. (Video is similar; 
+only data for the latest frame is interesting: data for older frames is 
+not useful.)
+
+For peer-to-peer file transfer, we need a mechanism to send data, either 
+in the form of text or binary, to another peer.
+
+In all three cases, we need a mechanism to establish a connection to 
+another peer. This is a non-trivial problem, because of NAT and firewalls. 
+Therefore, we may need help from a third-party server to establish the 
+connection.
+
+Ideally, I'd like the solution to involve no special code at the JS level, 
+and I'd like the server-side connection helper to be something that can be 
+implemented by just setting up a server with no special code and minimal 
+configuration. Thus all the complexity would be in the browsers and in 
+these reusable servers. The only work the author needs to do in this 
+vision is have scripts running in the browsers of both peers decide that 
+they want to connect to each other, and have them exchange some opaque 
+information and information about the helper server, e.g. by sending a 
+message through XMLHttpRequest to the server to bounce to the other user.
+
+To do this, there have to be three configuration strings:
+
+ 1. A description of the helper server to give to the browsers, so they 
+    know who to contact to get things started.
+
+ 2. A description of the first peer that contains all the information the
+    second peer needs to connect to the first peer.
+
+ 3. A description of the second peer that contains all the information the
+    first peer needs to connect to the second peer.
+
+The server can generate the data for 1.
+
+The browser for the first peer can generate the data for 2.
+
+The browser for the second peer can generate the data for 3.
+
+The script then just needs to get the data for 1 and give it to the two 
+peers, the data for 2 and give it to the second peer, and the data for 3 
+and give it to the first peer.
+
+Once the browsers have the information, they can set up a connection to 
+each other using the helper server. For example, in the simplest case, the 
+information for 2 is just the IP address and listening port of the first 
+peer, the information for 3 is just the IP address and listening port of 
+the second peer, and the browsers just have to each open a TCP connection 
+to each other to set up a control channel over which everything else can 
+be done.
+
+Now of course things aren't that simple -- in practice the information 
+will have to include details such as keys to make sure the browsers can 
+prove to each other that they are who they expect to be, there will have 
+to be information obtained from the helper server (e.g. the IP address of 
+the NAT router), and there will likely be information about what protocols 
+are supported, and so on.
+
+None of this has to be exposed to the script, though, which is the great 
+thing about this mechanism.
+
+So what is missing here?
+
+Well the main thing missing in this vision is the format of the 
+configuration strings, and rules for how they are to be interpreted. We 
+need a specification that defines how the helper servers and browsers are 
+to interact, and how, once they have a control channel set up, how they 
+are to set up further channels such as a way to be ready to receive UDP 
+packets for a video stream, how to get ready to receive a file, and so on.
+
+I believe this is a self-contained problem, which can be defined as a 
+black box that exposes only the following:
+
+   Browser side:
+       Methods to:
+        - add a configuration string from the other peer
+        - add a configuration string from the helper server
+        - open a connection
+        - close a connection
+        - send plain text reliably
+        - send plain text unreliably, with low latency
+        - send binary data reliably
+        - send binary data unreliably, with low latency
+        - start sending a stream
+        - stop sending a stream
+      Callbacks for:
+        - getting a configuration string for the other side
+        - the connection being established
+        - a permanent failure to establish a connection
+        - the connection being shut down
+        - receiving text
+        - receiving binary data
+        - being notified of a new stream being received
+        - being notified that a stream has been dropped
+
+   Server side:
+      Callbacks for:
+        - getting a configuration string for the browsers
+
+Everything else (how the connections work, what the configuration strings 
+look like, etc) would just be something internal to that specification, 
+and separate from HTML.
+
+The black box could also include details like how to negotiate different 
+bitrates for video streams; these again don't have to be exposed to the 
+script, at least not in the first version. Since the browser is the one 
+generating the stream and the one doing the connection work, the black box 
+can directly control the stream generation as well.
+
+
+If this is something that resonates with people, then what we really need 
+is for a group of people to get together and design this black box. If 
+people would like to do it through the WHATWG I'd be happy to create a 
+mailing list and whatever other infrastructure is needed for this purpose; 
+alternatively it could be done at the IETF or in some other group.
+
+If there are any questions about this, please feel free to ask them, I'll 
+try to explain what I invision here in more detail. If this isn't a 
+direction people are interested in, then that's fine too. :-)
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="027128.html">[whatwg] Proposal: @srctype or @type on &lt;iframe&gt;
+</A></li>
+	<LI>Next message: <A HREF="027130.html">[whatwg] The vision behind the &lt;device&gt; element and the ConnectionPeer interface
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#27129">[ date ]</a>
+              <a href="thread.html#27129">[ thread ]</a>
+              <a href="subject.html#27129">[ subject ]</a>
+              <a href="author.html#27129">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

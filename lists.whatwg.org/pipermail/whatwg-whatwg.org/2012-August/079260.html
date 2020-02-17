@@ -1,0 +1,162 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Binary Streaming with XHR
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Binary%20Streaming%20with%20XHR&In-Reply-To=%3CCAJhzemVFy4843cZKuAb8jqVOov9wLEt46%2Bxup9nYmcXyFd6X0A%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="079258.html">
+   <LINK REL="Next"  HREF="079259.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Binary Streaming with XHR</H1>
+<!--htdig_noindex-->
+    <B>Jussi Kalliokoski</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Binary%20Streaming%20with%20XHR&In-Reply-To=%3CCAJhzemVFy4843cZKuAb8jqVOov9wLEt46%2Bxup9nYmcXyFd6X0A%40mail.gmail.com%3E"
+       TITLE="[whatwg] Binary Streaming with XHR">jussi.kalliokoski at gmail.com
+       </A><BR>
+    <I>Fri Aug 24 10:24:05 PDT 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="079258.html">[whatwg] Binary Streaming with XHR
+</A></li>
+        <LI>Next message: <A HREF="079259.html">[whatwg] Binary Streaming with XHR
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#79260">[ date ]</a>
+              <a href="thread.html#79260">[ thread ]</a>
+              <a href="subject.html#79260">[ subject ]</a>
+              <a href="author.html#79260">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Hi Cyril,
+
+Thanks for your comments. Responses inline.
+
+On Fri, Aug 24, 2012 at 4:49 PM, Cyril Concolato &lt;
+<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">cyril.concolato at telecom-paristech.fr</A>&gt; wrote:
+
+&gt;<i> Hi Jussi,
+</I>&gt;<i>
+</I>&gt;<i> In general, I like the idea of having streaming over XHR. Thanks for
+</I>&gt;<i> bringing it up. I have some comments/questions inline.
+</I>&gt;<i>
+</I>&gt;<i> Le 8/24/2012 12:23 PM, Jussi Kalliokoski a &#233;crit :
+</I>&gt;<i>
+</I>&gt;<i>  Hello,
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> I've got a little proposal to solve a problem we're facing with one of our
+</I>&gt;&gt;<i> codebases ( aurora.js [1], i.e. audio codecs in JavaScript ).
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> We need to stream the audio files (you don't want to store a 2 hour long
+</I>&gt;&gt;<i> live stream in the memory or wait until a whole file is loaded before
+</I>&gt;&gt;<i> playing). Currently we're using partial requests to fetch the data, but
+</I>&gt;&gt;<i> it's very expensive both in terms of CPU (currently the streaming takes
+</I>&gt;&gt;<i> more CPU than the actual decoding, I suspect this is a sum of garbage
+</I>&gt;&gt;<i> collection and other factors) and network.
+</I>&gt;&gt;<i>
+</I>&gt;<i> Just to make sure I understand. How is your use case different from
+</I>&gt;<i> DASH-JS [1][2] ? These implementations seem to do streaming over XHR
+</I>&gt;<i> without too many problems. Are you having problems because you're doing
+</I>&gt;<i> audio-only and thus the network processing is very visible? Is it because
+</I>&gt;<i> you are using small chunks (for low latency?) and you get too many events?
+</I>
+
+Both. :) We aren't exactly having problems (although with the current Audio
+APIs forcing you to do audio processing in the main thread you might get a
+glitch or two while the file is being loaded), but better performance is
+always good, yes? ;)
+
+
+&gt;<i> My proposal is that we add a feature for streaming to XHRs that are of the
+</I>&gt;&gt;<i> arraybuffer response type.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> My first idea was that if you set a property called &quot;chunkSize&quot; on the
+</I>&gt;&gt;<i> XHR,
+</I>&gt;&gt;<i> it would start dispatching an event called &quot;onchunk&quot; whenever a chunk of
+</I>&gt;&gt;<i> that size has been loaded.
+</I>&gt;&gt;<i>
+</I>&gt;<i>
+</I>
+&gt;<i>  Is it size or media duration or both? The size might be roughly constant
+</I>&gt;<i> for audio data but not for other types say video. You might want to receive
+</I>&gt;<i> events only when some media duration has been received and not care about
+</I>&gt;<i> the size, no?
+</I>
+
+Not necessarily, since the decoding is done in multiple stages (probing,
+demuxing, etc.). And if the streaming provided you with sizes relative to
+media duration that would assume the browser should keep track of the media
+file as well, which would be problematic if the codec is unsupported by the
+browser.
+
+But now that you mention it, it would be useful to have more fine-grained
+control over the data flow. I.e. you should be able to set the &quot;chunk&quot;
+property again on the fly, to a different sized buffer. This would allow
+our codecs to dynamically adjust the chunk sizes based on whether we have
+enough data to keep playing for a while and other information the decoder
+has.
+
+
+&gt;<i>  That event would contain a property &quot;chunk&quot; that
+</I>&gt;&gt;<i> would be an array buffer containing that data. However, I'm having second
+</I>&gt;&gt;<i> thoughts on that approach as it is likely to produce a lot of garbage.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Instead, my refined idea is that you'd set a &quot;chunk&quot; property on the XHR
+</I>&gt;&gt;<i> to
+</I>&gt;&gt;<i> an ArrayBuffer, and each time a chunk of the size of the &quot;chunk&quot; was
+</I>&gt;&gt;<i> ready,
+</I>&gt;&gt;<i> it would set the values of the &quot;chunk&quot; property accordingly and the
+</I>&gt;&gt;<i> &quot;onchunk&quot; event would be dispatched.
+</I>&gt;&gt;<i>
+</I>&gt;<i> If you want to be able to feed decoders directly (&#261; la DASH), you might
+</I>&gt;<i> want to align with the Media Source Extension API which uses
+</I>&gt;<i>
+</I>&gt;<i>  voidappend  &lt;<A HREF="http://dvcs.w3.org/hg/html-**media/raw-file/tip/media-**">http://dvcs.w3.org/hg/html-**media/raw-file/tip/media-**</A>
+</I>&gt;<i> source/media-source.html#dom-**append&lt;<A HREF="http://dvcs.w3.org/hg/html-media/raw-file/tip/media-source/media-source.html#dom-append">http://dvcs.w3.org/hg/html-media/raw-file/tip/media-source/media-source.html#dom-append</A>&gt;&gt;(Uint8Array
+</I>&gt;<i> data);
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> I think you would need too some timing information about the data you're
+</I>&gt;<i> receiving.
+</I>&gt;<i>
+</I>
+We're using Audio APIs to play back the data, but thanks for the link,
+hadn't come across that document before!
+
+Cheers,
+Jussi
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="079258.html">[whatwg] Binary Streaming with XHR
+</A></li>
+	<LI>Next message: <A HREF="079259.html">[whatwg] Binary Streaming with XHR
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#79260">[ date ]</a>
+              <a href="thread.html#79260">[ thread ]</a>
+              <a href="subject.html#79260">[ subject ]</a>
+              <a href="author.html#79260">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

@@ -1,0 +1,155 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Microdata DOM API issues
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Microdata%20DOM%20API%20issues&In-Reply-To=%3Cop.u3cv6nfjsr6mfa%40worf%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="024094.html">
+   <LINK REL="Next"  HREF="024096.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Microdata DOM API issues</H1>
+<!--htdig_noindex-->
+    <B>Philip J&#228;genstedt</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Microdata%20DOM%20API%20issues&In-Reply-To=%3Cop.u3cv6nfjsr6mfa%40worf%3E"
+       TITLE="[whatwg] Microdata DOM API issues">philipj at opera.com
+       </A><BR>
+    <I>Fri Nov 13 15:14:37 PST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="024094.html">[whatwg] Microdata DOM API issues
+</A></li>
+        <LI>Next message: <A HREF="024096.html">[whatwg] Microdata DOM API issues
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24095">[ date ]</a>
+              <a href="thread.html#24095">[ thread ]</a>
+              <a href="subject.html#24095">[ subject ]</a>
+              <a href="author.html#24095">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Fri, 13 Nov 2009 19:27:39 +0100, Philip J&#228;genstedt &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">philipj at opera.com</A>&gt;  
+wrote:
+
+&gt;<i> On Thu, 12 Nov 2009 03:23:54 +0100, Philip J&#228;genstedt  
+</I>&gt;<i> &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">philipj at opera.com</A>&gt; wrote:
+</I>&gt;<i>
+</I>&gt;&gt;<i> Why are the algorithms for extracting RDF gone? All that's left is the  
+</I>&gt;&gt;<i> book example with the equivalent Turtle, but it would be nice if it  
+</I>&gt;&gt;<i> were actually defined how to extract RDF. The same for the JSON stuff,  
+</I>&gt;&gt;<i> was that no good?
+</I>&gt;<i>
+</I>&gt;<i> D'oh! I've been reading the multipage version and missed that it's on  
+</I>&gt;<i> another page:
+</I>&gt;<i>
+</I>&gt;<i> <A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/converting-html-to-other-formats.html">http://www.whatwg.org/specs/web-apps/current-work/multipage/converting-html-to-other-formats.html</A>
+</I>&gt;<i>
+</I>&gt;<i> I'll have to try implementing that and see if there are any more issues.
+</I>&gt;<i>
+</I>
+<A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/converting-html-to-other-formats.html#json">http://www.whatwg.org/specs/web-apps/current-work/multipage/converting-html-to-other-formats.html#json</A>
+
+This was easy to implement, but the algorithm isn't guaranteed to  
+terminate.
+
+&lt;div itemscope&gt;
+   &lt;div itemprop=&quot;foo&quot; itemscope itemref=&quot;oops&quot; id=&quot;oops&quot;&gt;&lt;/div&gt;
+&lt;/div&gt;
+
+This simple input causes the algorithm to recurse as the item references  
+itself. I went back to the vCard algorithm and found that it too will fail  
+to terminate with this input:
+
+&lt;span itemscope itemtype=&quot;<A HREF="http://microformats.org/profile/hcard">http://microformats.org/profile/hcard</A>&quot;&gt;
+   &lt;span itemprop=&quot;agent&quot; itemscope id=&quot;oops&quot; itemref=&quot;oops&quot;
+         itemtype=&quot;<A HREF="http://microformats.org/profile/hcard">http://microformats.org/profile/hcard</A>&quot;&gt;
+&lt;/span&gt;
+
+vEvent is safe as the algorithm never recurses, but the RDF conversion  
+algorithm would hit the same problem.
+
+It's certainly possible to create loops which are less easy to spot:
+
+&lt;div itemscope&gt;
+   &lt;div itemprop=&quot;prop1&quot; itemscope itemref=&quot;id2&quot; id=&quot;id1&quot;&gt;&lt;/div&gt;
+   &lt;div itemprop=&quot;prop2&quot; itemscope itemref=&quot;id3&quot; id=&quot;id2&quot;&gt;&lt;/div&gt;
+   ...
+   &lt;div itemprop=&quot;propn&quot; itemscope itemref=&quot;id1&quot; id=&quot;idn&quot;&gt;&lt;/div&gt;
+&lt;/div&gt;
+
+Or this:
+
+&lt;div itemscope&gt;
+   &lt;div itemprop=&quot;foo&quot; itemscope id=&quot;a&quot;&gt;
+     &lt;div itemprop=&quot;bar&quot; itemscope itemref=&quot;a&quot;&gt;&lt;/div&gt;
+   &lt;/div&gt;
+&lt;/div&gt;
+
+The itemref mechanism allows creating arbitrary graphs of items, rather  
+than the tree of items that is the intended microdata model (right?). Even  
+though my default reaction to graphs is &quot;oh cool&quot;, for microdata when the  
+domain model is a graph you should probably just represent it with a level  
+of indirection (RDF).
+
+Options:
+1. patch the algorithms which can go into recursion
+2. patch  
+&lt;<A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/microdata.html#associating-names-with-items">http://www.whatwg.org/specs/web-apps/current-work/multipage/microdata.html#associating-names-with-items</A>&gt;  
+to first check if an itemref'd property creates a loop before adding it to  
+candidates
+3. ?
+
+I think I prefer 2.
+
+-- 
+Philip J&#228;genstedt
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="024094.html">[whatwg] Microdata DOM API issues
+</A></li>
+	<LI>Next message: <A HREF="024096.html">[whatwg] Microdata DOM API issues
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24095">[ date ]</a>
+              <a href="thread.html#24095">[ thread ]</a>
+              <a href="subject.html#24095">[ subject ]</a>
+              <a href="author.html#24095">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

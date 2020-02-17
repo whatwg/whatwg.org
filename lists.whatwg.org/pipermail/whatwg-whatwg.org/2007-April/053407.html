@@ -1,0 +1,189 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Cue points in media elements
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Cue%20points%20in%20media%20elements&In-Reply-To=%3C20070430231507.GA22091%40ghostscript.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="053393.html">
+   <LINK REL="Next"  HREF="053396.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Cue points in media elements</H1>
+<!--htdig_noindex-->
+    <B>Ralph Giles</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Cue%20points%20in%20media%20elements&In-Reply-To=%3C20070430231507.GA22091%40ghostscript.com%3E"
+       TITLE="[whatwg] Cue points in media elements">giles at xiph.org
+       </A><BR>
+    <I>Mon Apr 30 16:15:07 PDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="053393.html">[whatwg] Cue points in media elements
+</A></li>
+        <LI>Next message: <A HREF="053396.html">[whatwg] Script, style and backwards compatibility
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#53407">[ date ]</a>
+              <a href="thread.html#53407">[ thread ]</a>
+              <a href="subject.html#53407">[ subject ]</a>
+              <a href="author.html#53407">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Thanks for adding to the discussion. We're very interested in 
+implementing support for presentations as well, so it's good
+to hear from someone with experience. 
+
+Since we work on streaming media formats, I always assumed things would 
+have to be broken up by the server and the various components streamed 
+separately to a browser, and I hadn't noticed the cue point support 
+until you pointed it out.
+
+Some comments and questions below...
+
+On Sun, Apr 29, 2007 at 03:14:27AM -0400, Brian Campbell wrote:
+
+&gt;<i> in our language, you might see something like this:
+</I>&gt;<i> 
+</I>&gt;<i>   (movie &quot;Foo.mov&quot; :name 'movie)
+</I>&gt;<i>   (wait @movie (tc 2 3))
+</I>&gt;<i>   (show @bullet-1)
+</I>&gt;<i>   (wait @movie)
+</I>&gt;<i>   (show @bullet-2)
+</I>&gt;<i> 
+</I>&gt;<i> If the user skips to the end of the media clip, that simply causes  
+</I>&gt;<i> all WAITs on that  media clip to return instantly. If they skip  
+</I>&gt;<i> forward in the media clip, without ending it, all WAITs before that  
+</I>&gt;<i> point will return instantly.
+</I>
+How does this work if, for example, the user seeks forward, and then
+back to an earlier position? Would some of the 'show's be undone, or do 
+they not seek backward with the media playback? Is the essential 
+component of your system that all the shows be called in sequence 
+to build up a display state, or that the last state trigger before the 
+current playback point have been triggered? Isn't this slow if a bunch 
+of intermediate animations are triggered by a seek?
+
+Does your system support live streaming as well? That complicates the 
+design some when the presentation media updates appear dynamically.
+
+Anyway I think you could implement your system with the currently 
+proposed interface by checking the current playback position and 
+clearing a separate list of waits inside your timeupdate callback.
+
+&gt;<i> This is a nice system, but I can't see how even as simple a system as  
+</I>&gt;<i> this could be implemented given the current specification of cue  
+</I>&gt;<i> points. The problem is that the callbacks execute &quot;when the current  
+</I>&gt;<i> playback position of a media element reaches&quot; the cue point. It seems  
+</I>&gt;<i> unclear to me what &quot;reaching&quot; a particular time means.
+</I>
+I agree this should be clarified. The appropriate interpretation should 
+be when the current playback position reaches the frame corresponding to 
+the queue point, but digital media has quantized frames, while the cue 
+points are floating point numbers. Triggering all cue point callbacks 
+between the last current playback position and the current one 
+(including during seeks) would be one option, and do what you want as 
+long as you aren't seeking backward. I'd be more in favor of triggering
+any cue point callbacks that lie between the current playback position 
+and the current playback position of the next frame (audio frame for 
+&lt;audio/&gt; and video frame for &lt;video/&gt; I guess). That means more 
+bookkeeping to implement your system, but is less surprising in other 
+cases.
+
+&gt;<i>                                                           If video  
+</I>&gt;<i> playback freezes for a second, and so misses a cue point, is that  
+</I>&gt;<i> considered to have been &quot;reached&quot;?
+</I>
+As I read it, cue points are relative to the current playback position, 
+which does not advance if the stream buffer underruns, but it would
+if playback restarts after a gap, as might happen if the connection
+drops, or in an RTP stream. My proposal above would need to be amended
+to handle that case, and the decoder dropping frames...finding the right 
+language here is hard.
+
+&gt;<i> In the current spec, all that is  
+</I>&gt;<i> provided for is controls to turn closed captions on or off. What  
+</I>&gt;<i> would be much better is a way to enable the video element to send  
+</I>&gt;<i> caption events, which include the text of the current caption, and  
+</I>&gt;<i> can be used to display those captions in a way that fits the design  
+</I>&gt;<i> of the content better.
+</I>
+I really like this idea. It would also be nice if, for example, the 
+closed caption text were available through the DOM so it could be
+presented elsewhere, searched locally, and so on. But what about things 
+like album art, which might be embedded in an audio stream? Should that 
+be accessible? Should a video element expose a set of known cue points 
+embedded in the file? 
+
+A more abstract interface is necessary than just 'caption events'. Here 
+are some use cases worth considering:
+
+* A media file has embedded textual metadata like title, author, 
+copyright license, that the designer would like to access for associated 
+display elsewhere in the page, or to alter the displayed user interface
+based on the metadata. This is pretty essential for parity with 
+flash-based internet radio players.
+
+* A media file has embedded non-textual metadata like an album cover 
+image, that the designer would like to access for display elsewhere in
+the page.
+
+* The designer wants to access closed captioned or subtitle text 
+through the DOM as it becomes available for display elsewhere in the 
+page.
+
+* There are points in the media file where the embedded metadata 
+changes. These points cannot be retrieved without scanning the file, 
+which is expensive over the network, and may not be possible in general 
+if the stream is a live feed. Nevertheless, the designer wants to be 
+notified when the associated metadata changes so other elements can be 
+updated. This is in fact the normal case for http streaming internet 
+radio with either Ogg Vorbis or mp3.
+
+* The media file natively contains an embedded set of cue points, which 
+the designer wants to access to display a hyperlinked table of contents 
+for the media file. This is possible with a CMML substream in Ogg 
+Theora, or with chapter tables in Quicktime and AVI files.
+
+* The media file records a presentation, including still images of the 
+slides at the times they were presented. These are distinct from the 
+&quot;album art&quot; for the stream, which is a photo of the speaker.
+
+All of these can be handled by special server-side components and AJAX, 
+for example, so the main question is whether the media elements should 
+expose this sort of data through the DOM.
+
+ -r
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="053393.html">[whatwg] Cue points in media elements
+</A></li>
+	<LI>Next message: <A HREF="053396.html">[whatwg] Script, style and backwards compatibility
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#53407">[ date ]</a>
+              <a href="thread.html#53407">[ thread ]</a>
+              <a href="subject.html#53407">[ subject ]</a>
+              <a href="author.html#53407">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

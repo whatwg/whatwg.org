@@ -1,0 +1,169 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Tag Soup: Blocks-in-inlines
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Tag%20Soup%3A%20Blocks-in-inlines&In-Reply-To=%3Ccee13aa30601250950p2c55e48h%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="047927.html">
+   <LINK REL="Next"  HREF="047887.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Tag Soup: Blocks-in-inlines</H1>
+<!--htdig_noindex-->
+    <B>liorean</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Tag%20Soup%3A%20Blocks-in-inlines&In-Reply-To=%3Ccee13aa30601250950p2c55e48h%40mail.gmail.com%3E"
+       TITLE="[whatwg] Tag Soup: Blocks-in-inlines">liorean at gmail.com
+       </A><BR>
+    <I>Wed Jan 25 09:50:07 PST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="047927.html">[whatwg] Tag Soup: Blocks-in-inlines
+</A></li>
+        <LI>Next message: <A HREF="047887.html">[whatwg] Tag Soup: Blocks-in-inlines
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#47886">[ date ]</a>
+              <a href="thread.html#47886">[ thread ]</a>
+              <a href="subject.html#47886">[ subject ]</a>
+              <a href="author.html#47886">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>I don't think there's any solution that doesn't break in some way.
+Either we break content to element mappings, we break the single
+parent relation, or we break the id to element or content mapping.
+
+E.g:
+
+    &lt;z id=&quot;Z&quot;&gt;A&lt;y id=&quot;Y&quot;&gt;B&lt;/z&gt;C&lt;/y&gt;
+
+How do we keep all of those relations? We simply can't keep them all.
+For example, if we were to always close children when their parent closes:
+    #element 'z'
+    &gt; #attr 'id'='Z'
+    &gt; #text 'A'
+    &gt; #element 'y'
+    &gt; &gt; #attr 'id'='Y'
+    &gt; &gt; #text 'B'
+    #text 'C'
+
+The obvious problem here is that the text C ends up outside #Y and
+thus gets no styling etc. from #Y. This is the solution I would prefer
+- we keep the id-element relation, we keep the single parent relation,
+and we do no funny stuff.
+
+How about if we instead made a copy of the inner element for the text
+that overflows the outer element?
+    #element 'z'
+    &gt; #attr 'id'='Z'
+    &gt; #text 'A'
+    &gt; #element 'y'
+    &gt; &gt; #attr 'id'='Y'
+    &gt; &gt; #text 'B'
+    #element 'y'
+    &gt; #text 'C'
+
+Well, this makes a copy with no id in it for reasons of id uniqueness,
+but other attributes would of course be copied. (The solution that
+breaks id uniqueness is coming after next...) So, we fixed the styling
+etc. except for by id. So we've broken the id-content relation because
+we broke one element into two, and thus broken the id-element
+relationship. Can we correct this in some way?
+    #element 'z'
+    &gt; #attr 'id'='Z'
+    &gt; #text 'A'
+    &gt; #element 'y' (fragment 1)
+    &gt; &gt; #attr 'id'='Y'
+    &gt; &gt; #text 'B'
+    #element 'y' (fragment 2)
+    &gt; #attr 'id'='Y'
+    &gt; #text 'C'
+
+This isn't really that much of a fix. We sure get a strange tree. See,
+#Z contains the text A and fragment 1 of #Y with it's contained B. The
+next sibling is fragement 2 of #Y. That's all we get if we travel up
+from #Z in the DOM. But #Y consists of fragment 1 with content B and
+parent #Z, and fragement 2 with content C and previous sibling #Z. So,
+this might work very well from CSS point of view, but when you're
+doing tree traversals it'll get nasty. Element-content relations are
+intact, as are id-content and id-element. But parent-child relations
+and the single parent relation is gone. Essentially we need a
+pseudo-node for #Y that contains two actual nodes, with different
+content-element relations depending on which we're looking at. This is
+a botched solution indeed. So, how about dropping id uniqueness then?
+    #element 'z'
+    &gt; #attr 'id'='Z'
+    &gt; #text 'A'
+    &gt; #element 'y'
+    &gt; &gt; #attr 'id'='Y'
+    &gt; &gt; #text 'B'
+    #element 'y'
+    &gt; #attr 'id'='Y'
+    &gt; #text 'C'
+
+Well, the obvious problems with this are for things like ::before in
+CSS or getElementById in the DOM. We have two different #Y elements,
+not a single one. How about trying an entirely different strategy:
+    #element 'z'
+    &gt; #attr 'id'='Z'
+    &gt; #text 'A'
+    &gt; #element 'y' (fragment 1)
+    &gt; &gt; #attr 'id'='Y'
+    &gt; &gt; #text 'B'
+    &gt; &gt; ano
+    &gt; &gt; &gt; #text 'C'
+
+In the first example we cut the child as soon as we reached the parent
+closing tag. But here we instead extend the parent to enclose the
+child. Why do we insert that anonymous construct there? Well, maybe if
+our style engine can remove some matching rules from these anynomous
+constructs and can jump inheritance for them, we can get something
+that works for correcting the style of C so that it doesn't get styles
+from #Z. The DOM will obviously be cleaner than the third example, but
+not quite as true to the source.
+
+
+
+Anyway, what I'm saying here is that there are a lot of different ways
+to tackle this, and none of them does the right thing in all
+situations. Particularly the DOM is hard to get a good representation
+of, because the source breaks the single parent relation. I don't know
+which one would be best from a backwards compatibility perspective,
+but I'd like to see as simple a solution as possible.
+--
+David &quot;liorean&quot; Andersson
+&lt;uri:<A HREF="http://liorean.web-graphics.com/">http://liorean.web-graphics.com/</A>&gt;
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="047927.html">[whatwg] Tag Soup: Blocks-in-inlines
+</A></li>
+	<LI>Next message: <A HREF="047887.html">[whatwg] Tag Soup: Blocks-in-inlines
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#47886">[ date ]</a>
+              <a href="thread.html#47886">[ thread ]</a>
+              <a href="subject.html#47886">[ subject ]</a>
+              <a href="author.html#47886">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>
