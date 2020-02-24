@@ -58,5 +58,7 @@ else
     # --verbose isn't used because there are too many files to list them all
     # without exceeding log size limits:
     # https://github.com/whatwg/whatwg.org/issues/287
-    rsync --archive --chmod="D755,F644" --compress --delete --rsh="ssh -o UserKnownHostsFile=known_hosts" ./whatwg.org ./*.whatwg.org "deploy@$SERVER:/var/www/"
+    rsync --archive --chmod="D755,F644" --compress --delete --stats --log-file="rsync-log.txt" --rsh="ssh -o UserKnownHostsFile=known_hosts" ./whatwg.org ./*.whatwg.org "deploy@$SERVER:/var/www/"
+    scp rsync-log.txt "deploy@$SERVER:/var/www/whatwg.org"
+    echo "Full rsync log at https://whatwg.org/rsync-log.txt"
 fi
