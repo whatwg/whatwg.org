@@ -55,5 +55,7 @@ else
     eval "$(ssh-agent -s)"
     ssh-add deploy_key
     echo "$SERVER $SERVER_PUBLIC_KEY" > known_hosts
-    rsync --archive --chmod="D755,F644" --verbose --compress --delete --rsh="ssh -o UserKnownHostsFile=known_hosts" ./whatwg.org ./*.whatwg.org "deploy@$SERVER:/var/www/"
+    # --itemize-changes is used instead of --verbose because the total number of
+    # files is too large to list without exceeding Travis log size limits.
+    rsync --archive --chmod="D755,F644" --itemize-changes --compress --delete --rsh="ssh -o UserKnownHostsFile=known_hosts" ./whatwg.org ./*.whatwg.org "deploy@$SERVER:/var/www/"
 fi
