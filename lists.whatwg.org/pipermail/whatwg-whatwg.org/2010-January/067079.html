@@ -1,0 +1,217 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] history.back()
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20history.back%28%29&In-Reply-To=%3CPine.LNX.4.64.1001220800040.6554%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="067077.html">
+   <LINK REL="Next"  HREF="067085.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] history.back()</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20history.back%28%29&In-Reply-To=%3CPine.LNX.4.64.1001220800040.6554%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg] history.back()">ian at hixie.ch
+       </A><BR>
+    <I>Fri Jan 22 02:08:53 PST 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="067077.html">[whatwg] history.back()
+</A></li>
+        <LI>Next message: <A HREF="067085.html">[whatwg] history.back()
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#67079">[ date ]</a>
+              <a href="thread.html#67079">[ thread ]</a>
+              <a href="subject.html#67079">[ subject ]</a>
+              <a href="author.html#67079">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Thu, 21 Jan 2010, Darin Fisher wrote:
+&gt;<i>
+</I>&gt;<i> In WebKit, history.back() is currently implemented asynchronously.
+</I>
+It's not clear to me what you mean by &quot;asynchronously&quot;.
+
+Do you mean that the events fire asynchronously? That the Location object 
+is updated asynchronously? That the decision about whether the call is a 
+noop or not is fired asynchronously? That the navigation, if one is 
+necessary, is done asynchronously? Are we talking about same-frame, or 
+cross-frame? Same-origin, or cross-origin? Traversal from one entry in one 
+document to another entry in the same document, or in another document?
+
+I made some demos to test this out, and it seems that IE8 behaves 
+differently whether it's cross-frame or same-frame. I'd really rather we 
+define this in a way that is consistent for all ways of invoking the API. 
+It does the Location changes synchronously if invoked in-page, and 
+asynchronously if the traversal affects another page.
+
+For simple cases, Firefox consistently does the Location change 
+synchronously. Opera (10.x on Windows), Safari (4 for Windows), and Chrome 
+do it async. But complicated cases make these descriptions simplistic.
+
+   <A HREF="http://www.hixie.ch/tests/adhoc/dom/level0/history/sync-vs-async/">http://www.hixie.ch/tests/adhoc/dom/level0/history/sync-vs-async/</A>
+
+
+&gt;<i> IE however appears to implement history.back() asynchronously in all 
+</I>&gt;<i> cases just like newer versions of WebKit.
+</I>
+That doesn't appear to be completely accurate.
+
+
+&gt;<i> From a web compat perspective, it seems wise to match the behavior of 
+</I>&gt;<i> IE. It also has other benefits.
+</I>&gt;<i> 
+</I>&gt;<i> Can we change the spec?
+</I>
+Yes, but that won't make it async if the goal is to match IE.
+
+
+On Thu, 21 Jan 2010, Jonas Sicking wrote:
+&gt;<i> 
+</I>&gt;<i> Sounds good to me. Having all navigation be asynchronous I suspect would 
+</I>&gt;<i> have implementations benefits in Gecko too.
+</I>
+It would be a reasonably minor change to the spec. I'm happy to go either 
+way on this. The problem is I don't know exactly what &quot;async&quot; vs &quot;sync&quot; 
+really means in this context, since the algorithms are quite complicated.
+
+
+On Thu, 21 Jan 2010, Olli Pettay wrote:
+&gt;<i>
+</I>&gt;<i> And still one thing to test and specify;
+</I>&gt;<i> if history.back()/forward() is asynchronous,
+</I>&gt;<i> does that mean that loading start asynchronously,
+</I>&gt;<i> or that entries are added asynchronously to session history?
+</I>&gt;<i> 
+</I>&gt;<i> What should happen if a page calls:
+</I>&gt;<i> history.back();
+</I>&gt;<i> history.forward();
+</I>&gt;<i> 
+</I>&gt;<i> What if the page calls:
+</I>&gt;<i> history.back();
+</I>&gt;<i> history.go(-2);
+</I>
+Indeed. There are the kinds of questions I am curious about.
+
+Another is what should happen if a page goes back() past its fragment 
+identifier entries, and then modifies the document or alerts the location? 
+What location should it get? Which document should it mutate? (test 007)
+
+How about:
+
+   location.hash = 'a';
+   /* spin event loop */
+   history.back();
+   location.hash = 'b';
+   history.forward();
+   alert(location.hash);
+   /* spin event loop */
+   alert(location.hash);
+
+What does this alert? (test 008)
+
+How about:
+
+   location.hash = 'x';
+   location.hash = 'a';
+   /* spin event loop */
+   history.back();
+   /* spin event loop */
+   history.forward();
+   location.hash = 'b';
+   /* spin event loop */
+   history.back();
+   /* spin event loop */
+   alert(location.hash);
+
+What does this alert? (test 010)
+
+
+&gt;<i> And btw, some of the session history handling is anyway synchronous. Per 
+</I>&gt;<i> the current HTML5 draft calling document.open() adds a new entry to 
+</I>&gt;<i> session history immediately (IIRC, webkit is the only one which doesn't 
+</I>&gt;<i> support this).
+</I>
+Another example is navigating to a fragment identifier, which in all 
+browsers I tested changes the Location object immediately also.
+
+
+As I see it these are the criteria that we have to consider here in making 
+a decision, in order of importance:
+
+ * Compatibility.
+   It seems that browsers are quite inconsistent here, and so it's likely 
+   that we have some room to maneuver. Nobody has mentioned any 
+   particular bugs in sites caused by implementing this one way or 
+   another. I am not convinced that compatibility is a factor at this 
+   point.
+
+ * Consistency for authors
+   I think whatever solution we come up with we should make sure it is 
+   sane for authors. In this case, however, pretty much any model works,
+   so this doesn't really help decide what is best, so long as we are 
+   consistent in how we specify and implement it.
+
+ * Implementation concerns
+   This may be the deciding factor, in particular due to the multiprocess 
+   session history issues Darin raised.
+
+ * Specification sanity
+   I think we can probably make any model work in the spec, without even 
+   much of a rewrite being needed. It's just a matter of saying when 
+   things happen, for which the spec now has considerable infrastructure.
+
+
+Does anyone have any opinions on how the examples above should work? How 
+should document.open() and location's setter interact with history.back()? 
+Should navigation to fragment identifiers asynchronously set Location? 
+Should Location be set synchronously but with the session history actually 
+being updated asynchronously using a task, so that .back() and .forward() 
+calls get interleaved with the Location setter? Should document.open() 
+synchronously clear the session history, or should it asynchronously queue 
+a task and do it that way? Should we, instead of using tasks that could 
+run much later (e.g. if the script has previously invoked a bunch of 
+setTimeout(0)s), add a step to the event loop so that after each task, any 
+history traversal that's been queued up gets processed immediately?
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="067077.html">[whatwg] history.back()
+</A></li>
+	<LI>Next message: <A HREF="067085.html">[whatwg] history.back()
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#67079">[ date ]</a>
+              <a href="thread.html#67079">[ thread ]</a>
+              <a href="subject.html#67079">[ subject ]</a>
+              <a href="author.html#67079">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

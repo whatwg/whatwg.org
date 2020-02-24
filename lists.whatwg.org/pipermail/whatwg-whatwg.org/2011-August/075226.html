@@ -1,0 +1,170 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] &lt;video preload&gt; implementation feedback
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20%3Cvideo%20preload%3E%20implementation%20feedback&In-Reply-To=%3Cop.v0ero3o0sr6mfa%40kirk%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="075221.html">
+   <LINK REL="Next"  HREF="075232.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] &lt;video preload&gt; implementation feedback</H1>
+<!--htdig_noindex-->
+    <B>Philip J&#228;genstedt</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20%3Cvideo%20preload%3E%20implementation%20feedback&In-Reply-To=%3Cop.v0ero3o0sr6mfa%40kirk%3E"
+       TITLE="[whatwg] &lt;video preload&gt; implementation feedback">philipj at opera.com
+       </A><BR>
+    <I>Thu Aug 18 05:01:41 PDT 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="075221.html">[whatwg] &lt;video preload&gt; implementation feedback
+</A></li>
+        <LI>Next message: <A HREF="075232.html">[whatwg] &lt;video preload&gt; implementation feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#75226">[ date ]</a>
+              <a href="thread.html#75226">[ thread ]</a>
+              <a href="subject.html#75226">[ subject ]</a>
+              <a href="author.html#75226">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Thu, 18 Aug 2011 04:50:17 +0200, Chris Pearce &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">cpearce at mozilla.com</A>&gt;  
+wrote:
+
+&gt;<i> I implemented preload support in Firefox.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> On 18/08/2011 3:44 a.m., Philip J&#228;genstedt wrote:
+</I>&gt;&gt;<i> I'd very much like to see feedback from other implementors. Are you  
+</I>&gt;&gt;<i> happy with treating autoplay and preload as &quot;just hints&quot; as in [4] or  
+</I>&gt;&gt;<i> do you think that we should specify them in greater detail?
+</I>&gt;<i>
+</I>&gt;<i> I think autoplay should not be treated as a hint, else it's can't be  
+</I>&gt;<i> relied upon to work, and thus would be completely useless.
+</I>&gt;<i>
+</I>&gt;<i> Preload is a less critical; if it's not supported users will just end up  
+</I>&gt;<i> loading more data, which isn't too bad. Clients that care more about  
+</I>&gt;<i> bandwidth will probably be more likely to support it.
+</I>
+I think that too much variation in how preload is implemented is also  
+likely to give compat problems. In  
+&lt;<A HREF="http://www.w3.org/Bugs/Public/show_bug.cgi?id=12596#c7">http://www.w3.org/Bugs/Public/show_bug.cgi?id=12596#c7</A>&gt; I have an example  
+of what might break when pages inevitably assume that preload=&quot;none&quot;  
+causes the loadedmetadata event to not be fired.
+
+&gt;&gt;<i> == Resetting internal preload state ==
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Due to the above, it's necessary to reset the internal preload state at  
+</I>&gt;&gt;<i> some point. Otherwise, a script like this wouldn't work:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> function setSource(url) {
+</I>&gt;&gt;<i>   var v = document.querySelector('video');
+</I>&gt;&gt;<i>   v.src = url;
+</I>&gt;&gt;<i>   v.preload = &quot;none&quot;;
+</I>&gt;&gt;<i>   v.onplay = function() { v.preload = &quot;autoplay&quot;; };
+</I>&gt;<i>
+</I>&gt;<i> Did you mean |v.preload = &quot;auto&quot;;| here instead? or |v.autoplay =  
+</I>&gt;<i> true&quot;;|? It seems in this case the onplay handler would only happen if  
+</I>&gt;<i> the user pressed play on the controls or from script, so the preload  
+</I>&gt;<i> action be promoted to auto anyway since the resource is playing. I guess  
+</I>&gt;<i> that's what you're getting at with your point about preload internal  
+</I>&gt;<i> state promotion?
+</I>
+Oops, it should be v.preload = &quot;auto&quot;. Indeed this example is more  
+complicated than necessary. Promotion of the internal state due to user  
+interaction also needs to be reset in the resource selection algorithm, so  
+any time that a HTMLMediaElement is reused this is a problem.
+
+&gt;&gt;<i> }
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> If a previous resource was playing and preload was set to &quot;autoplay&quot; by  
+</I>&gt;&gt;<i> script, then we still want preload=&quot;none&quot; to apply to the new resource.  
+</I>&gt;&gt;<i> To solve this, we are resetting the internal preload state as part of  
+</I>&gt;&gt;<i> the resource selection algorithm, right before step 5 to fire the  
+</I>&gt;&gt;<i> loadstart event. There are various other places one could do this, but  
+</I>&gt;&gt;<i> we think it is important to do it in the async section so that the  
+</I>&gt;&gt;<i> order of setting .src and .preload does not matter.
+</I>&gt;<i>
+</I>&gt;<i> Currently we update the internal preload action whenever the value of  
+</I>&gt;<i> the preload state changes, and we check it's not preload=none before  
+</I>&gt;<i> kicking off a new resource load (resource fetch algorithm step 2) and we  
+</I>&gt;<i> check it again when we reach loadedmetadata and suspend the load if it's  
+</I>&gt;<i> preload=metadata.
+</I>&gt;<i>
+</I>&gt;<i> I think the preload=metadata case is implied by the spec, but having it  
+</I>&gt;<i> explicitly stated wouldn't hurt.
+</I>
+It sounds like we're applying preload=none at exactly the same point,  
+that's good!
+
+If you only allow the internal state to increase, don't you need to reset  
+it at some point as well? Or is it impossible in your implementation to  
+use preload=&quot;auto&quot; on one load and preload=&quot;metadata&quot; on the next due to  
+this?
+
+&gt;&gt;<i> == &lt;video preload=&quot;none&quot;&gt; ==
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> It's not possible to specify exactly how much preload=&quot;metadata&quot; and  
+</I>&gt;&gt;<i> preload=&quot;auto&quot; buffers and when, but this is possible for  
+</I>&gt;&gt;<i> preload=&quot;none&quot;. This is what we do:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> After step 1 of the source selection algorithm, if preload==&quot;none&quot;, set  
+</I>&gt;&gt;<i> networkState to IDLE, fire a suspend event and set the  
+</I>&gt;&gt;<i> delaying-the-load-event flag to false.
+</I>&gt;<i>
+</I>&gt;<i> This is actually specified now in step 2 of the resource fetch algorithm  
+</I>&gt;<i> (this must have been added after we implemented @preload).
+</I>
+Right, this is the partially accepted resolution of  
+<A HREF="http://www.w3.org/Bugs/Public/show_bug.cgi?id=12596">http://www.w3.org/Bugs/Public/show_bug.cgi?id=12596</A>
+
+&gt;<i> Doing this at step 1 of the resource selection algorithm means that if  
+</I>&gt;<i> you're loading from child &lt;source&gt; elements, and none of them have a  
+</I>&gt;<i> supported type, then you won't report the error until something calls  
+</I>&gt;<i> play() or load() explicitly.
+</I>
+Oops, I meant &quot;resource fetch algorithm&quot; and what I have implemented is  
+exactly what the spec says, except that it's unconditional and the  
+&quot;implementation-defined event&quot; is playing or seeking.
+
+Thanks for your feedback!
+
+-- 
+Philip J&#228;genstedt
+Core Developer
+Opera Software
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="075221.html">[whatwg] &lt;video preload&gt; implementation feedback
+</A></li>
+	<LI>Next message: <A HREF="075232.html">[whatwg] &lt;video preload&gt; implementation feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#75226">[ date ]</a>
+              <a href="thread.html#75226">[ thread ]</a>
+              <a href="subject.html#75226">[ subject ]</a>
+              <a href="author.html#75226">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

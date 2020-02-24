@@ -1,0 +1,172 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] several messages
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20several%20messages&In-Reply-To=%3Cea09c0d10705200953t77f51d6bwc254b1b7f375a97f%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="053657.html">
+   <LINK REL="Next"  HREF="053660.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] several messages</H1>
+<!--htdig_noindex-->
+    <B>Philip Taylor</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20several%20messages&In-Reply-To=%3Cea09c0d10705200953t77f51d6bwc254b1b7f375a97f%40mail.gmail.com%3E"
+       TITLE="[whatwg] several messages">excors+whatwg at gmail.com
+       </A><BR>
+    <I>Sun May 20 09:53:13 PDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="053657.html">[whatwg] several messages
+</A></li>
+        <LI>Next message: <A HREF="053660.html">[whatwg] Canvas operators (was Re: several messages)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#53658">[ date ]</a>
+              <a href="thread.html#53658">[ thread ]</a>
+              <a href="subject.html#53658">[ subject ]</a>
+              <a href="author.html#53658">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On 20/05/07, Mathieu HENRI &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">p01 at opera.com</A>&gt; wrote:
+&gt;<i> Ian Hickson wrote:
+</I>&gt;<i> &gt; I've referenced the paper and dropped 'darker'.
+</I>&gt;<i>
+</I>&gt;<i> Please, please, pretty please, bring 'darker' back.
+</I>&gt;<i> Rename it 'multiply' if you want, or if like me you think this name
+</I>&gt;<i> better reflects the operation previously known as 'darker'.
+</I>
+I think this is more like an entirely new operation, rather than being
+related to 'darker', given that 'darker' has three totally different
+implementations and none of them multiply. In the cases where all the
+alpha values are 1, and when CO is the non-premultiplied output colour
+component and CA and CB are the input (source and destination)
+colours, I believe you get:
+
+Mozilla: CO = CB
+Opera: CO = min(CA, CB)
+Safari: CO = CA + CB - 1
+
+If you care about alpha, and take cX as premultiplied colour
+components (and CX as non-premul, and aX as alpha), then you get:
+Mozilla:
+  cO = cA * min(1, (1-aB)/aA) + cB
+  aO = aA * min(1, (1-aB)/aA) + aB
+Opera:
+  CO = min( (1-aA)*CB + CA, (1-aB)*CA + CB )
+  aO = 1 - (1-aA)*(1-aB)
+Safari:
+  CO = 1 - (1-CA)*aA - (1-CB)*aB  except not quite
+  aO = aA + aB
+
+(Opera is kind of similar to SVG 1.1's 'darker', except not the same
+since it's doing it on non-premultiplied colours instead.)
+
+
+&gt;<i> Here is a list of use cases for 'darker', I already applied in realtime
+</I>&gt;<i> animations:
+</I>&gt;<i>
+</I>&gt;<i> 1. filtering and/or separating the channels of a canvas *very* quickly.
+</I>&gt;<i>
+</I>&gt;<i> 2. multiplying images. This can be really useful to compose/combine images.
+</I>&gt;<i>
+</I>&gt;<i> 3. &quot;burning&quot; images. To do so, copy the canvas A onto a smaller canvas
+</I>&gt;<i> B, fill B with a white rectangle of medium/high opacity if you want,
+</I>&gt;<i> then draw B on top of A in 'daker'. Tada, you just enhanced the dark
+</I>&gt;<i> areas of A and even introduced some nice color bleeding.
+</I>
+If there was a 'multiply', it should probably be defined as something like:
+  CO = CA * CB
+  aO = aA * aB
+(taking all values to be in the range [0,1]) because that actually
+makes some sense and it seems to be useful.
+
+For case 1, you could multiply by (1, 0, 0, 1) to extract the R
+channel. (You wouldn't be able to combine the channels to make
+greyscale, but you can't do that now anyway - that'd need something
+like OpenGL's dot operator, which does RO=GO=BO = RA*RB + GA*GB +
+BA*BB, which would probably be a nice one to add if we wanted more
+operations.)
+
+For case 2, I'm not sure why you can't do that already. You can reduce
+the brightness by drawing a (0, 0, 0, 0.5) rectangle on top of the
+image. If it's e.g. a spotlight where you want to multiply by an image
+rather than a solid colour, you can make that image be black and store
+its shape in its alpha channel, then draw that on top with source-over
+to mask out certain areas. You can make an image brighter by drawing
+on top of itself with 'lighter' to get up to 2x brightness (and repeat
+for exponential brightening). Are there specific situations which
+can't already be handled without 'darker'?
+
+For case 3, I think 'multiply' above would possibly handle that,
+depending on exactly what the desired effect is.
+
+
+I assume 'multiply' would be a bit more complicated to implement and
+less efficient than the other operations, since the graphics libraries
+usually don't provide that function; but maybe that's acceptable. At
+least the definition above is identical whether you store
+premultiplied or non-premultiplied components, so it'll only ever be a
+multiplication and (I think) a couple of shifts and an addition per
+component, which seems fast enough.
+
+Maybe the new 'multiply' operation should just be named 'darker' so
+it's compatible with old browsers (though very buggily implemented in
+all of them), but defined like above.
+
+
+(Just for completeness with respect to my original email about
+composite operations, Opera's implementation of 'lighter' appears to
+be:
+  if aA == 0:
+    CO = CB
+    aO = aB
+  else if aB == 0:
+    CO = CA
+    aO = aA
+  else:
+    CO = max(CA, CB)
+    aO = 1 - (1-aA)*(1-aB)
+which has very odd behaviour, since the output changes drastically if
+you change alpha from 0.0 to 0.01. In all the implementations,
+'lighter' is confusingly unlike 'darker' - names like 'plus' and
+'multiply' make much more sense.)
+
+-- 
+Philip Taylor
+<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">excors at gmail.com</A>
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="053657.html">[whatwg] several messages
+</A></li>
+	<LI>Next message: <A HREF="053660.html">[whatwg] Canvas operators (was Re: several messages)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#53658">[ date ]</a>
+              <a href="thread.html#53658">[ thread ]</a>
+              <a href="subject.html#53658">[ subject ]</a>
+              <a href="author.html#53658">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

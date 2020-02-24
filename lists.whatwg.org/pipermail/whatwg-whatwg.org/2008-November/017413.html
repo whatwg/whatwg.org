@@ -1,0 +1,642 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Solving the login/logout problem in HTML
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Solving%20the%20login/logout%20problem%20in%20HTML&In-Reply-To=%3CPine.LNX.4.62.0811250211300.17414%40hixie.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017412.html">
+   <LINK REL="Next"  HREF="017414.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Solving the login/logout problem in HTML</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Solving%20the%20login/logout%20problem%20in%20HTML&In-Reply-To=%3CPine.LNX.4.62.0811250211300.17414%40hixie.dreamhostps.com%3E"
+       TITLE="[whatwg] Solving the login/logout problem in HTML">ian at hixie.ch
+       </A><BR>
+    <I>Mon Nov 24 21:26:47 PST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017412.html">[whatwg] Video metadata attributes clarification
+</A></li>
+        <LI>Next message: <A HREF="017414.html">[whatwg] Solving the login/logout problem in HTML
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17413">[ date ]</a>
+              <a href="thread.html#17413">[ thread ]</a>
+              <a href="subject.html#17413">[ subject ]</a>
+              <a href="author.html#17413">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>
+As can be seen in the feedback below, there is interest in improving the 
+experience with logging in and out of Web sites.
+
+Currently there are two main mechanisms: HTTP authentication, and 
+cookie-based authentication with a form login.
+
+Benefits of form authentication over HTTP authentication:
+ - supports creating an account
+ - supports recovering a lost password
+ - supports showing the login form inline with other content
+ - supports styling the login form
+ - supports an obvious way of logging out from within the page
+
+Limitations of form authentication:
+ - no way to indicate that access is being denied because the credentials 
+   passed were wrong or because there were no credentials passed
+ - insecure when unencrypted
+
+It seems to me that the first limitation of form authentication could be 
+removed by inventing a new WWW-Authenticate challenge that means &quot;reply to 
+the form in the page&quot;. I have now specified such a value in HTML5 (since 
+it is specific to entity bodies that contain HTML forms):
+
+   challenge = &quot;HTML&quot; [ form ]
+   form      = &quot;form&quot; &quot;=&quot; form-name
+   form-name = quoted-string
+
+(There's no &quot;credentials&quot; value for this scheme, since the login is done 
+as a POST to a login script and then the server sets proprietary login 
+information, like a cookie using Set-Cookie.)
+
+So when you get to a page that expects you to be logged in, it return a 
+401 with:
+
+   WWW-Authenticate: HTML form=&quot;login&quot;
+
+...and there must be a &lt;form&gt; element with name=&quot;login&quot;, which represents 
+the form that must be submitted to log in.
+
+We could also make HTTP login work better, but frankly I'm not convinced 
+there's much point. The form login cowpath is so commonly frequented that 
+not only has someone already gone and paved it but it has also been 
+tree-lined, has garbage collection scheduled for Tuesdays and Thursdays, 
+and will be electing a representative at the next general election.
+
+With all this in mind:
+
+On Fri, 17 Dec 2004, Matthew Thomas wrote:
+&gt;<i> On 17 Dec, 2004, at 6:08 PM, Ian Hickson wrote:
+</I>&gt;<i> &gt; On Fri, 17 Dec 2004, Matthew Thomas wrote:
+</I>&gt;<i> &gt; &gt; 
+</I>&gt;<i> &gt; &gt; Future browsers could, instead of displaying an alert for HTTP 
+</I>&gt;<i> &gt; &gt; authentication, provide the authentication UI in a panel at the top 
+</I>&gt;<i> &gt; &gt; of the non-authenticated page (fixing annoying modality issues in 
+</I>&gt;<i> &gt; &gt; the process). That wouldn't require any change to HTTP 
+</I>&gt;<i> &gt; &gt; authentication either.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; A very interesting idea. The problem with that is that if you show the 
+</I>&gt;<i> &gt; 401 page at the moment, you'll get something like:
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt;     401 UNAUTHORIZED
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt;     YOU DO NOT HAVE THE PROPER PERMISSIONS
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt;    ___________________________________________________________
+</I>&gt;<i> &gt;     Username: [_____]  Password: [_______]   (Login)      [X]
+</I>&gt;<i> 
+</I>&gt;<i> Well since I said &quot;at the top of the non-authenticated page&quot;, and since ~70
+</I>&gt;<i> percent of sites use Apache, most of the time it would look more like this ...
+</I>&gt;<i>  ____________________________________________________________
+</I>&gt;<i> | Committee Members Area         ID: [          ]            |
+</I>&gt;<i> | foo.example.org          Password: [          ] ( Log In ) |
+</I>&gt;<i> |&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;|
+</I>&gt;<i> |                                                            |
+</I>&gt;<i> | AUTHENTICATION REQUIRED                                    |
+</I>&gt;<i> :                                                            :
+</I>&gt;<i> 
+</I>&gt;<i> .... which would be quite okay, since &quot;authentication required&quot; isn't 
+</I>&gt;<i> contradicting anything. (Further, a really earnest browser might delay 
+</I>&gt;<i> rendering of any unauthorized page to prevent FOUC, and then display the 
+</I>&gt;<i> unauthenticated page only if it didn't contain the case-insensitive 
+</I>&gt;<i> regexp &quot;401*.unauthorized&quot;. That would be weird, but hardly weirder than 
+</I>&gt;<i> Internet Explorer's current length-based overriding of server error 
+</I>&gt;<i> messages.)
+</I>
+I think this is still a good idea, but requires nothing of HTML5.
+
+
+&gt;<i> &gt; We could get around that by saying that you can include 
+</I>&gt;<i> &gt; WWW-Authenticate headers with 200 OK responses as well (nothing in 
+</I>&gt;<i> &gt; HTTP seems to say you can't), and that if you do, then the bar is 
+</I>&gt;<i> &gt; shown as above (&quot;interactive user agents should provide a non-modal 
+</I>&gt;<i> &gt; authentication interface&quot;). Then, if you've already sent your 
+</I>&gt;<i> &gt; credentials and you get a 401, then you get the 401 page and the bar, 
+</I>&gt;<i> &gt; instead of the modal dialog. ...
+</I>&gt;<i> 
+</I>&gt;<i> Yes, that's a simpler option. :-) (Provided that current browsers still 
+</I>&gt;<i> ask for authentication even when given a 200 OK.)
+</I>
+I don't think they do now, but it's something we can move towards.
+
+I think the above idea (of using WWW-Authenticate with 200 OK) is a good 
+one, but is something we should let the HTTPWG worry about.
+
+
+On Fri, 17 Dec 2004, Greg Kilwein wrote:
+&gt;<i>
+</I>&gt;<i> Related to this, it would be nice to have a standard, simple way for a 
+</I>&gt;<i> browser session to &quot;log out&quot; of its HTTP authentication.  Currently with 
+</I>&gt;<i> some UAs, a user must to close all of his or her browser windows and/or 
+</I>&gt;<i> tabs in order to be able to log in as someone else.  Granted, there are 
+</I>&gt;<i> ways to trick the browser into popping up the authentication box, but it 
+</I>&gt;<i> would be nice to have a standard &quot;log out&quot; feature.
+</I>&gt;<i> 
+</I>&gt;<i> The way HTTP authentication is implemented now assumes that the user 
+</I>&gt;<i> will never want to change usernames.  This is simply not true in every 
+</I>&gt;<i> case, even if it is for the majority of cases.
+</I>&gt;<i> 
+</I>&gt;<i> I'm not sure of the best way to accomplish this log out functionality 
+</I>&gt;<i> (headers? HTML tags?) but this certainly would be a helpful feature in 
+</I>&gt;<i> the web application that I develop.  Has anyone else experienced a 
+</I>&gt;<i> situation in which this feature would be useful, or have any ideas about 
+</I>&gt;<i> how it could be accomplished that would be within the scope of this 
+</I>&gt;<i> group?
+</I>
+On Sat, 18 Dec 2004, Matthew Thomas wrote:
+&gt;<i>
+</I>&gt;<i> That's entirely the fault of the browser vendors; they haven't bothered to
+</I>&gt;<i> implement it in a convenient way. (See for example
+</I>&gt;<i> &lt;<A HREF="https://bugzilla.mozilla.org/show_bug.cgi?id=260839">https://bugzilla.mozilla.org/show_bug.cgi?id=260839</A>&gt;.)
+</I>&gt;<i> 
+</I>&gt;<i> There's no need for authors to do anything extra; browsers just need to 
+</I>&gt;<i> do a full implementation of HTTP authentication (i.e. one that includes 
+</I>&gt;<i> the ability to log out). A browser using my design for logging in, for 
+</I>&gt;<i> example, could change the panel for logging in to one for logging out:
+</I>&gt;<i> 
+</I>&gt;<i>  ____________________________________________________________
+</I>&gt;<i> | Committee Members Area             ID: [        ]          |
+</I>&gt;<i> | foo.example.org              Password: [        ] (Log In )|
+</I>&gt;<i> |&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;|
+</I>&gt;<i> :                                                            :
+</I>&gt;<i>                               |
+</I>&gt;<i>                               V
+</I>&gt;<i>  ____________________________________________________________
+</I>&gt;<i> | Committee Members Area   Logged in as: gregk               |
+</I>&gt;<i> | foo.example.org        Stay logged in: [1 week:^] (Log Out)|
+</I>&gt;<i> |&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;|
+</I>&gt;<i> :                                                            :
+</I>
+On Mon, 13 Jun 2005, Charles Iliya Krempeaux wrote:
+&gt;<i> 
+</I>&gt;<i> Having a way to &quot;logout&quot; the user from an HTTP authentication session is 
+</I>&gt;<i> very desirable.
+</I>&gt;<i> 
+</I>&gt;<i> The only reason I use &quot;cookie&quot; based authentication is because there is 
+</I>&gt;<i> no way (that I know of) to log the user out of an &quot;HTTP authentication 
+</I>&gt;<i> session&quot;.  (Once they are logged in, they are always logged in.)  
+</I>&gt;<i> (Although, really, there are some &quot;hacks&quot;.  But those hacks have 
+</I>&gt;<i> usability issues.)
+</I>
+On Mon, 13 Jun 2005, Charles Iliya Krempeaux wrote:
+&gt;<i> 
+</I>&gt;<i> I agree with you in that this is (partially) a problem with the browser.  
+</I>&gt;<i> But what if the browsers had a feature where the user could &quot;logout&quot; of 
+</I>&gt;<i> a website (using HTTP authentication).  (In other words, what if the 
+</I>&gt;<i> browser had a button or something that would &quot;clear out&quot; the &quot;username&quot; 
+</I>&gt;<i> and &quot;password&quot; it is sending for a web site.)  Would that be enough?
+</I>&gt;<i> 
+</I>&gt;<i> I don't think it would be enough.  The reasons are....  #1: Web 
+</I>&gt;<i> developers will want to integrate the logout button into their &quot;web 
+</I>&gt;<i> pages&quot; or &quot;web applications&quot;.  #2: Web developers will want to be able 
+</I>&gt;<i> to &quot;logout&quot; via JavaScript.  #3: Web developers will probably want to be 
+</I>&gt;<i> able to control if the &quot;authentication pop-up&quot; (the pop-up window you 
+</I>&gt;<i> type your username and password into) comes up or not.
+</I>&gt;<i> 
+</I>&gt;<i> At the very least there should be a JavaScript API that can let you 
+</I>&gt;<i> &quot;logout&quot;.  (And be able to detect if you are &quot;logged in&quot; or not.)
+</I>
+We could introduce a &lt;bb type=&quot;logout&quot;&gt; option, but frankly what's the 
+point. Logout already works for regular form-style login, and as mpt notes 
+above, UAs could implement HTTP auth better already.
+
+
+On Fri, 17 Dec 2004, Greg Kilwein wrote:
+&gt;<i>
+</I>&gt;<i> One such solution for the authentication issue is at the following 
+</I>&gt;<i> location:
+</I>&gt;<i> 
+</I>&gt;<i> <A HREF="http://www.w3.org/TR/1999/NOTE-authentform-19990203">http://www.w3.org/TR/1999/NOTE-authentform-19990203</A>
+</I>&gt;<i> 
+</I>&gt;<i> Perhaps this could be used in full or at least as a basis for a method 
+</I>&gt;<i> to provide a &quot;log out&quot; feature.
+</I>
+This is an interesting proposal, but as noted above, I'm not sure there's 
+much point trying to save HTTP auth at this point. People wanting security 
+should use SSL, IMHO. Digest isn't really that secure, and Basic is worse 
+than session cookies.
+
+
+On Mon, 13 Jun 2005, Charles Iliya Krempeaux wrote:
+&gt;<i> 
+</I>&gt;<i> So you want some standard &quot;hand shake&quot; for logging off.  I.e.,
+</I>&gt;<i> 
+</I>&gt;<i>     #1: The client sends a &quot;log me out&quot; message to the server.
+</I>&gt;<i>     #2: The server receives the &quot;log me out&quot; message and &quot;cleans up&quot;.
+</I>&gt;<i>     #3: The server sends a &quot;you are logged out&quot; message to the client.
+</I>&gt;<i>     #4: The client clears the &quot;HTTP Authenication&quot; data.
+</I>
+On Mon, 13 Jun 2005, S. Mike Dierken wrote:
+&gt;<i>
+</I>&gt;<i> Actually, I don't want #1 or #2 to be standard (the existing POST method 
+</I>&gt;<i> would work), I would like #3/#4 to be provided by the protocol. As you 
+</I>&gt;<i> mentioned earlier, the client could provide a 'clear authentication' 
+</I>&gt;<i> button or an extension to HTML forms, and although that would work, it 
+</I>&gt;<i> doesn't give quite the kind of control web page developers would want 
+</I>&gt;<i> (where to redirect the user, what the result page looks like, a chance 
+</I>&gt;<i> to notify the server, etc). I like the ability for the server to 
+</I>&gt;<i> participate in login/logout activity.
+</I>
+This is already possible with forms authentication, so I don't see much 
+point adding stuff to HTML to make it possible with HTTP auth too.
+
+
+On Thu, 7 Sep 2006, Anders Rundgren wrote:
+&gt;<i>
+</I>&gt;<i> As you probably have noticed, practically every site offers a login.for 
+</I>&gt;<i> their members, customers, citizens etc. etc.
+</I>&gt;<i> 
+</I>&gt;<i> 1.  User-id/password management has become a real nuisance. Once this 
+</I>&gt;<i> was an issue for computer professionals only, now it affects everyone 
+</I>&gt;<i> from children to grandma.
+</I>&gt;<i> 
+</I>&gt;<i> 2. There are other and better authentication methods available that 
+</I>&gt;<i> become hard to migrate to without making life hard for end-users by 
+</I>&gt;<i> asking them to use another login method.  The site has no way of 
+</I>&gt;<i> detecting the user's options.
+</I>&gt;<i> 
+</I>&gt;<i> It appears, that it may be possible to add some kind of negotiation/ 
+</I>&gt;<i> option elements at the HTML level, that if supported by the underlying 
+</I>&gt;<i> system could offer a standardized and potentially more powerful version 
+</I>&gt;<i> of the password caches or external login form &quot;hijacker software&quot; that 
+</I>&gt;<i> we currently use. Tentative functionality for the AHE (Authentication 
+</I>&gt;<i> Helper Extension):
+</I>&gt;<i> 
+</I>&gt;<i> - Find out if the AHE is installed/available
+</I>&gt;<i> 
+</I>&gt;<i> - If the AHE is available, find out if the site in question is in the 
+</I>&gt;<i> list
+</I>&gt;<i> 
+</I>&gt;<i> - If in the list, put out a dialog box giving the user an option to 
+</I>&gt;<i> login, decline or manually enter login information.
+</I>&gt;<i> 
+</I>&gt;<i> - If the site so requests, the user's authentication options (in case 
+</I>&gt;<i> form based authentication was used) can be transferred during login, 
+</I>&gt;<i> giving the site an option to ask/require the user to upgrade their 
+</I>&gt;<i> authentication.  This could involve anything from digest-authentication 
+</I>&gt;<i> to certificates.  The latter current lacks a decent provision method but 
+</I>&gt;<i> there is some work going on in this area as well.  MS CardSpaces is also 
+</I>&gt;<i> an option.
+</I>&gt;<i> 
+</I>&gt;<i> - The authentication stuff would be possible to store in an USB token or 
+</I>&gt;<i> even better in a mobile phone.  This is of course outside of HTML5 but 
+</I>&gt;<i> will be natural to support within 3-5 years from now.
+</I>&gt;<i> 
+</I>&gt;<i> - The scheme would (if properly implemented) be able to thwart phishing 
+</I>&gt;<i> since a user-id/password (or other auth solution) could be tied to a SSL 
+</I>&gt;<i> root + host name (or even better host domain).
+</I>&gt;<i> 
+</I>&gt;<i> In essence the desired result is a portable (mobile) multi-site 
+</I>&gt;<i> authentication support mechanism that should not only make the web 
+</I>&gt;<i> easier, but also long-term considerably more secure.
+</I>&gt;<i> 
+</I>&gt;<i> Other Options?
+</I>&gt;<i>
+</I>&gt;<i> The other option is addressing this problem at the transport level but I 
+</I>&gt;<i> think form-based authentication is a better entrance point since it is 
+</I>&gt;<i> already in place. There is no problem [at all] of having a mechanism [in 
+</I>&gt;<i> the proposed scheme] that switches from form-based authentication to 
+</I>&gt;<i> transport-level authentication like using TLS-client-certificates, while 
+</I>&gt;<i> the opposite is impossible.
+</I>
+On Thu, 7 Sep 2006, Dave Bacher wrote:
+&gt;<i>
+</I>&gt;<i> Why not just issue a TLS 1 certificate?
+</I>&gt;<i> 
+</I>&gt;<i> Internet Explorer 2 and later support it.  Netscape Navigator 2 and 
+</I>&gt;<i> later support it.  All versions of Opera support it.  All versions of 
+</I>&gt;<i> FireFox support it.  All versions of Safari support it.  In fact, the 
+</I>&gt;<i> vast majority of libraries and user agents that support TLS or even SSL 
+</I>&gt;<i> websites also support TLS 1 client certificates.
+</I>&gt;<i> 
+</I>&gt;<i> When you issue the certificate, most browsers offer a convenient way to 
+</I>&gt;<i> send it to the client.  It is installed into the local certificate 
+</I>&gt;<i> store, or potentially a hardware device such as a smart card.  Later, 
+</I>&gt;<i> the user authenticates to the user agent, and then is given the option 
+</I>&gt;<i> of providing the certificate to a site that asks for it.  You can either 
+</I>&gt;<i> issue a certificate specifically for your site, or you can have them go 
+</I>&gt;<i> get a (freely available, in at least some cases) client certificate from 
+</I>&gt;<i> a vendor like VeriSign.  These are typically called &quot;e-mail signing 
+</I>&gt;<i> certificates&quot; or &quot;digital ID's&quot; by the companies that sell them.
+</I>&gt;<i> 
+</I>&gt;<i> There are a couple big benefits here.  First, you are using an existing 
+</I>&gt;<i> user agent feature, that every user agent is likely to support.  So you 
+</I>&gt;<i> just have to talk the user through installing the certificate into IE.
+</I>&gt;<i> 
+</I>&gt;<i> Secondly, web server side, it is a radio button in IIS 4 or later (not 
+</I>&gt;<i> sure about earlier versions), or a single line in Apache to enable the 
+</I>&gt;<i> feature.
+</I>&gt;<i> 
+</I>&gt;<i> Thirdly, if the ID becomes compromised, you can issue a revoke request, 
+</I>&gt;<i> and issue a new ID.  This means the certificate that you issued before 
+</I>&gt;<i> immediately becomes invalid, and so if the user loses the certificate or 
+</I>&gt;<i> has it stollen, it takes no effort.
+</I>&gt;<i> 
+</I>&gt;<i> Fourthly, if the computer has a smart card reader (about USD $20) and a 
+</I>&gt;<i> smart card, the certificate can be installed onto the smart card.  If 
+</I>&gt;<i> this is done, then the user must provide a valid PIN in conjunction with 
+</I>&gt;<i> the physical card in order to send data using the identities installed 
+</I>&gt;<i> onto the card.  This adds a physical layer of security that is not 
+</I>&gt;<i> possible with a name/password system.
+</I>&gt;<i> 
+</I>&gt;<i> And the worse problem than the number of systems using user id/password 
+</I>&gt;<i> on a form to authenticate (and not at least using digest) is that many 
+</I>&gt;<i> of these don't use TLS, and so the password is sent plain text or plain 
+</I>&gt;<i> text equivalent across the network.  Additionally, many of these systems 
+</I>&gt;<i> send the username and password pair by e-mail, which means not only is 
+</I>&gt;<i> the user name and password sent across the internet, but also that it is 
+</I>&gt;<i> stored in one or more well known locations on the user's computer for at 
+</I>&gt;<i> least some period of time.  Since most operating systems don't provide 
+</I>&gt;<i> any mechanism to lock down a directory so that only one module or 
+</I>&gt;<i> application can access it, and since the most protection most user 
+</I>&gt;<i> agents offer to e-mail files is the non-protection of a randomly 
+</I>&gt;<i> generated file name, this is actually the worst part of the security 
+</I>&gt;<i> risk.
+</I>&gt;<i> 
+</I>&gt;<i> Failing TLS, most servers (including IIS and Apache) and user agents 
+</I>&gt;<i> support Kerberos, NTLM and a host of other options, and there are 
+</I>&gt;<i> several publicly available specifications for what is called &quot;Federated 
+</I>&gt;<i> Identity.&quot;  The problem with all of these is that various parties have 
+</I>&gt;<i> interests in pushing their own view of how a federated identity should 
+</I>&gt;<i> work, usually to further their own goals.
+</I>&gt;<i> 
+</I>&gt;<i> Also, keep in mind that a federated identity system also poses privacy 
+</I>&gt;<i> risks for the user.  When the user connects to your site, you must 
+</I>&gt;<i> contact the federation and ask if they are who they say that they are.  
+</I>&gt;<i> This means the federation knows both who you are, and what site you are 
+</I>&gt;<i> trying to access. This is why they aren't popular.
+</I>&gt;<i> 
+</I>&gt;<i> TLS doesn't have that problem, because you retrieve a certificate 
+</I>&gt;<i> revocation list versus asking if a specific certificate is valid.  All 
+</I>&gt;<i> that verisign (as an example) knows is that a TLS website asked for a 
+</I>&gt;<i> revocation list, they don't ever know what user it was who was trying to 
+</I>&gt;<i> access the site.
+</I>&gt;<i> 
+</I>&gt;<i> The issue with a federated log on is you must log on and log off from 
+</I>&gt;<i> the federation site.  Sites have to check with that site to see if your 
+</I>&gt;<i> token is valid or not, so any token based authentication inherently 
+</I>&gt;<i> compromises your privacy (at least potentially).
+</I>
+On Fri, 8 Sep 2006, George Staikos wrote:
+&gt;<i> 
+</I>&gt;<i> I would like to add a few more points here.
+</I>&gt;<i> 
+</I>&gt;<i> 1) The hardware is very cumbersome.  It's not pervasive, it requires 
+</I>&gt;<i> carrying cards and tokens, and limits mobility.
+</I>&gt;<i> 
+</I>&gt;<i> 2) Certificates are more easily stolen than passwords unless the 
+</I>&gt;<i> certificates have passwords on them.  Then, well, we are using passwords 
+</I>&gt;<i> again.  Certificates have lost most of their value by this point I 
+</I>&gt;<i> think.
+</I>&gt;<i> 
+</I>&gt;<i> 3) Users just don't understand this stuff yet.  In the case of a system 
+</I>&gt;<i> failure most users will be completely lost with how to recover.
+</I>&gt;<i> 
+</I>&gt;<i> 4) People are aware of the vulnerabilities of passwords and take at 
+</I>&gt;<i> least some reasonable precautions with them.  Certificates are not 
+</I>&gt;<i> infallible and people are not aware of how to properly protect them.
+</I>&gt;<i> 
+</I>&gt;<i> Simplicity is golden here, as long as we don't truly compromise 
+</I>&gt;<i> security.  I don't think passwords are necessarily a compromise of 
+</I>&gt;<i> security.  At least not in contrast to TLS certificates (which I 
+</I>&gt;<i> personally believe are a great technology).
+</I>
+On Sat, 9 Sep 2006, Ben Meadowcroft wrote:
+&gt;<i> 
+</I>&gt;<i> But you usually can't get someones certificate by offering a mars bar on 
+</I>&gt;<i> the street...
+</I>
+On Fri, 8 Sep 2006, George Staikos wrote:
+&gt;<i> 
+</I>&gt;<i> Do you have evidence that this is any different than the password case?
+</I>
+On Sat, 9 Sep 2006, Anders Rundgren wrote:
+&gt;<i> 
+</I>&gt;<i> I agree with all you things you say about this technology but let me 
+</I>&gt;<i> begin with another, for the WHATWG applicable comment:
+</I>&gt;<i> 
+</I>&gt;<i>   The &quot;standards&quot; for PKI provisioning using browsers are in a real mess.
+</I>&gt;<i>   Xenroll, KeyGen and a JavaScript CRMF do not really make this
+</I>&gt;<i>   part as simple as it must be in order to challenge passwords.
+</I>&gt;<i> 
+</I>&gt;<i> Anyway, my proposal was about offering a &quot;migration path&quot; to other 
+</I>&gt;<i> authentication schemes, as well as improving the current de-facto 
+</I>&gt;<i> standard.
+</I>&gt;<i> 
+</I>&gt;<i> Regarding certificates: the provisioning, mobility and pretty 
+</I>&gt;<i> proprietary card schemes (like no preinstalled drivers in Windows) will 
+</I>&gt;<i> make this transition period rather long.  That none of the browser 
+</I>&gt;<i> vendors support digital signatures (in a reasonable way), is another 
+</I>&gt;<i> reason why PKI deployment is hampered.
+</I>&gt;<i> 
+</I>&gt;<i> Personally, I believe PKI will stay marginal [*] until you can keep your 
+</I>&gt;<i> IDs in a mobile phone.  The US PIV card (to take an example), only 
+</I>&gt;<i> allows you to keep a single Federal ID which is not particularly useful 
+</I>&gt;<i> for the Internet where you will continue to have multiple and mostly 
+</I>&gt;<i> entirely independent IDs.
+</I>
+I think these ideas are very interesting, but I don't think HTML5 is the 
+right place to start with these ideas. I recommend approaching browser 
+vendors and seeing what they would be interested in providing.
+
+
+On Wed, 15 Aug 2007, Julien TOUCHE wrote:
+&gt;<i> 
+</I>&gt;<i> I want to sugges some new attributes related to security of the form for 
+</I>&gt;<i> Web Forms 2, XForms and HTML 5.
+</I>&gt;<i> 
+</I>&gt;<i> Example:
+</I>&gt;<i>   &lt;input type=&quot;password&quot; hash=&quot;sha256&quot; name=&quot;mypass&quot; /&gt;
+</I>&gt;<i> so the browser transmits only the corresponding hash of the given value.
+</I>&gt;<i>
+</I>&gt;<i> Also, as we need to avoid to transform hash as a simple password, server
+</I>&gt;<i> need to propose one-time salt for the client like this
+</I>&gt;<i> &lt;input type=&quot;password&quot; hash=&quot;sha256&quot; salt=&quot;123456&quot; name=&quot;mypass&quot; /&gt;
+</I>&gt;<i> in order to avoid crackers to submit directly the hash to servers.
+</I>
+On Wed, 15 Aug 2007, Kornel Lesinski wrote:
+&gt;<i> 
+</I>&gt;<i> Unfortunately this will not secure browsing session, because once user 
+</I>&gt;<i> is authenticated, server will have to use cookies which could be stolen 
+</I>&gt;<i> and used to impersonate the user.
+</I>&gt;<i> 
+</I>&gt;<i> My suggestion is to kill two birds with one stone by marrying forms with 
+</I>&gt;<i> Digest authentication (RFC 2617).
+</I>&gt;<i> 
+</I>&gt;<i> Digest is already implemented in browsers, doesn't require storage of 
+</I>&gt;<i> unhashed passwords, protects entire browsing session (with integrity 
+</I>&gt;<i> checking of payload and stopping replay attacks) and can provide mutual 
+</I>&gt;<i> authentication - it would be wasteful to re-invent and re-implement all 
+</I>&gt;<i> that for forms.
+</I>&gt;<i> 
+</I>&gt;<i> The dealbreaker in current Digest implementations is the user interface 
+</I>&gt;<i> - looks unfriendly, can't be customized, website can't offer account 
+</I>&gt;<i> registration until user cancels login and there's no logout mechanism.
+</I>&gt;<i> 
+</I>&gt;<i> This can be solved by providing form controls that would log user in 
+</I>&gt;<i> using Digest authentication:
+</I>&gt;<i> 
+</I>&gt;<i> &lt;form method=digest&gt;
+</I>&gt;<i> &lt;input type=hidden name=realm value=&quot;my realm&quot;&gt;
+</I>&gt;<i> &lt;input type=text name=username&gt;
+</I>&gt;<i> &lt;input type=password name=password&gt;
+</I>&gt;<i> &lt;/form&gt;
+</I>&gt;<i> 
+</I>&gt;<i> or
+</I>&gt;<i> 
+</I>&gt;<i> &lt;input id=myusernameid&gt;
+</I>&gt;<i> &lt;input type=password authentication=digest realm=&quot;my realm&quot;
+</I>&gt;<i> username=myusernameid&gt;
+</I>&gt;<i> 
+</I>&gt;<i> UI for logging out could be as simple as &lt;button type=logout&gt;, however 
+</I>&gt;<i> implementation details are probably outside scope of HTML 5.
+</I>
+On Thu, 16 Aug 2007, Julien TOUCHE wrote:
+&gt;<i> [snipped parts not relevant to html, like ip-limiting cookies]
+</I>&gt;<i> 
+</I>&gt;<i> it is one way to achieve above hash passwd, if it could be integrated in 
+</I>&gt;<i> a standard html fashion.
+</I>&gt;<i>
+</I>&gt;<i> Still need to standardize other algorithm than in rfc2617 which 
+</I>&gt;<i> specifies only md5 (better to add sha1/sha256/sha512)
+</I>&gt;<i>
+</I>&gt;<i> rfc2617 also defines a salt-like with nonce, which is a very good point, 
+</I>&gt;<i> but it seems to give the same problem said in first mail: it need server 
+</I>&gt;<i> to have passwd in clear to be able to compare against a changing hash 
+</I>&gt;<i> (if nonce is used) ...
+</I>
+I don't really understand what problem the above solves that isn't solved 
+better by SSL.
+
+
+On Tue, 21 Oct 2008, Aaron Swartz wrote:
+&gt;<i>
+</I>&gt;<i> The most common way of authenticating to web applications is:
+</I>&gt;<i> 
+</I>&gt;<i> Client: GET /login
+</I>&gt;<i> Server: &lt;html&gt;&lt;form method=&quot;post&quot;&gt;....
+</I>&gt;<i> Client: POST /login
+</I>&gt;<i> user=joesmith01&amp;password=secret
+</I>&gt;<i> Server: 200 OK
+</I>&gt;<i> Set-Cookie: acct=joesmith01,2008-10-21,sj89d89asd89s8d
+</I>&gt;<i> 
+</I>&gt;<i> The obvious problem with this is that passwords are transferred in the 
+</I>&gt;<i> clear. Some major web services redirect the user to an SSL server for 
+</I>&gt;<i> the login transaction, but SSL is too expensive for the vast majority of 
+</I>&gt;<i> services. (We can hope ObsTCP will fix this, but that's a long way away, 
+</I>&gt;<i> if ever.)
+</I>&gt;<i> 
+</I>&gt;<i> My proposal: add something to HTML5 so that the transaction looks like this:
+</I>&gt;<i> 
+</I>&gt;<i> Client: GET /login
+</I>&gt;<i> Server: &lt;html&gt;&lt;form method=&quot;post&quot; pubkey=&quot;/pubkey.key&quot;&gt;...
+</I>&gt;<i> [with a nonce]
+</I>&gt;<i> Client: POST /login
+</I>&gt;<i> dXNlcj1qb2VzbWl0aDAxJnBhc3N3b3JkPXNlY3JldA==
+</I>&gt;<i> Server: 200 OK
+</I>&gt;<i> Set-Cookie: acct=joesmith01,2008-10-21,sj89d89asd89s8d
+</I>&gt;<i> 
+</I>&gt;<i> where the base64 string is the form data encrypted with the key 
+</I>&gt;<i> downloaded from /pubkey.key. This should be fairly easy to implement 
+</I>&gt;<i> (for clients and servers), falls back to exactly the current behavior on 
+</I>&gt;<i> browsers that don't support it, and solves a rather important problem on 
+</I>&gt;<i> the Web.
+</I>
+I don't see why this is an less expensive than SSL. SSL is expensive 
+primarily in terms of CPU power to do the encryption, but if all you are 
+doing is the login form, then the cost is mostly mitigated.
+
+There's no point doing the login over unencrypted HTTP, since if someone 
+can sniff the password, they can just as easily MitM you and just grab the 
+password unencrypted.
+
+Also, as Philip Taylor mentioned, this seems like it would be vulnerable 
+to an offline dictionary attack.
+
+
+On Tue, 21 Oct 2008, Aaron Swartz wrote:
+&gt;<i> 
+</I>&gt;<i> There are three costs to SSL:
+</I>&gt;<i> 
+</I>&gt;<i> 1. Purchasing a signed cert.
+</I>&gt;<i> 2. Configuring the web server.
+</I>&gt;<i> 3. The CPU time necessary to do the encryption.
+</I>
+The first two costs are flat fees much like the cost of setting up a 
+regular HTTP server. The problematic cost is #3, which your proposal 
+suffers from as well.
+
+
+[snip conversations with no actionable feedback]
+
+
+On Tue, 21 Oct 2008, Kornel Lesinski wrote:
+&gt;<i> 
+</I>&gt;<i> You're re-inventing Digest authentication (RFC 2617).
+</I>&gt;<i> 
+</I>&gt;<i> Digest has two-way authentication with hashed challenge-response, 
+</I>&gt;<i> nonces, can use passwords stored as hashes (though not as secure as 
+</I>&gt;<i> storage for plaintext auth), avoids insecurity of cookies and even has 
+</I>&gt;<i> simple data integrity verification.
+</I>&gt;<i> 
+</I>&gt;<i> ...and it's all futile if attacker can modify a single byte sent over 
+</I>&gt;<i> the network.
+</I>&gt;<i> 
+</I>&gt;<i> Anyway, it doesn't make sense to duplicate all that functionality in 
+</I>&gt;<i> forms just because typical interface for HTTP authentication is ugly and 
+</I>&gt;<i> unusable. You can fix the interface, and there's proposal for it already 
+</I>&gt;<i> (from 1999!): <A HREF="http://www.w3.org/TR/NOTE-authentform">http://www.w3.org/TR/NOTE-authentform</A>
+</I>&gt;<i> 
+</I>&gt;<i> I think that proposal is generally a good idea, but the details could be 
+</I>&gt;<i> improved (i.e. should reuse existing forms and input types rather than 
+</I>&gt;<i> creating new ones that can't offer seamless fallback).
+</I>
+I agree that Aaron's proposal doesn't seem to give us much over Digest.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017412.html">[whatwg] Video metadata attributes clarification
+</A></li>
+	<LI>Next message: <A HREF="017414.html">[whatwg] Solving the login/logout problem in HTML
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17413">[ date ]</a>
+              <a href="thread.html#17413">[ thread ]</a>
+              <a href="subject.html#17413">[ subject ]</a>
+              <a href="author.html#17413">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

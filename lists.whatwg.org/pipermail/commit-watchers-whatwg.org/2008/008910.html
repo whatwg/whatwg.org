@@ -1,0 +1,244 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [html5] r2024 - [] (0) Simplify garbage collection for ports even	further. Define dicarding of D [...]
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commit-watchers%40lists.whatwg.org?Subject=Re%3A%20%5Bhtml5%5D%20r2024%20-%20%5B%5D%20%280%29%20Simplify%20garbage%20collection%20for%20ports%20even%0A%09further.%20Define%20dicarding%20of%20D%20%5B...%5D&In-Reply-To=%3C20080806075733.0FDC7140A72%40hixie.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="008909.html">
+   <LINK REL="Next"  HREF="008911.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[html5] r2024 - [] (0) Simplify garbage collection for ports even	further. Define dicarding of D [...]</H1>
+<!--htdig_noindex-->
+    <B>whatwg at whatwg.org</B> 
+    <A HREF="mailto:commit-watchers%40lists.whatwg.org?Subject=Re%3A%20%5Bhtml5%5D%20r2024%20-%20%5B%5D%20%280%29%20Simplify%20garbage%20collection%20for%20ports%20even%0A%09further.%20Define%20dicarding%20of%20D%20%5B...%5D&In-Reply-To=%3C20080806075733.0FDC7140A72%40hixie.dreamhostps.com%3E"
+       TITLE="[html5] r2024 - [] (0) Simplify garbage collection for ports even	further. Define dicarding of D [...]">whatwg at whatwg.org
+       </A><BR>
+    <I>Wed Aug  6 00:57:33 PDT 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="008909.html">[html5] r2023 - [] (0) Simplify message ports: use queueing instead	of transient 'active' functi [...]
+</A></li>
+        <LI>Next message: <A HREF="008911.html">[html5] r2025 - [e] (0) fix typos
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#8910">[ date ]</a>
+              <a href="thread.html#8910">[ thread ]</a>
+              <a href="subject.html#8910">[ subject ]</a>
+              <a href="author.html#8910">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Author: ianh
+Date: 2008-08-06 00:57:32 -0700 (Wed, 06 Aug 2008)
+New Revision: 2024
+
+Modified:
+   index
+   source
+Log:
+[] (0) Simplify garbage collection for ports even further. Define dicarding of Document objects better for ports. Prevent inactive documents from receiving messages.
+
+Modified: index
+===================================================================
+--- index	2008-08-06 07:24:38 UTC (rev 2023)
++++ index	2008-08-06 07:57:32 UTC (rev 2024)
+@@ -44002,6 +44002,17 @@
+    href=&quot;#messageport0&quot;&gt;MessagePort&lt;/a&gt;&lt;/code&gt; object, and remove the event
+    from the queue.
+ 
++  &lt;p&gt;If the &lt;code&gt;&lt;a href=&quot;#messageport0&quot;&gt;MessagePort&lt;/a&gt;&lt;/code&gt; is owned by
++   a &lt;code&gt;&lt;a href=&quot;#window&quot;&gt;Window&lt;/a&gt;&lt;/code&gt; object and the
++   &lt;code&gt;Document&lt;/code&gt; that was the &lt;a href=&quot;#active&quot;&gt;active document&lt;/a&gt;
++   in that &lt;a href=&quot;#browsing1&quot;&gt;browsing context&lt;/a&gt; when the &lt;code&gt;&lt;a
++   href=&quot;#messageport0&quot;&gt;MessagePort&lt;/a&gt;&lt;/code&gt; was created is not &lt;a
++   href=&quot;#fully&quot;&gt;fully active&lt;/a&gt;, then an opportunity doesn't exist &mdash;
++   events in such cases must only be dispatched once the
++   &lt;code&gt;Document&lt;/code&gt; in question becomes &lt;a href=&quot;#fully&quot;&gt;fully
++   active&lt;/a&gt;. If that doesn't happen before that &lt;code&gt;Document&lt;/code&gt; is
++   discarded, then the events are lost.
++
+   &lt;hr&gt;
+ 
+   &lt;p&gt;The &lt;dfn id=close3
+@@ -44080,12 +44091,43 @@
+ 
+   &lt;h5 id=ports&gt;&lt;span class=secno&gt;7.5.3.1. &lt;/span&gt;Ports and browsing contexts&lt;/h5&gt;
+ 
+-  &lt;p&gt;Ports are unentangled when the &lt;code&gt;Document&lt;/code&gt; that was the &lt;a
+-   href=&quot;#active&quot;&gt;active document&lt;/a&gt; of the &lt;a href=&quot;#browsing1&quot;&gt;browsing
+-   context&lt;/a&gt; corresponding to the &lt;code&gt;&lt;a href=&quot;#window&quot;&gt;Window&lt;/a&gt;&lt;/code&gt;
+-   object that owns them is &lt;a href=&quot;#discard&quot; title=&quot;discard a
+-   document&quot;&gt;discarded&lt;/a&gt;.
++  &lt;p&gt;When a &lt;code&gt;Document&lt;/code&gt; is &lt;a href=&quot;#discard&quot; title=&quot;discard a
++   document&quot;&gt;discarded&lt;/a&gt;, if there are any &lt;code&gt;&lt;a
++   href=&quot;#messageport0&quot;&gt;MessagePort&lt;/a&gt;&lt;/code&gt; objects that:
+ 
++  &lt;ul class=brief&gt;
++   &lt;li&gt;are entangled, and
++
++   &lt;li&gt;are owned by the &lt;a href=&quot;#browsing1&quot;&gt;browsing context&lt;/a&gt; that
++    contained that &lt;code&gt;Document&lt;/code&gt;, and
++
++   &lt;li&gt;were created while that &lt;code&gt;Document&lt;/code&gt; was the &lt;a
++    href=&quot;#active&quot;&gt;active document&lt;/a&gt; of that &lt;a href=&quot;#browsing1&quot;&gt;browsing
++    context&lt;/a&gt;, and
++
++   &lt;li&gt;are entangled with a port that is either not owned by that &lt;a
++    href=&quot;#browsing1&quot;&gt;browsing context&lt;/a&gt; or was not created while that
++    &lt;code&gt;Document&lt;/code&gt; was the &lt;a href=&quot;#active&quot;&gt;active document&lt;/a&gt; of
++    that &lt;a href=&quot;#browsing1&quot;&gt;browsing context&lt;/a&gt;,
++  &lt;/ul&gt;
++
++  &lt;p&gt;...then the user agent must run the following steps for each such port:
++
++  &lt;ol&gt;
++   &lt;li&gt;
++    &lt;p&gt;Let &lt;var title=&quot;&quot;&gt;surviving port&lt;/var&gt; be the port with which the
++     &lt;code&gt;&lt;a href=&quot;#messageport0&quot;&gt;MessagePort&lt;/a&gt;&lt;/code&gt; object in question
++     is entangled.
++
++   &lt;li&gt;
++    &lt;p&gt;Unentangle the two ports.&lt;/p&gt;
++
++   &lt;li&gt;At the next available opportunity, after any scripts have finished
++    executing&lt;!-- XXX queue --&gt;, &lt;a href=&quot;#firing2&quot;&gt;fire a simple event&lt;/a&gt;
++    called &lt;code title=event-unload&gt;unload&lt;/code&gt; at &lt;var title=&quot;&quot;&gt;surviving
++    port&lt;/var&gt;.
++  &lt;/ol&gt;
++
+   &lt;h5 id=ports0&gt;&lt;span class=secno&gt;7.5.3.2. &lt;/span&gt;Ports and garbage
+    collection&lt;/h5&gt;
+ 
+@@ -44104,12 +44146,6 @@
+     live code, despite having a strong reference to each other.&lt;/p&gt;
+   &lt;/div&gt;
+ 
+-  &lt;p&gt;When an entangled message port is about to be garbage collected, it must
+-   be unentangled. Because of the aforementioned strong reference, this can
+-   only happen if either both ports are about to be garbage collected as a
+-   pair, or if the entire &lt;a href=&quot;#script2&quot;&gt;script execution context&lt;/a&gt; of
+-   the port is being discarded.
+-
+   &lt;h2 id=syntax&gt;&lt;span class=secno&gt;8. &lt;/span&gt;The HTML syntax&lt;/h2&gt;
+ 
+   &lt;h3 id=writing0&gt;&lt;span class=secno&gt;8.1 &lt;/span&gt;Writing HTML documents&lt;/h3&gt;
+
+Modified: source
+===================================================================
+--- source	2008-08-06 07:24:38 UTC (rev 2023)
++++ source	2008-08-06 07:57:32 UTC (rev 2024)
+@@ -41406,6 +41406,16 @@
+   &lt;code&gt;MessagePort&lt;/code&gt; object, and remove the event from the
+   queue.&lt;/p&gt;
+ 
++  &lt;p&gt;If the &lt;code&gt;MessagePort&lt;/code&gt; is owned by a &lt;code&gt;Window&lt;/code&gt;
++  object and the &lt;code&gt;Document&lt;/code&gt; that was the &lt;span&gt;active
++  document&lt;/span&gt; in that &lt;span&gt;browsing context&lt;/span&gt; when the
++  &lt;code&gt;MessagePort&lt;/code&gt; was created is not &lt;span&gt;fully
++  active&lt;/span&gt;, then an opportunity doesn't exist &mdash; events in
++  such cases must only be dispatched once the &lt;code&gt;Document&lt;/code&gt; in
++  question becomes &lt;span&gt;fully active&lt;/span&gt;. If that doesn't happen
++  before that &lt;code&gt;Document&lt;/code&gt; is discarded, then the events are
++  lost.&lt;/p&gt;
++
+   &lt;hr&gt;
+ 
+   &lt;p&gt;The &lt;dfn title=&quot;dom-MessagePort-close&quot;&gt;&lt;code&gt;close()&lt;/code&gt;&lt;/dfn&gt;
+@@ -41486,13 +41496,37 @@
+ 
+   &lt;h5&gt;Ports and browsing contexts&lt;/h5&gt;
+ 
+-  &lt;p&gt;Ports are unentangled when the &lt;code&gt;Document&lt;/code&gt; that was the
+-  &lt;span&gt;active document&lt;/span&gt; of the &lt;span&gt;browsing context&lt;/span&gt;
+-  corresponding to the &lt;code&gt;Window&lt;/code&gt; object that owns them is
+-  &lt;span title=&quot;discard a document&quot;&gt;discarded&lt;/span&gt;.&lt;/p&gt;
++  &lt;p&gt;When a &lt;code&gt;Document&lt;/code&gt; is &lt;span title=&quot;discard a
++  document&quot;&gt;discarded&lt;/span&gt;, if there are any
++  &lt;code&gt;MessagePort&lt;/code&gt; objects that:&lt;/p&gt;
+ 
++  &lt;ul class=&quot;brief&quot;&gt;
++   &lt;li&gt;are entangled, and&lt;/li&gt;
++   &lt;li&gt;are owned by the &lt;span&gt;browsing context&lt;/span&gt; that contained that &lt;code&gt;Document&lt;/code&gt;, and&lt;/li&gt;
++   &lt;li&gt;were created while that &lt;code&gt;Document&lt;/code&gt; was the &lt;span&gt;active document&lt;/span&gt; of that &lt;span&gt;browsing context&lt;/span&gt;, and&lt;/li&gt;
++   &lt;li&gt;are entangled with a port that is either not owned by that &lt;span&gt;browsing context&lt;/span&gt; or was not created while that &lt;code&gt;Document&lt;/code&gt; was the &lt;span&gt;active document&lt;/span&gt; of that &lt;span&gt;browsing context&lt;/span&gt;,&lt;/li&gt;
++  &lt;/ul&gt;
+ 
++  &lt;p&gt;...then the user agent must run the following steps for each such
++  port:&lt;/p&gt;
+ 
++  &lt;ol&gt;
++
++   &lt;li&gt;&lt;p&gt;Let &lt;var title=&quot;&quot;&gt;surviving port&lt;/var&gt; be the port with
++   which the &lt;code&gt;MessagePort&lt;/code&gt; object in question is
++   entangled.&lt;/p&gt;&lt;/li&gt;
++
++   &lt;li&gt;&lt;p&gt;Unentangle the two ports.&lt;/p&gt;&lt;/p&gt;
++
++   &lt;li&gt;At the next available opportunity, after any scripts have
++   finished executing&lt;!-- XXX queue --&gt;, &lt;span&gt;fire a simple
++   event&lt;/span&gt; called &lt;code title=&quot;event-unload&quot;&gt;unload&lt;/code&gt; at
++   &lt;var title=&quot;&quot;&gt;surviving port&lt;/var&gt;.&lt;/p&gt;
++
++  &lt;/ol&gt;
++
++
++
+   &lt;h5&gt;Ports and garbage collection&lt;/h5&gt;
+ 
+   &lt;p&gt;User agents must act as if &lt;code&gt;MessagePort&lt;/code&gt; objects have
+@@ -41512,18 +41546,8 @@
+ 
+   &lt;/div&gt;
+ 
+-  &lt;p&gt;When an entangled message port is about to be garbage collected,
+-  it must be unentangled. Because of the aforementioned strong
+-  reference, this can only happen if either both ports are about to be
+-  garbage collected as a pair, or if the entire &lt;span&gt;script execution
+-  context&lt;/span&gt; of the port is being discarded.&lt;/p&gt;
+ 
+ 
+-
+-
+-
+-
+-
+   &lt;h2 id=&quot;syntax&quot;&gt;The HTML syntax&lt;/h2&gt;
+ 
+   &lt;h3&gt;Writing HTML documents&lt;/h3&gt;
+
+
+</PRE>
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="008909.html">[html5] r2023 - [] (0) Simplify message ports: use queueing instead	of transient 'active' functi [...]
+</A></li>
+	<LI>Next message: <A HREF="008911.html">[html5] r2025 - [e] (0) fix typos
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#8910">[ date ]</a>
+              <a href="thread.html#8910">[ thread ]</a>
+              <a href="subject.html#8910">[ subject ]</a>
+              <a href="author.html#8910">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/commit-watchers-whatwg.org">More information about the Commit-Watchers
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

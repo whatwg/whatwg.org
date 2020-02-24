@@ -1,0 +1,196 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Web Workers and MessagePort feedback
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Web%20Workers%20and%20MessagePort%20feedback&In-Reply-To=%3C278fd46c0808051533g71eb1244o4cea9ed1c5b73821%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="015593.html">
+   <LINK REL="Next"  HREF="015603.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Web Workers and MessagePort feedback</H1>
+<!--htdig_noindex-->
+    <B>Aaron Boodman</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Web%20Workers%20and%20MessagePort%20feedback&In-Reply-To=%3C278fd46c0808051533g71eb1244o4cea9ed1c5b73821%40mail.gmail.com%3E"
+       TITLE="[whatwg] Web Workers and MessagePort feedback">aa at google.com
+       </A><BR>
+    <I>Tue Aug  5 15:33:05 PDT 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="015593.html">[whatwg] Web Workers and MessagePort feedback
+</A></li>
+        <LI>Next message: <A HREF="015603.html">[whatwg] Workers feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#15594">[ date ]</a>
+              <a href="thread.html#15594">[ thread ]</a>
+              <a href="subject.html#15594">[ subject ]</a>
+              <a href="author.html#15594">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Thanks for the quick reply...
+
+On Tue, Aug 5, 2008 at 2:52 PM, Jonas Sicking &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">jonas at sicking.cc</A>&gt; wrote:
+&gt;&gt;<i> I know this is weird wrt GC when combined with MessagePorts, and I
+</I>&gt;&gt;<i> don't have a proposed solution.
+</I>&gt;<i>
+</I>&gt;<i> I don't think we should say much regarding GC at all. All we should say is
+</I>&gt;<i> that GC should not affect the operation of the page. I.e. it is not allowed
+</I>&gt;<i> to GC an Worker that someone still has references to, or a Worker that has
+</I>&gt;<i> XHR loads in progress or timers pending.
+</I>&gt;<i>
+</I>&gt;<i> Very few other specs mention GC and I haven't noticed that ever being a
+</I>&gt;<i> problem. For example everyone agrees that it's a bug that gecko sometimes
+</I>&gt;<i> GCs the parent of a node, if you're not actively holding any references to
+</I>&gt;<i> anything in the parent chain.
+</I>
+The spec doesn't have to mention GC, but it does mention
+'reachability' right now and what happens when an object is no longer
+reachable. This has an impact on interop, so I think it should be
+well-defined.
+
+&gt;&gt;<i> Here is how the previous two suggestions would look together:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> var worker = new Worker(&quot;foo.js&quot;);
+</I>&gt;&gt;<i> worker.onload = function() { ... }
+</I>&gt;&gt;<i> worker.onerror = function() { ... }
+</I>&gt;&gt;<i> worker.onunload = function() { ... }  // called when the worker shuts down
+</I>&gt;&gt;<i> worker.sendMessage(&quot;hello!&quot;);
+</I>&gt;<i>
+</I>&gt;<i> So I really like this API. However it makes it completely impossible to ever
+</I>&gt;<i> pass worker objects across threads. I.e. we could never allow:
+</I>&gt;<i>
+</I>&gt;<i> worker1.postMessage(&quot;...&quot;, worker2);
+</I>&gt;<i>
+</I>&gt;<i> This would be very strange if we had .onload, .onerror etc on the worker
+</I>&gt;<i> object itself since those properties wouldn't make much sense living in
+</I>&gt;<i> multiple &quot;threads&quot; at once.
+</I>&gt;<i>
+</I>&gt;<i> While I agree direct communication between sibling workers is an edgecase,
+</I>&gt;<i> it's something I would prefer to not make impossible for future versions of
+</I>&gt;<i> the spec.
+</I>&gt;<i>
+</I>&gt;<i> Though I just realized that we could cover that case using only
+</I>&gt;<i> MessagePorts. So we say that you can only communicate with your creator, and
+</I>&gt;<i> any children using direct .postMessage. If you want to more complex
+</I>&gt;<i> communication patterns then set up MessagePorts.
+</I>
+Makes sense, and I like how this is something that could be layered in
+a later version.
+
+&gt;&gt;<i> - The spec says that as soon as a worker is not reachable (determined
+</I>&gt;&gt;<i> via GC) from any MessagePort, it is eligible for shutdown. Shutdown
+</I>&gt;&gt;<i> would attempt to finish all queued messages, but not allow any new
+</I>&gt;&gt;<i> ones.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> This concerns me because it means that workers will have different
+</I>&gt;&gt;<i> behavior depending on GC timing. If a worker is not referenced from
+</I>&gt;&gt;<i> any port, and it sends an XHR, that XHR may or may not be sent
+</I>&gt;&gt;<i> depending on when GC runs. This is different than how XHR behaves
+</I>&gt;&gt;<i> normally. Typically, XHR objects that have outstanding IO but no
+</I>&gt;&gt;<i> referers will not be GC'd until they complete or fail.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Finally this does not allow use cases such as creating a worker to
+</I>&gt;&gt;<i> synchronize a local database with the network without ever sending
+</I>&gt;&gt;<i> notifications back to the parent.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Maybe workers should stay alive as long as any of the following are true:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> - There is script running in them
+</I>&gt;&gt;<i> - There are messages to them queued
+</I>&gt;&gt;<i> - There is a messageport alive anywhere that could send messages to them
+</I>&gt;&gt;<i> - There are &quot;asynchronous operations&quot; (xhr, timers, database
+</I>&gt;&gt;<i> operations) inside them outstanding
+</I>&gt;<i>
+</I>&gt;<i> Agreed. Like I said above, I think the less we say about GC the better. GC
+</I>&gt;<i> effects should not be noticeable to the page.
+</I>
+Ok, but right now, the spec says something that contradicts this. It
+should either be changed, or removed, if people think the right
+behavior goes without saying.
+
+&gt;&gt;<i> - Why is there an ownerWindow property on MessagePort? If I understand
+</I>&gt;&gt;<i> correctly, this is just a synonym for the 'window' object of the
+</I>&gt;&gt;<i> currently executing script context.  I think it should go away.
+</I>&gt;<i>
+</I>&gt;<i> If we put postMessage directly on the Worker object we don't need to mention
+</I>&gt;<i> MessagePorts in the Web workers spec at all. They can just be an orthogonal
+</I>&gt;<i> specs.
+</I>
+This feedback was referencing the separate MessageChannel section of
+the web-apps spec. I glommed my feedback together because it was the
+first time I'd looked at MessageChannels closely and they go together
+for my purposes.
+
+&gt;&gt;<i> - The string URL property on the WindowWorker interface is less useful
+</I>&gt;&gt;<i> than the parsed structure that window.location has. Can we use
+</I>&gt;&gt;<i> something like this instead, except making it read-only?
+</I>&gt;<i>
+</I>&gt;<i> Why do we need it at all?
+</I>&gt;<i>
+</I>&gt;<i> If we do think it's useful, most of the uses that I've seen for the parsed
+</I>&gt;<i> URL structure has been to set the .hash in order to scroll around on a page
+</I>&gt;<i> or communicate between iframes of different origins (ugh!!). Neither of
+</I>&gt;<i> these applies here I'd say.
+</I>
+The protocol, host, hostname, port, pathname, and search properties
+are all very useful. An application might want to compare the origin
+of a message it receives with it's own host and port, for example.
+
+Providing these split out avoids common parsing mistakes.
+
+&gt;&gt;<i> - The &quot;front-line&quot; nomenclature was a bit weird to me. How about
+</I>&gt;&gt;<i> &quot;top-level&quot;?
+</I>&gt;<i>
+</I>&gt;<i> I didn't try to grokk this part yet. Is it just about estabilishing lifetime
+</I>&gt;<i> of the worker objects? If so, see my previous comments about GC.
+</I>
+Yes, that's mostly what it's about.
+
+&gt;&gt;<i> - Would it be too weird to have createWorker overloaded to take an
+</I>&gt;&gt;<i> optional name parameter? This would make the behavior similar to
+</I>&gt;&gt;<i> window.open(), which either opens a new window or reuses an existing
+</I>&gt;&gt;<i> window with the same name.
+</I>&gt;<i>
+</I>&gt;<i> What would it be used for? window.open uses the name so you can target links
+</I>&gt;<i> at it which doesn't seem like it applies here either.
+</I>
+It's intended to be used by shared workers. Multiple pages are
+intended to be able to open workers with the same name and URL, and
+they get the same worker instance. This allows an application to
+coordinate activities across multiple instances of itself.
+
+This may go to my point about having motivations and sample code high
+up in the document to establish the goals.
+
+- a
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="015593.html">[whatwg] Web Workers and MessagePort feedback
+</A></li>
+	<LI>Next message: <A HREF="015603.html">[whatwg] Workers feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#15594">[ date ]</a>
+              <a href="thread.html#15594">[ thread ]</a>
+              <a href="subject.html#15594">[ subject ]</a>
+              <a href="author.html#15594">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

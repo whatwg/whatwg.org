@@ -1,0 +1,339 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] localStorage feedback
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20localStorage%20feedback&In-Reply-To=%3Cbd8f24d20910292327y5ee39e47g2e54e6608ecdf47%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023848.html">
+   <LINK REL="Next"  HREF="023885.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] localStorage feedback</H1>
+<!--htdig_noindex-->
+    <B>Darin Fisher</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20localStorage%20feedback&In-Reply-To=%3Cbd8f24d20910292327y5ee39e47g2e54e6608ecdf47%40mail.gmail.com%3E"
+       TITLE="[whatwg] localStorage feedback">darin at chromium.org
+       </A><BR>
+    <I>Thu Oct 29 23:27:44 PDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023848.html">[whatwg] localStorage feedback
+</A></li>
+        <LI>Next message: <A HREF="023885.html">[whatwg] localStorage feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23884">[ date ]</a>
+              <a href="thread.html#23884">[ thread ]</a>
+              <a href="subject.html#23884">[ subject ]</a>
+              <a href="author.html#23884">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Mon, Oct 12, 2009 at 7:07 PM, Ian Hickson &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">ian at hixie.ch</A>&gt; wrote:
+...
+
+&gt;<i> &gt; the problem here is that localStorage is a pile of global variables.
+</I>&gt;<i> &gt; we are trying to give people global variables without giving them tools
+</I>&gt;<i> &gt; to synchronize access to them.  the claim i've heard is that developers
+</I>&gt;<i> &gt; are not savy enough to use those tools properly.  i agree that
+</I>&gt;<i> &gt; developers tend to use tools without fully understanding them.  ok, but
+</I>&gt;<i> &gt; then why are we giving them global variables?
+</I>&gt;<i>
+</I>&gt;<i> The global variables have implicit locks such that you can build the tools
+</I>&gt;<i> for explicit locking on top of them:
+</I>&gt;<i>
+</I>&gt;<i>   // run this first, in one script block
+</I>&gt;<i>   var id = localStorage['last-id'] + 1;
+</I>&gt;<i>   localStorage['last-id'] = id;
+</I>&gt;<i>   localStorage['email-ready-' + id] = &quot;0&quot;; // &quot;begin&quot;
+</I>&gt;<i>
+</I>&gt;<i>   // these can run each in separate script blocks as desired
+</I>&gt;<i>   localStorage['email-subject-' + id] = subject;
+</I>&gt;<i>   localStorage['email-from-' + id] = from;
+</I>&gt;<i>   localStorage['email-to-' + id] = to;
+</I>&gt;<i>   localStorage['email-body-' + id] = body;
+</I>&gt;<i>
+</I>&gt;<i>   // run this last
+</I>&gt;<i>   localStorage['email-ready-' + id] = &quot;1&quot;; // &quot;commit&quot;
+</I>&gt;<i>
+</I>&gt;<i>
+</I>Dividing up work like this into separate SCRIPT elements to scope the
+locking seems really awkward to me.
+
+
+
+&gt;<i>
+</I>&gt;<i> On Thu, 24 Sep 2009, Darin Fisher wrote:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; The current API exposes race conditions to the web.  The implicit
+</I>&gt;<i> &gt; dropping of the storage lock is that.  In Chrome, we'll have to drop an
+</I>&gt;<i> &gt; existing lock whenever a new lock is acquired.  That can happen due to a
+</I>&gt;<i> &gt; variety of really odd cases (usually related to nested loops or nested
+</I>&gt;<i> &gt; JS execution), which will be difficult for developers to predict,
+</I>&gt;<i> &gt; especially if they are relying on third-party JS libraries.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; This issue seems to be discounted for reasons I do not understand.
+</I>&gt;<i>
+</I>&gt;<i> You can only lose the lock in very specific conditions. Those conditions
+</I>&gt;<i> are rarely going to interact with code that actually does storage work in
+</I>&gt;<i> a way that relies on the lock:
+</I>&gt;<i>
+</I>&gt;<i>  - changing document.domain
+</I>&gt;<i>  - history.back(), .forward(), .go(n)
+</I>&gt;<i>  - invoking a plugin
+</I>&gt;<i>  - alert(), confirm(), prompt(), print()
+</I>&gt;<i>  - showModalDialog()
+</I>&gt;<i>  - yieldForStorageUpdates()
+</I>&gt;<i>
+</I>&gt;<i> I discussed this in more detail here:
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> <A HREF="http://lists.whatwg.org/htdig.cgi/whatwg-whatwg.org/2009-September/023059.html">http://lists.whatwg.org/htdig.cgi/whatwg-whatwg.org/2009-September/023059.html</A>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>You are right that the conditions are specific, but I don't know that that
+is the
+exhaustive list.  Rather than defining unlock points, I would implement
+implicit
+unlocking by having any nested attempt to acquire a lock cause the existing
+lock
+to be dropped.  Nesting can happen in the cases you mention, but depending
+on
+the UA, it may happen for other reasons too.
+
+This combined with the fact that most people use JS libraries means that the
+coder is not going to have an easy time knowing when these specific
+conditions
+are met.  I don't think defining a set of allowed unlock points is
+sufficient to make
+this API not be a minefield for users.
+
+For example, a JS library might evolve to use flash for something small
+(like
+storage or sound) that it previously didn't use when I first developed my
+code.
+Voila, now my storage lock is released out from under me.
+
+At this point, I'm not favoring implementing the storage mutex in Chrome.  I
+don't think we will have it in our initial implementation of LocalStorage.
+ I think
+web developers that care will have to find another way to manage locking,
+like
+using a Web Database transaction or coordinating with a Shared Worker.
+
+Sorry to be a grump about this, but a cross-process lock that lasts until JS
+returns is just going to slow down the web.  It is a really bad idea for
+that
+reason.
+
+-Darin
+
+
+
+&gt;<i> On Tue, 8 Sep 2009, Chris Jones wrote:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Can those in the first camp explain why &quot;mutex&quot; semantics is better than
+</I>&gt;<i> &gt; &quot;transaction&quot; semantics?  And why it's desirable to have one DB spec
+</I>&gt;<i> &gt; specify &quot;transaction&quot; semantics (Web Database) and a second specify
+</I>&gt;<i> &gt; &quot;mutex&quot; semantics (localStorage)?
+</I>&gt;<i>
+</I>&gt;<i> I don't think it's desirable. It's just what we have, though an accident
+</I>&gt;<i> of history.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> Where we're at: localStorage can't really change. It is what it is.
+</I>&gt;<i>
+</I>&gt;<i> We have a better proposal, Web Database, but not everybody wants to
+</I>&gt;<i> implement it.
+</I>&gt;<i>
+</I>&gt;<i> To move forward, I would recommend that someone come up with a storage
+</I>&gt;<i> proposal with the following characteristics:
+</I>&gt;<i>
+</I>&gt;<i>  * All major browsers vendors are willing to implement it.
+</I>&gt;<i>  * Compatible with workers.
+</I>&gt;<i>  * Doesn't have any race conditions.
+</I>&gt;<i>  * Doesn't involve a cross-process mutex that blocks interaction.
+</I>&gt;<i>  * Stores structured data.
+</I>&gt;<i>  * Can be queried in arbitrary ways.
+</I>&gt;<i>  * Doesn't expose authors to locking primitives.
+</I>&gt;<i>
+</I>&gt;<i> Then we can replace Web Database with it and we can move on.
+</I>&gt;<i>
+</I>&gt;<i> I suggest that the right venue for this discussion would be the W3C Web
+</I>&gt;<i> Apps group, at <A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">public-webapps at w3.org.</A>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> On Wed, 9 Sep 2009, Darin Fisher wrote:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; What about navigating an iframe to a reference fragment, which could
+</I>&gt;<i> &gt; trigger a scroll event?  The scrolling has to be done synchronously for
+</I>&gt;<i> &gt; compat with the web.
+</I>&gt;<i>
+</I>&gt;<i> You can only do that with same-domain pages, as far as I can tell.
+</I>&gt;<i>
+</I>&gt;<i> (Does that really have to be synchronous? Right now we don't define the
+</I>&gt;<i> 'scroll' event anywhere. What are the semantics it needs?)
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> On Mon, 31 Aug 2009, James Graham wrote:
+</I>&gt;<i> &gt; Quoting Ian Hickson &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">ian at hixie.ch</A>&gt;:
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; We can't treat cookies and persistent storage differently, because
+</I>&gt;<i> &gt; &gt; otherwise we'll expose users to cookie resurrection attacks.
+</I>&gt;<i> &gt; &gt; Maintaining the user's expectations of privacy is critical.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; I think the paragraph under &quot;treating persistent storage as cookies&quot;
+</I>&gt;<i> &gt; should simply be removed. The remainder of that section already does an
+</I>&gt;<i> &gt; adequate job of explaining the privacy implications of persistent
+</I>&gt;<i> &gt; storage. The UI should be entirely at the discretion of the browser
+</I>&gt;<i> &gt; vendor since it involves a variety of tradeoffs, with the optimum
+</I>&gt;<i> &gt; solution depending on the anticipated user base of the browser. Placing
+</I>&gt;<i> &gt; spec requirements simply limits the abilities of browser vendors to find
+</I>&gt;<i> &gt; innovative solutions to the problem. In addition, since there is no
+</I>&gt;<i> &gt; interoperability requirement here, using RFC 2119 language seems
+</I>&gt;<i> &gt; inappropriate; especially since the justification given is rather weak
+</I>&gt;<i> &gt; (&quot;this might encourage users?&quot;) and not supported by any evidence.
+</I>&gt;<i>
+</I>&gt;<i> I think it's important to include this paragraph in a discussion of the
+</I>&gt;<i> privacy implications of these APIs. I feel like it would be irresponsible
+</I>&gt;<i> of me to not include this text, given how important this actually is.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> &gt; As to what browser vendors should actually _do_, it seems to me that the
+</I>&gt;<i> &gt; &quot;user's expectations of privacy&quot; is actually an illusion in this case;
+</I>&gt;<i> &gt; all the bad stuff that can be done with persistent storage can already
+</I>&gt;<i> &gt; be done using a variety of techniques. Trying to fix up this one case
+</I>&gt;<i> &gt; seems like closing the stable door after the horse has bolted. Therefore
+</I>&gt;<i> &gt; the &quot;delete local storage when you delete cookies&quot; model seems flawed,
+</I>&gt;<i> &gt; particularly as it can lead to the type of problem that Jens described
+</I>&gt;<i> &gt; above.
+</I>&gt;<i>
+</I>&gt;<i> Cookie resurrection has been a real concern on the Web. I don't think it's
+</I>&gt;<i> an illusion.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> &gt; On a slightly different topic, it is unclear what the relationship
+</I>&gt;<i> &gt; between the statement in section 4.3 &quot;User agents should expire data
+</I>&gt;<i> &gt; from the local storage areas only for security reasons or when requested
+</I>&gt;<i> &gt; to do so by the user&quot; and the statement in section 6.1 &quot;User agents may
+</I>&gt;<i> &gt; automatically delete stored data after a period of time.&quot; is supposed to
+</I>&gt;<i> &gt; be. Does the latter count as a security reason?
+</I>&gt;<i>
+</I>&gt;<i> I've edited the latter text to indicate that the expiration should only be
+</I>&gt;<i> done at user option.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> On Fri, 2 Oct 2009, Jeremy Orlow wrote:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Since my original post, I've continued thinking about LocalStorage,
+</I>&gt;<i> &gt; structured clones, etc...and the more I've thought about it, the more
+</I>&gt;<i> &gt; convinced I am that adding such support is a big mistake.  One way to
+</I>&gt;<i> &gt; think about it is as follows:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; 1)  We've all pretty much agreed that localStorage's synchronous design
+</I>&gt;<i> &gt; was a mistake that we should be careful to not repeat.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; 2)  I think we can all agree that storing structured clone data makes
+</I>&gt;<i> &gt; LocalStorage more powerful and useful to developers.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; 3)  And I think we can all agree that developers like to use more
+</I>&gt;<i> &gt; powerful APIs.  Especially when the API is easy to use and understand
+</I>&gt;<i> &gt; (as LocalStorage is).
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; 4)  Lock contention becomes worse as the frequency of acquires and/or
+</I>&gt;<i> &gt; the duration the lock is held increases.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Although there might be some subtleties about the statements I made that
+</I>&gt;<i> &gt; people could argue with, I think all these statements are pretty
+</I>&gt;<i> &gt; fundamentally true.  Assuming so, it's not a stretch to see that 2 and 3
+</I>&gt;<i> &gt; imply that adding structured clones to local storage will lead to more
+</I>&gt;<i> &gt; use of local storage.
+</I>&gt;<i>
+</I>&gt;<i> I don't see why it would add significantly more use. Once a site is using
+</I>&gt;<i> localStorage, whether it has structured storage natively or not, they're
+</I>&gt;<i> going to store structured data in it -- e.g. using JSON, as some people
+</I>&gt;<i> have said they already are -- and so I don't think that this effectively
+</I>&gt;<i> increases the usage. It just makes it simpler for those who do use it.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> &gt; If use increases, then 4 implies that the storage lock is going to
+</I>&gt;<i> &gt; become a bigger problem over time.  Since we can all agree that the
+</I>&gt;<i> &gt; synchronous design of local storage is already a problem that we wish we
+</I>&gt;<i> &gt; had avoided, I just can't understand why we're happy to make it a bigger
+</I>&gt;<i> &gt; problem.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Does anyone have an argument against this?
+</I>&gt;<i>
+</I>&gt;<i> I don't think it makes it a significantly bigger problem.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> &gt; Anyone who's going to use LocalStorage in the near to medium future will
+</I>&gt;<i> &gt; need to handle the case of LocalStorage only handling strings.  This is
+</I>&gt;<i> &gt; because structured clones supports a super-set of what can be serialized
+</I>&gt;<i> &gt; within a script, there's no way for libraries to build a transparent
+</I>&gt;<i> &gt; compatibility abstraction.  Thus, for some time, developers will either
+</I>&gt;<i> &gt; need to only use data that can be serialized (thus making structured
+</I>&gt;<i> &gt; clones only a performance optimization) or developers will need to cut
+</I>&gt;<i> &gt; off browsers that don't support structured clones.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Assuming that, we're basically saying that structured clones is a
+</I>&gt;<i> &gt; feature for the long term use and health of LocalStorage.  Now I know
+</I>&gt;<i> &gt; that we can't just get rid of LocalStorage and coming up with viable
+</I>&gt;<i> &gt; alternatives will take some time, but do we really believe that we can't
+</I>&gt;<i> &gt; agree on and develop a better alternative in the mean time?
+</I>&gt;<i>
+</I>&gt;<i> I think it makes sense to allow Files to be stored today.
+</I>&gt;<i>
+</I>&gt;<i> However, I'm all for a better API. So if you can get people to agree to a
+</I>&gt;<i> better API before anyone ships this one and before pages start depending
+</I>&gt;<i> on it, then maybe we can remove the structured storage feature from
+</I>&gt;<i> localStorage.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> &gt; I'm fine with SessionStorage supporting structured clones.  I just don't
+</I>&gt;<i> &gt; think we should make LocalStorage any more powerful.  In fact, at this
+</I>&gt;<i> &gt; point, I think we should redirect all the time and effort we're putting
+</I>&gt;<i> &gt; into making LocalStorage better (including solving lock contention
+</I>&gt;<i> &gt; issues) and instead put it into creating a new API that solves these
+</I>&gt;<i> &gt; problems and that all the browser vendors can get behind.  (If you have
+</I>&gt;<i> &gt; ideas on how I can get this ball rolling, I'd love to hear them!)
+</I>&gt;<i>
+</I>&gt;<i> I agree.
+</I>&gt;<i>
+</I>&gt;<i> --
+</I>&gt;<i> Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+</I>&gt;<i> <A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+</I>&gt;<i> Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</I>&gt;<i>
+</I>-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: &lt;<A HREF="http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20091029/a899c8a6/attachment-0001.htm">http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20091029/a899c8a6/attachment-0001.htm</A>&gt;
+</PRE>
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023848.html">[whatwg] localStorage feedback
+</A></li>
+	<LI>Next message: <A HREF="023885.html">[whatwg] localStorage feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23884">[ date ]</a>
+              <a href="thread.html#23884">[ thread ]</a>
+              <a href="subject.html#23884">[ subject ]</a>
+              <a href="author.html#23884">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

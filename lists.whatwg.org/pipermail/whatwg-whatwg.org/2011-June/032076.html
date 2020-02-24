@@ -1,0 +1,220 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Normalization of user selections
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Normalization%20of%20user%20selections&In-Reply-To=%3CBANLkTim61%3D%2BLO%2BZ-arP13QpraBBP1c8Y2Q%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="032072.html">
+   <LINK REL="Next"  HREF="032102.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Normalization of user selections</H1>
+<!--htdig_noindex-->
+    <B>Aryeh Gregor</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Normalization%20of%20user%20selections&In-Reply-To=%3CBANLkTim61%3D%2BLO%2BZ-arP13QpraBBP1c8Y2Q%40mail.gmail.com%3E"
+       TITLE="[whatwg] Normalization of user selections">Simetrical+w3c at gmail.com
+       </A><BR>
+    <I>Wed Jun 15 15:56:24 PDT 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="032072.html">[whatwg] Normalization of user selections
+</A></li>
+        <LI>Next message: <A HREF="032102.html">[whatwg] Normalization of user selections
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#32076">[ date ]</a>
+              <a href="thread.html#32076">[ thread ]</a>
+              <a href="subject.html#32076">[ subject ]</a>
+              <a href="author.html#32076">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>I sent this to the list from the wrong address and it bounced, so I'm
+resending it from the right address.  You should probably read it
+before you read Ryosuke's reply, which wound up getting to the list
+first because he was CC'd and got my message despite it bouncing from
+the list.
+
+----
+
+There are lots of cases where two different Ranges correspond to the
+same user-visible selection, and in such cases, browsers should behave
+the same for both.  For instance:
+
+* &lt;b&gt;foo[]&lt;/b&gt;bar vs. &lt;b&gt;foo&lt;/b&gt;[]bar: Is text typed by the user bold or not?
+* &lt;div&gt;{}&lt;p&gt;foo&lt;/p&gt;&lt;/div&gt; vs. &lt;div&gt;&lt;p&gt;[]foo&lt;/p&gt;&lt;/div&gt;: Is text typed
+by the user on the same line as &quot;foo&quot;, or does it make a new line
+before it?  (See <A HREF="https://bugzilla.mozilla.org/show_bug.cgi?id=662591">https://bugzilla.mozilla.org/show_bug.cgi?id=662591</A>)
+* &lt;p&gt;[foo]&lt;/p&gt; vs. {&lt;p&gt;foo&lt;/p&gt;}: If the user hits delete, is the whole
+line deleted or only the text &quot;foo&quot;?
+
+In each of these cases, some browsers will give different results,
+despite the fact that as far as the user can see, they're taking the
+exact same action.  Likewise, some types of selections will be
+completely invisible to the user, but might behave differently from if
+there were no selection: selections inside a Comment, say, or
+&lt;p&gt;{}&lt;/p&gt;.
+
+The logical solution here is to do some type of normalization on user
+selections before taking any actions.  For instance, we could
+normalize &lt;b&gt;foo&lt;/b&gt;[]bar to &lt;b&gt;foo[]&lt;/b&gt;bar before processing any
+user typing.  This seems pretty clear -- if anyone disagrees, please
+say so.
+
+The question is when to do the normalization.  One way to do it would
+be to normalize the selection immediately before running any
+execCommand() or processing any user typing.  A variant on that would
+be to first copy the range, then normalize the copy and act on that,
+so you don't change the selection itself.  WebKit and Opera take a
+different approach: they seem to normalize selections as soon as you
+try to modify them.  For instance, see here:
+
+<A HREF="http://software.hixie.ch/utilities/js/live-dom-viewer/saved/1025">http://software.hixie.ch/utilities/js/live-dom-viewer/saved/1025</A>
+
+This sets the selection to &quot;&lt;p&gt;{}foo&quot; and logs the focus node.
+IE9/Firefox 5.0a2 log a div element, while Chrome 13 dev/Opera 11.11
+log a text node: they convert the selection to &quot;&lt;p&gt;[]foo&quot; (putting it
+in the text node instead of the element).  So in WebKit and Opera, you
+just can't get &quot;bad&quot; ranges in a selection.  Note that in IE and
+Firefox, you usually can't get really unreasonable ranges via user
+actions -- e.g., it's probably impossible to get a Selection with a
+Comment node as a boundary point unless the author uses script to set
+it that way.  But you can still get them if the author sets them
+manually.
+
+I originally thought the WebKit/Opera behavior was unreasonable, but
+I've come around to thinking it makes more sense than IE/Gecko.  It's
+simpler and more consistent.  If selections are always normalized, we
+can ignore all sorts of crazy situations like boundary points in
+comments, or between a character and a combining diacritic.  If we
+allowed such selections, we'd have to add extra spec text and code to
+handle them reasonably, despite the fact that they're corner cases
+that should only arise if the author manually sets the selection to
+something weird.
+
+This benefit applies to authors too: they no longer have to worry
+about crazy selections.  When researching execCommand() usage in major
+software packages, I found that vBulletin's editor assumed that all
+selection boundary points are either Elements or Text nodes.  Should
+we really ask them to also account for every other node type
+(Document, DocumentType, DocumentFragment, Comment,
+ProcessingInstruction) to make their code correct, when such node
+types will only arise in pathological cases?  Removing corner cases
+makes it easier to write correct code, both for authors and
+implementers, and we should do so if there's not good reason to keep
+them.
+
+So I want to standardize some variant of the WebKit/Opera behavior,
+and guarantee that selection boundary points are always
+reasonable-looking (for some definition of reasonable TBD).  This
+would be a change to the existing spec text and the two biggest
+implementations, however, so I'd like to hear what everyone has to
+think before I start.
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="032072.html">[whatwg] Normalization of user selections
+</A></li>
+	<LI>Next message: <A HREF="032102.html">[whatwg] Normalization of user selections
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#32076">[ date ]</a>
+              <a href="thread.html#32076">[ thread ]</a>
+              <a href="subject.html#32076">[ subject ]</a>
+              <a href="author.html#32076">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

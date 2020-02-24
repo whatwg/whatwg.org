@@ -1,0 +1,261 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Fwd: img srcset / css image-set issues
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Fwd%3A%20img%20srcset%20/%20css%20image-set%20issues&In-Reply-To=%3CCAG_kaUaz3eOa19CGROekcLo8LSYLs4WjmFe14rPU%2Bp3uRuP%3D9g%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="079262.html">
+   <LINK REL="Next"  HREF="079227.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Fwd: img srcset / css image-set issues</H1>
+<!--htdig_noindex-->
+    <B>John Mellor</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Fwd%3A%20img%20srcset%20/%20css%20image-set%20issues&In-Reply-To=%3CCAG_kaUaz3eOa19CGROekcLo8LSYLs4WjmFe14rPU%2Bp3uRuP%3D9g%40mail.gmail.com%3E"
+       TITLE="[whatwg] Fwd: img srcset / css image-set issues">johnme at chromium.org
+       </A><BR>
+    <I>Tue Aug 21 12:59:09 PDT 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="079262.html">[whatwg] img srcset / css image-set issues
+</A></li>
+        <LI>Next message: <A HREF="079227.html">[whatwg] img srcset / css image-set issues
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#36953">[ date ]</a>
+              <a href="thread.html#36953">[ thread ]</a>
+              <a href="subject.html#36953">[ subject ]</a>
+              <a href="author.html#36953">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>CSS image-set and HTML img srcset are getting their first implementations
+but both APIs have serious shortcomings. We should fix them before it's too
+late:
+
+1. Neither is of any use for flexibly-sized images.
+2. srcset isn't as smart/intuitive as image-set.
+3. image-set is less flexible than srcset.
+
+I'll go through these in turn, in decreasing order of importance (sorry
+about the length, but this is a complex topic and I've tried to avoid
+ambiguity).
+
+(This email is cross-posted to whatwg and www-style, since this is of equal
+relevance to HTML and CSS).
+
+1. Neither is of any use for flexibly-sized images.
+
+These APIs have been designed with fixed-size images in mind, and they work
+well for that use case. For example if you have a width:320px image, and
+you need to decide whether to load the 2x &quot;retina&quot; file or the standard
+file.
+
+However they stop working when the width (or even just min/max-width) is
+flexible, for example width:100%, which makes them almost useless for
+responsive web design, and not great even for basic tasks like adapting to
+different size mobile devices. I'll explain why:
+
+If you have the same image saved in a variety of scales on the server (e.g.
+320.jpg, 640.jpg, 1280.jpg, and 2560.jpg, named after their widths), then
+you want the browser to load the one which has the same number of pixels of
+image data as the number of device pixels that the image is taking up on
+the display (assuming for now that bandwidth isn't a concern, and that you
+don't have to worry about the page being displayed at multiple zoom levels
+due to pinch zoom). For example if your width:100% image is currently
+stretched to 1280 CSS px, then you want to load 1280.jpg on 1x low DPI
+devices and 2560.jpg on 2x high DPI devices. But if it has shrunk to 320
+CSS px, then you want to load 320.jpg on 1x low DPI devices and 640.jpg on
+2x high DPI devices.
+
+Neither image-set nor srcset can cope with this simple fundamental task!
+Nor can they, as currently specified: while the browser knows (or can
+estimate, if layout hasn't yet happened) the number of device pixels the
+image is taking up, it doesn't know how many pixels of image data the
+srcset/image-set entries contain until it downloads them, since it knows
+their dppx but not their size.
+
+To put it another way, since the browser doesn't know the intrinsic size of
+the image until it downloads one of the files (and divides the image data
+size by its dppx value), they simply cannot know how much a flexibly-sized
+image is being stretched by, and so they can't use that information as
+input when deciding which image to download.
+
+[With srcset, it is possible to hack together a srcset definition that will
+load approximately the right image file by combining dppx and viewport
+width restrictions -- see sample
+code&lt;<A HREF="http://jsbin.com/aganaz/8/edit?javascript,live">http://jsbin.com/aganaz/8/edit?javascript,live</A>&gt; --
+but this is excessively cumbersome for practical use.]
+
+A simple solution to this problem, would be to provide a way for authors to
+tell the browser in advance what the intrinsic size of a flexibly-sized
+image is, such that the browser can calculate how many pixels of image data
+each option contains, and hence which would be most appropriate. For
+example, one could add an initial term to the srcset/image-set, providing
+the intrinsic size of the image:
+
+&lt;img srcset=&quot;320x120, 320.jpg 1x, 640.jpg 2x, 1280.jpg 4x, 2560.jpg 8x&quot;&gt;
+selector { background: image-set(320x120, &quot;320.jpg&quot; 1x, &quot;640.jpg&quot; 2x,
+&quot;1280.jpg&quot; 4x, &quot;2560.jpg&quot; 8x); }
+
+This would be equivalent to:
+
+&lt;img srcset=&quot;2560x960, 320.jpg 0.125x, 640.jpg 0.25x, 1280.jpg 0.5x,
+2560.jpg 1x&quot;&gt;
+selector { background: image-set(2560x960, &quot;320.jpg&quot; 0.125x, &quot;640.jpg&quot;
+0.25x, &quot;1280.jpg&quot; 0.5x, &quot;2560.jpg&quot; 1x); }
+
+For each image, after discarding images that don't satisfy the viewport
+width/height criteria in the usual manner if it's a srcset, the browser
+would multiply the provided intrinsic size by the image's &quot;x&quot; value to
+calculate the number of pixels of image data available in each dimension,
+then it would pick the one that most appropriately matches the number of
+device pixels the image is actually taking up in each dimension (see 2.
+below for why I recommend &quot;most appropriate&quot; instead of &quot;strictly pick the
+smallest image whose image width &gt;= device pixel width&quot;).
+
+This initial intrinsic width term would be optional, as it is unnecessary
+for fixed-size images, but would be strongly recommended for flexible-size
+images as without it the &quot;x&quot; values would select purely on dppx grounds,
+which as explained above isn't useful.
+
+In the occasional event that different images have different intrinsic
+sizes it would be possible to specify several intrinsic sizes, each of
+which would apply to the subsequent images (until the next intrinsic size).
+For example:
+
+&lt;img id=&quot;logo&quot; style=&quot;width:100%&quot; srcset=&quot;
+    320x320, square.jpg 1x 400w, square-hd.jpg 2x 400w,
+    320x50, flat-s.jpg 1x, flat-m.jpg 2x, flat-l.jpg 4x, flat-xl.jpg 8x
+&quot;&gt;
+
+would show a square logo on portrait phones, but a more discreet flat logo
+on wider devices (in both cases using the file of appropriate dpi taking
+into account the width at which it is displayed).
+
+Remember that specifying the intrinsic size would only be needed for
+flexible-size images (including fixed-size images with flexible
+min/max-width/height), and that multiple sizes would only be necessary when
+using images of different intrinsic sizes (i.e. different aspect ratios
+and/or different intrinsic scale).
+
+An alternative notation might be to just directly specify the image data
+dimensions of each image, but that seems slightly more cumbersome:
+
+&lt;img srcset=&quot;320.jpg 320x120, 640.jpg 640x240, 1280.jpg 1280x480, 2560.jpg
+2560x960&quot;&gt;
+
+The redundancy could be reduced by providing only widths, or only heights,
+though it might get confusing to have a bunch of raw widths or heights
+mixed in with viewport w/h restrictions, so I think the syntax suggested
+earlier is preferable.
+
+2. srcset not as smart/intuitive as image-set.
+
+The syntax for HTML img srcset and CSS image-set is very similar, thus
+developers will assume they behave the same. This would be great, except
+that they actually behave rather differently. For example, compare:
+
+&lt;img srcset=&quot;low.jpg 1x, high.jpg 2x&quot;&gt;
+selector { background: image-set(&quot;low.jpg&quot; 1x, &quot;high.jpg&quot; 2x); }
+
+Surely such a simple case must behave the same? But actually, if you view
+this on a device whose dppx is 1.1, the image-set will most likely load
+low.jpg, as it is the closest match for the display, while the srcset will
+load high.jpg, because the specified
+algorithm&lt;<A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/embedded-content-1.html#processing-the-image-candidates">http://www.whatwg.org/specs/web-apps/current-work/multipage/embedded-content-1.html#processing-the-image-candidates</A>&gt;
+treats
+the dppx values as strict maximums.
+
+The ideal solution to this is to relax the specified algorithm for srcset
+to just say that the UA will pick the most appropriate image based on their
+declared characteristics, as specified for
+image-set&lt;<A HREF="http://dev.w3.org/csswg/css4-images/#image-set-notation">http://dev.w3.org/csswg/css4-images/#image-set-notation</A>&gt;.
+For example 2x would just mean that the image has a dppx of 2, and hence is
+probably a good match for devices whose dppx is close to 2.
+
+For consistency one might be tempted to make a similar adjustment for the
+w/h viewport size constraints (i.e. they would declare the intended
+viewport size rather than the maximum viewport size), however that seems
+less useful, since there are good reasons why an author might want to
+precisely define the viewport size cut-off at which the switchover occurs
+(unlike dppx, where the browser usually knows better, since it has insight
+into bandwidth, latency, financial cost per byte, etc).
+
+3. image-set is less flexible than srcset.
+
+As mentioned above, since srcset and image-set have such similar syntax and
+semantics, it's important for them to behave as similarly as possible to
+avoid confusion.
+
+If it's felt useful for srcset to have maximum viewport dimensions (w/h) --
+and they do seem reasonably useful -- then these should be added to
+image-set as well; otherwise they should be removed from srcset.
+
+Summary of recommendations.
+---------------------------
+
+1. srcset and image-set need a mechanism for dealing with flexibly-sized
+images, preferably by specifying the intrinsic sizes of the available
+images.
+
+2. srcset's dppx restrictions should copy image-set's smart and intuitive
+behavior, rather than prescribing a less useful algorithm.
+
+3. image-set should accept equivalent syntax to srcset (i.e. support
+viewport w/h restrictions, unless they get dropped from srcset).
+
+Of these 1 is the most important for these APIs to be a complete solution
+for responsive images, but 2 is also important as it makes using the APIs
+together significantly less confusing.
+
+Thanks for reading this far, and sorry I didn't get a chance to provide
+this feedback earlier,
+John
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="079262.html">[whatwg] img srcset / css image-set issues
+</A></li>
+	<LI>Next message: <A HREF="079227.html">[whatwg] img srcset / css image-set issues
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#36953">[ date ]</a>
+              <a href="thread.html#36953">[ thread ]</a>
+              <a href="subject.html#36953">[ subject ]</a>
+              <a href="author.html#36953">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

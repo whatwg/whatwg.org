@@ -1,0 +1,217 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Empty elements
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Empty%20elements&In-Reply-To=%3CPine.LNX.4.62.0602161930500.28514%40dhalsim.dreamhost.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="005835.html">
+   <LINK REL="Next"  HREF="005840.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Empty elements</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Empty%20elements&In-Reply-To=%3CPine.LNX.4.62.0602161930500.28514%40dhalsim.dreamhost.com%3E"
+       TITLE="[whatwg] Empty elements">ian at hixie.ch
+       </A><BR>
+    <I>Thu Feb 16 12:02:16 PST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="005835.html">[whatwg] Empty elements
+</A></li>
+        <LI>Next message: <A HREF="005840.html">[whatwg] Empty elements
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5836">[ date ]</a>
+              <a href="thread.html#5836">[ thread ]</a>
+              <a href="subject.html#5836">[ subject ]</a>
+              <a href="author.html#5836">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Thu, 16 Feb 2006, Tim Altman wrote:
+&gt;<i> 
+</I>&gt;<i> OK.  Assuming the HTML5 document is served with a text/html doctype, how would
+</I>&gt;<i> the following markup be parsed?
+</I>&gt;<i> 
+</I>&gt;<i> &lt;table&gt;
+</I>&gt;<i>   &lt;tr&gt;
+</I>&gt;<i>     &lt;td&gt;
+</I>&gt;<i>       &lt;canvas/&gt;
+</I>&gt;<i>       &lt;p&gt;Foo&lt;/p&gt;
+</I>&gt;<i>     &lt;/td&gt;
+</I>&gt;<i>   &lt;/tr&gt;
+</I>&gt;<i> &lt;/table&gt;
+</I>
+You omitted the DOCTYPE, which makes it a &quot;difficult parse error&quot; and thus 
+isn't currently defined (i.e. it triggers Quirks mode). Assuming the 
+document started with &quot;&lt;!DOCTYPE HTML&gt;&quot;, though, and ignoring all 
+whitespace (nothing interesting happens with whitespace):
+
+   * Tree Construction starts in the Initial Phase.
+   * A DOCTYPE token marked as being correct
+      -- Append a DocumentType node to the Document node
+      -- Switch to the Root Element Phase.
+   * A start tag token (&lt;table&gt;)
+      -- Append an &lt;html&gt; element to the Document node.
+      -- Switch to the Main Phase
+          * Main phase state:
+             -- Insertion mode is in the &quot;before head&quot; mode.
+             -- Stack of open elements has just &lt;html&gt;.
+      -- Reprocess the token:
+   * &quot;Anything else&quot; (&lt;table&gt;) in &quot;before head&quot;
+      -- Act as if &lt;head&gt; had been seen:
+          * A start tag token with the tag name &quot;head&quot;
+             -- Append a &lt;head&gt; element to the &lt;html&gt; element.
+             -- Stack of open elements has &lt;html&gt;&lt;head&gt;.
+             -- Switch to the &quot;in head&quot; insertion mode.
+      -- Reprocess the token:
+   * &quot;Anything else&quot; (&lt;table&gt;) in &quot;in head&quot;
+      -- Act as if &lt;/head&gt; had been seen:
+          * An end tag token with the tag name &quot;head&quot;
+             -- Stack of open elements again just has &lt;html&gt;.
+             -- Change the insertion mode to &quot;after head&quot;.
+      -- Reprocess the token:
+   * &quot;Anything else&quot; (&lt;table&gt;) in &quot;after head&quot;
+      -- Act as if &lt;body&gt; had been seen:
+          * A start tag token with the tag name &quot;body&quot;
+             -- Append a &lt;body&gt; element to the &lt;html&gt; element.
+             -- Stack of open elements has &lt;html&gt;&lt;body&gt;.
+             -- Switch to the &quot;in body&quot; insertion mode.
+      -- Reprocess the token:
+   * A start tag whose tag name is &quot;table&quot;
+      -- Append a &lt;table&gt; element to the &lt;body&gt; element.
+      -- Stack of open elements has &lt;html&gt;&lt;body&gt;&lt;table&gt;.
+      -- Switch to the &quot;in table&quot; insertion mode.
+   * A start tag whose tag name is one of: &quot;td&quot;, &quot;th&quot;, &quot;tr&quot;
+      -- Act as if &lt;tbody&gt; had been seen:
+          * A start tag whose tag name is one of: &quot;tbody&quot;, &quot;tfoot&quot;, &quot;thead&quot; 
+             -- Append a &lt;tbody&gt; to the &lt;table&gt; element.
+             -- Stack of open elements has &lt;html&gt;&lt;body&gt;&lt;table&gt;&lt;tbody&gt;.
+             -- Switch to the &quot;in table body&quot; insertion mode.
+      -- Reprocess the token:
+   * A start tag whose tag name is &quot;tr&quot;
+      -- Append a &lt;tr&gt; element to the &lt;tbody&gt; element.
+      -- Stack of open elements has &lt;html&gt;&lt;body&gt;&lt;table&gt;&lt;tbody&gt;&lt;tr&gt;.
+      -- Switch to the &quot;in row&quot; insertion mode.
+   * A start tag whose tag name is one of: &quot;th&quot;, &quot;td&quot;
+      -- Append a &lt;td&gt; element to the &lt;tr&gt; element.
+      -- Stack of open elements has &lt;html&gt;&lt;body&gt;&lt;table&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td&gt;.
+      -- Switch to the &quot;in cell&quot; insertion mode.
+   * Anything else (&lt;canvas&gt;) in &quot;in cell&quot;
+      -- Process as if it was &quot;in body&quot;:
+          * A start tag token not covered by the previous entries (&lt;canvas&gt;)
+             -- Append a &lt;canvas&gt; element to the &lt;td&gt; element.
+             -- Stack of open elements has:
+                  &lt;html&gt;&lt;body&gt;&lt;table&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td&gt;&lt;canvas&gt;
+   * Anything else (&lt;p&gt;) in &quot;in cell&quot;
+      -- Process as if it was &quot;in body&quot;:
+          * A start tag whose tag name is one of: &quot;address&quot;, &quot;blockquote&quot;, 
+            &quot;center&quot;, &quot;dir&quot;, &quot;div&quot;, &quot;dl&quot;, &quot;fieldset&quot;, &quot;h1&quot;, &quot;h2&quot;, &quot;h3&quot;, 
+            &quot;h4&quot;, &quot;h5&quot;, &quot;h6&quot;, &quot;listing&quot;, &quot;menu&quot;, &quot;ol&quot;, &quot;p&quot;, &quot;pre&quot;, &quot;ul&quot; 
+             -- Append a &lt;p&gt; element to the &lt;canvas&gt; element.
+             -- Stack of open elements has:
+                  &lt;html&gt;&lt;body&gt;&lt;table&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td&gt;&lt;canvas&gt;&lt;p&gt;
+   * Anything else (character &quot;F&quot;, then later &quot;o&quot; and &quot;o&quot;) in &quot;in cell&quot;
+      -- Process as if it was &quot;in body&quot;:
+          * Append a text node Foo to the &lt;p&gt; element.
+   * Anything else (&lt;/p&gt;) in &quot;in cell&quot;
+      -- Process as if it was &quot;in body&quot;:
+          * An end tag whose tag name is &quot;p&quot; 
+             -- Stack of open elements one again has just:
+                  &lt;html&gt;&lt;body&gt;&lt;table&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td&gt;&lt;canvas&gt;
+             -- Insertion mode is still &quot;in cell&quot;.
+   * An end tag whose tag name is one of: &quot;td&quot;, &quot;th&quot;
+      -- Current node is not a &lt;td&gt; (it's &lt;canvas&gt;): EASY PARSE ERROR.
+      -- Pop elements until a &lt;td&gt; is popped. Stack of open elements one 
+         again has just &lt;html&gt;&lt;body&gt;&lt;table&gt;&lt;tbody&gt;&lt;tr&gt;.
+      -- Switch insertion mode to &quot;in row&quot;.
+   * An end tag whose tag name is &quot;tr&quot; 
+      -- Stack of open elements is now: &lt;html&gt;&lt;body&gt;&lt;table&gt;&lt;tbody&gt;.
+      -- Switch insertion mode to &quot;in table body&quot;.
+   * An end tag whose tag name is &quot;table&quot; 
+      -- Act as if &lt;/tbody&gt; had been seen:
+          * An end tag whose tag name is one of: &quot;tbody&quot;, &quot;tfoot&quot;, &quot;thead&quot; 
+             -- Stack of open elements is &lt;html&gt;&lt;body&gt;&lt;table&gt;.
+             -- Change insertion mode to &quot;in table&quot;.
+      -- Reprocess the token.
+   * An end tag whose tag name is &quot;table&quot; 
+      -- Stack of open element is &lt;html&gt;&lt;body&gt;.
+      -- Change insertion mode to &quot;in body&quot;.
+   * An end-of-file token 
+      -- Act as if &lt;/body&gt; had been seen:
+          * An end tag with the tag name &quot;body&quot;
+             -- Switch insertion mode to &quot;after body&quot;.
+      -- Reprocess the token.
+   * An end-of-file token 
+      -- Act as if &lt;/html&gt; had been seen:
+          * An end tag with the tag name &quot;html&quot;
+             -- Switch to the Trailing End Phase.
+      -- Reprocess the token.
+   * An end-of-file token 
+      -- Ignore the token.
+
+The result is a DOM that looks like:
+
+    #document
+      HTML
+        HEAD
+        BODY
+          TABLE
+            TBODY
+              TR
+                TD
+                  CANVAS
+                    P
+                      #text (&quot;Foo&quot;)
+
+Hopefully everyone was able to follow along at home and get the same 
+result.
+
+
+&gt;<i> I skimmed the parsing section of the current HTML5 draft (mainly 
+</I>&gt;<i> 8.2.2.3.7) and noticed that the canvas element is being treated as a 
+</I>&gt;<i> &quot;phrasing&quot; element. Is this by mistake?  I would think it would be 
+</I>&gt;<i> treated similar to the object element, since they have similar handling 
+</I>&gt;<i> of fallback content.
+</I>
+New elements will all be either treated like &lt;div&gt;, &lt;input&gt;, or &lt;span&gt;, 
+depending on whether they are structure-like, empty, or something else.
+
+&lt;object&gt; has _complicated_ parsing semantics. We don't want to make any 
+new elements have complicated parsing semantics (especially because that 
+wouldn't be backwards-compatible).
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="005835.html">[whatwg] Empty elements
+</A></li>
+	<LI>Next message: <A HREF="005840.html">[whatwg] Empty elements
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5836">[ date ]</a>
+              <a href="thread.html#5836">[ thread ]</a>
+              <a href="subject.html#5836">[ subject ]</a>
+              <a href="author.html#5836">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

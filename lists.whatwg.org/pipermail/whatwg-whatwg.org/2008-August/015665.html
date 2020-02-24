@@ -1,0 +1,197 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Workers feedback
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Workers%20feedback&In-Reply-To=%3C489BF295.2000206%40sicking.cc%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="015664.html">
+   <LINK REL="Next"  HREF="015666.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Workers feedback</H1>
+<!--htdig_noindex-->
+    <B>Jonas Sicking</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Workers%20feedback&In-Reply-To=%3C489BF295.2000206%40sicking.cc%3E"
+       TITLE="[whatwg] Workers feedback">jonas at sicking.cc
+       </A><BR>
+    <I>Fri Aug  8 00:15:33 PDT 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="015664.html">[whatwg] Workers feedback
+</A></li>
+        <LI>Next message: <A HREF="015666.html">[whatwg] Workers feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#15665">[ date ]</a>
+              <a href="thread.html#15665">[ thread ]</a>
+              <a href="subject.html#15665">[ subject ]</a>
+              <a href="author.html#15665">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>&gt;&gt;<i> One solution I thought about is to have a base interface such as:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> interface MessagePort {
+</I>&gt;&gt;<i>   void postMessage(...);
+</I>&gt;&gt;<i>   attribute EventListener onmessage;
+</I>&gt;&gt;<i>   ...
+</I>&gt;&gt;<i> }
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Then have
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> interface Worker : MessagePort {
+</I>&gt;&gt;<i>    bool isShared();
+</I>&gt;&gt;<i>    &lt;worker specific stuff&gt;
+</I>&gt;&gt;<i> }
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> interface PipePort : MessagePort {
+</I>&gt;&gt;<i>    attribute Window ownerWindow;
+</I>&gt;&gt;<i>    &lt;Pipe specific stuff&gt;
+</I>&gt;&gt;<i> }
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> And then make the APIs that we want to allow passing around pipe-ends take a
+</I>&gt;&gt;<i> PipePort object.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> The result is basically that workers are separate objects from what's 
+</I>&gt;&gt;<i> returned for (new MessagePipe()).port1, but they share some API.
+</I>&gt;<i> 
+</I>&gt;<i> The problem there though is that when you receive a port, you have no idea 
+</I>&gt;<i> if it's a port into another frame, or a port into a worker that happened 
+</I>&gt;<i> to be created as a pipe, or a port into a worker that happened to be 
+</I>&gt;<i> created when the worker was created. I don't see why you would ever need 
+</I>&gt;<i> to have that distinction, either.
+</I>
+Sorry, I might have been unclear. My suggested inheritance might be 
+better explained as
+
+interface CommunicationPort {
+   void postMessage(...)
+   attribute EventListener onmessage;
+   ...
+}
+
+interface Worker : CommuncationPort {
+   attribute EventListener onload;
+   attribute EventListener onerror;
+}
+
+interface MessagePort : CommunicationPort {
+}
+
+I.e. we wouldn't allow a Worker to be passed to postMessage, but the 
+object returned from myPipe.port1 would be allowed.
+
+&gt;<i> The whole point of ports as an 
+</I>&gt;<i> architectural concept is that they provide an opaque interface, and who 
+</I>&gt;<i> exactly is on the other side is not something that you should need to have 
+</I>&gt;<i> any information about.
+</I>
+Why do we need this feature? I.e. why is it useful to have an abstracted 
+MessagePort where you don't know who you are communicating with?
+
+The one useful thing that I see that MessagePorts do is that they allow 
+objects that usually can't directly reach each other send messages to 
+each other. I.e. two iframes that live next to each other can't usually 
+get a reference to each other, but using MessagePorts a communcation 
+channel can be negotiated between them.
+
+Similarly, two sibling workers can't in the current proposal reach each 
+other, but using MessagePorts they can communicate with each other anyway.
+
+&gt;&gt;<i> I in general am not a big fan of the MessagePort API, the whole cloning 
+</I>&gt;&gt;<i> and dying thing is really ugly. I don't think there is much we can do 
+</I>&gt;&gt;<i> about that, but because of it I think we should only use the API when 
+</I>&gt;&gt;<i> it's strictly needed, which seems to be only in fairly complex usecases. 
+</I>&gt;<i> 
+</I>&gt;<i> I don't really understand this concern. Why is it complex? Then again, I 
+</I>&gt;<i> have the same reaction to your proposal for a Worker object. :-)
+</I>
+My proposal makes Workers behave the same way as Windows when it comes 
+to sending messages. I think postMessage on Windows can generally be 
+considered a success, I haven't heard a lot of people complaining about 
+it being complex.
+
+&gt;&gt;<i> Exposing a MessagePort as a permanent property, like the global 'port' 
+</I>&gt;&gt;<i> property, has the downside that that object can potentially die if the 
+</I>&gt;&gt;<i> MessagePort is ever passed through postMessage somewhere.
+</I>&gt;<i> 
+</I>&gt;<i> Do you mean that:
+</I>&gt;<i> 
+</I>&gt;<i>    var w = createWorker('worker.js');
+</I>&gt;<i>    otherWindow.postMessage('here is the worker you asked for', w.port);
+</I>&gt;<i>    w.port.postMessage('oh i wanted to talk to you after all');
+</I>&gt;<i> 
+</I>&gt;<i> ...would fail? (It would return false from the last call.)
+</I>
+Yes.
+
+Further, the fact that a clone is created on the other end rather than 
+the same object I think can be confusing. I.e. if I set an expando on a 
+port the receiver of the port won't see the expando. This is required 
+since otherwise we'd have synchronous communication between threads, but 
+I think it's confusing to authors. This is why I generally don't like 
+MessagePorts and think that they should be used as little as possible.
+
+Also, I would have expected the above to throw an exception. Having it 
+silently fail (which is what'll happen if you don't check the return 
+value) seems likely to cause hidden bugs.
+
+&gt;<i> I don't think this is a big problem. I mean, it's like being worried that 
+</I>&gt;<i> references into a window fail to have the right effect after the window is 
+</I>&gt;<i> closed or navigated.
+</I>
+I think for windows we are usually saved by the fact that generally when 
+a window is navigated, all the code that uses that window is killed.
+
+&gt;&gt;<i> This leaves the user with a permanent property containing a dead useless 
+</I>&gt;&gt;<i> object. Not exposing it as a permanent property forces things like the 
+</I>&gt;&gt;<i> onconnect event and returning a MessagePort from createWorker.
+</I>&gt;<i> 
+</I>&gt;<i> Do you mean on the Worker (outside) or the WorkerGlobalScope (inside)?
+</I>
+Yes
+
+&gt;<i> The current spec doesn't expose 'port' as a permanent attribute on the 
+</I>&gt;<i> WorkerGlobalScope (inside), it's just a property added to the global 
+</I>&gt;<i> object, it's not NoDelete or anything.
+</I>
+Hmm.. pretty much all other properties that are created by a browser is 
+permanent. So I don't expect that this will change as far as user 
+expected behavior goes.
+
+I have yet to actually see any advantages to demanding the use of 
+MessagePorts. Other than potentially somewhat nicer interface for shared 
+workers, but I don't think that's common enough to optimize for, nor do 
+I think the win there is particularly big.
+
+/ Jonas
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="015664.html">[whatwg] Workers feedback
+</A></li>
+	<LI>Next message: <A HREF="015666.html">[whatwg] Workers feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#15665">[ date ]</a>
+              <a href="thread.html#15665">[ thread ]</a>
+              <a href="subject.html#15665">[ subject ]</a>
+              <a href="author.html#15665">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

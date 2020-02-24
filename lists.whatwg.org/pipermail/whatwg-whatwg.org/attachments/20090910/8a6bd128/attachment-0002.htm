@@ -1,0 +1,40 @@
+<tt>
+On&nbsp;Thu,&nbsp;Sep&nbsp;10,&nbsp;2009&nbsp;at&nbsp;1:59&nbsp;AM,&nbsp;Chris&nbsp;Jones&nbsp;&lt;span&nbsp;dir=&quot;ltr&quot;&gt;&lt;&lt;a&nbsp;href=&quot;mailto:cjones@mozilla.com&quot;&gt;cjones@mozilla.com&lt;/a&gt;&gt;&lt;/span&gt;&nbsp;wrote:&lt;br&gt;&lt;div&nbsp;class=&quot;gmail_quote&quot;&gt;&lt;blockquote&nbsp;class=&quot;gmail_quote&quot;&nbsp;style=&quot;margin:0&nbsp;0&nbsp;0&nbsp;.8ex;border-left:1px&nbsp;#ccc&nbsp;solid;padding-left:1ex;&quot;&gt;<br>
+<br>
+&lt;div&nbsp;class=&quot;im&quot;&gt;Jeremy&nbsp;Orlow&nbsp;wrote:&lt;/div&gt;&lt;div&nbsp;class=&quot;im&quot;&gt;&lt;blockquote&nbsp;class=&quot;gmail_quote&quot;&nbsp;style=&quot;margin:0&nbsp;0&nbsp;0&nbsp;.8ex;border-left:1px&nbsp;#ccc&nbsp;solid;padding-left:1ex&quot;&gt;<br>
+What&nbsp;failures&nbsp;could&nbsp;there&nbsp;be&nbsp;in&nbsp;a&nbsp;pesimistic/queue&nbsp;model?&lt;br&gt;<br>
+&lt;/blockquote&gt;<br>
+&lt;br&gt;&lt;/div&gt;<br>
+I&#39;m&nbsp;trying&nbsp;to&nbsp;think&nbsp;of&nbsp;a&nbsp;&quot;universal&nbsp;failure,&quot;&nbsp;something&nbsp;that&nbsp;could&nbsp;arise&nbsp;in&nbsp;any&nbsp;implementation&nbsp;of&nbsp;any&nbsp;proposal.&nbsp; I&nbsp;think&nbsp;that&nbsp;universal&nbsp;failure&nbsp;is&nbsp;&quot;exceeded&nbsp;localStorage&nbsp;space&nbsp;quota&quot;.&nbsp; (I&nbsp;believe&nbsp;there&nbsp;are&nbsp;others,&nbsp;but&nbsp;one&nbsp;is&nbsp;enough&nbsp;for&nbsp;this&nbsp;discussion.)&lt;br&gt;<br>
+<br>
+<br>
+&lt;br&gt;<br>
+So&nbsp;there&nbsp;are&nbsp;really&nbsp;two&nbsp;questions:&nbsp;first,&nbsp;what&nbsp;happens&nbsp;if&nbsp;you&nbsp;detect&nbsp;&quot;quota&nbsp;exceeded&quot;&nbsp;in&nbsp;the&nbsp;middle&nbsp;of&nbsp;a&nbsp;localStorage.transaction()&nbsp;callback?&nbsp; Are&nbsp;the&nbsp;modifications&nbsp;made&nbsp;*up&nbsp;to*&nbsp;the&nbsp;quota&nbsp;exceeded&nbsp;error&nbsp;applied&nbsp;to&nbsp;backing&nbsp;store?&nbsp; Or&nbsp;are&nbsp;they&nbsp;rolled&nbsp;back?&nbsp; This&nbsp;is&nbsp;the&nbsp;atomicity/consistency&nbsp;design&nbsp;decision&nbsp;I&nbsp;described:&nbsp;what&nbsp;is&nbsp;the&nbsp;unit&nbsp;of&nbsp;atomic&nbsp;modification&nbsp;(all&nbsp;applied&nbsp;or&nbsp;none&nbsp;applied).&lt;br&gt;<br>
+<br>
+<br>
+&lt;br&gt;<br>
+And&nbsp;second,&nbsp;can&nbsp;scripts&nbsp;be&nbsp;notified&nbsp;that&nbsp;the&nbsp;transaction&nbsp;failed&nbsp;(or&nbsp;was&nbsp;only&nbsp;partially&nbsp;applied)&nbsp;because&nbsp;of&nbsp;quota&nbsp;exceeded?&lt;br&gt;<br>
+&lt;br&gt;<br>
+AFAICT&nbsp;this&nbsp;is&nbsp;irrespective&nbsp;of&nbsp;sync/async/optimistic/pessimistic/queue.&nbsp; Any&nbsp;implementation&nbsp;has&nbsp;to&nbsp;deal&nbsp;with&nbsp;this&nbsp;error&nbsp;somehow.&lt;br&gt;<br>
+&lt;br&gt;<br>
+In&nbsp;the&nbsp;current&nbsp;localStorage&nbsp;spec,&nbsp;if&nbsp;a&nbsp;setItem()&nbsp;fails&nbsp;because&nbsp;space&nbsp;is&nbsp;exhausted,&nbsp;it&nbsp;raises&nbsp;QUOTA_EXCEEDED_ERR&nbsp;and&nbsp;does&nbsp;*not*&nbsp;apply&nbsp;any&nbsp;part&nbsp;of&nbsp;the&nbsp;change&nbsp;in&nbsp;setItem().&nbsp; That&nbsp;is,&nbsp;setItem()&nbsp;is&nbsp;atomic&nbsp;---&nbsp;it&nbsp;either&nbsp;applies&nbsp;or&nbsp;not&nbsp;(not&nbsp;partially&nbsp;applied).&nbsp; But&nbsp;modifications&nbsp;to&nbsp;localStorage&nbsp;*before*&nbsp;that&nbsp;failing&nbsp;setItem(),&nbsp;within&nbsp;the&nbsp;same&nbsp;storage&nbsp;mutex&nbsp;acquire/release&nbsp;set,&nbsp;*are*&nbsp;applied&nbsp;to&nbsp;backing&nbsp;store.&lt;br&gt;<br>
+<br>
+<br>
+&lt;br&gt;<br>
+In&nbsp;the&nbsp;Web&nbsp;Database&nbsp;spec,&nbsp;if&nbsp;executing&nbsp;a&nbsp;SQL&nbsp;statement&nbsp;in&nbsp;a&nbsp;Transaction&nbsp;would&nbsp;cause&nbsp;space&nbsp;quota&nbsp;to&nbsp;be&nbsp;exceeded,&nbsp;then&nbsp;*none*&nbsp;of&nbsp;the&nbsp;statements&nbsp;in&nbsp;the&nbsp;transaction&nbsp;are&nbsp;executed&nbsp;(i.e.&nbsp;none&nbsp;committed&nbsp;to&nbsp;backing&nbsp;store),&nbsp;and&nbsp;the&nbsp;Transaction&nbsp;fails&nbsp;with&nbsp;QUOTA_ERR.&nbsp; The&nbsp;unit&nbsp;of&nbsp;atomicity&nbsp;for&nbsp;Web&nbsp;Database&nbsp;is&nbsp;that&nbsp;Transaction&nbsp;object&nbsp;---&nbsp;either&nbsp;all&nbsp;statements&nbsp;in&nbsp;Transaction&nbsp;successfully&nbsp;execute&nbsp;or&nbsp;none&nbsp;do.&lt;br&gt;<br>
+<br>
+<br>
+&lt;br&gt;<br>
+I&#39;m&nbsp;not&nbsp;sure&nbsp;whether&nbsp;you&#39;re&nbsp;proposing&nbsp;that&nbsp;modifications&nbsp;within&nbsp;a&nbsp;localStorage.transaction()&nbsp;callback&nbsp;are&nbsp;atomic&nbsp;(all&nbsp;applied&nbsp;or&nbsp;none&nbsp;applied)&nbsp;in&nbsp;the&nbsp;face&nbsp;of&nbsp;quota&nbsp;exceeded.&nbsp; (I&#39;m&nbsp;proposing&nbsp;that&nbsp;they&nbsp;*should*&nbsp;be&nbsp;atomic.)&lt;br&gt;<br>
+<br>
+<br>
+&lt;br&gt;<br>
+It&nbsp;sounds&nbsp;like&nbsp;you&#39;re&nbsp;proposing&nbsp;that&nbsp;scripts&nbsp;*cannot*&nbsp;be&nbsp;notified&nbsp;of&nbsp;quota&nbsp;exceeded.&nbsp; If&nbsp;this&nbsp;is&nbsp;true,&nbsp;then&nbsp;there&nbsp;are&nbsp;some&nbsp;semantic&nbsp;issues&nbsp;I&#39;d&nbsp;like&nbsp;to&nbsp;discuss.&nbsp; But&nbsp;I&nbsp;want&nbsp;to&nbsp;make&nbsp;sure&nbsp;we&#39;re&nbsp;on&nbsp;the&nbsp;same&nbsp;page&nbsp;first&nbsp;:).&nbsp; (I&#39;m&nbsp;proposing&nbsp;that&nbsp;scripts&nbsp;*should*&nbsp;be&nbsp;able&nbsp;to&nbsp;be&nbsp;notified&nbsp;of&nbsp;this.)&lt;/blockquote&gt;<br>
+<br>
+&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;The&nbsp;way&nbsp;it&nbsp;works&nbsp;right&nbsp;now&nbsp;is&nbsp;that&nbsp;an&nbsp;exception&nbsp;is&nbsp;thrown&nbsp;and&nbsp;that&#39;s&nbsp;it.&nbsp; I&nbsp;think&nbsp;it&#39;d&nbsp;be&nbsp;perfectly&nbsp;acceptable&nbsp;for&nbsp;the&nbsp;behavior&nbsp;to&nbsp;remain,&nbsp;even&nbsp;if&nbsp;it&#39;s&nbsp;inside&nbsp;a&nbsp;&quot;transaction&quot;.&nbsp; In&nbsp;other&nbsp;words,&nbsp;I&nbsp;don&#39;t&nbsp;think&nbsp;the&nbsp;transaction&nbsp;necessarily&nbsp;needs&nbsp;to&nbsp;stop&nbsp;or&nbsp;anything.&nbsp; I&nbsp;think&nbsp;most&nbsp;app&nbsp;developers&nbsp;will&nbsp;want&nbsp;to&nbsp;explicitly&nbsp;handle&nbsp;out&nbsp;of&nbsp;space&nbsp;errors&nbsp;(they&#39;re&nbsp;not&nbsp;just&nbsp;going&nbsp;to&nbsp;go&nbsp;away&nbsp;on&nbsp;their&nbsp;own),&nbsp;but&nbsp;probably&nbsp;won&#39;t&nbsp;want&nbsp;to&nbsp;explicitly&nbsp;deal&nbsp;with&nbsp;transient&nbsp;errors&nbsp;(like&nbsp;what&nbsp;you&nbsp;can&nbsp;see&nbsp;with&nbsp;optimistic&nbsp;transactions).&lt;/div&gt;<br>
+<br>
+&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;I&nbsp;don&#39;t&nbsp;think&nbsp;quota&nbsp;errors&nbsp;should&nbsp;be&nbsp;grouped&nbsp;in&nbsp;with&nbsp;any&nbsp;atomicity&nbsp;guarantees,&nbsp;in&nbsp;other&nbsp;words.&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;Are&nbsp;there&nbsp;any&nbsp;other&nbsp;examples&nbsp;of&nbsp;failures&nbsp;you&nbsp;can&nbsp;have&nbsp;within&nbsp;a&nbsp;pessimistic&nbsp;transaction?&lt;/div&gt;<br>
+<br>
+&lt;/div&gt;<br>
+
+</tt>

@@ -1,0 +1,268 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Onpopstate is Flawed
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Onpopstate%20is%20Flawed&In-Reply-To=%3CPine.LNX.4.64.1103231845410.19153%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="073289.html">
+   <LINK REL="Next"  HREF="031018.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Onpopstate is Flawed</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Onpopstate%20is%20Flawed&In-Reply-To=%3CPine.LNX.4.64.1103231845410.19153%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg] Onpopstate is Flawed">ian at hixie.ch
+       </A><BR>
+    <I>Thu Mar 24 17:55:02 PDT 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="073289.html">[whatwg] An RTC Session API proposal
+</A></li>
+        <LI>Next message: <A HREF="031018.html">[whatwg] Why is @scoped required for &lt;style&gt; as flow content?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#31017">[ date ]</a>
+              <a href="thread.html#31017">[ thread ]</a>
+              <a href="subject.html#31017">[ subject ]</a>
+              <a href="author.html#31017">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Wed, 15 Dec 2010, Henry Chan wrote:
+&gt;<i>
+</I>&gt;<i> <A HREF="https://bugzilla.mozilla.org/show_bug.cgi?id=618644">https://bugzilla.mozilla.org/show_bug.cgi?id=618644</A>
+</I>&gt;<i> <A HREF="http://www.w3.org/Bugs/Public/show_bug.cgi?id=11468">http://www.w3.org/Bugs/Public/show_bug.cgi?id=11468</A>
+</I>&gt;<i> 
+</I>&gt;<i> Consider a new web application that loads pages.  All links are 
+</I>&gt;<i> transformed into ajax and storing the history data with pushState if the 
+</I>&gt;<i> useragent supports them.  The inital page load serves the full page so 
+</I>&gt;<i> that useragents that don't support pushState will get the old page 
+</I>&gt;<i> navigation.
+</I>&gt;<i> 
+</I>&gt;<i> The user clicks on page1.html.  Then he clicks on page2.html.  For every 
+</I>&gt;<i> clicking, we pushState an object into the history containing the new 
+</I>&gt;<i> url. The user clicks back.  A popstate event with state {url: 
+</I>&gt;<i> 'page1.html'} is fired.  The ajax application loads page1.html.  The 
+</I>&gt;<i> user clicks back again. A popstate event with state [null] is fired.  
+</I>&gt;<i> The ajax application doesn't do anything.  The user refreshes the page 
+</I>&gt;<i> and thinks &quot;what the heck?&quot;
+</I>&gt;<i> 
+</I>&gt;<i> So I change the application a bit.  When the event state is null, I 
+</I>&gt;<i> repull the original page.  What happens is, the application fetches the 
+</I>&gt;<i> page again after onload because onpopstate is called after onload.  
+</I>&gt;<i> This makes the application refetch the same page after onload.  If the 
+</I>&gt;<i> site is media heavy then that eats both bandwidth and makes the user 
+</I>&gt;<i> wait.  (I originally proposed to remove the onpopstate after onload but 
+</I>&gt;<i> realized that for some applications, the event state might not be 
+</I>&gt;<i> reflected in the url, and when reloading the page, the page would need 
+</I>&gt;<i> the event state to load the correct page.)
+</I>&gt;<i> 
+</I>&gt;<i> I need to distinguish the inital popstate and other popstates.  
+</I>&gt;<i> Assuming that popstate always fired after onload, I just had a variable 
+</I>&gt;<i> that removed the first popstate.  Turns out if the user presses the stop 
+</I>&gt;<i> button before onload fires, onpopstate doesn't fire.
+</I>&gt;<i> 
+</I>&gt;<i> So I fire a history.replaceState({url:'index.html'}) on domready of 
+</I>&gt;<i> index.html.  The first onpopstate fires with event state [null].  
+</I>&gt;<i> Refreshing the page or navigating forward then backward gives a event 
+</I>&gt;<i> state of {url: 'index.html'}. Yay!
+</I>&gt;<i> 
+</I>&gt;<i> Until recently the spec changed.  And Firefox 4 got updated to match the 
+</I>&gt;<i> spec.  The inital popstate now fires with the 'pending state object'.  
+</I>&gt;<i> Now I can't distinguish the inital popstate anymore.
+</I>&gt;<i> 
+</I>&gt;<i> And the problem just doesn't stop there.
+</I>&gt;<i> 
+</I>&gt;<i> Suppose this: the user clicks on page1.html.  When the initial 
+</I>&gt;<i> onpopstate fires, there is an event state of {url:'index.html'}.  
+</I>&gt;<i> Index.html is refetched.  The user is probably very bemused.  And the 
+</I>&gt;<i> location bar claims to be still on page1.html (Fx implementation bug?)
+</I>&gt;<i> 
+</I>&gt;<i> Another problem, clicking back and forward before page loads doesn't 
+</I>&gt;<i> trigger onpopstate.  Which means on a media heavy site, when the user 
+</I>&gt;<i> clicks on page1.html then page2.html and clicks back, he won't get 
+</I>&gt;<i> page1.html.  He'd be stuck on page2.html (as per spec) while the url in 
+</I>&gt;<i> the location bar is page1.html.  (Fx Implementation bug?).  If the user 
+</I>&gt;<i> has clicked back and forward before the page load, the initial 
+</I>&gt;<i> onpopstate after onload doesn't even fire. (Fx implementation bug?)
+</I>&gt;<i> 
+</I>&gt;<i> So to round up, the problems I have are
+</I>&gt;<i> 1. unable to distinguish inital onpopstate
+</I>&gt;<i> 2. onpopstate doesn't work till onload
+</I>&gt;<i> 3. the inital onpopstate will overwrite any user actions the user has done
+</I>&gt;<i> before it.
+</I>&gt;<i>
+</I>&gt;<i> [...]
+</I>&gt;<i> 
+</I>&gt;<i> Check out my testcase at www.wyavtv.org/test-popstate.html.
+</I>&gt;<i> Try clicking on the links before onload.
+</I>&gt;<i> Reload the test and try clicking on the links and navigating back and
+</I>&gt;<i> forward before onload.
+</I>&gt;<i> Reload the test and try just waiting for it to load.
+</I>&gt;<i> 
+</I>&gt;<i> The test page is initially called test-popstate.html.  Onload it now changes
+</I>&gt;<i> to index.html.  I made it this way so that we can tell if the useragent
+</I>&gt;<i> loads the same &quot;identical&quot; page twice, i.e. if replaceState affects the
+</I>&gt;<i> inital onpopstate.  Currently chrome doesn't have a pending state object and
+</I>&gt;<i> it stays on test-popstate.html, but chrome has problem 2 and 3 as well.
+</I>&gt;<i> 
+</I>&gt;<i> Index.html, page1.html and page2.html and page3.html are non-existent
+</I>&gt;<i> pages.  Please press the reload test button in my testcase to reload the
+</I>&gt;<i> page, don't press F5; it won't load, and you'll poison my server logs.
+</I>
+On Mon, 31 Jan 2011, Jonas Sicking wrote:
+&gt;<i> 
+</I>&gt;<i> Would the following behavior solve your issue:
+</I>&gt;<i> 
+</I>&gt;<i> If pushState or replaceState is called before the initial popstate, 
+</I>&gt;<i> simply don't fire the after-onload-popstate.
+</I>&gt;<i> 
+</I>&gt;<i> If the back button is pressed (or history.back() is called) after a 
+</I>&gt;<i> pushState/replaceState, but before onload, fire a popstate for the newly 
+</I>&gt;<i> transitioned to state. Still leave the after-onload-popstate canceled.
+</I>&gt;<i> 
+</I>&gt;<i> I.e. if the webpage calls pushState or replaceState before onload fires, 
+</I>&gt;<i> then it is deemed that the page has transitioned to the new state and no 
+</I>&gt;<i> after-onload-popstate is needed.
+</I>&gt;<i> 
+</I>&gt;<i> This behavior makes the most sense to me and allows the page to start 
+</I>&gt;<i> handling state transitions before the page finishes loading.
+</I>
+On Wed, 2 Feb 2011, Justin Lebar wrote:
+&gt;<i>
+</I>&gt;<i> I'm a bit uncomfortable with this behavior, since it seems that having 
+</I>&gt;<i> replaceState cancel the initial popstate is at least somewhat 
+</I>&gt;<i> surprising.
+</I>&gt;<i> 
+</I>&gt;<i> How is this better than never firing an initial popstate?
+</I>
+On Wed, 2 Feb 2011, Jonas Sicking wrote:
+&gt;<i> 
+</I>&gt;<i> My thinking was that if someone calls replaceState, then probably that 
+</I>&gt;<i> means that they're currently changing the page to represent that new 
+</I>&gt;<i> state. If they do that then I don't see that they initial popstate would 
+</I>&gt;<i> help them in any way?
+</I>&gt;<i> 
+</I>&gt;<i> Yet another solution would be to always expose the current state through 
+</I>&gt;<i> a member on the window or the document. Then popstate would represent 
+</I>&gt;<i> any transition in the current state and wouldn't be needed for the 
+</I>&gt;<i> initial page load.
+</I>&gt;<i> 
+</I>&gt;<i> So during loading, any script that wants to know what the initial (or 
+</I>&gt;<i> current) state is does not need to wait for the first popstate, but can 
+</I>&gt;<i> simply grab the state and go.
+</I>&gt;<i> 
+</I>&gt;<i> The main problem I can think of with this design, apart from it being a 
+</I>&gt;<i> bigger change from what we've got, is what happens if someone modifies 
+</I>&gt;<i> the current-state member on the window/document. While we can make the 
+</I>&gt;<i> member read-only, that doesn't help if the state is a deep object 
+</I>&gt;<i> hierarchy. In IndexedDB we decided to not attempt to solve the problem 
+</I>&gt;<i> and instead rely on authors not to trigger the footgun.
+</I>
+(We could also just return a clone each time, or make it a function that 
+returns a clone.)
+
+On Wed, 2 Feb 2011, Justin Lebar wrote:
+&gt;<i> 
+</I>&gt;<i> Don't fire an initial popstate, because this causes stale popstates
+</I>&gt;<i> when pushState is called before the popstate.
+</I>&gt;<i> 
+</I>&gt;<i> Expose the state object to the DOM so pages can find out what the
+</I>&gt;<i> initial state is when they load.  (The initial state might not be null
+</I>&gt;<i> if we're restoring after a crash, or if we're going back in history
+</I>&gt;<i> after we unloaded the document.)
+</I>&gt;<i>
+</I>&gt;<i> Otherwise, fire popstate like normal, once for each navigation.
+</I>&gt;<i> (With the caveat that you never want to fire a stale popstate -- that
+</I>&gt;<i> is, if any navigations or push/replaceStates have occurred since you
+</I>&gt;<i> queued the task to fire the popstate, don't fire it.)
+</I>&gt;<i> 
+</I>&gt;<i> I think we need the caveat in step 3 because firing popstate isn't
+</I>&gt;<i> synchronous (step 11 at [1]).
+</I>
+In addition to the thread and links above, I was also directed to this 
+blog post discussing how the discussion above resulted in changes in FF4:
+
+   <A HREF="http://hacks.mozilla.org/2011/03/history-api-changes-in-firefox-4/">http://hacks.mozilla.org/2011/03/history-api-changes-in-firefox-4/</A>
+
+After confirming with WebKit and Opera developers that the changes seem 
+reasonable, I've implemented that in the spec. As far as I can tell, these 
+changes make this API significantly better overall, and address the bulk 
+of the comments raised above.
+
+There does remain one problem with this API, which is that when you 
+navigate to a fragment identifier, history.state becomes null. I'm not 
+sure how to fix that.
+
+
+On Sun, 19 Dec 2010, Henry Chan wrote:
+&gt;<i>
+</I>&gt;<i> *bump*
+</I>&gt;<i> 
+</I>&gt;<i> This is really serious, it blocks a very good use of the API, and it's 
+</I>&gt;<i> unreliable to use it if back and forward is clicekd before onload.
+</I>
+Bumping has no effect, sorry (because I don't see the bump any more than 
+the initial e-mail!). I get to all the feedback eventually. If there's 
+something that affects an imminent implementation, please let me know and 
+I'll prioritise it. (Though right now, the list of things that affect 
+imminent implementations is itself quite long for once.)
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="073289.html">[whatwg] An RTC Session API proposal
+</A></li>
+	<LI>Next message: <A HREF="031018.html">[whatwg] Why is @scoped required for &lt;style&gt; as flow content?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#31017">[ date ]</a>
+              <a href="thread.html#31017">[ thread ]</a>
+              <a href="subject.html#31017">[ subject ]</a>
+              <a href="author.html#31017">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

@@ -1,0 +1,178 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] some thoughts on sandboxed IFRAMEs
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20some%20thoughts%20on%20sandboxed%20IFRAMEs&In-Reply-To=%3C448e9a320912131102wf653b07hca5339f2dc1748c7%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="024496.html">
+   <LINK REL="Next"  HREF="024504.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] some thoughts on sandboxed IFRAMEs</H1>
+<!--htdig_noindex-->
+    <B>Michal Zalewski</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20some%20thoughts%20on%20sandboxed%20IFRAMEs&In-Reply-To=%3C448e9a320912131102wf653b07hca5339f2dc1748c7%40mail.gmail.com%3E"
+       TITLE="[whatwg] some thoughts on sandboxed IFRAMEs">lcamtuf at coredump.cx
+       </A><BR>
+    <I>Sun Dec 13 11:02:46 PST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="024496.html">[whatwg] some thoughts on sandboxed IFRAMEs
+</A></li>
+        <LI>Next message: <A HREF="024504.html">[whatwg] some thoughts on sandboxed IFRAMEs
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24502">[ date ]</a>
+              <a href="thread.html#24502">[ thread ]</a>
+              <a href="subject.html#24502">[ subject ]</a>
+              <a href="author.html#24502">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>&gt;<i> I believe that the @doc attribute, discussed in the original threads
+</I>&gt;<i> about @sandbox, will be introduced to deal with that. &#160;It'll take
+</I>&gt;<i> plain html as a string, avoiding the opaqueness and larger escaping
+</I>&gt;<i> requirements of a <A HREF="data://">data://</A> url, as the only thing you'll have to escape
+</I>&gt;<i> is whichever quote you're using to surround the value.
+</I>
+That doesn't strike me as a robust way to prevent XSS - the primary
+reason why we need sandboxing to begin with is that people have a
+difficulty properly parsing, serializing, or escaping HTML; so
+replacing this with a mechanism that still requires escaping is
+perhaps suboptimal.
+
+&gt;<i> Nah, token-guarding is no good. &#160;For one it's completely unusable in
+</I>&gt;<i> the XML serialization without edits to the XML spec.
+</I>
+This seems valid.
+
+&gt;<i>&#160;More importantly, though, it puts a significant burden on authors to
+</I>&gt;<i> generate unpredictable tokens. &#160;Is this difficult? &#160;No, of course not.
+</I>&gt;<i> But people *will* do it badly, copypasting a single token in all
+</I>&gt;<i> their &lt;iframe&gt;s or similar.
+</I>
+People already  need to do this well for XSRF defenses to work, and
+I'd wager it's a much simpler and better-defined problem than
+real-world HTML parsing and escaping could realistically be. It is
+also very easy to delegate this task to existing functions in common
+web frameworks.
+
+Also, a single token on a returned page, as long as it's unpredictable
+across user sessions, should not be a significant issue.
+
+&gt;&gt;<i> 1) The utility of the SOP sandboxing behavior outlined in the spec is
+</I>&gt;&gt;<i> diminished if we have no way to actually *enforce* that the IFRAMEd
+</I>&gt;&gt;<i> resource would only be rendered in such a context. If I am serving
+</I>&gt;&gt;<i> user-supplied, unsanitized HTML, it is obviously safe to do &lt;iframe
+</I>&gt;&gt;<i> sandbox src=&quot;show.cgi?id=1234&quot;&gt;&lt;/iframe&gt; - but where do we prevent the
+</I>&gt;&gt;<i> attacker from calling <A HREF="http://my_site/show.cgi?id=1234">http://my_site/show.cgi?id=1234</A> directly, and
+</I>&gt;&gt;<i> bypassing the filter? There are two cases where the mechanism still
+</I>&gt;&gt;<i> offers some protection:
+</I>&gt;<i>
+</I>&gt;<i> You mean, if the attacker controls their own website on the same
+</I>&gt;<i> origin and &lt;iframe&gt;s it for themselves?
+</I>
+The specific scenario given in the spec is:
+
+&lt;p&gt;We're not scared of you! Here is your content, unedited:&lt;/p&gt;
+&lt;iframe sandbox src=&quot;getusercontent.cgi?id=12193&quot;&gt;&lt;/iframe&gt;
+
+Let's say this is on example.com. What prevents evil.com from calling
+<A HREF="http://example.com/getusercontent.cgi?id=12193">http://example.com/getusercontent.cgi?id=12193</A> in an IFRAME? Assuming
+that the author of evil.com is also the author of example.com &quot;user
+content 12193&quot;, this renders all the benefits of using sandboxed
+frames on example.com moot.
+
+The only two cases where this threat is mitigated is when non-SOP
+domains are used to serve user content (but in this case, if you're
+doing it right, you don't really need iframe sandboxes that much); or
+if id= is unpredictable (which in your own words, people are going to
+mess up). And neither of these seem to be the case for the example
+given.
+
+&gt;&gt;<i> 2.2) The ability to disable HTML parsing. On IFRAMEs, this can
+</I>&gt;&gt;<i> actually be approximated with the excommunicated &lt;plaintext&gt; tag, or
+</I>&gt;&gt;<i> with Content-Type: text/plain / data:text/plain,. On token-guarded
+</I>&gt;&gt;<i> SPANs or DIVs, however, it would be pretty damn useful for displaying
+</I>&gt;&gt;<i> text content without the need to escape &amp;, &lt;, &gt;, etc. &quot;Pure&quot; security
+</I>&gt;&gt;<i> benefit is limited, but as a phishing prevention and display
+</I>&gt;&gt;<i> correctness measure, it makes sense.
+</I>&gt;<i>
+</I>&gt;<i> Why not just run an escape function over the content before sending
+</I>&gt;<i> it? &#160;All web languages have one specifically for escaping the
+</I>&gt;<i> html-significant characters. &#160;There's only five of them, after all.
+</I>
+Well, indeed =) But xssed.com has 61,000 data points to the contrary.
+The easier we make it for people to achieve exactly the result they
+want, whilst avoiding security issues, the better. One of the common
+tasks they fail at is rendering limited (neutered) HTML without any JS
+in. This is not an unsolved task - quite a few implementations exist
+to do it pretty well - but they still fail. The other, arguably more
+common task - and the most common source of XSS flaws - is to display
+user input without any HTML at all. So this fits in nicely, even if
+simple to implement by other means.
+
+/mz
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="024496.html">[whatwg] some thoughts on sandboxed IFRAMEs
+</A></li>
+	<LI>Next message: <A HREF="024504.html">[whatwg] some thoughts on sandboxed IFRAMEs
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24502">[ date ]</a>
+              <a href="thread.html#24502">[ thread ]</a>
+              <a href="subject.html#24502">[ subject ]</a>
+              <a href="author.html#24502">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

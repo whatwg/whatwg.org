@@ -1,0 +1,121 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Canvas in workers
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Canvas%20in%20workers&In-Reply-To=%3CCAOp6jLYauUc4X-eBnq_a%2B-Gav1gfHLz6aaFA30K6SsH%2BoeLWSg%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="083361.html">
+   <LINK REL="Next"  HREF="083385.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Canvas in workers</H1>
+<!--htdig_noindex-->
+    <B>Robert O'Callahan</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Canvas%20in%20workers&In-Reply-To=%3CCAOp6jLYauUc4X-eBnq_a%2B-Gav1gfHLz6aaFA30K6SsH%2BoeLWSg%40mail.gmail.com%3E"
+       TITLE="[whatwg] Canvas in workers">robert at ocallahan.org
+       </A><BR>
+    <I>Mon Oct 14 13:34:53 PDT 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="083361.html">[whatwg] Canvas in workers
+</A></li>
+        <LI>Next message: <A HREF="083385.html">[whatwg] Canvas in workers
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#83364">[ date ]</a>
+              <a href="thread.html#83364">[ thread ]</a>
+              <a href="subject.html#83364">[ subject ]</a>
+              <a href="author.html#83364">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Mon, Oct 14, 2013 at 2:20 PM, Kenneth Russell &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">kbr at google.com</A>&gt; wrote:
+
+&gt;<i> Would you mind looking at the proposal
+</I>&gt;<i> <A HREF="http://wiki.whatwg.org/wiki/CanvasInWorkers">http://wiki.whatwg.org/wiki/CanvasInWorkers</A> and commenting on it?
+</I>
+
+Sure. Kyle and I looked at it while we were working on our proposal. The
+main issues I have with it are that rearchitecting &lt;canvas&gt; to introduce
+the DrawingBuffer layer of abstraction seems unnecessarily complex, and it
+doesn't handle direct presentation of frames from the worker, bypassing the
+main thread.
+
+There's been some recent discussion in the WebGL WG on this topic and
+&gt;<i> concerns were raised from other parties at Mozilla about the
+</I>&gt;<i> DrawingBuffer proposal above, including that it isn't possible to
+</I>&gt;<i> render from a worker without synchronizing with the main thread.
+</I>&gt;<i>
+</I>
+This is a huge limitation. For games and other animated content, achieving
+a stable frame rate is super important and a key motivation for adding
+canvas support to workers.
+
+My vision for handling the Maps use-cases based on our proposal is this:
+the worker renders to one or more WorkerCanvases, then does
+createImageBitmap(canvasContext), then ships the ImageBitmap(s) to the main
+thread using postMessage, and then renders those ImageBitmaps either by
+drawing them to a canvas or in some more direct way.
+
+This can all be implemented in a zero-copy way with the APIs currently in
+the spec, though it's not trivial. You'd need to do a few optimizations:
+-- createImageBitmap(canvasContext) would take a lazy snapshot of the
+canvas contents; i.e., further modifications to the canvas would trigger a
+copy (on the worker), but if the canvas is untouched no copy is required.
+-- structured clone of the ImageBitmap would not copy. This may actually
+require a small spec change.
+-- drawing an ImageBitmap to a 2D &lt;canvas&gt;, if it covers the whole canvas,
+would simply replace the canvas buffer with the ImageBitmap contents (and
+perform copy-on-write if the script later makes changes to that canvas).
+These optimizations would all be useful in other contexts too. Whatever
+happens with canvas-in-a-worker, I bet we'll end up doing these
+optimizations for other reasons.
+
+It might make sense to create an API that renders an ImageBitmap more
+directly than drawing it to a canvas. For example we could create an API
+that allows an &lt;img&gt; element to render an ImageBitmap. It would be a bit
+simpler for authors and perhaps a bit simpler to implement than the final
+optimization in my list above.
+
+Rob
+-- 
+Jtehsauts  tshaei dS,o n&quot; Wohfy  Mdaon  yhoaus  eanuttehrotraiitny  eovni
+le atrhtohu gthot sf oirng iyvoeu rs ihnesa.r&quot;t sS?o  Whhei csha iids  teoa
+stiheer :p atroa lsyazye,d  'mYaonu,r  &quot;sGients  uapr,e  tfaokreg iyvoeunr,
+'m aotr  atnod  sgaoy ,h o'mGee.t&quot;  uTph eann dt hwea lmka'n?  gBoutt  uIp
+waanndt  wyeonut  thoo mken.o w  *
+*
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="083361.html">[whatwg] Canvas in workers
+</A></li>
+	<LI>Next message: <A HREF="083385.html">[whatwg] Canvas in workers
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#83364">[ date ]</a>
+              <a href="thread.html#83364">[ thread ]</a>
+              <a href="subject.html#83364">[ subject ]</a>
+              <a href="author.html#83364">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

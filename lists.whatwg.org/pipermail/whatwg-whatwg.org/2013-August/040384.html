@@ -1,0 +1,191 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Window and WindowProxy
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Window%20and%20WindowProxy&In-Reply-To=%3Calpine.DEB.2.00.1308061813150.27623%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="082775.html">
+   <LINK REL="Next"  HREF="082658.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Window and WindowProxy</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Window%20and%20WindowProxy&In-Reply-To=%3Calpine.DEB.2.00.1308061813150.27623%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg] Window and WindowProxy">ian at hixie.ch
+       </A><BR>
+    <I>Tue Aug  6 11:30:42 PDT 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="082775.html">[whatwg] NoDatabase databases
+</A></li>
+        <LI>Next message: <A HREF="082658.html">[whatwg] Window and WindowProxy
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#40384">[ date ]</a>
+              <a href="thread.html#40384">[ thread ]</a>
+              <a href="subject.html#40384">[ subject ]</a>
+              <a href="author.html#40384">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Tue, 6 Aug 2013, Boris Zbarsky wrote:
+&gt;<i> 
+</I>&gt;<i> As currently specified, the setup for Window/WindowProxy is as follows:
+</I>&gt;<i> 
+</I>&gt;<i> 1) WindowProxy is specified as &quot;all operations that would be performed 
+</I>&gt;<i>    on it must be performed on the Window object of the browsing 
+</I>&gt;<i>    context's active document instead&quot;, whatever that means in ES-spec 
+</I>&gt;<i>    terms.
+</I>&gt;<i> 
+</I>&gt;<i> 2) Window has an indexed getter on it and does security checks of 
+</I>&gt;<i>    various sorts on property access.
+</I>&gt;<i> 
+</I>&gt;<i> There is a somewhat different way to specify this:
+</I>&gt;<i> 
+</I>&gt;<i> 1) WindowProxy has the indexed getter behavior and does security checks 
+</I>&gt;<i>    as needed.
+</I>&gt;<i> 
+</I>&gt;<i> 2) Window has no magic at all.
+</I>&gt;<i> 
+</I>&gt;<i> Right now, these two ways of specifying it are black-box equivalent, but 
+</I>&gt;<i> this equivalence relies on the following three invariants holding:
+</I>&gt;<i> 
+</I>&gt;<i> A) &quot;var foo;&quot; is not valid ES for any value of foo that would be 
+</I>&gt;<i>    considered a valid argument to the indexed getter.
+</I>&gt;<i> 
+</I>&gt;<i> B) Bareword &quot;foo&quot; is not valid ES for any value of foo that would be 
+</I>&gt;<i>    considered a valid argument to the indexed getter.
+</I>&gt;<i> 
+</I>&gt;<i> C) Script can never get its hands directly on a Window object.
+</I>&gt;<i> 
+</I>&gt;<i> Invariants B and C together mean that the only way to invoke the indexed 
+</I>&gt;<i> getter is via the WindowProxy.  Invariant A means that there is no 
+</I>&gt;<i> contradiction between the way ES specifies var (as creating 
+</I>&gt;<i> non-configurable properties) and the WebIDL requirements for an object 
+</I>&gt;<i> with an indexed getter (not allowing definition of any &quot;expando&quot; indexed 
+</I>&gt;<i> properties at all).
+</I>
+I think there are other invariants that make them equivalent that are 
+relevant here. In particular:
+
+D) When a Window is a script's global object, that script is always going 
+   to be same-origin with the Window, so it will always pass the security 
+   checks. (So, it's ok to not do the checks on Window and do them on 
+   WindowProxy instead.)
+
+I think actually invariants A and B are mooted by invariant D. That is, if 
+they weren't true, we'd still be ok, because the security check is always 
+going to be safe given D.
+
+But if invariant D was broken, then it seems like A and B would become 
+problematic if we moved the security checks to the WindowProxy rather than 
+to the Window.
+
+If invariant C is broken, e.g. because in some new language we don't have 
+a WindowProxy and instead return the real Window for the current Document, 
+or whatnot, whenever you access the Window object, it seems like we'd also 
+actually want the security checks on Window.
+
+Do these last two points affect your conclusions?
+
+
+&gt;<i> I believe the model that puts all the magic in the WindowProxy, which 
+</I>&gt;<i> has to be quite magical already, is much easier for implementors to 
+</I>&gt;<i> understand and reason about, and more clearly maps onto actual 
+</I>&gt;<i> implementations with an actual proxy for the WindowProxy. It has the 
+</I>&gt;<i> benefit of not depending on hidden invariants to avoid contradicting the 
+</I>&gt;<i> ES spec, and of making it clear exactly where the magic is, as well as 
+</I>&gt;<i> the small but tangible side benefit of making the global (in the ES 
+</I>&gt;<i> sense) not be an &quot;exotic object&quot; (also in the ES sense), thus reducing 
+</I>&gt;<i> the likelihood that future ES changes to how the global behaves will in 
+</I>&gt;<i> any way affect the behavior of &quot;window&quot;.
+</I>&gt;<i> 
+</I>&gt;<i> The drawback is that it needs a bit more prose defining the behavior of 
+</I>&gt;<i> WindowProxy....
+</I>
+It doesn't seem like that much more prose, at least, not if we're keeping 
+the same level of precision. (If we want more, that's a different matter.)
+
+
+What do other vendors think? This is in principle a purely editorial 
+change. It would be cool if there was a WebIDL way to define WindowProxy, 
+so that it could be unambiguously defined for all languages, but since 
+it's a one-off object, maybe it's not worth it.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="082775.html">[whatwg] NoDatabase databases
+</A></li>
+	<LI>Next message: <A HREF="082658.html">[whatwg] Window and WindowProxy
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#40384">[ date ]</a>
+              <a href="thread.html#40384">[ thread ]</a>
+              <a href="subject.html#40384">[ subject ]</a>
+              <a href="author.html#40384">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

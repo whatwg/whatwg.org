@@ -1,0 +1,236 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] What is not possible with HTML5
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20What%20is%20not%20possible%20with%20HTML5&In-Reply-To=%3CAANLkTimg2AxmvNLuCJIYW1K7oUxG4j9y_J4JoChXx2WI%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="068935.html">
+   <LINK REL="Next"  HREF="069112.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] What is not possible with HTML5</H1>
+<!--htdig_noindex-->
+    <B>Marques Johansson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20What%20is%20not%20possible%20with%20HTML5&In-Reply-To=%3CAANLkTimg2AxmvNLuCJIYW1K7oUxG4j9y_J4JoChXx2WI%40mail.gmail.com%3E"
+       TITLE="[whatwg] What is not possible with HTML5">marques at displague.com
+       </A><BR>
+    <I>Thu Jun 24 07:03:09 PDT 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="068935.html">[whatwg] What is not possible with HTML5
+</A></li>
+        <LI>Next message: <A HREF="069112.html">[whatwg] What is not possible with HTML5
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#69110">[ date ]</a>
+              <a href="thread.html#69110">[ thread ]</a>
+              <a href="subject.html#69110">[ subject ]</a>
+              <a href="author.html#69110">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>I would like to see a standardization of HTTP streaming, not
+necessarily &quot;adaptive streaming&quot; - but that could also be useful.
+
+The HTTP spec is vague or incomplete on behaviors related to partial requests.
+
+To implement a streaming audio / video site where the user can only
+receive data if their account permits it (based on credits, or some
+sort of pay-as-you-play service) it is necessary to control the
+throughput of the media content.
+
+Some streaming systems use non-HTTP protocols to handle this but the
+ones that use HTTP end up splitting the original content into various
+segments and then use scripts or redirects to send the user to the
+next piece of the media.
+
+I attempted to implement a streaming video service by using the uncut
+video files that the browser could natively play.  I used only HTTP
+206 (partial data) responses to limit the user.  Here are some of the
+problems I ran into:
+
+1. There is no way for a server to tell a client that Ranges must be
+specified if the sender did not initiate their request with Ranges.
+ a. A server can ignore this and give the client a 206 response
+anyway.  Chrome handles this.  It will play the content it was given
+and then continue to make Range requests to pull additional media.
+Other browsers may already handle this the way I would like but if so
+they fail to play beyond the content delivered in the initial response
+due to '2'.
+ b. A server can send a 307 redirect that provides an Accept-Ranges
+header, and hope that the client will use a range on their next
+request (This was recently added to Firefox, seems to work in Chrome,
+Opera, Safari - but my test fails overall due to '2').  Text based
+browsers (curl, wget, links) do not handle this.
+ c. There are headers that sound like they could be used for this, but
+they can't because there is no definition saying how browsers should
+deal with them.
+   Status 416: range not satisfiable- by spec, can only be sent if the
+browser requested a range, so the server can't tell the browser to use
+ranges with this
+   Status 411: Length required - the description sounds right, but
+this is used to force the client to send Content-Length for requests
+   Status 402: payment required - this fits the bill, but there is no
+definition of what the follow-up behavior should be for browsers
+ d. Perhaps an addition 4xx Status should be defined for &quot;Range
+required&quot;.  With this the browser behavior to follow up with a partial
+get should be spelled out.
+
+2. There is no spec assertion that browsers should accept a Range from
+a server that is smaller than the range the browser requested.
+ a. When browsers begin making Range requests they tend to reach for
+the stars: &quot;Range: bytes=0-&quot;.  Since I want to control the content I
+limit the browser to X many bytes in my response: &quot;Content-Range:
+bytes 0-100000/9999999&quot;.  Some browsers (Firefox, Opera) will play
+this data but will not progress to the next block unless the user
+intervenes by seeking.  Opera's Ogg handler (but not webm or mp4) and
+Chrome will continue to fetch data as it is needed to play the
+content.
+
+3. Some browsers (Opera (at least, but certainly not Firefox or
+Chrome)) ignores pragma no-cache on 206 responses in the video content
+which allows a user to seek to an already played section of a video
+without re-requesting the content from the server.  The server is
+trying to protect this content (and to restrict how much a viewer can
+watch) and so (as the HTTP spec regarding 206 already seems to
+dictate) this data should not be cached.
+
+
+I think these problems can be addressed by:
+1. Having all browser requests for &lt;video&gt; &lt;audio&gt; include a Range: in
+the request - since this is the only invitation the server has to
+respond with a 206. (or otherwise make it permissible for a server to
+respond with a 206 to a request that had no ranges)
+2. Defining a spec behavior that partial responses should be accepted
+when they are smaller than what was requested and should be followed
+up with additional partial gets until the media has been acquired
+based on the users intention (to continuously play a video in this case).
+3. Opera should address partial video caching
+
+See <A HREF="https://bugzilla.mozilla.org/show_bug.cgi?id=570755">https://bugzilla.mozilla.org/show_bug.cgi?id=570755</A> for additional
+perspective.
+
+&gt;<i> I think what you call &quot;multi-format video&quot; is being implemented as
+</I>&gt;<i> HTTP adaptive streaming, where you have multiple different
+</I>&gt;<i> bandwidth-versions of the same media resource on the server and they
+</I>&gt;<i> have synchronisation points (usually the keyframes of the video) at
+</I>&gt;<i> which the user agent can switch over from one resource to another
+</I>&gt;<i> using byte range requests depending on the user agent's situation.
+</I>&gt;<i>
+</I>&gt;<i> I still wonder whether we should standardise HTTP adaptive streaming
+</I>&gt;<i> across video formats here or somewhere else. At this moment, several
+</I>&gt;<i> different solutions exist for MPEG video and none for Ogg or WebM.
+</I>&gt;<i>
+</I>&gt;<i> Cheers,
+</I>&gt;<i> Silvia,
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> On Tue, Jun 8, 2010 at 1:18 AM, Bruce de Graaf &lt;WeBMartians at verizon.net&gt; wrote:
+</I>&gt;<i> &gt; 3D Video and Real-time Multi-format Video! Ooops... My &quot;bad.&quot; It doesn't
+</I>&gt;<i> &gt; seem feasible even outside of HTML!
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Apologies for being facetious and trying to be a &quot;wag,&quot; but that latter
+</I>&gt;<i> &gt; point (multi-format video) is a good candidate for attention ... and that is
+</I>&gt;<i> &gt; what the query (What is not possible with HTML5) is about, right? &quot;To what
+</I>&gt;<i> &gt; have we failed to pay due consideration?&quot;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; A Statement of the Problem (apologies aforehand for offensive terminology):
+</I>&gt;<i> &gt; Real-time, multi-format video (there must be a better term for this) is the
+</I>&gt;<i> &gt; acquisition of audio and video in one form (say, 1920 x 1080 with 7.1 sound)
+</I>&gt;<i> &gt; and its propagation in native as well as other formats (say, 160 x 112 with
+</I>&gt;<i> &gt; monaural sound). This is the &quot;Fat Man's Trousers&quot; problem - How do you stuff
+</I>&gt;<i> &gt; that belly into such small pants? [and THAT is the most polite of the
+</I>&gt;<i> &gt; various titles] Right now, with either H.264 or with Ogg, no matter which,
+</I>&gt;<i> &gt; this task is Sysiphean. Simply put, it is the difficulty in cramming 8+ Mb/s
+</I>&gt;<i> &gt; through a 300 kb/s pipe (to a display that cannot present, anyway, the high
+</I>&gt;<i> &gt; resolution image) and then randomly &quot;adjusting&quot; the bandwidth. Think of
+</I>&gt;<i> &gt; being in a car, watching an iPad (as a passenger, we hope and pray) and
+</I>&gt;<i> &gt; trying to watch a video as the feed wobbles from several megabits to mere
+</I>&gt;<i> &gt; kilobits per second and back again. ...and then being foolish enough to
+</I>&gt;<i> &gt; recommend the video to an iPhone user...
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Just recode ... on-the-fly? Oh, you have not begun to address the problems!
+</I>&gt;<i> &gt; You see, when your feed collapses, your clients lose compression
+</I>&gt;<i> &gt; synchronization: compressed audio and video that depend on a particular
+</I>&gt;<i> &gt; client state must be halted until some form of re-atunment occurs ...
+</I>&gt;<i> &gt; possibly several seconds (hopefully not minutes). ...not good in a
+</I>&gt;<i> &gt; commercial environment (somebody's not getting that for which he/she is
+</I>&gt;<i> &gt; paying...).
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; There have been related discussions (focused on reporting actual bandwidth)
+</I>&gt;<i> &gt; on this forum about the challenges. Some have said, with good reason, that
+</I>&gt;<i> &gt; it is outside of the HTML5 envelope. Yet, the current need is so great and
+</I>&gt;<i> &gt; that need's growth is of such magnitude (it could reach, quickly, the major
+</I>&gt;<i> &gt; portion of all traffic) as to warrant some cycles in its discussion.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; ...and, not to complicate and confuse matters, deserving of attention is an
+</I>&gt;<i> &gt; analogous problem with mere layout of HTML pages: view a commercial page
+</I>&gt;<i> &gt; (say, Bloomberg or Der Spiegel) on a decently sized screen and then try to
+</I>&gt;<i> &gt; view such pages on an iPhone or Droid ... not a pleasant experience. Whilst
+</I>&gt;<i> &gt; not dynamic as the described media feed problem is, the difficulties are
+</I>&gt;<i> &gt; analogous (again, even if &quot;spatial rather than temporal&quot;). If the
+</I>&gt;<i> &gt; documentation could offer some guidance, it would be well received and yield
+</I>&gt;<i> &gt; great returns.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; What say ye?
+</I>&gt;<i> &gt; ===
+</I>&gt;<i> &gt; On 2010-06-07 10:01, Nikita Eelen wrote:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; I believe video telephony is not possible due to security limitations in
+</I>&gt;<i> &gt; browser, but it was in spec but never acted upon as of yet (IE device access
+</I>&gt;<i> &gt; using something like a microphone/camera etc.), however i believe this is
+</I>&gt;<i> &gt; possible to work around (with individual browser extensions, like firefox
+</I>&gt;<i> &gt; extensions, or
+</I>&gt;<i> &gt; a native plugin (flash comes to mind but sucks for mobile devices in terms
+</I>&gt;<i> &gt; of battery life), so I think for all those as of now need to be written as
+</I>&gt;<i> &gt; either
+</I>&gt;<i> &gt; A.) An application that acts as a plugin (ex: Flash)
+</I>&gt;<i> &gt; B.) An extension to a browser (Firefox extension/active x control etc.)
+</I>&gt;<i> &gt; C.) A native application that reads the camera/microphone for a given device
+</I>&gt;<i> &gt; when the above is not possible (Ex: iPhone/iPad),
+</I>&gt;<i> &gt; if this is possible any other ways I would be very interested if anyone
+</I>&gt;<i> &gt; could comment,
+</I>&gt;<i> &gt; Thanks,
+</I>&gt;<i> &gt; Nikita
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; On Mon, Jun 7, 2010 at 5:34 AM, narendra sisodiya
+</I>&gt;<i> &gt; &lt;narendra at narendrasisodiya.com&gt; wrote:
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; May someone explore what is not possible with HTML5 in spec and in
+</I>&gt;<i> &gt;&gt; Implementations
+</I>&gt;<i> &gt;&gt; For example video telephony in browser is possible ? we draft DAP spec but
+</I>&gt;<i> &gt;&gt; no implementations. So not possible at this moment.
+</I>
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="068935.html">[whatwg] What is not possible with HTML5
+</A></li>
+	<LI>Next message: <A HREF="069112.html">[whatwg] What is not possible with HTML5
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#69110">[ date ]</a>
+              <a href="thread.html#69110">[ thread ]</a>
+              <a href="subject.html#69110">[ subject ]</a>
+              <a href="author.html#69110">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

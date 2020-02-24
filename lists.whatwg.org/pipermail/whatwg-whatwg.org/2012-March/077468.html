@@ -1,0 +1,151 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] API for encoding/decoding ArrayBuffers into text
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20API%20for%20encoding/decoding%20ArrayBuffers%20into%20text&In-Reply-To=%3CCABirCh8Xr4fp2BcR487ZyNQ9vOUv8N6HduKiLvVChwF3v8peCw%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="077476.html">
+   <LINK REL="Next"  HREF="077469.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] API for encoding/decoding ArrayBuffers into text</H1>
+<!--htdig_noindex-->
+    <B>Glenn Maynard</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20API%20for%20encoding/decoding%20ArrayBuffers%20into%20text&In-Reply-To=%3CCABirCh8Xr4fp2BcR487ZyNQ9vOUv8N6HduKiLvVChwF3v8peCw%40mail.gmail.com%3E"
+       TITLE="[whatwg] API for encoding/decoding ArrayBuffers into text">glenn at zewt.org
+       </A><BR>
+    <I>Mon Mar 26 18:24:41 PDT 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="077476.html">[whatwg] API for encoding/decoding ArrayBuffers into text
+</A></li>
+        <LI>Next message: <A HREF="077469.html">[whatwg] API for encoding/decoding ArrayBuffers into text
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#77468">[ date ]</a>
+              <a href="thread.html#77468">[ thread ]</a>
+              <a href="subject.html#77468">[ subject ]</a>
+              <a href="author.html#77468">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Mon, Mar 26, 2012 at 7:33 PM, Jonas Sicking &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">jonas at sicking.cc</A>&gt; wrote:
+
+&gt;<i> Requiring callers to find the null character first, and then use that
+</I>&gt;<i> will require one additional pass over the encoded binary data though.
+</I>&gt;<i>
+</I>
+That's extremely fast (memchr), and it's probably the fastest thing to do
+anyway, compared to embedding null-termination logic into the inner loop of
+decode functions.
+
+Unless there's a concrete benchmark showing that it's slower, and slower
+enough to actually matter, this shouldn't be a consideration.  It's a
+premature optimization.
+
+Also, if we put the API for finding the null character on the Decoder
+&gt;<i> object it doesn't seem like we're creating an API which is easier to
+</I>&gt;<i> use, just one that has moved some of the logic from the API to every
+</I>&gt;<i> caller.
+</I>&gt;<i>
+</I>
+It doesn't seem materially harder (a little more code, yes, but that's not
+the same thing), and it's more general-purpose.  The API for finding the
+character doesn't belong on Decoder.  It should probably go on each View
+type, analogous to String.indexOf.  Multi-byte views should search on the
+view's size; eg. Int16Array.indexOf(i) maps to wmemchr.
+
+Though I guess the best solution would be to add methods to DataView
+&gt;<i> which allows consuming an ArrayBuffer up to a null terminated point
+</I>&gt;<i> and returns the decoded string. Potentially such a method could take a
+</I>&gt;<i> Decoder object as argument.
+</I>&gt;<i>
+</I>
+I guess.  It doesn't seem that important, since it's just a few lines of
+code.  If this is done, I'd suggest that this helper API *not* have any
+special support for streaming (not to disallow it, but not to have any
+special handling for it, either).  I think streaming has little overlap
+with null-terminated fields, since null-termination is typically used with
+fixed-size buffers.  It would complicate things; for example, you'd need
+some way to signal to the caller that a null terminator was encountered.
+
+That is, it'd basically look like:
+
+function decodeNullTerminated(decoder, options)
+{
+    // Create the correct array type, so array.find and array.subarray work
+in 16-bit for UTF-16.
+    var arrayType = (decoder.encoding.toLowerCase() == 'utf-16le' ||
+decoder.encoding.toLowerCase() == 'utf-16be')? Int16Array:Int8Array;
+    var array = new arrayType(this.buffer, this.byteOffset,
+this.byteLength);
+    var terminator = array.find(0);
+    if(terminator != -1)
+        array = array.subarray(0, terminator);
+    return decoder.decode(array, options);
+}
+
+which doesn't specifically prohibit options including {stream: true}, but
+doesn't attempt to make it useful.
+
+(Side note: If you have null-terminated strings, you're almost always
+dealing with only multibyte encodings like UTF-8, or only wide encodings
+like UTF-16, so you'd just use the appropriate type.  That is, the minor
+complication of the first line above isn't something that users would
+normally actually need to do.)
+
+
+On Mon, Mar 26, 2012 at 8:11 PM, Kenneth Russell &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">kbr at google.com</A>&gt; wrote:
+
+&gt;<i> The rationale for specifying the string encoding and decoding
+</I>&gt;<i> functionality outside the typed array specification is to keep the
+</I>&gt;<i> typed array spec small and easily implementable. The indexed property
+</I>&gt;<i> getters and setters on the typed array views, and methods on DataView,
+</I>&gt;<i> are designed to be implementable with a small amount of assembly code
+</I>&gt;<i> in JavaScript engines. I'd strongly prefer to continue to design the
+</I>&gt;<i> encoding/decoding functionality separately from the typed array views.
+</I>&gt;<i>
+</I>
+It doesn't need to go into the Typed Array spec.  It can just be an
+addition to the interface provided by an external specification, which
+doesn't need to be implemented to implement typed arrays itself.
+
+I don't think it's an important thing to have, but this in particular
+doesn't seem like a problem.
+
+-- 
+Glenn Maynard
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="077476.html">[whatwg] API for encoding/decoding ArrayBuffers into text
+</A></li>
+	<LI>Next message: <A HREF="077469.html">[whatwg] API for encoding/decoding ArrayBuffers into text
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#77468">[ date ]</a>
+              <a href="thread.html#77468">[ thread ]</a>
+              <a href="subject.html#77468">[ subject ]</a>
+              <a href="author.html#77468">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

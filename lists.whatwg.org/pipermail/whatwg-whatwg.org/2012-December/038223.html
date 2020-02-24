@@ -1,0 +1,226 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Proposal: Loading and executing script as quickly as	possible using multipart/mixed
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Proposal%3A%20Loading%20and%20executing%20script%20as%20quickly%20as%0A%09possible%20using%20multipart/mixed&In-Reply-To=%3CCAJE5ia-bHniNYHbZUVCQyWxkB9Pg0YW6oFXomdpLB_04b9cr2g%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="080546.html">
+   <LINK REL="Next"  HREF="080498.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Proposal: Loading and executing script as quickly as	possible using multipart/mixed</H1>
+<!--htdig_noindex-->
+    <B>Adam Barth</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Proposal%3A%20Loading%20and%20executing%20script%20as%20quickly%20as%0A%09possible%20using%20multipart/mixed&In-Reply-To=%3CCAJE5ia-bHniNYHbZUVCQyWxkB9Pg0YW6oFXomdpLB_04b9cr2g%40mail.gmail.com%3E"
+       TITLE="[whatwg] Proposal: Loading and executing script as quickly as	possible using multipart/mixed">w3c at adambarth.com
+       </A><BR>
+    <I>Mon Dec  3 13:14:33 PST 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="080546.html">[whatwg] [mimesniff] Sniffing archives
+</A></li>
+        <LI>Next message: <A HREF="080498.html">[whatwg] Proposal: Loading and executing script as quickly as possible using multipart/mixed
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#38223">[ date ]</a>
+              <a href="thread.html#38223">[ thread ]</a>
+              <a href="subject.html#38223">[ subject ]</a>
+              <a href="author.html#38223">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>== Use case ==
+
+Load and execute script as quickly as possible.
+
+== Discussion ==
+
+Currently, there are a number of ways to load a script from the
+network and execute it, but none of them will actually load and
+execute the script as fast as physically possible.  Consider the
+following markup:
+
+&lt;script async src=&quot;path/to/script.js&quot;&gt;&lt;/script&gt;
+
+In this case, the user agent will wait until it receives the last byte
+of script.js from the network before executing the first byte of
+script.js.  In principle, the user agent could finish executing
+script.js sooner if it could overlap some of the execution time with
+some of the network latency, for example by executing a chunk of the
+script while waiting for the bytes for the next chunk to arrive from
+the network.
+
+Unfortunately, without additional information, the user agent doesn't
+know where &quot;safe&quot; chunk boundaries are located.  Picking an arbitrary
+byte boundary is likely to cause a syntax error, and even picking an
+arbitrary JavaScript statement boundary will change the semantics of
+the script.  The user agent needs some sort of signal from the author
+to know where the safe chunk boundaries are located.
+
+== Workarounds ==
+
+The simplest work around is to break your script into several pieces:
+
+&lt;script async src=&quot;path/to/script-part1.js&quot;&gt;&lt;/script&gt;
+&lt;script async src=&quot;path/to/script-part2.js&quot;&gt;&lt;/script&gt;
+&lt;script async src=&quot;path/to/script-part3.js&quot;&gt;&lt;/script&gt;
+
+Now, script-part1.js will execute before the user agent has received
+the last byte of script-part3.js.  Unfortunately, this approach does
+not make efficient use of the network.  Specifically, if the three
+parts are retrieved from the network in parallel, then the user agent
+might receive a byte from script-part3.js before receiving all the
+bytes of script-part1.js, wasting network bandwidth (because the bytes
+from script-part3.js are not useful until all of script-part1.js is
+received an executed).
+
+A more sophisticated workaround is to use an &lt;iframe&gt; element rather
+than a &lt;script&gt; element to load the script:
+
+&lt;iframe src=&quot;path/to/script-in-markup.html&quot;&gt;&lt;/iframe&gt;
+
+In this approach, script-in-markup.html is the following HTML:
+
+&lt;script&gt;
+[... text of script-part1.js ...]
+&lt;/script&gt;
+&lt;script&gt;
+[... text of script-part2.js ...]
+&lt;/script&gt;
+&lt;script&gt;
+[... text of script-part3.js ...]
+&lt;/script&gt;
+
+Now the bytes of the script are retrieved from the network in the
+proper order (making efficient use of bandwidth) and the user agent
+can overlap execution of the script with network latency (because the
+&lt;script&gt; tags delineate the safe chunks).
+
+This approach is used in production web applications, including Gmail,
+to load and execute script as quickly as possible.  If you inspect a
+running copy of Gmail, you can find this frame---it's the one with ID
+&quot;js_frame&quot;.
+
+Unfortunately, this approach as a number of disadvantages:
+
+(1) Creating an extra &lt;iframe&gt; for loading JavaScript is not resource
+efficient.  The user agent needs to create a number of extra data
+structures and an extra JavaScript environment, which wastes time as
+well as memory.
+
+(2) Authors need to write their scripts with the understanding that
+the primary callers of their code will do so from another frame.  For
+example, the instanceof operator might not work as expected if they
+ask whether an object from the caller (i.e., from the parent frame) is
+an instance of a constructor from the callee's environment (i.e., from
+the child frame).
+
+(3) This approach requires the author who loads the script to use
+different syntax than normally used for loading script.  For example,
+this prevents this technique from being applied to the JavaScript
+libraries that Google hosts (as described by
+&lt;<A HREF="https://developers.google.com/speed/libraries/">https://developers.google.com/speed/libraries/</A>&gt;).
+
+== Proposal ==
+
+The &lt;script&gt; element should support multipart/mixed.
+
+== Details ===
+
+The main ingredient that we're missing is a way for the author to
+signal to the user agent which chunks of scripts are safe to execute
+in parallel with loading subsequent chunks from the network.
+Fortunately, the web platform already has a mechanism for breaking a
+single HTTP response body into chunks that are processed sequentially:
+multipart/mixed.
+
+For example, if an HTTP server provides a multipart/mixed response to
+a request for an image, the &lt;img&gt; element will display each part of
+the response in sequence, animating the image.  Similarly, if an HTTP
+server provides a multipart/mixed response to a request for an HTML
+document, the user agent will display each part of the response
+sequentially.
+
+One way to address this use case is to add multipart/mixed support to
+the &lt;script&gt; element.  Upon receiving a multipart/mixed response to a
+request for a script, the &lt;script&gt; element must execute each part of
+the response as they become available.  This behavior appears to be
+consistent with the definition of multipart/mixed
+&lt;<A HREF="http://tools.ietf.org/html/rfc2046#section-5.1.3">http://tools.ietf.org/html/rfc2046#section-5.1.3</A>&gt;.
+
+To load and execute a script as quickly as possible, the author would
+use the following markup:
+
+&lt;script async src=&quot;path/to/script.js&quot;&gt;&lt;/script&gt;
+
+The HTTP server would then break script.js into chunks that are safe
+to execute sequentially and provide each chunk as a separate MIME part
+in a multipart/mixed response.
+
+Adam
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="080546.html">[whatwg] [mimesniff] Sniffing archives
+</A></li>
+	<LI>Next message: <A HREF="080498.html">[whatwg] Proposal: Loading and executing script as quickly as possible using multipart/mixed
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#38223">[ date ]</a>
+              <a href="thread.html#38223">[ thread ]</a>
+              <a href="subject.html#38223">[ subject ]</a>
+              <a href="author.html#38223">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

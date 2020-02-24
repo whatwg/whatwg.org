@@ -1,0 +1,823 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Script preloading
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Script%20preloading&In-Reply-To=%3Calpine.DEB.2.00.1308212259080.27209%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="040597.html">
+   <LINK REL="Next"  HREF="082896.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Script preloading</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Script%20preloading&In-Reply-To=%3Calpine.DEB.2.00.1308212259080.27209%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg] Script preloading">ian at hixie.ch
+       </A><BR>
+    <I>Tue Aug 27 14:55:11 PDT 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="040597.html">[whatwg] [mimesniff] The Apache workaround should not sniff random	types
+</A></li>
+        <LI>Next message: <A HREF="082896.html">[whatwg] Script preloading
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#40598">[ date ]</a>
+              <a href="thread.html#40598">[ thread ]</a>
+              <a href="subject.html#40598">[ subject ]</a>
+              <a href="author.html#40598">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>
+First, let's get down to use cases. Kyle did a great job of describing 
+some key use cases:
+
+On Wed, 10 Jul 2013, Kyle Simpson wrote:
+&gt;<i>
+</I>&gt;<i> [Use-case Q:] I am dynamically loading one of those social widgets that, 
+</I>&gt;<i> upon load, automatically scans a page and renders social buttons. I need 
+</I>&gt;<i> to be able to preload that script so it's ready to execute, but decide 
+</I>&gt;<i> when I want it to run against the page. I don't want to wait for true 
+</I>&gt;<i> on-demand loading, like when my user clicks a button, because of the 
+</I>&gt;<i> loading delay that will be visible to the user, so I want to pre-load 
+</I>&gt;<i> that script and have it waiting, ready at a moment's notice to say &quot;it's 
+</I>&gt;<i> ok to execute, do it now! now! now!&quot;.
+</I>
+&gt;<i> [Use-case S:] One CMS plugin wants to load &quot;A.js&quot; and &quot;B.js&quot;, where B 
+</I>&gt;<i> relies on A. Both need to load in parallel (for performance), but A must 
+</I>&gt;<i> execute before B executes. I don't control A and B, so changing them is 
+</I>&gt;<i> not an option. This CMS plugin [wants] to wait for some 
+</I>&gt;<i> user-interaction, such as a button click, before executing the code. We 
+</I>&gt;<i> don't want there to be any big network-loading delay visible to the user 
+</I>&gt;<i> between their click of the button and the running of that plugin's code.
+</I>&gt;<i> 
+</I>&gt;<i> Another CMS plugin on this same page wants to load &quot;A.js&quot;, &quot;C.js&quot;, and 
+</I>&gt;<i> &quot;D.js&quot;. This plugin doesn't know or care that the other plugin also 
+</I>&gt;<i> requests &quot;A.js&quot;. It doesn't know if there is a script element in the 
+</I>&gt;<i> page requesting it or not, and it doesn't want to looking for it. It 
+</I>&gt;<i> just wants to ask for A as a pre-requisite to C and D. But C and D have 
+</I>&gt;<i> no dependency on each other, only a shared dependency on A. C and D 
+</I>&gt;<i> should be free to run ASAP (in whichever order), assuming that A has 
+</I>&gt;<i> already run [once] some user-interaction that initiates the load of A, 
+</I>&gt;<i> C, and D. This user interaction may be before the other plugin requested 
+</I>&gt;<i> A, or after it requested A.
+</I>&gt;<i>
+</I>&gt;<i> &quot;A.js&quot; can be requested relatively (via a &lt;base&gt; tag or just relative to 
+</I>&gt;<i> document root) or absolutely, or it might be requested with the 
+</I>&gt;<i> leading-// protocol-relative from, taking on whatever http or https 
+</I>&gt;<i> protocol the page has, whereas other references to it may specify the 
+</I>&gt;<i> prototcol.
+</I>&gt;<i>
+</I>&gt;<i> These plugins can't guarantee what ID's or classes they use are reliably 
+</I>&gt;<i> unique without undue processing burden.
+</I>
+[I've trimmed the text Kyle wrote here, but also implicit in his 
+description, as I understood it, was that A.js should only run once even 
+if both plugins tried to load it.]
+
+&gt;<i> [Use-case T:] I have two different calendar widgets. I want to pop one 
+</I>&gt;<i> of them up when a user clicks a button. The user may never click the 
+</I>&gt;<i> button, in which case I don't want the calendar widget to have ever 
+</I>&gt;<i> executed to render. [...]
+</I>&gt;<i> 
+</I>&gt;<i> It'd be nice if both calendar widgets were built sensibly so that 
+</I>&gt;<i> loading the code didn't automatically render. One of them IS, the other 
+</I>&gt;<i> is unfortunately mis-behaving, and it will render itself as soon as its 
+</I>&gt;<i> code is run. [...]
+</I>&gt;<i> 
+</I>&gt;<i> Furthermore, these two widgets are not &quot;equal&quot;. Perhaps one is better 
+</I>&gt;<i> for smaller browser window sizes, and the other is better for larger 
+</I>&gt;<i> browser windows. [...]
+</I>&gt;<i> 
+</I>&gt;<i> Regardless, the point is, there's run-time conditions which are going to 
+</I>&gt;<i> determine if I want to execute calendar widget A or B, or maybe I never 
+</I>&gt;<i> execute either. But I want them both preloaded and ready to go, just in 
+</I>&gt;<i> case, so that if the user DOES need one, it's free and ready to execute 
+</I>&gt;<i> with nearly no delay, instead of having to wait to request as I would 
+</I>&gt;<i> with only on-demand techniques.
+</I>
+&gt;<i> [Use-case U:] I have a set of script &quot;A.js&quot;, &quot;B.js&quot;, and &quot;C.js&quot;. B 
+</I>&gt;<i> relies on A, and C relies on B. So they need to execute strictly in that 
+</I>&gt;<i> order. [Now], imagine they progressively render different parts of a 
+</I>&gt;<i> widget. [...] I only want to execute A, B and C once all 3 are preloaded 
+</I>&gt;<i> and ready to go. It's [...] about minimizing delays between them, for 
+</I>&gt;<i> performance PERCEPTION.
+</I>&gt;<i>
+</I>&gt;<i> [For example, one of them might start playing a video, and another might 
+</I>&gt;<i> introduce the &lt;canvas&gt; slides for that video. You want all of the 
+</I>&gt;<i> relevant scripts to be run at once, so there's no point where the page 
+</I>&gt;<i> has a &lt;video&gt; element but doesn't have the &lt;canvas&gt;.]
+</I>
+On Thu, 11 Jul 2013, Kyle Simpson wrote:
+&gt;<i> 
+</I>&gt;<i> [Use-case V:] you have a string of scripts (&quot;A.js&quot;, &quot;B.js&quot;, and &quot;C.js&quot;) 
+</I>&gt;<i> loading which constitute a dependency chain. A must run before B, which 
+</I>&gt;<i> must run before C. However, if you detect an error in loading, you stop 
+</I>&gt;<i> the rest of the executions (and preferably loading too!), since clearly 
+</I>&gt;<i> dependencies will fail for further scripts, and the errors will just 
+</I>&gt;<i> unnecessarily clutter the developer console log making it harder to 
+</I>&gt;<i> debug.
+</I>
+&gt;<i> [Use-case W:] some developers have even requested to be able to stop the 
+</I>&gt;<i> chain and prevent further executions if the script loads, but there's 
+</I>&gt;<i> some compile-time syntax error or run-time error that happens during the 
+</I>&gt;<i> execution. For them, it's not enough for B to simply finish loading 
+</I>&gt;<i> successfully, but that it must fully execute without error.
+</I>
+On Sun, 14 Jul 2013, Kornel Lesi&#324;ski wrote (trimmed):
+&gt;<i> 
+</I>&gt;<i> [Use-case X:] not all dependencies are JS files, e.g. authors use 
+</I>&gt;<i> plugins to load template files, JSON, images, etc.
+</I>&gt;<i> 
+</I>&gt;<i> [Use-case Y:] not all dependencies are usefully satisfied immediately 
+</I>&gt;<i> after their JS file is loaded, e.g. some libraries may need asynchronous 
+</I>&gt;<i> initialization.
+</I>&gt;<i>
+</I>&gt;<i> [Use-case Z:] Another common kind of dependency scripts have is presence 
+</I>&gt;<i> of certain element in the DOM, e.g. `dropdown-menu.js` may require `&lt;nav 
+</I>&gt;<i> id=&quot;menu&quot;&gt;` to be in the document _and_ have its content fully parsed 
+</I>&gt;<i> before the script can run.
+</I>
+These use cases are all very helpful. Thanks.
+
+Jake also mentioned these requirements:
+
+|<i> - Provides an adoption path for browsers that don't support the new
+</I>|<i>   feature (happy for the fallback to be blocking document-order 
+</I>|<i>   execution)
+</I>|<i> - Is discoverable by pre-parsers (so async=false and old-IE's 
+</I>|<i>   readystate methods aren't enough)
+</I>
+And Kyle mentioned this scenario that we need to handle as well (not
+strictly a use case, more a variant on the above use cases):
+
+&gt;<i> I want to preload a script which is hosted somewhere that I don't
+</I>&gt;<i> control caching headers, and to my dismay, I discover that they are
+</I>&gt;<i> serving the script with incorrect/busted/missing caching headers.
+</I>
+
+
+On Tue, 9 Jul 2013, Kyle Simpson wrote:
+&gt;<i> 
+</I>&gt;<i> I think it's important to note that the primary motivation here is 
+</I>&gt;<i> performance.
+</I>
+The primary motivation is running scripts. Performance is just something 
+we want all features to have, like security, accessibility, usability, 
+support for all locales, etc.
+
+Incidentally, I don't think the use case is or should be &quot;make it possible 
+to write a performant script loading library&quot;. I think the use case should 
+be more like &quot;make it unnecessary to ever write a script loading library&quot;.
+
+
+On Tue, 9 Jul 2013, Kyle Simpson wrote:
+&gt;<i> 
+</I>&gt;<i> But even if we standardized a third option, and I had to change LABjs, 
+</I>&gt;<i> that would be FAR BETTER in my mind than never addressing this use case 
+</I>&gt;<i> at all, especially in light of IE11 sort of retreating on this topic 
+</I>&gt;<i> (either intentionally or not).
+</I>
+I think the ideal solution would obsolete LABjs, no?
+
+
+On Thu, 11 Jul 2013, Jake Archibald wrote:
+&gt;<i> 
+</I>&gt;<i> link[rel=subresource] is the right solution for preloading [...]
+</I>
+I don't know about that. It makes for rather verbose script just to load 
+scripts, which seems like a loss. Surely script loading should just happen 
+without having to write extra script to do it.
+
+
+All of the solutions proposed so far either entirely fail to handle some 
+of the use cases, or only support them to the extent that they provide 
+some tools with which you can implement scripts that handle the use cases.
+
+IMHO, if you have to write a script to solve use cases like these, you 
+haven't really solved the use cases. It seems that the opportunity we have 
+here is to provide a feature or set of features that addresses these use 
+cases directly, so that anyone can use them without much work.
+
+
+On Thu, 11 Jul 2013, Yoav Weiss wrote:
+&gt;<i> 
+</I>&gt;<i> I've recently contemplated the slightly related issue of adding the 
+</I>&gt;<i> &quot;media&quot; attribute to &lt;script&gt;, for declarative loading of scripts that 
+</I>&gt;<i> are only relevant to some viewports [1] While it may complicate certain 
+</I>&gt;<i> things (e.g. execution when media conditions change, dependencies), I 
+</I>&gt;<i> believe it's worth while to give it some thought, as it'd enable 
+</I>&gt;<i> preloaders to fetch these scripts as soon as possible, in case they are 
+</I>&gt;<i> needed.
+</I>
+How common are media-specific scripts?
+
+
+On Mon, 15 Jul 2013, Bruno Racineux wrote:
+&gt;<i> 
+</I>&gt;<i> Wouldn't browsers be able to store &quot;pre-parsed/compiled' scripts in a 
+</I>&gt;<i> separate &quot;byte code&quot; cache, with scripts promoted to the sticky cache 
+</I>&gt;<i> based on their access frequency (up to cache expiration)? Say similarly 
+</I>&gt;<i> to the way Fusion Drives or Seagate Adaptive Memory SSHDs work.
+</I>&gt;<i> 
+</I>&gt;<i> i.e. Why do we have to keep re-parsing and re-evaluating the very same 
+</I>&gt;<i> scripts, especially CDN libraries and social apis largely shared among 
+</I>&gt;<i> websites, over and over?
+</I>
+Fundamentally the problem is that they're often not exactly the very same 
+scripts, so the wins aren't as great as you might think.
+
+But there's nothing stopping browsers from doing this today. File bugs 
+with browsers. :-)
+
+
+&gt;<i> If javascript can't be as truly fast a native apps: 
+</I>&gt;<i> <A HREF="http://sealedabstract.com/rants/why-mobile-web-apps-are-slow/">http://sealedabstract.com/rants/why-mobile-web-apps-are-slow/</A> It seems 
+</I>&gt;<i> that for frequently visited sites and frequently accessed libraries 
+</I>&gt;<i> across websites, the whole parse/evaluation time, could be cut 
+</I>&gt;<i> 'partially', yet very significantly, just like opcode does for php.
+</I>
+The article you cite basically answers your question: the problem isn't 
+downloading and compiling the scripts, the problem is garbage collection 
+and other intrinsic aspects of the JavaScript language and the rest of the 
+Web platform.
+
+
+On Tue, 9 Jul 2013, Garrett Smith wrote:
+&gt;<i> 
+</I>&gt;<i> Why limit &quot;depends&quot; to be used by only scripts to refer only to other 
+</I>&gt;<i> scripts?
+</I>&gt;<i> 
+</I>&gt;<i> If you put &lt;link depends=idref&gt; on style then stylesheet evaluation 
+</I>&gt;<i> could be deferred, too.
+</I>&gt;<i> 
+</I>&gt;<i> I explained some cases about why this is desirable here: 
+</I>&gt;<i> <A HREF="http://lists.whatwg.org/htdig.cgi/whatwg-whatwg.org/2009-February/018435.html">http://lists.whatwg.org/htdig.cgi/whatwg-whatwg.org/2009-February/018435.html</A>
+</I>
+I responded to that e-mail here:
+
+<A HREF="http://lists.whatwg.org/htdig.cgi/whatwg-whatwg.org/2009-February/018542.html">http://lists.whatwg.org/htdig.cgi/whatwg-whatwg.org/2009-February/018542.html</A>
+
+
+On Tue, 9 Jul 2013, Bruno Racineux wrote:
+&gt;<i>
+</I>&gt;<i> Why not simply load all such scripts early in the &lt;head&gt; with 'defer', 
+</I>&gt;<i> which preserves the dependency order as determined by your app. Using 
+</I>&gt;<i> 'defer' in head scripts is actually a very good way to preserve script 
+</I>&gt;<i> order with non-blocking scripts. And by loading the scripts very early 
+</I>&gt;<i> in the &lt;head&gt;, the possibility of a incurred significant delay of 
+</I>&gt;<i> DOMContentLoaded, for an eventual large script not yet downloaded, is 
+</I>&gt;<i> minimal to none.
+</I>
+This doesn't seem like it handles all the use cases (e.g. T and U).
+
+
+&gt;<i> I would also strongly favor restoring the previous spec portion of 
+</I>&gt;<i> 'defer' which allow to have defer on inline script blocks (i.e. if the 
+</I>&gt;<i> src attribute is not present). I don't know why this html4 functionality 
+</I>&gt;<i> was removed from html5?
+</I>
+Well, primarily because basically nobody implemented it, but also, because 
+it's not clear what the point is. Why would you need it?
+
+
+&gt;<i> I see use cases which would give much more flexibility with dependencies 
+</I>&gt;<i> (such as putting jquery on 'defer' in the head with inline 'defer' 
+</I>&gt;<i> jquery functions) and possibly even improving performance significantly.
+</I>
+Why not just wait for jQuery to say it's loaded, and then run whatever 
+scripts depend on jQuery?
+
+
+&gt;<i> Back to the initial question from my rant. While there is a use case for 
+</I>&gt;<i> not downloading or executing scripts until needed, this can somewhat 
+</I>&gt;<i> already be dealt with using ajax or the post-eval method google uses. Or 
+</I>&gt;<i> perhaps this script execution hold could be an ajax only solution, with 
+</I>&gt;<i> a no-execute-yet property and a pure javascript behavior, rather than 
+</I>&gt;<i> also implicate DOM attributes into this.
+</I>
+Such solutions are somewhat unsatisfactory. A dedicated solution would be 
+easier to use and less confusing.
+
+
+On Wed, 10 Jul 2013, Bruno Racineux wrote:
+&gt;<i>
+</I>&gt;<i> I think the very idea of having the concept of 'dependency' attributes 
+</I>&gt;<i> and relying or asking to the browser to handle it through markup is 
+</I>&gt;<i> misguided.
+</I>&gt;<i>
+</I>&gt;<i> This is somehow throwing the entire (or a portion of) dependency 
+</I>&gt;<i> information of your platform, asking the browser to deal with it. I can 
+</I>&gt;<i> already imagine bloated pages with an entire set of script markup, 
+</I>&gt;<i> bigger than that of the page itself. That's not very good for 
+</I>&gt;<i> performance.
+</I>
+I don't understand. Can you elaborate on this? Why is it misguided?
+
+
+&gt;<i> I think Kyle has given more than enough substantiated arguments in: 
+</I>&gt;<i> <A HREF="http://lists.whatwg.org/htdig.cgi/whatwg-whatwg.org/2013-July/039981.html">http://lists.whatwg.org/htdig.cgi/whatwg-whatwg.org/2013-July/039981.html</A> 
+</I>&gt;<i> not to have me repeat them.
+</I>
+These use cases don't suggest that the browser shouldn't solve them, on 
+the contrary.
+
+
+On Mon, 15 Jul 2013, Kornel Lesi&#324;ski wrote:
+&gt;<i> 
+</I>&gt;<i> ES6 modules[1] have a script loader API[2].
+</I>&gt;<i> 
+</I>&gt;<i> That API is pretty powerful to the point it can emulate other script 
+</I>&gt;<i> loaders, load files that are not ES6 modules, and even load text files 
+</I>&gt;<i> that aren't JS (intended for compilation of coffeescript-like languages, 
+</I>&gt;<i> but could be abused for anything):
+</I>&gt;<i> 
+</I>&gt;<i> <A HREF="https://gist.github.com/wycats/51c96e3adcdb3a68cbc3#using-existing-libraries-as-modules">https://gist.github.com/wycats/51c96e3adcdb3a68cbc3#using-existing-libraries-as-modules</A>
+</I>&gt;<i> 
+</I>&gt;<i> There's a very high overlap between module dependencies and &lt;script 
+</I>&gt;<i> dependencies&gt; proposal. I think at very least it would be useful to 
+</I>&gt;<i> define &lt;script dependencies&gt; in terms of ES6 modules, or even abandon 
+</I>&gt;<i> markup solution to avoid duplicating features.
+</I>&gt;<i> 
+</I>&gt;<i> ES6 modules however do not solve the performance problem. In fact they 
+</I>&gt;<i> would benefit from UA having a list of all dependencies up front 
+</I>&gt;<i> (otherwise file's dependencies can only be discovered after that file is 
+</I>&gt;<i> loaded, which costs as many RTTs as the height of the dependency tree).
+</I>&gt;<i> 
+</I>&gt;<i> So I think that eventually ES6 modules + link[rel=subresource] could be 
+</I>&gt;<i> the answer. The &lt;link&gt; would expose URLs to (pre)load for performance, 
+</I>&gt;<i> but modules would handle actual loading/execution for flexibility and 
+</I>&gt;<i> reliability.
+</I>
+The ES6 module doesn't address some of the use cases above, as far as I 
+can tell (e.g. Q, U) and require a lot of work to handle some of the 
+others. But it seems important that anything we add to HTML be designed to 
+work with ES6 modules on the long run.
+
+(I'm assuming the current state of this is:
+
+   <A HREF="http://wiki.ecmascript.org/doku.php?id=harmony:modules">http://wiki.ecmascript.org/doku.php?id=harmony:modules</A>
+   <A HREF="http://wiki.ecmascript.org/doku.php?id=harmony:module_loaders">http://wiki.ecmascript.org/doku.php?id=harmony:module_loaders</A>
+
+...but that seems to have changed some since wycats' proposal above.)
+
+
+On Mon, 22 Jul 2013, Jonas Sicking wrote:
+&gt;<i> 
+</I>&gt;<i> [...] adding a &quot;noexecute&quot; attribute on the &lt;script&gt; element which 
+</I>&gt;<i> causes the script element not to execute when it normally would. Instead 
+</I>&gt;<i> it fires the &quot;load&quot; event when the script has been loaded and does 
+</I>&gt;<i> nothing more.
+</I>&gt;<i> 
+</I>&gt;<i> Once the page wants the script to execute, it would call a new 
+</I>&gt;<i> .execute() function on the script which would cause the loaded script to 
+</I>&gt;<i> execute. If the function is called before the load event has fired, an 
+</I>&gt;<i> InvalidStateError exception would be thrown.
+</I>
+This doesn't seem like it would address many of the use cases, at least 
+not without a bunch more supporting code. It also doesn't seem like it 
+would really coordinate well with ES6 modules (unless there was some way 
+to say &quot;by the way, this script implement that module&quot; or something, with 
+'import' being able to essentially automatically invoke &quot;execute()&quot;).
+
+
+On Mon, 22 Jul 2013, Kyle Simpson wrote:
+&gt;<i> Jonas wrote about JS error conditions:
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; 1. Failed network request
+</I>&gt;<i> &gt; 2. Failed JS compilation
+</I>&gt;<i> &gt; 3. Exception thrown from execution
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; And there are two error reporting mechanisms in play
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; A. Fire an &quot;error&quot; event on the &lt;script&gt; element.
+</I>&gt;<i> &gt; B. Fire the window.onerror callback (like an event, but not exactly the same).
+</I>&gt;<i> 
+</I>&gt;<i> Agreed. `window.onerror` serves fine case #3. What we don't seem to have 
+</I>&gt;<i> as consistent cross-browser behavior, or even terribly well defined in 
+</I>&gt;<i> the spec, is #1 and #2, especially #1. Various older browsers had 
+</I>&gt;<i> different interpretations as to which network conditions constituted 
+</I>&gt;<i> &quot;load complete&quot; or not.
+</I>
+Can you elaborate on what is underdefined about this in the spec?
+
+
+On Mon, 22 Jul 2013, Jonas Sicking wrote:
+&gt;<i> 
+</I>&gt;<i> In the noexecute proposal I believe that .execute() would be a 
+</I>&gt;<i> synchronous operation. Though we could change it to be an asynchronous 
+</I>&gt;<i> operation if that's desired.
+</I>
+It's not clear to me how script execution in the ES6 Module Loader world 
+works when it's asynchronous. As in, if you document.appendChild() an 
+inline script that has a dependency, does the calling script resume 
+executing before the inner script? Or does it block on the network like a 
+synchronous XHR?
+
+(I spoke with wycats and he tells me there'll be spec hooks I use in HTML 
+to invoke JS' loading logic so that in this case we'd use evalAsync and it 
+would throw SyntaxError. Similar hooks will be available to make sure we 
+use fetch.spec.whatwg.org for the loading logic.)
+
+
+On Wed, 10 Jul 2013, Jake Archibald wrote:
+&gt;<i> 
+</I>&gt;<i> If &quot;dependencies&quot; took a CSS selector it could be:
+</I>&gt;<i> 
+</I>&gt;<i> &lt;script dependencies=&quot;.cms-core&quot; src=&quot;cmd-plugin.js&quot;&gt;&lt;/script&gt;
+</I>&gt;<i> 
+</I>&gt;<i> Now the number of scripts with class &quot;cms-core&quot; can change between 
+</I>&gt;<i> versions of the CMS but the plugin still waits for them all. No ID 
+</I>&gt;<i> generation needed.
+</I>
+Using a selector is an interesting idea.
+
+It makes it harder to detect and prevent loops, but not fatally so.
+
+
+On Wed, 10 Jul 2013, Kyle Simpson wrote:
+&gt;<i> 
+</I>&gt;<i> Imagine this scenario: I load jquery.js and 4 other plugins. I could 
+</I>&gt;<i> either mark the 4 plugin script tags with &quot;depends on jquery&quot;, or I 
+</I>&gt;<i> could mark the one jquery element as &quot;fullfills these 4 plugins&quot;. The 
+</I>&gt;<i> latter is simpler because it requires less markup in general.
+</I>
+That's somewhat backwards from normal programming practices, though.
+
+
+
+Here's a proposal that attempts to address all the use cases:
+
+High-level overview:
+
+  &lt;script&gt; elements get a new whenneeded=&quot;&quot; attribute, which delays the 
+  execution of the script until the &lt;script&gt; element's execute() method is 
+  called. (This essentially provides the same as the &quot;preload&quot; 
+  suggestions.)
+
+  &lt;script&gt; elements also get a new needs=&quot;&quot; attribute, which takes a list 
+  of URLs. A &lt;script&gt; won't run (even if you call execute()) until all the 
+  &lt;script src=&quot;&quot;&gt; elements referenced by its needs=&quot;&quot; attribute are 
+  themselves ready to run. For example:
+
+     &lt;script src=&quot;b.js&quot; needs=&quot;a.js&quot;&gt;&lt;/script&gt;
+     &lt;script src=&quot;a.js&quot; async&gt;&lt;/script&gt;
+
+ ...will execute a.js when it's ready, and only then execute b.js. &quot;needs&quot; 
+ basically implies &quot;async&quot; if its needs aren't met when it first tries to run.
+
+ &lt;script whenneeded=&quot;jit&quot;&gt; is a special mode where instead of running once 
+ the script's dependencies are met, it additionally waits until all the 
+ scripts that depend on _it_ are ready to run. (&quot;Just in time&quot; exection.) 
+ (The default is whenneeded=asap, &quot;as soon as possible&quot; exection.)
+
+ You can manually increase or decrease a dependency count on &lt;script&gt; 
+ elements by calling incDependencies() and decDependencies().
+
+
+Details (tersely):
+
+  scripts have a &quot;whenneeded&quot; mode, initially &quot;none&quot;, can also be &quot;asap&quot;, &quot;jit&quot;.
+  scripts have a &quot;ready&quot; flag, initially false
+  scripts have a &quot;needed&quot; flag, initially false.
+  scripts have an &quot;already ran&quot; flag, initially false.
+  scripts have an external dependency count, initially zero.
+  documents have the following registries:
+     url -&gt; script element (script registry)
+     script element -&gt; scripts that this script depends on (dependencies)
+  when a script element is removed from the document, it's removed from the 
+  registries (ES6 module registry also).
+
+  &lt;script&gt; gets attributes:
+     whenneeded=&quot;&quot;: enumerated attribute, &quot;asap&quot; (invalid), &quot;jit&quot;, none (missing)
+     needs=&quot;&quot;: space-separated list of URLs
+     module=&quot;&quot;: name of module for ES6
+
+  definitions:
+    a script elemen tA &quot;depends&quot; on a script element B with URL C if B is 
+      the &lt;script&gt; element registered as the &lt;script&gt; for URL C
+    &quot;a script element's dependencies have been met&quot; when:
+      - each script element that it depends on also matches this, and
+      - there are no entries in the dependency registry for the element 
+        that don't correspond to &lt;script&gt;s in the script registry
+      - this script is &quot;ready&quot; and
+      - this script's external dependency count is zero
+    &quot;a script is ready to run&quot; when:
+      - it's dependencies have been met, and
+      - it's &quot;whenneeded&quot; mode is &quot;asap&quot; or missing,
+        or, it's &quot;jit&quot; and all of the scripts that depend on it are
+           either ready to run, or not needed
+
+  &quot;prepare a script&quot; modifications:
+     immediately before the step that today invokes fetch, add these steps:
+      0. look up the resolved url in the document's registry. if there's an 
+         entry already, abort these steps otherwise, add this script element 
+         with this resolved url
+     immediately before the final step, add:
+      0. if there's a module=&quot;&quot; attribute, add this script as a module
+         to the ES6 module registry, and make the logic that imports the
+         module call execute() on the &lt;script&gt; block
+      0. if the element has a &quot;whenneeded&quot; attribute:
+           - set &quot;whenneeded&quot; mode to state of attribute (asap/jit)
+      0. if the element has a &quot;needs&quot; attribute, split it on spaces, and
+         for each value:
+           0. resolve it relative to the element
+           0. add an entry to the dependencies registry, this script 
+              is dependant on that one
+               - use the order of the entries in the needs=&quot;&quot; attribute
+
+  &quot;execute a script block&quot; modifications:
+     Change the &quot;If the load was successful&quot; branch to do this instead:
+      0. mark self as &quot;ready&quot;
+      0. check if we need to run
+     ...and move the current steps into a separate &quot;run&quot; algorithm.
+
+  &quot;check if we need to run&quot;:
+    0. if &quot;whenneeded&quot; is not &quot;none&quot; and &quot;needed&quot; is not true, abort
+    0. if the script is not ready to run, abort
+    0. if the script did not already run:
+        0. mark this script as &quot;already ran&quot;
+        0. for each script that this one depends on and whose &quot;whenneeded&quot; 
+           mode is &quot;jit&quot;, check if it needs to run
+        0. run
+    0. if we're still ready to run:
+       for each script that depends on this one, check if it needs to run
+
+  &lt;script&gt; gets a method, execute():
+    0. mark as needed
+    0. call execute() on each script we depend on  
+    0. if we didn't depend on any, check if we need to run
+
+  &lt;script&gt; gets a pair of methods, incDependencies() and decDependencies(), 
+  that increase and decrease the dependency count by one, respectively
+  decDependencies() throws if called when the count is zero. If 
+  decDependencies() is called and it reduces the number to zero,
+
+
+Here's what the use cases would look like (the function E() returns an 
+element with the given attributes):
+
+   Q:
+   &lt;script id=&quot;social&quot; src=&quot;social-button.js&quot; whenneeded&gt;&lt;/script&gt;
+   &lt;button onmouseover=&quot;document.scripts.social.execute()&quot;&gt; ... &lt;/button&gt;
+
+   S:
+   // CMS plugin 1
+   var A = E('script', { src: 'A.js', whenneeded: true });
+   var B = E('script', { src: 'B.js', needs: 'A.js', whenneeded: true });
+   document.body.append(A, B);
+   function sawUserInteraction() {
+     B.execute();
+   };
+   // CMS plugin 2
+   var A = E('script', { src: 'A.js', whenneeded: true });
+   var C = E('script', { src: 'C.js', needs: 'A.js', whenneeded: true });
+   var D = E('script', { src: 'D.js', needs: 'A.js', whenneeded: true });
+   document.body.append(A, C, D);
+   function sawUserInteraction() {
+     C.execute();
+     D.execute();
+   };
+
+   T:
+   &lt;script id=calA src=&quot;a.js&quot; whenneeded&gt;&lt;/script&gt;
+   &lt;script id=calB src=&quot;b.js&quot; whenneeded&gt;&lt;/script&gt;
+   &lt;script&gt;
+    function showCalendar(which) {
+      if (which == 'a')
+        document.scripts.calA.execute();
+      else
+        document.scripts.calB.execute();
+    }
+   &lt;/script&gt;
+
+   U:
+   &lt;script src=&quot;A.js&quot; whenneeded=jit&gt;&lt;/script&gt;
+   &lt;script src=&quot;B.js&quot; whenneeded=jit needs=&quot;A.js&quot;&gt;&lt;/script&gt;
+   &lt;script id=c src=&quot;C.js&quot; whenneeded=jit needs=&quot;B.js&quot;&gt;&lt;/script&gt;
+   &lt;script&gt;
+    // when we need it...
+    document.scripts.c.execute();
+   &lt;/script&gt;
+
+   V:
+   &lt;script src=&quot;A.js&quot; whenneeded&gt;&lt;/script&gt;
+   &lt;script src=&quot;B.js&quot; whenneeded needs=&quot;A.js&quot;&gt;&lt;/script&gt;
+   &lt;script id=c src=&quot;C.js&quot; whenneeded needs=&quot;B.js&quot;&gt;&lt;/script&gt;
+   &lt;script&gt;
+    onerror = function (message, source, lineno, colno, error) {
+      // report error
+    }
+    // when we need it...
+    document.scripts.c.execute();
+   &lt;/script&gt;
+
+   W:
+   &lt;script src=&quot;A.js&quot; whenneeded&gt;&lt;/script&gt;
+   &lt;script src=&quot;B.js&quot; whenneeded needs=&quot;A.js&quot;&gt;&lt;/script&gt;
+   &lt;script id=c src=&quot;C.js&quot; whenneeded needs=&quot;B.js&quot;&gt;&lt;/script&gt;
+   &lt;script&gt;
+    // when we need it...
+    onerror = function (message, source, lineno, colno, error) {
+      document.currentScript.incDependencies();
+      // since the dependency count is never reduced, the script blocks
+      // all the scripts that depend on it forever
+    }
+    document.scripts.c.execute();
+    onerror = null;
+   &lt;/script&gt;
+
+   X:
+   &lt;script src=&quot;deps.js&quot; async&gt;&lt;/script&gt;
+   &lt;script src=&quot;build.js&quot; needs=&quot;deps.js&quot;&gt;&lt;/script&gt;
+   // in deps.js:
+   var me = document.currentScript;
+   me.incDependencies();
+   var image = new Image();
+   image.src = 'image.png';
+   image.onload = function () {
+     me.decDependencies();
+   };
+
+   Y: 
+   &lt;script src=&quot;slowLoad.js&quot; async&gt;&lt;/script&gt;
+   &lt;script src=&quot;next.js&quot; needs=&quot;slowLoad.js&quot;&gt;&lt;/script&gt;
+   // in slowLoad.js:
+   var me = document.currentScript;
+   me.incDependencies();
+   setTimeout(init, 1000);
+   function init() {
+     // ok, we're ready
+     me.decDependencies();
+   }
+
+   Z:
+   The easiest way to do that one would just be to put the &lt;script&gt; after 
+   the &lt;nav id=&quot;menu&quot;&gt; element in the DOM.
+
+
+Looking at the other requirements:
+
+ - Fallback: the fallback is just to execute the scripts in document 
+   order. This doesn't work when &quot;async&quot; is used, unfortunately, but it 
+   does work when whenneeded=&quot;&quot; is used.
+
+ - Pre-parsers should discover these fine if they're in markup. OBviously, 
+   for script-generated scripts, that won't work.
+
+ - As far as caching goes, the headers shouldn't affect this mechanism, so 
+   it'll work fine even with broken headers. (Obviously it'll work better 
+   across sessions if the headers aren't broken.)
+
+
+Any comments on this proposal?
+
+
+
+On Wed, 10 Jul 2013, Kyle Simpson wrote:
+&gt;<i> 
+</I>&gt;<i> You know, I keep relying on the fact that the body of work on this topic 
+</I>&gt;<i> for almost 3 years ought NOT have to be re-visited every few months when 
+</I>&gt;<i> these threads wake from dormancy. I keep hoping that someone who really 
+</I>&gt;<i> cares about actually addressing all the concerns, and not just some of 
+</I>&gt;<i> them, will do the due dilligence to look at all the previous stuff 
+</I>&gt;<i> before criticizing me for not providing enough detail.
+</I>
+Unfortunately, since you are so verbose in your e-mails, it is impractical 
+to go back and read everything you've written. Just this brief thread had 
+something like 1300 lines from you alone (out of 2500 lines and a dozen 
+participants). The reality of this is that we can't remember everything 
+you've ever written. Sorry.
+
+
+&gt;<i> I doubt anyone is going to read this crazy long message and actually 
+</I>&gt;<i> read all these, but I'll put them here nonetheless.
+</I>
+I read everything.
+
+
+&gt;<i> That was way more than I wanted to write, and probably way more than 
+</I>&gt;<i> anyone wanted to read.
+</I>
+I encourage you to work on editing. It's possible to express the same 
+ideas in much shorter text. For example, use case U above is adequately 
+expressed in the one paragraph I edited it down to, but you had it spread 
+over many paragraphs. The key is to notice when what you are saying merely 
+repeats something you've already said, and to just pick the expression of 
+the idea that says it best, and remove the other one. Another example 
+would be saying &quot;X doesn't want A, it wants not-A&quot;. You don't have to say 
+the first part -- if it wants not-A, then it usually obviously doesn't 
+want A. So you can just say &quot;X wants not-A&quot;. Similarly, if you ever start 
+a sentence with &quot;Again&quot; (or indeed &quot;similarly&quot;!), you have a good 
+candidate for something being redundant. :-)
+
+
+On Tue, 9 Jul 2013, Kyle Simpson wrote:
+&gt;<i> 
+</I>&gt;<i> &gt; The proposals I've seen so far for extending the spec's script 
+</I>&gt;<i> &gt; preloading mechanisms fall into two categories:
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; - provide some more control over the mechanisms already there, e.g. 
+</I>&gt;<i> &gt;   firing events at various times, adding attributes to make the script 
+</I>&gt;<i> &gt;   loading algorithm work differently, or adding methods to trigger 
+</I>&gt;<i> &gt;   particular parts of the algorithm under author control.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; - provide a layer above the current algorithm that provides strong 
+</I>&gt;<i> &gt;   semantics, but that doesn't have much impact on the loading algorithm 
+</I>&gt;<i> &gt;   itself.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; I'm very hesitant to do the first of these, because the algorithm is _so_ 
+</I>&gt;<i> &gt; complicated that adding anything else to it is just going to result in 
+</I>&gt;<i> &gt; bugs in browsers. There comes a point where an algorithm just becomes so 
+</I>&gt;<i> &gt; hard to accurately test that it's a lost cause.
+</I>&gt;<i> 
+</I>&gt;<i> Can you please elaborate on how either of the two prominent proposals 
+</I>&gt;<i> that Nicholas Zakas and I detailed years ago here are insufficient in 
+</I>&gt;<i> that they fall into your first category?
+</I>&gt;<i> 
+</I>&gt;<i> <A HREF="http://wiki.whatwg.org/wiki/Script_Execution_Control">http://wiki.whatwg.org/wiki/Script_Execution_Control</A>
+</I>
+Well they don't address the use cases directly. They provide APIs that can 
+then be used to write script to address the use cases.
+
+
+&gt;<i> How does standardizing that suggestion (turning it from a MAY into a 
+</I>&gt;<i> MUST) further complicate the loading algorithm, especially since there's 
+</I>&gt;<i> over a decade of proof in IE that it works and works fine, and it's 
+</I>&gt;<i> already detailed as a suggestion in the spec?
+</I>
+I disagree with the premise of the question (that IE proves it works 
+fine), since IE didn't implement exactly what the spec wrote plus that, it 
+implemented variants that are hard to distinguish. But in any case, that 
+didn't address the use cases directly either.
+
+
+&gt;<i> In neither case do I see how this unduly complicates the loading 
+</I>&gt;<i> algorithm? It ONLY pauses it between load and execute, under certain 
+</I>&gt;<i> conditions. It doesn't change any of the order of the algorithm.
+</I>
+One can complicate by adding as well as reordering. The question is 
+whether it's &quot;unduly&quot;. In practice my proposal above is much more 
+complicated than that, but it does so to address the use cases.
+
+
+&gt;<i> For instance, content-management-systems (through plugins) load 
+</I>&gt;<i> different items into a page independently of other plugins. Those 
+</I>&gt;<i> plugins have no knowledge of the complete content/markup-structure of 
+</I>&gt;<i> the page, and so they would be unable to reliably create &lt;script&gt; 
+</I>&gt;<i> elements with unique ID's, without just guessing by creating really 
+</I>&gt;<i> obscure ID's. Not perfect/perfectly reliable, and certainly ugly and 
+</I>&gt;<i> more work for them to do. Every plugin would have to come up with its 
+</I>&gt;<i> own ID-generation mechanisms. Asking for inconsistencies/problems.
+</I>
+This seems like a generic problem with every mechanism that uses IDs.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="040597.html">[whatwg] [mimesniff] The Apache workaround should not sniff random	types
+</A></li>
+	<LI>Next message: <A HREF="082896.html">[whatwg] Script preloading
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#40598">[ date ]</a>
+              <a href="thread.html#40598">[ thread ]</a>
+              <a href="subject.html#40598">[ subject ]</a>
+              <a href="author.html#40598">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

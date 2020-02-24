@@ -1,0 +1,223 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Canvas - globalCompositeOperation
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Canvas%20-%20globalCompositeOperation&In-Reply-To=%3Cea09c0d10703271630k61774e26nf148a0a4f588f978%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="010630.html">
+   <LINK REL="Next"  HREF="010609.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Canvas - globalCompositeOperation</H1>
+<!--htdig_noindex-->
+    <B>Philip Taylor</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Canvas%20-%20globalCompositeOperation&In-Reply-To=%3Cea09c0d10703271630k61774e26nf148a0a4f588f978%40mail.gmail.com%3E"
+       TITLE="[whatwg] Canvas - globalCompositeOperation">excors+whatwg at gmail.com
+       </A><BR>
+    <I>Tue Mar 27 16:30:41 PDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="010630.html">[whatwg] on codecs in a 'video' tag.
+</A></li>
+        <LI>Next message: <A HREF="010609.html">[whatwg] Canvas - globalCompositeOperation
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#10608">[ date ]</a>
+              <a href="thread.html#10608">[ thread ]</a>
+              <a href="subject.html#10608">[ subject ]</a>
+              <a href="author.html#10608">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>It has been mentioned before [1] that globalCompositeOperation is
+poorly defined - the spec has a note saying &quot;The source-* descriptions
+below don't define what should happen with semi-transparent regions&quot;
+and is vague about non-transparent colours too - and it is not
+implemented interoperably. I haven't seen any descriptions of what it
+ought to do, so this is an attempt to explain and describe what I
+believe should be specified.
+
+~~~~
+
+Most of the operations are defined in the Porter-Duff paper [2], which
+does say how semi-transparent regions should be handled. My summary of
+it:
+
+A single pixel with 25% alpha is considered to be a large number of
+subpixels of which a uniformly-random 25% are totally solid and 75%
+are totally transparent - the subpixels only have 1-bit alpha. When
+you combine that 25% alpha pixel 'A' with a 50% alpha pixel 'B', you
+expect 25%*50% of the subpixels to overlap, while (1-25%)*(1-50%) of
+subpixels are covered by neither pixel, and similar for the subpixels
+that are covered by only 'A' or only 'B'.
+
+The composite operators define how you choose which of the inputs (0,
+A, B) is used as the output of the subpixel, for each of the four
+possible coverage cases (!A &amp; !B, !A &amp; B, A &amp; !B, A &amp; B). Then you
+just (conceptually) average all the subpixels, to get the actual pixel
+output.
+
+
+The P-D paper assumes colours are represented with pre-multiplied
+alpha (where nonpremul[r, g, b, a] == premul[r*a, g*a, b*a, a]), e.g.
+50%-transparent bright red is premul[0.5, 0, 0, 0.5]. The canvas
+(inheriting from CSS) and seemingly much of the rest of the world
+(e.g. Cairo, and most humans) use non-pre-multiplied alpha in their
+APIs, e.g. 50% transparent red is &quot;rgba(255, 0, 0, 0.5)&quot;. But the
+compositing equations won't work nicely with non-pre-multiplied alpha,
+and implementations appear to use pre-multiplied alpha internally, so
+the operation should be specified in the pre-multiplied form. (I'll
+use lowercase c for pre-multiplied colour components, uppercase C for
+non-pre-multiplied.)
+
+
+Taking that into account gives the following algorithm for most of the
+composite operators:
+
+|<i>  Operator         | FA   | FB
+</I>|<i>  -----------------+------+------
+</I>|<i>  source-over      | 1    | 1-aA
+</I>|<i>  destination-over | 1-aB | 1
+</I>|<i>  source-in        |   aB | 0
+</I>|<i>  destination-in   | 0    |   aA
+</I>|<i>  source-out       | 1-aB | 0
+</I>|<i>  destination-out  | 0    | 1-aA
+</I>|<i>  source-atop      |   aB | 1-aA
+</I>|<i>  destination-atop | 1-aB |   aA
+</I>|<i>  xor              | 1-aB | 1-aA
+</I>|<i>  copy             | 1    | 0
+</I>|<i>  lighter          | 1    | 1
+</I>|<i>
+</I>|<i>    cO = cA*FA + cB*FB
+</I>|<i>    aO = aA*FA + aB*FB
+</I>|<i>
+</I>|<i>  where cX is the pre-multiplied colour component of pixel X, in the range
+</I>|<i>  [0, 1]; aX is the alpha component of pixel X in the range [0, 1]; A and B
+</I>|<i>  are the source and destination pixels respectively; O is the output pixel.
+</I>|<i>
+</I>|<i>  The calculation of aO must be clamped to the range [0, 1].
+</I>
+(&quot;lighter&quot; can result in aO &gt; 1, hence the need to clamp it.)
+
+Only &quot;darker&quot; cannot fit in this table (given that FA is a function of
+aB, and FB is a function of aA).
+
+~~~~
+
+To compare the main implementations (Firefox trunk 20070326, Opera
+9.20, Safari 2.0.4), there is a demonstration at
+  <A HREF="http://canvex.lazyilluminati.com/tests/composite/composite.html">http://canvex.lazyilluminati.com/tests/composite/composite.html</A>
+and example outputs at
+  <A HREF="http://canvex.lazyilluminati.com/tests/composite/firefox3_20070326.png">http://canvex.lazyilluminati.com/tests/composite/firefox3_20070326.png</A>
+  <A HREF="http://canvex.lazyilluminati.com/tests/composite/opera920_8762.png">http://canvex.lazyilluminati.com/tests/composite/opera920_8762.png</A>
+  <A HREF="http://canvex.lazyilluminati.com/tests/composite/safari204.png">http://canvex.lazyilluminati.com/tests/composite/safari204.png</A>
+
+&quot;over&quot;, &quot;in&quot;, &quot;out&quot; and &quot;copy&quot; are all correct (in that they match the
+above algorithm).
+
+&quot;xor&quot; is correct in Firefox and Safari, but incorrect in Opera; Opera
+appears to be using the pre-multiplied equations on the
+non-pre-multiplied colours (i.e. doing CO = CA*FA + CB*FB, where CX is
+the non-pre-multiplied colour component).
+
+&quot;atop&quot; and &quot;lighter&quot; are correct in Firefox and Safari, but incorrect
+in Opera; I don't know what Opera is doing.
+
+&quot;darker&quot; is messy:
+
+Firefox's &quot;darker&quot; is implemented as:
+
+  Operator          | FA                | FB
+  ------------------+-------------------+------
+  darker [saturate] | min(1, (1-aB)/aA) | 1
+
+It seems this can't easily be hardware-accelerated - the Cairo GL
+backend [3] doesn't support CAIRO_OPERATOR_SATURATE, and says
+
+  case CAIRO_OPERATOR_SATURATE:
+    /* XXX: This line should never be reached. Glitz backend should
+bail out earlier if saturate operator is used. OpenGL can't do
+saturate with pre-multiplied colors. Solid colors can still be done as
+we can just un-pre-multiply them. However, support for that will have
+to be added to glitz. */
+
+Safari gives completely different output, and is very close to
+implementing it with non-pre-multiplied colours as:
+
+  CO = 1 - (1-CA)*aA - (1-CB)*aB
+  aO = aA + aB
+
+except not quite like that (see the bottom-right box in the example
+page), and I don't know what it's really doing. Opera is also quite
+like that, except more different.
+
+KHTML [4] doesn't implement either &quot;lighter&quot; or &quot;darker&quot; - it treats
+them as &quot;source-over&quot;. Rhino Canvas [5] does the same. Both are
+relying on existing graphics libraries for the actual drawing, which
+don't provide those operations - see QPainter::CompositionMode [6] and
+java.awt.AlphaComposite [7].
+
+~~~~
+
+Conclusion: The above definition is sensible (in my opinion) and works
+(in practice).
+
+Opera needs to fix &quot;xor&quot; and &quot;atop&quot;. Firefox and Safari are fine.
+[...at least when ignoring other compositing bugs, unrelated to this
+colour calculation.]
+
+I would be happy if &quot;darker&quot; was removed from the spec - there isn't
+an obvious definition for it, and it's not interoperably implemented
+at all and it sounds like it never will be. Existing implementations
+can add &quot;apple-plusdarker&quot;, &quot;moz-saturate&quot;, etc, if they still want to
+provide the old functionality.
+
+&quot;lighter&quot; seems much easier to define, and more useful, so I think
+it's perhaps worth keeping - but it looks like a pain for those using
+Qt/Java/etc libraries which don't support anything other than the
+standard Porter-Duff operators, and I don't know if it's a difficulty
+for Opera to fix their implementation of it. Does anyone have views on
+this or on &quot;darker&quot;?
+
+~~~~
+
+[1] <A HREF="http://lists.whatwg.org/htdig.cgi/whatwg-whatwg.org/2006-July/006963.html">http://lists.whatwg.org/htdig.cgi/whatwg-whatwg.org/2006-July/006963.html</A>
+[2] <A HREF="http://keithp.com/~keithp/porterduff/p253-porter.pdf">http://keithp.com/~keithp/porterduff/p253-porter.pdf</A>
+[3] <A HREF="http://gitweb.freedesktop.org/?p=cairo.git;a=blob;hb=HEAD;f=src/cairo-glitz-surface.c">http://gitweb.freedesktop.org/?p=cairo.git;a=blob;hb=HEAD;f=src/cairo-glitz-surface.c</A>
+[4] <A HREF="http://websvn.kde.org/trunk/KDE/kdelibs/khtml/ecma/kjs_context2d.cpp?revision=605784&amp;view=markup">http://websvn.kde.org/trunk/KDE/kdelibs/khtml/ecma/kjs_context2d.cpp?revision=605784&amp;view=markup</A>
+[5] <A HREF="http://rhino-canvas.cvs.sourceforge.net/rhino-canvas/rhino-canvas/src/net/sf/rhinocanvas/js/CanvasRenderingContext2D.java?view=markup">http://rhino-canvas.cvs.sourceforge.net/rhino-canvas/rhino-canvas/src/net/sf/rhinocanvas/js/CanvasRenderingContext2D.java?view=markup</A>
+[6] <A HREF="http://doc.trolltech.com/4.1/qpainter.html#CompositionMode-enum">http://doc.trolltech.com/4.1/qpainter.html#CompositionMode-enum</A>
+[7] <A HREF="http://java.sun.com/j2se/1.5.0/docs/api/java/awt/AlphaComposite.html">http://java.sun.com/j2se/1.5.0/docs/api/java/awt/AlphaComposite.html</A>
+
+-- 
+Philip Taylor
+<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">excors at gmail.com</A>
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="010630.html">[whatwg] on codecs in a 'video' tag.
+</A></li>
+	<LI>Next message: <A HREF="010609.html">[whatwg] Canvas - globalCompositeOperation
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#10608">[ date ]</a>
+              <a href="thread.html#10608">[ thread ]</a>
+              <a href="subject.html#10608">[ subject ]</a>
+              <a href="author.html#10608">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

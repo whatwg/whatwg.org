@@ -1,0 +1,172 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Navigation and history traversal issues
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Navigation%20and%20history%20traversal%20issues&In-Reply-To=%3Calpine.DEB.2.00.1309232046350.12199%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="040886.html">
+   <LINK REL="Next"  HREF="040889.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Navigation and history traversal issues</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Navigation%20and%20history%20traversal%20issues&In-Reply-To=%3Calpine.DEB.2.00.1309232046350.12199%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg] Navigation and history traversal issues">ian at hixie.ch
+       </A><BR>
+    <I>Wed Sep 25 16:23:36 PDT 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="040886.html">[whatwg] Forms-related feedback
+</A></li>
+        <LI>Next message: <A HREF="040889.html">[whatwg] [Workers] CSP and SharedWorkers
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#40888">[ date ]</a>
+              <a href="thread.html#40888">[ thread ]</a>
+              <a href="subject.html#40888">[ subject ]</a>
+              <a href="author.html#40888">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Thu, 22 Aug 2013, Andrew Oakley wrote:
+&gt;<i> On 19/09/12 01:18, Ian Hickson wrote:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; I've changed the spec so that traversing the history by a delta always 
+</I>&gt;<i> &gt; cancels any pending navigations unless you're in the middle of an 
+</I>&gt;<i> &gt; unload, in which case it just aborts the algorithm entirely.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; I've also made back()/forward()/go() not work during the document's 
+</I>&gt;<i> &gt; unload handler, since that could be used for griefing. I'm tempted to 
+</I>&gt;<i> &gt; disable it entirely for all docs a la alert(), but I've no idea if 
+</I>&gt;<i> &gt; that's Web- compatible and I suspect not.
+</I>&gt;<i> 
+</I>&gt;<i> I assume this is where steps 3 and 4 of the &quot;traverse the history by a 
+</I>&gt;<i> delta&quot; algorithm came from.
+</I>
+Step 3. Step 4 is about canceling an existing navigation if you hit back.
+
+
+&gt;<i> It's not clear from the spec which browsing context and document these 
+</I>&gt;<i> steps refer to.  Is it the &quot;specified browsing context&quot; and the active 
+</I>&gt;<i> document of that context (I think that makes most sense)?
+</I>
+Hm. I meant it to be the Document of the History object, but you raise an 
+interesting point. This whole thing is rather poorly defined.
+
+I've tried to clear it up.
+
+
+&gt;<i> Additionally it isn't clear which event loop the task should be 
+</I>&gt;<i> associated with.
+</I>
+I've tried to clear this up too. It turns out this wasn't taking into 
+account per-frame process isolation, anyway. I had to introduce yet 
+another kind of event loop. This does introduce some race conditions in 
+UAs with more than one event loop per tab, but I don't know what we can do 
+about that without adding in a lot of blocking during traversal, which I 
+am guessing wouldn't be popular.
+
+
+&gt;<i> &gt; Aah, ok. The spec already says that's not allowed. You can't get to 
+</I>&gt;<i> &gt; the History object of a cross-origin Window:
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; <A HREF="http://www.whatwg.org/specs/web-apps/current-work/#security-window">http://www.whatwg.org/specs/web-apps/current-work/#security-window</A>
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; (I forget what the story is if you get a History object from a 
+</I>&gt;<i> &gt; same-origin Window, then have the browsing context navigated, then use 
+</I>&gt;<i> &gt; the History object you kept around... I expect it is supposed to work 
+</I>&gt;<i> &gt; much as if you were to call it on the new, cross-origin, History 
+</I>&gt;<i> &gt; object, though.)
+</I>&gt;<i> 
+</I>&gt;<i> The implication here as that you should never be able to do a history 
+</I>&gt;<i> traversal of a browsing context that is not same origin (and so there is 
+</I>&gt;<i> only one event loop to choose from).  The &quot;story&quot; about keeping history 
+</I>&gt;<i> objects around seems does not seem to be specified anywhere (so the 
+</I>&gt;<i> assumption was that it should work as normal).
+</I>&gt;<i>
+</I>&gt;<i> It looks like some browsers don't let you use history objects you kept 
+</I>&gt;<i> around (they should probably throw an InvalidStateError), others let you 
+</I>&gt;<i> use them if the current document of the relevant browsing context is 
+</I>&gt;<i> same-origin (and should probably throw a SecurityError).
+</I>&gt;<i> 
+</I>&gt;<i> It's rather awkward to test this, but can we have something in the spec 
+</I>&gt;<i> to prevent cross-origin history traversal?  If this is not in the same 
+</I>&gt;<i> section as the &quot;traverse the history by a delta&quot; algorithm can we have a 
+</I>&gt;<i> note to say that this can never happen cross-origin?
+</I>
+Well, no, not really, because it can. For example, if you have an iframe 
+that's cross-origin, and it's navigated, and then you call your own 
+History object's back() method, it'll actually traverse that iframe.
+
+But a History object of a non-active Document is a different matter...
+
+Looks like this will need help from WebIDL. I've filed bug 23359 and 
+marked it as blocked on bug 23358:
+
+   <A HREF="https://www.w3.org/Bugs/Public/show_bug.cgi?id=23359">https://www.w3.org/Bugs/Public/show_bug.cgi?id=23359</A>
+   <A HREF="https://www.w3.org/Bugs/Public/show_bug.cgi?id=23358">https://www.w3.org/Bugs/Public/show_bug.cgi?id=23358</A>
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="040886.html">[whatwg] Forms-related feedback
+</A></li>
+	<LI>Next message: <A HREF="040889.html">[whatwg] [Workers] CSP and SharedWorkers
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#40888">[ date ]</a>
+              <a href="thread.html#40888">[ thread ]</a>
+              <a href="subject.html#40888">[ subject ]</a>
+              <a href="author.html#40888">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

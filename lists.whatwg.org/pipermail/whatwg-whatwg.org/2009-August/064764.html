@@ -1,0 +1,136 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] createImageData should take unsigned long
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20createImageData%20should%20take%20unsigned%20long&In-Reply-To=%3Cop.uziq12u1atwj1d%40sisko.linkoping.osa%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="064761.html">
+   <LINK REL="Next"  HREF="064771.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] createImageData should take unsigned long</H1>
+<!--htdig_noindex-->
+    <B>Philip J&#228;genstedt</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20createImageData%20should%20take%20unsigned%20long&In-Reply-To=%3Cop.uziq12u1atwj1d%40sisko.linkoping.osa%3E"
+       TITLE="[whatwg] createImageData should take unsigned long">philipj at opera.com
+       </A><BR>
+    <I>Mon Aug 31 01:55:04 PDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="064761.html">[whatwg] createImageData should take unsigned long
+</A></li>
+        <LI>Next message: <A HREF="064771.html">[whatwg] createImageData should take unsigned long
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#64764">[ date ]</a>
+              <a href="thread.html#64764">[ thread ]</a>
+              <a href="subject.html#64764">[ subject ]</a>
+              <a href="author.html#64764">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Mon, 31 Aug 2009 08:08:05 +0200, Ian Hickson &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">ian at hixie.ch</A>&gt; wrote:
+
+&gt;<i> On Mon, 24 Aug 2009, Philip J&#228;genstedt wrote:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> As far as I can see there's no good reason why createImageData should
+</I>&gt;&gt;<i> take a float as input rather than unsigned long. Having it as float
+</I>&gt;&gt;<i> creates the odd situation where (0.1, 0.1) gives a 1x1 ImageData while
+</I>&gt;&gt;<i> (10.1, 10.1) gives a 10x10 or 11x11 depening on if you ceil or round the
+</I>&gt;&gt;<i> input (not defined). Unless there's a compelling reason to allow
+</I>&gt;&gt;<i> something like (0.1, 0.1) I suggest changing the type and leaving the
+</I>&gt;&gt;<i> float-&gt;unsigned conversion to WebIDL.
+</I>&gt;<i>
+</I>&gt;<i> Twenty years from now, when we're using 960dpi screens, 1 CSS pixel might
+</I>&gt;<i> well map to ten device pixels reliably, such that people will want
+</I>&gt;<i> sub-CSS-pixel-level accuracy in their calls to createImageData().
+</I>
+I get the impression this has all been discussed before. Still, it seems  
+unlikely that any browser will ever be able to switch to anything but a  
+1:1 CSS pixel:device pixel ratio, as that would break all existing pages  
+assuming that getImageData(0, 0, 100, 100) returns a 100x100 bitmap  
+(because assuming that is much easier, unless you read the spec carefully  
+you're unlikely to know it could ever be any different). I don't doubt  
+that high DPI screens will happen, but when it does browsers are more  
+likely to provide an extra flag like getImageData(..., useDevicePixels) or  
+another opt-in method in order to stay compatible with existing content.  
+Another option for the page author is simply creating a 1000x1000 canvas  
+and setting its CSS width/height to 100x100 (assuming the CSS pixel:device  
+pixel ratio can be found via script).
+
+In any event, judging by existing implementations, the behavior of  
+createImageData(w, h) isn't as clear as it needs to be:
+
+<A HREF="http://software.hixie.ch/utilities/js/live-dom-viewer/saved/223">http://software.hixie.ch/utilities/js/live-dom-viewer/saved/223</A>
+
+Firefox:
+
+log: ctx.createImageData(-1.1,1) =&gt; [Exception...
+log: ctx.createImageData(-1,1) =&gt; [Exception...
+log: ctx.createImageData(-0.1,1) =&gt; [Exception...
+log: ctx.createImageData(0,1) =&gt; [Exception...
+log: ctx.createImageData(0.1,1) =&gt; [Exception...
+log: ctx.createImageData(1,1) =&gt; 1x1
+log: ctx.createImageData(1.1,1) =&gt; 1x1
+
+Safari/Chrome:
+
+log: ctx.createImageData(-1.1,1) =&gt; 1x1
+log: ctx.createImageData(-1,1) =&gt; 1x1
+log: ctx.createImageData(-0.1,1) =&gt; 1x1
+log: ctx.createImageData(0,1) =&gt; 1x1
+log: ctx.createImageData(0.1,1) =&gt; 1x1
+log: ctx.createImageData(1,1) =&gt; 1x1
+log: ctx.createImageData(1.1,1) =&gt; 2x1
+
+My interpretation of the spec:
+
+log: ctx.createImageData(-1.1,1) =&gt; 1x1
+log: ctx.createImageData(-1,1) =&gt; 1x1
+log: ctx.createImageData(-0.1,1) =&gt; 1x1
+log: ctx.createImageData(0,1) =&gt; INDEX_SIZE_ERR
+log: ctx.createImageData(0.1,1) =&gt; 1x1
+log: ctx.createImageData(1,1) =&gt; 1x1
+log: ctx.createImageData(1.1,1) =&gt; 1x1
+
+If the spec doesn't say to round rather than ceil, we're bound to have  
+subtle compatibility bugs on this.
+
+-- 
+Philip J&#228;genstedt
+Core Developer
+Opera Software
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="064761.html">[whatwg] createImageData should take unsigned long
+</A></li>
+	<LI>Next message: <A HREF="064771.html">[whatwg] createImageData should take unsigned long
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#64764">[ date ]</a>
+              <a href="thread.html#64764">[ thread ]</a>
+              <a href="subject.html#64764">[ subject ]</a>
+              <a href="author.html#64764">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

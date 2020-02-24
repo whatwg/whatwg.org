@@ -1,0 +1,180 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] RFC: Alternatives to storage mutex for cookies and	localStorage
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20RFC%3A%20Alternatives%20to%20storage%20mutex%20for%20cookies%20and%0A%09localStorage&In-Reply-To=%3C4AA0BB95.3080506%40mozilla.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="064944.html">
+   <LINK REL="Next"  HREF="064946.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] RFC: Alternatives to storage mutex for cookies and	localStorage</H1>
+<!--htdig_noindex-->
+    <B>Chris Jones</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20RFC%3A%20Alternatives%20to%20storage%20mutex%20for%20cookies%20and%0A%09localStorage&In-Reply-To=%3C4AA0BB95.3080506%40mozilla.com%3E"
+       TITLE="[whatwg] RFC: Alternatives to storage mutex for cookies and	localStorage">cjones at mozilla.com
+       </A><BR>
+    <I>Fri Sep  4 00:02:45 PDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="064944.html">[whatwg] Feature requests in WebSocket (Was: BWTP for WebSocket	transfer protocol)
+</A></li>
+        <LI>Next message: <A HREF="064946.html">[whatwg] RFC: Alternatives to storage mutex for cookies and	localStorage
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#64945">[ date ]</a>
+              <a href="thread.html#64945">[ thread ]</a>
+              <a href="subject.html#64945">[ subject ]</a>
+              <a href="author.html#64945">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>I'd like to propose that HTML5 specify different schemes than a 
+conceptual global storage mutex to provide consistency guarantees for 
+localStorage and cookies.
+
+Cookies would be protected according to Benjamin Smedberg's post in the 
+&quot;[whatwg] Storage mutex and cookies can lead to browser deadlock&quot; 
+thread.  Roughly, this proposal would give scripts a consistent view of 
+document.cookie until they completed.  AIUI this is stronger consistency 
+than Google Chrome provides today, and anecdotal evidence suggests even 
+their weaker consistency hasn't &quot;broken the web.&quot;
+
+localStorage would be changed in a non-backwards-compatible way.  I 
+believe that web apps can be partitioned into two classes: those that 
+have planned for running concurrently (single-event-loop or not) in 
+multiple &quot;browsing contexts&quot;, and those that haven't.  I further posit 
+that the second class would break when run concurrently in multiple 
+contexts regardless of multiple event loops, and thus regardless of the 
+storage mutex.  Even in the single-event-loop world, sites not prepared 
+to be loaded in multiple tabs can stomp each other's data even though 
+script execution is atomic.  (I wouldn't dare use my bank's website in 
+two tabs at the same time in a single-event-loop browser.)  In other 
+words, storage mutex can't help the second class of sites.
+
+(I also believe that there's a very large, third class of pages that 
+work &quot;accidentally&quot; when run concurrently in multiple contexts, even 
+though they don't plan for that.  This is likely because they don't keep 
+quasi-persistent data on the client side.)
+
+Based on that, I believe localStorage should be designed with the first 
+class of web apps (those that have considered data consistency across 
+multiple concurrent contexts) in mind, rather than the second class.  Is 
+a conceptual global storage mutex the best way for, say, gmail to 
+guarantee consistency of its e-mail/contacts database?  I don't believe 
+so: I think that a transactional localStorage is preferable. 
+Transactional localStorage is easier for browser vendors to implement 
+and should result in better performance for web apps in multi-process 
+UAs.  It's more of a burden on web app authors than the hidden storage 
+mutex, but I think the benefits outweigh the cost.
+
+I propose adding the functions
+
+   window.localStorage.beginTransaction()
+   window.localStorage.commitTransaction()
+or
+   window.beginTransaction()
+   window.commitTransaction()
+
+(The latter might be preferable if we later decide to add more resources 
+with transactional semantics.)
+
+localStorage.getItem(),. setItem(), .removeItem(), and .clear() would 
+remain specified as they are today.  beginTransaction() would do just 
+that, open a transaction.  Calling localStorage.*() outside of an open 
+transaction would cause a script exception to be thrown; this would 
+unfortunately break all current clients of localStorage.  There might be 
+cleverer ways to mitigate this breakage by a UA pretending not to 
+support localStorage until a script called beginTransaction().
+
+yieldForStorageUpdates() would no longer be meaningful and should be 
+removed.
+
+A transaction would successfully &quot;commit&quot;, atomically applying its 
+modifications to localStorage, if localStorage was not modified between 
+beginTransaction() and commitTransaction().  Note that a transaction 
+consisting entirely of getItem() could fail just as those actually 
+modifying localStorage.  If a transaction failed, the UA would throw a 
+TransactionFailed exception to script.  The UA would be allowed to throw 
+this exception at any time between beginTransaction() and 
+commitTransaction().
+
+There are numerous ways to implement transactional semantics. 
+Single-event-loop UAs could implement beginTransaction() and 
+commitTransaction() as no-ops.  Multi-event-loop UAs could reuse the 
+global storage mutex if they had already implemented that 
+(beginTransaction() == lock, commitTransaction() == unlock).
+
+Some edge cases:
+
+  * calling commitTransaction() without beginTransaction() would throw 
+an exception
+
+  * transactions would not be allowed to be nested, even on different 
+localStorage DBs.  E.g. if site A's script begins a transaction on 
+A.localStorage, and calls into site B's script embedded in an iframe 
+which begins a transaction on B.localStorage, an exception would be thrown.
+
+  * transactions *could* be spread across script executions, alert() 
+dialogs, sync XHR, or anywhere else the current HTML5 spec requires the 
+storage mutex be released.  Note that UAs wishing to forbid that 
+behavior could simply throw a TransactionFailed exception where the 
+storage mutex would have been released in the current spec.  Or this 
+could be made illegal by the spec.
+
+  * it's not clear to me how to handle async XHRs and Worker messages 
+sent from within a failed transaction.  They could be specified to be 
+sent or not and either behavior implemented easily.  My gut tells me 
+that they *should* be sent regardless.
+
+Feedback very much desired.
+
+Cheers,
+Chris
+
+Addendum: I think that a past argument against a transactional approach 
+was that scripts can cause side effects during transactions that can't 
+be (easily, performantly) rolled back.  This is true, and troubling in 
+that it deviates from SQL semantics, but because this proposal is 
+designed for the first class of web apps I don't believe it's a 
+compelling argument.  Further, a script can only corrupt its 
+browsing-context-local state by mishandling failed transactions.  Using 
+gmail as a convenient example, if a transaction failed but gmail wasn't 
+prepared to handle the failure, that particular gmail instance would 
+just break.  No e-mails or contacts would be corrupted, and the user 
+could reload gmail and regain full functionality.  Servers should 
+already be prepared to deal with clients behaving unpredictably.
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="064944.html">[whatwg] Feature requests in WebSocket (Was: BWTP for WebSocket	transfer protocol)
+</A></li>
+	<LI>Next message: <A HREF="064946.html">[whatwg] RFC: Alternatives to storage mutex for cookies and	localStorage
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#64945">[ date ]</a>
+              <a href="thread.html#64945">[ thread ]</a>
+              <a href="subject.html#64945">[ subject ]</a>
+              <a href="author.html#64945">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

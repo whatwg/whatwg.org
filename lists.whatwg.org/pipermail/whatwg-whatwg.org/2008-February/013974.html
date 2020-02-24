@@ -1,0 +1,192 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] reply() extension to postMessage()
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20reply%28%29%20extension%20to%20postMessage%28%29&In-Reply-To=%3CPine.LNX.4.62.0802141836090.20115%40hixie.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="013967.html">
+   <LINK REL="Next"  HREF="013975.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] reply() extension to postMessage()</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20reply%28%29%20extension%20to%20postMessage%28%29&In-Reply-To=%3CPine.LNX.4.62.0802141836090.20115%40hixie.dreamhostps.com%3E"
+       TITLE="[whatwg] reply() extension to postMessage()">ian at hixie.ch
+       </A><BR>
+    <I>Thu Feb 14 10:46:32 PST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="013967.html">[whatwg] reply() extension to postMessage()
+</A></li>
+        <LI>Next message: <A HREF="013975.html">[whatwg] reply() extension to postMessage()
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#13974">[ date ]</a>
+              <a href="thread.html#13974">[ thread ]</a>
+              <a href="subject.html#13974">[ subject ]</a>
+              <a href="author.html#13974">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Thu, 14 Feb 2008, Anne van Kesteren wrote:
+&gt;<i> 
+</I>&gt;<i> Given that everyone is now updating their postMessage() code anyway, I 
+</I>&gt;<i> wonder if it's possible to quickly make another minor tweak. The 
+</I>&gt;<i> proposal is to remove the source attribute from MessageEvent and replace 
+</I>&gt;<i> it with a reply() method. The semantics of the reply() are probably best 
+</I>&gt;<i> described in terms of equivalence. That is,
+</I>&gt;<i> 
+</I>&gt;<i>   e.reply(message)
+</I>&gt;<i> 
+</I>&gt;<i> is equivalent to
+</I>&gt;<i> 
+</I>&gt;<i>   e.source.postMessage(message, e.origin)
+</I>&gt;<i> 
+</I>&gt;<i> except that the latter won't work anymore when reply() is added.
+</I>
+You might still need the source in order to navigate it, depending on what 
+you're doing. (You can always get a hold of the relevant Window object if 
+it can send you messages, since access to Windows is symmetric.)
+
+In general I think a better way to do this would be to use a pipe concept, 
+as Dimitri suggests lower down.
+
+
+On Thu, 14 Feb 2008, Aaron Boodman wrote:
+&gt;<i> 
+</I>&gt;<i> If we're going to add reply, I would like to easily be able to get 
+</I>&gt;<i> replies to a specific message. So extend postMessage to accept a 
+</I>&gt;<i> callback, and then either have reply() call this callback. Like this:
+</I>
+This could get really confusing from a GC perspective if a script starts 
+keeping track of all its Event objects, since they then each have to keep 
+a function alive on the other side, and Events in browsers probably 
+aren't set up to do that today. It also seems somewhat odd that this sets 
+up an asymmetric relationship.
+
+
+On Thu, 14 Feb 2008, Henry Mason wrote:
+&gt;<i> 
+</I>&gt;<i> Ooo, I like that idea. I have one concern, however. Presumably, the 
+</I>&gt;<i> message event that is sent as a reply could itself be replied. Since 
+</I>&gt;<i> postMessage's spec currently says:
+</I>&gt;<i> 
+</I>&gt;<i> &quot;The postMessage() method must only return once the event dispatch has 
+</I>&gt;<i> been completely processed by the target document (i.e. all three of the 
+</I>&gt;<i> capture, target, and bubble phases have been done, and event listeners 
+</I>&gt;<i> have been executed as appropriate).&quot;
+</I>&gt;<i> 
+</I>&gt;<i> ...this behavior could cause some somewhat nasty infinite recursion. So 
+</I>&gt;<i> what if we made reply() asynchronous so that the the reply message event 
+</I>&gt;<i> doesn't need to be dispatched on the original message posting document 
+</I>&gt;<i> until after the original postMessage from the sender is finished 
+</I>&gt;<i> processing?
+</I>
+This problem exists today with postMessage() too. Do people think we 
+should go fully asynchronous?
+
+
+On Thu, 14 Feb 2008, Anne van Kesteren wrote:
+&gt;<i> 
+</I>&gt;<i> You really want reply() to have that callback too (for longer 
+</I>&gt;<i> conversations) and at that point it starts getting icky.
+</I>
+Indeed.
+
+
+&gt;<i> I came up with another idea to address the issue you mention. We let 
+</I>&gt;<i> postMessage() return a UUID and give MessageEvent an &quot;id&quot; attribute. 
+</I>&gt;<i> When postMessage() is invoked a UUID is generated and returned. This 
+</I>&gt;<i> same UUID is set on the event that is dispatched. When reply is invoked 
+</I>&gt;<i> on that event object it creates an event that again has the same UUID. 
+</I>&gt;<i> Both parties can have multiple conversations that way by checking the 
+</I>&gt;<i> UUID of the message.
+</I>
+I don't thikn we want to be doing ID checking. That's icky too. :-)
+
+
+On Thu, 14 Feb 2008, Aaron Boodman wrote:
+&gt;<i> 
+</I>&gt;<i> I'm trying to get away from checking IDs because the common case I have 
+</I>&gt;<i> seen is either one-way (tell the widget to do something), or two-way 
+</I>&gt;<i> (ask the widget for some piece of information). Having to match up IDs 
+</I>&gt;<i> is a pain for a simple question/answer.
+</I>&gt;<i> 
+</I>&gt;<i> Perhaps there could be a conversation object or something. Maybe that's 
+</I>&gt;<i> getting too weird though...
+</I>
+No, I think that's the direction to go in.
+
+
+On Thu, 14 Feb 2008, Dimitri Glazkov wrote:
+&gt;<i>
+</I>&gt;<i> Speaking of a conversation object: I've been using a Pipe abstraction 
+</I>&gt;<i> with Gears workers to some degree of success. I am wondering if/how 
+</I>&gt;<i> something like this could exist at a spec level.
+</I>
+Over the past few days I've been working on something similar:
+
+   <A HREF="http://hixie.ch/specs/dom/messages/0.9">http://hixie.ch/specs/dom/messages/0.9</A>
+
+Would this address the problem?
+
+It would make the earlier example look like this:
+
+   // sender:
+   var pipe = window.getNewEndPoints();
+   pipe.endPoint1.onmessage = function(e) {
+     alert(&quot;got response: &quot; + e.message);
+   };
+   someWindow.postMessage(&quot;hello!&quot;, pipe.endPoint2);
+
+   // receiver
+   window.addEventListener(&quot;message&quot;, function(e) {
+     alert(&quot;got message: &quot; + e.message);
+     e.endPoint.postMessage(&quot;good day&quot;);
+   });
+
+...except that the receiver could be extended to expect messages back:
+
+   // receiver
+   window.addEventListener(&quot;message&quot;, function(e) {
+     alert(&quot;got message: &quot; + e.message);
+     e.endPoint.onmessage = function (e) {
+       alert(&quot;got a specific message: &quot; + e.message);
+     };
+     e.endPoint.postMessage(&quot;good day&quot;);
+   });
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="013967.html">[whatwg] reply() extension to postMessage()
+</A></li>
+	<LI>Next message: <A HREF="013975.html">[whatwg] reply() extension to postMessage()
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#13974">[ date ]</a>
+              <a href="thread.html#13974">[ thread ]</a>
+              <a href="subject.html#13974">[ subject ]</a>
+              <a href="author.html#13974">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

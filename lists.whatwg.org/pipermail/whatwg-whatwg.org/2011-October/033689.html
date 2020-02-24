@@ -1,0 +1,204 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] When a script element's child nodes are changed
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20When%20a%20script%20element%27s%20child%20nodes%20are%20changed&In-Reply-To=%3C4EAAF91E.5010106%40mozilla.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="033672.html">
+   <LINK REL="Next"  HREF="033690.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] When a script element's child nodes are changed</H1>
+<!--htdig_noindex-->
+    <B>David Flanagan</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20When%20a%20script%20element%27s%20child%20nodes%20are%20changed&In-Reply-To=%3C4EAAF91E.5010106%40mozilla.com%3E"
+       TITLE="[whatwg] When a script element's child nodes are changed">dflanagan at mozilla.com
+       </A><BR>
+    <I>Fri Oct 28 11:49:02 PDT 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="033672.html">[whatwg] When a script element's child nodes are changed
+</A></li>
+        <LI>Next message: <A HREF="033690.html">[whatwg] When a script element's child nodes are changed
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#33689">[ date ]</a>
+              <a href="thread.html#33689">[ thread ]</a>
+              <a href="subject.html#33689">[ subject ]</a>
+              <a href="author.html#33689">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>I'm replying to my own post because I've tested it and found that 
+browsers are not interoperable on this point, so we really do need to 
+clarify this in the spec.
+
+First of all, the following code obviously runs the specified code and 
+displays an alert:
+
+     var s0 = document.createElement(&quot;script&quot;);
+     document.head.appendChild(s0);
+     var t0 = document.createTextNode(&quot;alert('added a text node child');&quot;);
+     s0.appendChild(t0);
+
+All browsers do that correctly.  The case I'm interested in is this one:
+
+     var s1 = document.createElement(&quot;script&quot;);
+     var t1 = document.createTextNode(&quot;&quot;);
+     s1.appendChild(t1);
+     document.head.appendChild(s1);
+     t1.appendData(&quot;alert('changed text node data');&quot;);
+
+Firefox runs this script and Chrome, Safari and Opera do not. (I don't 
+have a windows installation, so I haven't tested IE)
+
+Step 4 of the &quot;prepare a script&quot; algorithm says: &quot; If the element has no 
+|<i>src 
+</I>&lt;<A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/scripting-1.html#attr-script-src">http://www.whatwg.org/specs/web-apps/current-work/multipage/scripting-1.html#attr-script-src</A>&gt;| 
+attribute, and its child nodes, if any, consist only of comment nodes 
+and empty text nodes 
+&lt;<A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/infrastructure.html#text-node">http://www.whatwg.org/specs/web-apps/current-work/multipage/infrastructure.html#text-node</A>&gt;, 
+then the user agent must abort these steps at this point. The script is 
+not executed.&quot;  So when the script is added to the document, it has only 
+an empty text node, and it does not execute, and (this is the important 
+part) it does not get its already started flag set.  So it should still 
+be runnable.
+
+One thing that is supposed to trigger script execution is &quot;the script 
+element is in a Document and its child nodes are changed&quot;.   My original 
+point in this post was that &quot;child nodes are changed&quot; isn't specific 
+enough.  The most obvious interpretation to me would be &quot;a child is 
+inserted or deleted&quot;.  Firefox has a more sophisticated interpretation 
+that seems to boil down to &quot;when the value of the text idl attribute 
+changes&quot;.  Is Firefox correct here?
+
+We're not done yet, though.  If I comment out the appendData() call in 
+the code above and replace it with this line:
+
+     s1.appendChild(document.createTextNode(&quot;alert('then added a new 
+text node');&quot;));
+
+Firefox now runs this new script.  But Chrome, Safari and Opera still 
+don't run it.  So the issue here isn't that the other browsers differ 
+from Firefox on the interpretation of &quot;child nodes are changed&quot;.  
+Apparently the other browsers are marking the script with the empty text 
+node as already started, and aren't allowing it to run when a change 
+happens later.   And this isn't just limited to the empty text node 
+case.  If I change that empty text node into a &lt;div&gt; element, or to a 
+comment, Firefox still (correctly) runs a script inserted later, and the 
+other browsers still (incorrectly) fail to run it.
+
+Frankly, from an implementation standpoint, having to do what the spec 
+says (and what Firefox does) seems unnecessarily complex.  One way to 
+simplify things and to bring Chrome, Safari and Opera into compliance 
+would be to change step 4 of the prepare a script algorithm so that it 
+only aborts if the script tag has no children at all.  If it has 
+children then the already_started flag would be set, and the script 
+would never run again even if those children do not define any script 
+content.
+
+Making this change would also simplify that second trigger for preparing 
+the script.  Instead of a vague &quot;its child nodes are changed&quot;, the spec 
+could just say &quot;a child is inserted&quot;.
+
+     David
+
+On 10/27/11 4:03 PM, David Flanagan wrote:
+&gt;<i> &#167;4.3.1 The Script Element says:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> When a |script 
+</I>&gt;&gt;<i> &lt;<A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/scripting-1.html#the-script-element">http://www.whatwg.org/specs/web-apps/current-work/multipage/scripting-1.html#the-script-element</A>&gt;| 
+</I>&gt;&gt;<i> element that is not marked as being &quot;parser-inserted&quot; 
+</I>&gt;&gt;<i> &lt;<A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/scripting-1.html#parser-inserted">http://www.whatwg.org/specs/web-apps/current-work/multipage/scripting-1.html#parser-inserted</A>&gt; 
+</I>&gt;&gt;<i> experiences one of the events listed in the following list, the user 
+</I>&gt;&gt;<i> agent must synchronously prepare 
+</I>&gt;&gt;<i> &lt;<A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/scripting-1.html#prepare-a-script">http://www.whatwg.org/specs/web-apps/current-work/multipage/scripting-1.html#prepare-a-script</A>&gt; 
+</I>&gt;&gt;<i> the |script 
+</I>&gt;&gt;<i> &lt;<A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/scripting-1.html#the-script-element">http://www.whatwg.org/specs/web-apps/current-work/multipage/scripting-1.html#the-script-element</A>&gt;| 
+</I>&gt;&gt;<i> element:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>   * The |script
+</I>&gt;&gt;<i> &lt;<A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/scripting-1.html#the-script-element">http://www.whatwg.org/specs/web-apps/current-work/multipage/scripting-1.html#the-script-element</A>&gt;|
+</I>&gt;&gt;<i>     element gets inserted into a document
+</I>&gt;&gt;<i> &lt;<A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/infrastructure.html#insert-an-element-into-a-document">http://www.whatwg.org/specs/web-apps/current-work/multipage/infrastructure.html#insert-an-element-into-a-document</A>&gt;.
+</I>&gt;&gt;<i>   * The |script
+</I>&gt;&gt;<i> &lt;<A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/scripting-1.html#the-script-element">http://www.whatwg.org/specs/web-apps/current-work/multipage/scripting-1.html#the-script-element</A>&gt;|
+</I>&gt;&gt;<i>     element is in a |Document|
+</I>&gt;&gt;<i> &lt;<A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/infrastructure.html#in-a-document">http://www.whatwg.org/specs/web-apps/current-work/multipage/infrastructure.html#in-a-document</A>&gt;
+</I>&gt;&gt;<i>     and its child nodes are changed.
+</I>&gt;&gt;<i>   * The |script
+</I>&gt;&gt;<i> &lt;<A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/scripting-1.html#the-script-element">http://www.whatwg.org/specs/web-apps/current-work/multipage/scripting-1.html#the-script-element</A>&gt;|
+</I>&gt;&gt;<i>     element is in a |Document|
+</I>&gt;&gt;<i> &lt;<A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/infrastructure.html#in-a-document">http://www.whatwg.org/specs/web-apps/current-work/multipage/infrastructure.html#in-a-document</A>&gt;
+</I>&gt;&gt;<i>     and has a |src
+</I>&gt;&gt;<i> &lt;<A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/scripting-1.html#attr-script-src">http://www.whatwg.org/specs/web-apps/current-work/multipage/scripting-1.html#attr-script-src</A>&gt;|
+</I>&gt;&gt;<i>     attribute set where previously the element had no such attribute.
+</I>&gt;&gt;<i>
+</I>&gt;<i> Bullet point 2 seems ambiguous to me.  Does it mean only that the list 
+</I>&gt;<i> of children changes, or does it mean that any change to any child node 
+</I>&gt;<i> also causes the script to be prepared?  In particular, if a script 
+</I>&gt;<i> with no src attribute whose only child is an empty text node is 
+</I>&gt;<i> inserted into the document, the prepare() algorithm will abort before 
+</I>&gt;<i> the already_started flag is set.  Later, if I do 
+</I>&gt;<i> script.firstChild.insertData(jscode) does that trigger script execution?
+</I>&gt;<i>
+</I>&gt;<i> I haven't tried it out yet to see what browsers do, but I think that 
+</I>&gt;<i> the spec should be clarified to make it explicit.
+</I>&gt;<i>
+</I>&gt;<i>     David
+</I>
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="033672.html">[whatwg] When a script element's child nodes are changed
+</A></li>
+	<LI>Next message: <A HREF="033690.html">[whatwg] When a script element's child nodes are changed
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#33689">[ date ]</a>
+              <a href="thread.html#33689">[ thread ]</a>
+              <a href="subject.html#33689">[ subject ]</a>
+              <a href="author.html#33689">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

@@ -1,0 +1,148 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] pushState
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20pushState&In-Reply-To=%3CPine.LNX.4.62.0807292009520.30692%40hixie.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="057719.html">
+   <LINK REL="Next"  HREF="057680.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] pushState</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20pushState&In-Reply-To=%3CPine.LNX.4.62.0807292009520.30692%40hixie.dreamhostps.com%3E"
+       TITLE="[whatwg] pushState">ian at hixie.ch
+       </A><BR>
+    <I>Tue Jul 29 13:34:19 PDT 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="057719.html">[whatwg] pushState
+</A></li>
+        <LI>Next message: <A HREF="057680.html">[whatwg] pushState
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#57725">[ date ]</a>
+              <a href="thread.html#57725">[ thread ]</a>
+              <a href="subject.html#57725">[ subject ]</a>
+              <a href="author.html#57725">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Tue, 29 Jul 2008, Jonas Sicking wrote:
+&gt;<i>
+</I>&gt;<i> I'll check with the ECMA Script folks, but this one might be an 
+</I>&gt;<i> alternative to link to:
+</I>&gt;<i> 
+</I>&gt;<i> <A HREF="http://wiki.ecmascript.org/doku.php?id=es3.1:json_support">http://wiki.ecmascript.org/doku.php?id=es3.1:json_support</A>
+</I>&gt;<i> 
+</I>&gt;<i> State that the object passed as 'data' is passed to JSON.parse with the 
+</I>&gt;<i> second argument not specified. Any exception thrown is forwarded out to 
+</I>&gt;<i> the caller of pushState as usual.
+</I>
+Interesting, thanks. Doesn't really define it clearly though. :-(
+
+
+&gt;<i> &gt; &gt; When entering a SH state for which a Document has been destroyed, we 
+</I>&gt;<i> &gt; &gt; load the URL associated with that SH entry. After the 'load' event 
+</I>&gt;<i> &gt; &gt; for the Document has fired, and if a data object was provided in the 
+</I>&gt;<i> &gt; &gt; pushState call for the SH entry, we fire a PopStateEvent event 
+</I>&gt;<i> &gt; &gt; containing the data stored for the object.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; How would this work with bookmarking?
+</I>&gt;<i> 
+</I>&gt;<i> Just as specified (or at least intended) in the spec right now.
+</I>&gt;<i> 
+</I>&gt;<i> Say that the user starts on page1.html
+</I>&gt;<i> 
+</I>&gt;<i> &lt;bookmark&gt;   (bookmarks page1.html)
+</I>&gt;<i> pushState(&quot;title&quot;, &quot;data&quot;)
+</I>&gt;<i> &lt;bookmark&gt;   (bookmarks page1.html)
+</I>&gt;<i> pushState(&quot;title&quot;, &quot;data&quot;, &quot;page2.html&quot;)
+</I>&gt;<i> &lt;bookmark&gt;   (bookmarks page2.html)
+</I>&gt;<i> 
+</I>&gt;<i> Additionally, a UA is free to add the ability to store the data 
+</I>&gt;<i> parameter in its bookmark storage. For example firefox under some 
+</I>&gt;<i> circumstances flags URIs in the bookmark store as POST URIs, i.e. they 
+</I>&gt;<i> should be fetched with POST rather than GET (this is specifically for 
+</I>&gt;<i> search engine bookmarks). Similarly the data can be stored alongside the 
+</I>&gt;<i> URI for the bookmark, however this is optional, just like the fastback 
+</I>&gt;<i> cache.
+</I>
+The problem I have with this is that it increases the number of possible 
+user-visible behaviours and failure scenarios:
+
+ - same Document, script knows how to handle data.
+ - different Document, script knows how to handle data.
+ - same URL, different Document, data ignored.
+ - different URL, different Document, script knows how to handle data,
+   but copying URL fails to work as expected.
+ - different URL, different Document, data ignored.
+
+If we want to not allow same-Document entries to share state using actual 
+pointers into their state, I'd rather drop the data thing altogether, and 
+only use URLs. That way the author doesn't have to worry about having 
+multiple ways to carry state data around, and there's a clean way of 
+migrating from today's hash-only approach -- keep using the hash.
+
+What I'm suggesting gets rid of the:
+
+   void pushState(in DOMObject data, in DOMString title);
+
+...and makes the only pushState() definition be:
+
+   void pushState(in DOMObject url, in DOMString title);
+
+When the user navigates the session history amongst entries with different 
+URLs that happen to have the same Document because they were added with 
+pushState(), we fire an event. We drop all the stuff about the &quot;data&quot; 
+argument. We make pushState() change the UI and the Location object. (The 
+event we fire could be an event that we say always fires just after onload 
+as well, so that if a page supports this stuff, it'll always support it 
+even when you go straight to that URL.)
+
+This way, bookmarking and copying URLs all works fine.
+
+What do you think?
+
+What do other people think? Is losing the ability to link to JS objects 
+within the Document itself a problem?
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="057719.html">[whatwg] pushState
+</A></li>
+	<LI>Next message: <A HREF="057680.html">[whatwg] pushState
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#57725">[ date ]</a>
+              <a href="thread.html#57725">[ thread ]</a>
+              <a href="subject.html#57725">[ subject ]</a>
+              <a href="author.html#57725">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

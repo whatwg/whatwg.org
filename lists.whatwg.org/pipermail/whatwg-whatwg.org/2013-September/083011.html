@@ -1,0 +1,209 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] High-density canvases
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20High-density%20canvases&In-Reply-To=%3Calpine.DEB.2.00.1309100021320.12210%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="083010.html">
+   <LINK REL="Next"  HREF="083040.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] High-density canvases</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20High-density%20canvases&In-Reply-To=%3Calpine.DEB.2.00.1309100021320.12210%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg] High-density canvases">ian at hixie.ch
+       </A><BR>
+    <I>Mon Sep  9 17:31:44 PDT 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="083010.html">[whatwg] High-density canvases
+</A></li>
+        <LI>Next message: <A HREF="083040.html">[whatwg] High-density canvases
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#83011">[ date ]</a>
+              <a href="thread.html#83011">[ thread ]</a>
+              <a href="subject.html#83011">[ subject ]</a>
+              <a href="author.html#83011">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Tue, 10 Sep 2013, Dean Jackson wrote:
+&gt;<i> &gt; 
+</I>&gt;<i> &gt; So my understanding is that the reason this feature failed is that 
+</I>&gt;<i> &gt; there's existing content that assumes a 1:1 ratio, and having an 
+</I>&gt;<i> &gt; automatic high-density mode was making some pages end up with canvases 
+</I>&gt;<i> &gt; with four canvas pixels per CSS pixel (linearly) -- two from the 
+</I>&gt;<i> &gt; browser making a native canvas, times two from the page scaling the 
+</I>&gt;<i> &gt; canvas for high DPI displays. This is a factor of sixteen over a 1:1 
+</I>&gt;<i> &gt; canvas, a factor of four more than it should be for high DPI, and a 
+</I>&gt;<i> &gt; big waste of resources.
+</I>&gt;<i> 
+</I>&gt;<i> It wasn&#8217;t just that. A lot of existing code did something like this:
+</I>&gt;<i> 
+</I>&gt;<i> var pixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
+</I>&gt;<i> for (var i = 0; i &lt; canvas.width; i++) {
+</I>&gt;<i>   for (var j = 0; j &lt; canvas.height; j++) {
+</I>&gt;<i>     pixels[j * canvas.width + i][0] = newRedValue;
+</I>&gt;<i>     pixels[j * canvas.width + i][1] = newGreenValue;
+</I>&gt;<i>     pixels[j * canvas.width + i][2] = newBlueValue;
+</I>&gt;<i>   }
+</I>&gt;<i> }
+</I>&gt;<i> ctx.putImageData(&#8230;)
+</I>&gt;<i> 
+</I>&gt;<i> i.e. no one read the spec that says you should check the width and 
+</I>&gt;<i> height of the returned ImageData.
+</I>
+Per spec, that should work fine even in the current spec fiction of 
+automatic high-density canvases, because getImageData() returns CSS-pixel 
+level data (and the putImageData() call scales it up to native res). 
+That's why we added the *HD methods.
+
+
+&gt;<i> Then there is toDataURL(). Should that return a full-sized bitmap?
+</I>
+Per spec, it returns the low-res version, with toDataURLHD() for the full 
+version.
+
+
+&gt;<i> Then you need to be sure what you&#8217;re uploading it to will handle the 
+</I>&gt;<i> larger size.
+</I>
+Right, hence the two versions.
+
+
+&gt;<i> Basically, there was pretty unanimous support from Web developers to 
+</I>&gt;<i> &#8220;just give us the damn pixels we asked for&#8221;
+</I>
+Agreed. The proposal {density:'autosize'} seems to do that, while 
+avoiding the back-compat issues that prevent the current spec fiction 
+from working in practice.
+
+
+&gt;<i> &gt; While we're talking about annoying things, there's also the annoyance 
+</I>&gt;<i> &gt; that canvases tend to not take zoom into account (either 
+</I>&gt;<i> &gt; density-affecting zoom like page zoom on desktop, or &quot;transparent&quot; 
+</I>&gt;<i> &gt; zoom like pinch-zoom on mobile for non-mobile-optimised sites, which 
+</I>&gt;<i> &gt; the site isn't supposed to know about): you have to remember to listen 
+</I>&gt;<i> &gt; for onresize, and then manually blow away your canvas and recreate it 
+</I>&gt;<i> &gt; at the right density and then squeeze it into place so that the 
+</I>&gt;<i> &gt; coordinate space matches what your code is expecting while the 
+</I>&gt;<i> &gt; &lt;canvas&gt; is actually sized for the display.
+</I>&gt;<i> 
+</I>&gt;<i> Yes, but I think the developer is the one who best knows what 
+</I>&gt;<i> size/quality her content requires.
+</I>&gt;<i>
+</I>&gt;<i> A great developer will do exactly as you suggest: constantly examine the 
+</I>&gt;<i> rendered size of the canvas (taking into account pixel density and 
+</I>&gt;<i> viewport/zoom).
+</I>
+Only because they have to.
+
+There's basically three cases that I can see:
+
+ 1. People dealing only with low-density 96dpi graphics, who just want 
+    96dpi canvases (CSS pixel = canvas pixel = coordinate space unit) and 
+    that's it.
+
+ 2. People who want native resolution graphics.
+
+ 3. People doing crazy complicated stuff.
+
+Currently we're supporting #3 and #1, with #1 being the default, and if 
+you want #2 you have to actually do #3.
+
+There are authors (e.g. me, but I suspect it's actually a majority of the 
+more casual authoring community) who want high-quality native-resolution 
+graphics, but who don't want to have to jump through hoops to get them.
+
+
+&gt;<i> &gt; This would trigger the following behaviour: When the context is 
+</I>&gt;<i> &gt; created, and subsequently when the &lt;canvas&gt; changes size (e.g. due to 
+</I>&gt;<i> &gt; being sized with CSS relative units and the element they're relative 
+</I>&gt;<i> &gt; to changing), or when the display density changes size (e.g. due to 
+</I>&gt;<i> &gt; page zoom), then:
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt;   - the width and height of the canvas bitmaps get updated to match the
+</I>&gt;<i> &gt;     new native size of the &lt;canvas&gt;, at native density.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt;   - the coordinate space of the canvas (context.width/context.height) 
+</I>&gt;<i> &gt;     gets updated to match the size of the &lt;canvas&gt; in CSS pixel units.
+</I>&gt;<i> 
+</I>&gt;<i> Note that this would reset the context, which would throw away the 
+</I>&gt;<i> contents and context state. This might be exactly what you want though - 
+</I>&gt;<i> put this attribute on a full-bleed canvas and resize your window -&gt; 
+</I>&gt;<i> everything disappears unless you implement the &#8216;resize&#8217; event handler.
+</I>
+Right, resetting the context would definitely be part of the deal. This 
+mode would be specifically defined as a mode where you had to listen to 
+onresize or your canvas would almost certainly get cleared sooner or 
+later. In fact, we could go further, and say that canvases that aren't 
+getting rendered at all (e.g. display:none, off-screen, background tab) 
+can get cleared, with the deal being that next time you need to show the 
+canvas you immediately get an onresize.
+
+The more things we have that trigger onresize, the more likely it is that 
+authors won't forget to implement it.
+
+
+&gt;<i> &gt;   - a 'resize' event gets fired at the &lt;canvas&gt;.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; We would dump the *HD versions of the methods, and make the regular 
+</I>&gt;<i> &gt; ones go back to returning the actual raw pixels, since that would now 
+</I>&gt;<i> &gt; work fine and still provide HD-quality content everywhere it's 
+</I>&gt;<i> &gt; available.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; What do people think?
+</I>&gt;<i> 
+</I>&gt;<i> This seems ok to me. I still worry we&#8217;ll get into a situation where 
+</I>&gt;<i> developers will add density:&#8217;autosize&#8217; (in order to get the resizing 
+</I>&gt;<i> behaviour) and NOT check the results of getImageData - everything will 
+</I>&gt;<i> work fine if they never test on a high-dpi screen.
+</I>
+Yeah, my suggestion, if we do this, would be to not do it until high 
+density displays are even more widely available than now. This is mostly a 
+convenience and performance-improving API, not a critical feature add.
+
+
+&gt;<i> Maybe there should be two attributes?
+</I>
+What would the two attributes do?
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="083010.html">[whatwg] High-density canvases
+</A></li>
+	<LI>Next message: <A HREF="083040.html">[whatwg] High-density canvases
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#83011">[ date ]</a>
+              <a href="thread.html#83011">[ thread ]</a>
+              <a href="subject.html#83011">[ subject ]</a>
+              <a href="author.html#83011">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

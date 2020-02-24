@@ -1,0 +1,136 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Methods defined for one document called after that document is no longer the one being displayed
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Methods%20defined%20for%20one%20document%20called%20after%20that%0A%20document%20is%20no%20longer%20the%20one%20being%20displayed&In-Reply-To=%3CPine.LNX.4.62.0901311022330.14270%40hixie.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="018348.html">
+   <LINK REL="Next"  HREF="018352.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Methods defined for one document called after that document is no longer the one being displayed</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Methods%20defined%20for%20one%20document%20called%20after%20that%0A%20document%20is%20no%20longer%20the%20one%20being%20displayed&In-Reply-To=%3CPine.LNX.4.62.0901311022330.14270%40hixie.dreamhostps.com%3E"
+       TITLE="[whatwg] Methods defined for one document called after that document is no longer the one being displayed">ian at hixie.ch
+       </A><BR>
+    <I>Sat Jan 31 02:27:59 PST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="018348.html">[whatwg] HTML5 requiredAttr pseudoclasses?
+</A></li>
+        <LI>Next message: <A HREF="018352.html">[whatwg] Methods defined for one document called after that document is no longer the one being displayed
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18350">[ date ]</a>
+              <a href="thread.html#18350">[ thread ]</a>
+              <a href="subject.html#18350">[ subject ]</a>
+              <a href="author.html#18350">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Wed, 24 Dec 2008, Maciej Stachowiak wrote:
+&gt;<i> On Aug 5, 2008, at 2:12 AM, Ian Hickson wrote:
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; Right now, if you navigate an iframe to a document, and take a 
+</I>&gt;<i> &gt; reference to a method defined in that document, and then navigate that 
+</I>&gt;<i> &gt; iframe to another document, and then call the method, browsers differ 
+</I>&gt;<i> &gt; in what they do.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; There are several behaviours:
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; - In one browser, the Window object changes with each navigation,
+</I>&gt;<i> &gt;   and the global object is that object, and the method runs fine.
+</I>&gt;<i> 
+</I>&gt;<i> I believe this design is not compatible with the Web, as there are sites 
+</I>&gt;<i> that take the Window object of another frame or window and expect it to 
+</I>&gt;<i> remain valid across navigations.
+</I>
+Agreed. (The above is what Opera did in my testing at the time. I haven't 
+checked to see if this has changed in recent builds.)
+
+
+&gt;<i> &gt; - In one browser, the method call fails, saying that methods can't be
+</I>&gt;<i> &gt;   called while the document that defined them isn't the active document
+</I>&gt;<i> &gt;   of the browsing context whose global object is the method's.
+</I>&gt;<i> 
+</I>&gt;<i> I think adding checks for this condition at every JS-to-JS call boundary 
+</I>&gt;<i> would be an unacceptable performance cost. This is a highly optimized 
+</I>&gt;<i> code path in modern JITting implementations of JavaScript and I would be 
+</I>&gt;<i> against slowing it down with extra checks just because the resulting 
+</I>&gt;<i> behavior seems simple.
+</I>&gt;<i> 
+</I>&gt;<i> (Should the check also occur at native-to-JS or JS-to-native boundaries? 
+</I>&gt;<i> That would lead to outright broken behavior as event listeners in 
+</I>&gt;<i> inactive documents wouldn't fire even when events occur that should 
+</I>&gt;<i> trigger them, and getElementById on inactive documents wouldn't work. It 
+</I>&gt;<i> wasn't clear to me if you had either of those cases in mind.)
+</I>
+Thanks for the feedback, this is very useful.
+
+(The above model is IE's model.)
+
+
+&gt;<i> &gt; - In one browser, the Window object acts as a kind of view on the global
+</I>&gt;<i> &gt;   object, which changes with each navigation, leading the method to see
+</I>&gt;<i> &gt;   the original global object in its scope chain, but the new one if it
+</I>&gt;<i> &gt;   uses the 'window' object. (In this environment, 'this' at the top scope
+</I>&gt;<i> &gt;   returns the 'window' object, not the global object.)
+</I>&gt;<i> 
+</I>&gt;<i> This roughly describes the implementation internals of both Gecko-based 
+</I>&gt;<i> and WebKit-based browsers with the latest version of the respective 
+</I>&gt;<i> engines -- the so-called &quot;split window&quot; design. Modulo some of the 
+</I>&gt;<i> details about the value of &quot;this&quot; (which could reasonably go either 
+</I>&gt;<i> way), this would be the natural way for browsers adopting this design to 
+</I>&gt;<i> behave, if they do not explicitly add additional checks.
+</I>
+I've now specced this, since it has better performance characteristics 
+than the &quot;frozen scripts&quot; model I had previously specced. (It also has 
+more interoperable implementations and one of the vendors who does not do 
+this has indicated that they would like to move to such a model.)
+
+I haven't mentioned the 'this' behavior, so right now |this !=== window|, 
+which breaks the invariant that there is no way to actually get hold of a 
+reference to the Window object itself (as opposed to the outer WindowProxy 
+object that forwards to the inner Window object). This requirement would 
+be a violation of ECMAScript 3.1, so if we could get that changed in 
+ES3.1, that would be great. Failing that, it should probably be in the 
+WebIDL JavaScript binding section.
+
+Note: This is pretty hairy stuff, so I would appreciate close review of 
+the recent checkin to make sure it matches reality.
+
+Cheers,
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="018348.html">[whatwg] HTML5 requiredAttr pseudoclasses?
+</A></li>
+	<LI>Next message: <A HREF="018352.html">[whatwg] Methods defined for one document called after that document is no longer the one being displayed
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18350">[ date ]</a>
+              <a href="thread.html#18350">[ thread ]</a>
+              <a href="subject.html#18350">[ subject ]</a>
+              <a href="author.html#18350">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

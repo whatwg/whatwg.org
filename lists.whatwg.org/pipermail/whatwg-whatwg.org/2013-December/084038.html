@@ -1,0 +1,167 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] onclose events for MessagePort
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20onclose%20events%20for%20MessagePort&In-Reply-To=%3CCA%2Bc2ei_cBi8Y3yVjf50EMFhtD5h%3DCYWvz%2B_H-SjV4VhzErZcxg%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="084037.html">
+   <LINK REL="Next"  HREF="084040.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] onclose events for MessagePort</H1>
+<!--htdig_noindex-->
+    <B>Jonas Sicking</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20onclose%20events%20for%20MessagePort&In-Reply-To=%3CCA%2Bc2ei_cBi8Y3yVjf50EMFhtD5h%3DCYWvz%2B_H-SjV4VhzErZcxg%40mail.gmail.com%3E"
+       TITLE="[whatwg] onclose events for MessagePort">jonas at sicking.cc
+       </A><BR>
+    <I>Wed Dec 11 13:40:25 PST 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="084037.html">[whatwg] onclose events for MessagePort
+</A></li>
+        <LI>Next message: <A HREF="084040.html">[whatwg] onclose events for MessagePort
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#84038">[ date ]</a>
+              <a href="thread.html#84038">[ thread ]</a>
+              <a href="subject.html#84038">[ subject ]</a>
+              <a href="author.html#84038">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Wed, Dec 11, 2013 at 11:18 AM, Ian Hickson &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">ian at hixie.ch</A>&gt; wrote:
+&gt;&gt;<i> and given the fact that currently a solution for the case where the page
+</I>&gt;&gt;<i> is navigated away from will need to register an unload event handler
+</I>&gt;&gt;<i> (which also disables bfcache) we will be in no worse spot than we are
+</I>&gt;&gt;<i> today.
+</I>&gt;<i>
+</I>&gt;<i> For pages that register the unload handler, sure. But if we do this, we
+</I>&gt;<i> block _all_ pages that use MessagePorts from going into the bfcache,
+</I>&gt;<i> because there's no way to know if the other side has a registered handler
+</I>&gt;<i> for the event or not when you are navigated. I suppose you could
+</I>&gt;<i> optimistically bfcache it and then if any of the entangled ports report
+</I>&gt;<i> back that they had a listener for 'error' then you throw away the page,
+</I>&gt;<i> but that would actually bring about yet another problem, which is that we
+</I>&gt;<i> generally try very hard to make having a listener or not having a listener
+</I>&gt;<i> be otherwise indistinguishable. It would also actually require a
+</I>&gt;<i> synchronous IPC, or at least blocking on IPC in the case that the page you
+</I>&gt;<i> navigated to immediately called history.back().
+</I>
+I'm not going to be arguing for the proposal that you've currently
+specced, since I prefer the one that I proposed at [1]. And google
+also didn't seem too enthused based on their reply.
+
+The proposal at [1] would indeed cause pages that hold a MessagePort
+to not be bfcached if the other side &quot;pin&quot; its port. However this is
+actually a design goal! If page A and page B are communicating with
+each other, and A sends a message to B and want a reply, then our
+design goal is for A to alter its behavior if B is navigated away from
+before that reply is sent. This means that we can't by default bfcache
+B.
+
+This is an effect of the use cases that we are trying to solve, not an
+effect of any particular syntax. Hence avoiding solutions because they
+prevent bfcaching while communication is happening between the two
+pages is the wrong reason.
+
+The proposal at [1] does not prevent bfcaching *anytime* that
+MessagePorts are alive in a page that is navigated away from. We can
+always bfcache the page if we don't know of any &quot;other sides&quot; having
+pinned their port. If we later detect that a port is being pinned, we
+can indicate an error to the pinning side, and throw the bfcached page
+out of the bfcache at that time. No synchronous IPC communication
+needed. We do something very similar when the DOM of a bfcached page
+is mutated.
+
+As far as I can see, this is actually the most bfcache friendly
+solution possible. I.e. it only tosses something out of the bfcache if
+that page was expected to respond to a message. Not anytime a message
+is sent or anytime a MessagePort exists.
+
+If we want to worry about improving bfcaching beyond this proposal, I
+think there are ways to do that. But I think that is orthogonal. For
+example we've discussed adding an API which allows a page to say &quot;I'm
+aware that there are plugins on this page and that that would normally
+prevent me from being bfcached. However I'm fine with being put in the
+bfcache and those plugins being stopped when that happens, I can
+deal&quot;. We could similarly add other APIs which indicates that the page
+is able to handle recovering from actions that happen when a page is
+being put in the bfcache, such as aborted network requests or aborted
+message channels. But I don't think any of that work should block us
+here. And i'm saying that as one of the implementors of the only
+bfcaching browser as far as I know.
+
+However I'm very open to discussing other syntaxes than the one in
+[1]. For example I agree that pin()/unpin() are not the most
+descriptive names. For example awaitAnswer() and answerReceived()
+might be more understandable. Or of course totally different syntaxes
+as long as they support the same use cases, and as long as convincing
+technical arguments are presented.
+
+&gt;&gt;<i> I actually think that in Gecko won't be interested in implementing the
+</I>&gt;&gt;<i> current spec for the close event since it won't solve our use case if
+</I>&gt;&gt;<i> the other side happens to crash before we manage to register an onclose
+</I>&gt;&gt;<i> handler.  The proposal which we're currently interested in implementing
+</I>&gt;&gt;<i> is something along the lines of &lt;
+</I>&gt;&gt;<i> <A HREF="http://lists.whatwg.org/pipermail/whatwg-whatwg.org/2013-October/041250.html">http://lists.whatwg.org/pipermail/whatwg-whatwg.org/2013-October/041250.html</A>&gt;.
+</I>&gt;<i>
+</I>&gt;<i> The problem with an elaborate proposals such as this one is that in UAs
+</I>&gt;<i> that never need to worry about this (e.g. because they are single-process,
+</I>&gt;<i> or they are desktop UAs that don't need to worry about a kill-happy OOM
+</I>&gt;<i> handler in the kernel and that are stable enough that they crash
+</I>&gt;<i> sufficiently rarely that they don't care to worry about this), the API is
+</I>&gt;<i> something that still needs to be implemented, even if it's a no-op, and so
+</I>&gt;<i> the more complicated the API the more wasted work it is.
+</I>
+Are there any UAs that have indicated that they feel stable enough
+that they don't worry about crashes?
+
+Additionally, any UA would need to worry about navigations as far as I know.
+
+And note that navigations can't be handled by simply sending a message
+in the onunload handler. That strategy doesn't work in dedicated
+workers. And even if we add onunload to workers that doesn't help
+long-running worker scripts.
+
+Finally, has any implementation indicated that the proposal in [1] is
+too burdensome to implement? If they have that of course changes the
+discussion dramatically here. But I'm reluctant to guess about what
+implementations will or won't implement. I'd rather ask them.
+
+[1] <A HREF="http://lists.whatwg.org/pipermail/whatwg-whatwg.org/2013-October/041250.html">http://lists.whatwg.org/pipermail/whatwg-whatwg.org/2013-October/041250.html</A>
+
+/ Jonas
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="084037.html">[whatwg] onclose events for MessagePort
+</A></li>
+	<LI>Next message: <A HREF="084040.html">[whatwg] onclose events for MessagePort
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#84038">[ date ]</a>
+              <a href="thread.html#84038">[ thread ]</a>
+              <a href="subject.html#84038">[ subject ]</a>
+              <a href="author.html#84038">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

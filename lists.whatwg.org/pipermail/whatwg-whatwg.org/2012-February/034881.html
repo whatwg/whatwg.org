@@ -1,0 +1,212 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Proposal: Deprecate registerProtocolHandler/registerContentHandler via Web Intents
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Proposal%3A%20Deprecate%0A%20registerProtocolHandler/registerContentHandler%20via%20Web%20Intents&In-Reply-To=%3CCAO800SyDx67fv5yp4W_0SBSwoPMaBfYYVcWdZtdqpWfC5obW3Q%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="077232.html">
+   <LINK REL="Next"  HREF="077189.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Proposal: Deprecate registerProtocolHandler/registerContentHandler via Web Intents</H1>
+<!--htdig_noindex-->
+    <B>James Hawkins</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Proposal%3A%20Deprecate%0A%20registerProtocolHandler/registerContentHandler%20via%20Web%20Intents&In-Reply-To=%3CCAO800SyDx67fv5yp4W_0SBSwoPMaBfYYVcWdZtdqpWfC5obW3Q%40mail.gmail.com%3E"
+       TITLE="[whatwg] Proposal: Deprecate registerProtocolHandler/registerContentHandler via Web Intents">jhawkins at google.com
+       </A><BR>
+    <I>Wed Feb 15 15:39:26 PST 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="077232.html">[whatwg] &lt;a download&gt; feedback
+</A></li>
+        <LI>Next message: <A HREF="077189.html">[whatwg] Proposal: Deprecate registerProtocolHandler/registerContentHandler via Web Intents
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#34881">[ date ]</a>
+              <a href="thread.html#34881">[ thread ]</a>
+              <a href="subject.html#34881">[ subject ]</a>
+              <a href="author.html#34881">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>We, the designers of the Web Intents draft API, have always seen Web
+Intents as a superset of the functionality provided by
+registerProtocolHandler (RPH) and registerContentHandler (RCH).  To
+follow this to the logical conclusion, we should be able to provide
+functionally equivalent counterparts to RPH/RCH in Web Intents.  This
+proposal provides a means of deprecating RPH/RCH, replacing this
+functionality with equivalent functionality from Web Intents.
+
+For reference RPH/RCH are documented at [1].  The current draft of the
+Web Intents API is at [2].
+
+
+registerProtocolHandler
+===================
+
+The registerProtocolHandler() method allows Web sites to register
+themselves as possible handlers for particular schemes.
+
+ void registerProtocolHandler(DOMString scheme, DOMString url, DOMString title);
+
+We propose the addition of a 'scheme' attribute to the Web Intents
+service registration to handle this use case.
+
+ &lt;intent scheme=&quot;mailto&quot;&gt;
+
+* |scheme| is the same as specified for RPH.
+* If |scheme| is specified, |action| *should* (must?) be ignored.
+
+Thus, with this proposal, when the user clicks a &quot;mailto:&quot; link, the
+UA will internally create a new intent containing the scheme and the
+URL parameters as the data in the payload.  This payload will be
+delivered to the service the user picks.  Note we&#8217;re considering
+specifying the UA may optionally decode the parameters into the
+|<i>extras| object.
+</I>
+Given the following anchor on mypage.com:
+
+&lt;a href=&quot;mailto:<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">me at mypage.com</A>?bcc=<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">support at mypage.com</A>&amp;subject=testing&quot;&gt;
+
+the UA will deliver the following payload to the selected service:
+
+{
+  type: &#8220;text/plain&#8221;,
+  scheme: &#8220;mailto&#8221;,
+  data: &#8220;mailto:<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">me at mypage.com</A>?bcc=<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">support at mypage.com</A>&amp;subject=testing&#8221;,
+  extras: {
+    bcc: &#8220;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">support at mypage.com</A>&#8221;,
+    subject: &#8220;testing&#8221; }
+}
+
+Open question: should we use the same whitelist of schemes used by RPH?
+
+
+registerContentHandler
+===================
+
+The registerContentHandler() method allows Web sites to register
+themselves as possible handlers for content in a particular MIME type.
+
+ void registerContentHandler(DOMString mimeType, DOMString url,
+DOMString title);
+
+We propose modifying the relationship between the |action| and |type|
+attributes to specify that if |action| is not specified and |type| is
+specified, the action is implicitly 'view' and the service must be
+shown in the picker when the UA encounters content of matching MIME
+type.
+
+ &lt;intent type=&quot;image/png&quot;&gt;
+
+The above registration would register the service to handle content of
+MIME type &quot;image/png&quot;.
+
+When the UA loads a resource of type &quot;image/png&quot;, it sends the type
+and content to the service in the payload.
+
+{
+  data: pngImageContent,
+  type: &#8220;image/png&#8221;
+}
+
+
+isProtocolHandlerRegistered / isContentHandlerRegistered
+=============================================
+
+There are serious fingerprinting issues with these methods, and when
+contemplating analogous methods for Web Intents, we thought long and
+hard about the fingerprinting issue.
+
+As spec'ed a site could call registerProtocolHandler('web+uniqueID',
+...) where uniqueID is unique to a user.  The site could then call
+isProtocolHandlerRegistered with that matching 'web+uniqueID' to
+verify who the user is.
+
+One of the use cases for these methods is to allow a client site the
+ability to show alternative UI for protocols/content that are not
+capable of being handled by any service.  Web Intents also requires a
+solution for this use case, as showing an empty picker* is a
+non-starter.
+
+* The picker refers to the UI in the UA that shows registered services
+for a given intent, allowing the user to pick which service to
+activate.
+
+Instead of creating analogous functionality of these methods for Web
+Intents, we decided to tackle the problem state of an empty picker.
+The proposed solution is to allow a client site to suggest a service
+(URL) that is displayed by the UA in the picker.  The
+|<i>suggestedService| parameter is optional.
+</I>
+ startActivity(..., suggestedService);
+
+In addition declarative registration removes the need to fashion
+registration as:
+
+if (!isProtocolHandlerRegistered(x))
+  registerProtocolHandler(x);
+
+The work of maintaining that state is displaced to the UA.
+
+
+unregisterProtocolHandler / unregisterContentHandler
+===========================================
+
+The analogous functionality for these methods in Web Intents already
+exists and is the same as the removal of any type of service: remove
+the declarative registration from the content, and the UA will
+unregister the service as a handler.
+
+
+[1] <A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/timers.html#custom-handlers">http://www.whatwg.org/specs/web-apps/current-work/multipage/timers.html#custom-handlers</A>
+[2] <A HREF="http://dvcs.w3.org/hg/web-intents/raw-file/tip/spec/Overview.html">http://dvcs.w3.org/hg/web-intents/raw-file/tip/spec/Overview.html</A>
+
+Thanks,
+James
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="077232.html">[whatwg] &lt;a download&gt; feedback
+</A></li>
+	<LI>Next message: <A HREF="077189.html">[whatwg] Proposal: Deprecate registerProtocolHandler/registerContentHandler via Web Intents
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#34881">[ date ]</a>
+              <a href="thread.html#34881">[ thread ]</a>
+              <a href="subject.html#34881">[ subject ]</a>
+              <a href="author.html#34881">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

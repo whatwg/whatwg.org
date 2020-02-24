@@ -1,0 +1,153 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Workers: What can be done in a worker after call to	close()?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Workers%3A%20What%20can%20be%20done%20in%20a%20worker%20after%20call%20to%0A%09close%28%29%3F&In-Reply-To=%3Cn2rf965ae411003301758z616a0958wc33fa5ded678ce1c%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="068000.html">
+   <LINK REL="Next"  HREF="068007.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Workers: What can be done in a worker after call to	close()?</H1>
+<!--htdig_noindex-->
+    <B>Drew Wilson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Workers%3A%20What%20can%20be%20done%20in%20a%20worker%20after%20call%20to%0A%09close%28%29%3F&In-Reply-To=%3Cn2rf965ae411003301758z616a0958wc33fa5ded678ce1c%40mail.gmail.com%3E"
+       TITLE="[whatwg] Workers: What can be done in a worker after call to	close()?">atwilson at google.com
+       </A><BR>
+    <I>Tue Mar 30 17:58:57 PDT 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="068000.html">[whatwg] Workers: What can be done in a worker after call to	close()?
+</A></li>
+        <LI>Next message: <A HREF="068007.html">[whatwg] Workers: What can be done in a worker after call to	close()?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#68005">[ date ]</a>
+              <a href="thread.html#68005">[ thread ]</a>
+              <a href="subject.html#68005">[ subject ]</a>
+              <a href="author.html#68005">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>I'll note that the spec gives the UA an significant amount of latitude about
+its behavior after close() is called:
+
+User agents may invoke the &quot;kill a worker &lt;#kill-a-worker&gt;&quot; processing model
+on a worker at any time, e.g. in response to user requests, in response to
+CPU quota management, or when a worker stops being an active needed
+worker&lt;#active-needed-worker&gt; if
+the worker continues executing even after its
+closing&lt;#dom-workerglobalscope-closing&gt; flag
+was set to true.
+
+Essentially, UAs can kill a worker at any time, and since the &quot;kill a
+worker&quot; algorithm allows UAs to abort the script after a user-agent-defined
+amount of time (including zero), it seems like almost any behavior
+post-close is compliant. This seems like a guaranteed source of
+cross-browser incompatibilities.
+
+I've always operated under the impression that the intent of the spec is to
+allow pending worker operations to complete, but still give UAs the ability
+to abort scripts that don't exit in a timely manner (so close() should not
+immediately abort the script), but I don't see anything in the spec
+regarding this.
+
+For #2 below, I believe that exceptions in worker context should *always* be
+reported, regardless of closing state. Section 4.6 (Runtime script errors)
+makes no mention of tying this behavior to the closing flag.
+
+-atw
+
+
+
+On Tue, Mar 30, 2010 at 4:44 PM, Dmitry Titov &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">dimich at chromium.org</A>&gt; wrote:
+
+&gt;<i> Hi!
+</I>&gt;<i>
+</I>&gt;<i> Trying to fix some bugs for Workers, I've got some questions about close()
+</I>&gt;<i> method on WorkerGlobalScope&lt;<A HREF="http://www.whatwg.org/specs/web-workers/current-work/#workerglobalscope">http://www.whatwg.org/specs/web-workers/current-work/#workerglobalscope</A>&gt;
+</I>&gt;<i> .
+</I>&gt;<i>
+</I>&gt;<i> In particular, the spec seems to imply that after calling close() inside
+</I>&gt;<i> the worker, the JS does not get terminated right away, but rather continue
+</I>&gt;<i> to execute, while an internal 'closing' flag is set and a message
+</I>&gt;<i> queue associated with the worker discards all the tasks, existing and
+</I>&gt;<i> future. Also, all ports are immediately disentangled.
+</I>&gt;<i>
+</I>&gt;<i> This seems to leave some questions without explicit answer, with
+</I>&gt;<i> differences in current implementations:
+</I>&gt;<i>
+</I>&gt;<i> 1. Does this code in a worker continues looping until the parent page
+</I>&gt;<i> unloads:
+</I>&gt;<i>  ...
+</I>&gt;<i>  close();
+</I>&gt;<i>  while(true) {}
+</I>&gt;<i>
+</I>&gt;<i> WebKit V8 terminates, WebKit JCS terminates after a timeout, FF does not
+</I>&gt;<i> terminate.
+</I>&gt;<i>
+</I>&gt;<i> 2. Do the errors propagate back to Worker object after close()?
+</I>&gt;<i> ...
+</I>&gt;<i> close();
+</I>&gt;<i> nonExistingFunction();  &lt;&lt;-- throws, if not processed locally, posts error
+</I>&gt;<i> info to the Worker object.
+</I>&gt;<i>
+</I>&gt;<i> In WebKit and FF errors propagate, although it does not seem consistent
+</I>&gt;<i> while worker closed all the ports and is in a dormant state.
+</I>&gt;<i>
+</I>&gt;<i> 3. Should synchronous operations work after close()? Asynchronous ones
+</I>&gt;<i> perhaps should not, because of the event loop queue which is stopped...
+</I>&gt;<i> ...
+</I>&gt;<i> close();
+</I>&gt;<i> xhr.open(&quot;GET&quot;, &quot;foo.com&quot;, *false*);
+</I>&gt;<i> xhr.send();
+</I>&gt;<i>
+</I>&gt;<i> WebKit: does not work (mostly), FF - does work.
+</I>&gt;<i>
+</I>&gt;<i> Perhaps it would be simpler to either say nothing is executed/posted/fired
+</I>&gt;<i> after close() (immediate termination), or to enable worker run unimpeded
+</I>&gt;<i> (with ports open, etc) until it naturally yields from JS.
+</I>&gt;<i>
+</I>&gt;<i> Any opinions?
+</I>&gt;<i>
+</I>&gt;<i> Thanks,
+</I>&gt;<i> Dmitry
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: &lt;<A HREF="http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20100330/e03c53d2/attachment-0002.htm">http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20100330/e03c53d2/attachment-0002.htm</A>&gt;
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="068000.html">[whatwg] Workers: What can be done in a worker after call to	close()?
+</A></li>
+	<LI>Next message: <A HREF="068007.html">[whatwg] Workers: What can be done in a worker after call to	close()?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#68005">[ date ]</a>
+              <a href="thread.html#68005">[ thread ]</a>
+              <a href="subject.html#68005">[ subject ]</a>
+              <a href="author.html#68005">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

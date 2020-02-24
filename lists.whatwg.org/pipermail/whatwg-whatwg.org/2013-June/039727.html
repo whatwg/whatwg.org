@@ -1,0 +1,282 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Reconsidering how we deal with text track cues
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Reconsidering%20how%20we%20deal%20with%20text%20track%20cues&In-Reply-To=%3CCAHp8n2mbuxm%3D2aOSMS2S_oa042gMkSCOMTrn5odA9%2BTbpo902w%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="082091.html">
+   <LINK REL="Next"  HREF="082003.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Reconsidering how we deal with text track cues</H1>
+<!--htdig_noindex-->
+    <B>Silvia Pfeiffer</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Reconsidering%20how%20we%20deal%20with%20text%20track%20cues&In-Reply-To=%3CCAHp8n2mbuxm%3D2aOSMS2S_oa042gMkSCOMTrn5odA9%2BTbpo902w%40mail.gmail.com%3E"
+       TITLE="[whatwg] Reconsidering how we deal with text track cues">silviapfeiffer1 at gmail.com
+       </A><BR>
+    <I>Tue Jun 11 22:11:27 PDT 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="082091.html">[whatwg] Proposal:Improve internationalization in the autocomplete attribute
+</A></li>
+        <LI>Next message: <A HREF="082003.html">[whatwg] Reconsidering how we deal with text track cues
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#39727">[ date ]</a>
+              <a href="thread.html#39727">[ thread ]</a>
+              <a href="subject.html#39727">[ subject ]</a>
+              <a href="author.html#39727">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Hi all,
+
+The model in which we have looked at text tracks (&lt;track&gt; element of
+media elements) thus far has some issues that I would like to point
+out in this email and I would like to suggest a new way to look at
+tracks. This will result in changes to the HTML and WebVTT specs and
+has an influence on others specifying text track cue formats, so I am
+sharing this information widely.
+
+Current situation
+=============
+Text tracks provide lists of timed cues for media elements, i.e. they
+have a start time, an end time, and some content that is to be
+interpreted in sync with the media element's timeline.
+
+WebVTT is the file format that we chose to define as a serialisation
+for the cues (just like audio files serialize audio samples/frames and
+video files serialize video frames).
+
+The means in which we currently parse WebVTT files into JS objects has
+us create objects of type WebVTTCue. These objects contain information
+about any kind of cue that could be included in a WebVTT file -
+captions, subtitles, descriptions, chapters, metadata and whatnot.
+
+The WebVTTCue object looks like this:
+
+enum AutoKeyword { &quot;auto&quot; };
+[Constructor(double startTime, double endTime, DOMString text)]
+interface WebVTTCue : TextTrackCue {
+           attribute DOMString vertical;
+           attribute boolean snapToLines;
+           attribute (long or AutoKeyword) line;
+           attribute long position;
+           attribute long size;
+           attribute DOMString align;
+           attribute DOMString text;
+  DocumentFragment getCueAsHTML();
+};
+
+There are attributes in the WebVTTCue object that relate only to cues
+of kind captions and subtitles (vertical, snapToLines etc). For cues
+of other kinds, the only relevant attribute right now is the text
+attribute.
+
+This works for now, because cues of kind descriptions and chapters are
+only regarded as plain text, and the structure of the content of cues
+of kind metadata is not parsed by the browser. So, for cues of kind
+descriptions, chapters and metadata, that .text attribute is
+sufficient.
+
+
+The consequence
+===============
+As we continue to evolve the functionality of text tracks, we will
+introduce more complex other structured content into cues and we will
+want browsers to parse and interpret them.
+
+For example, I expect that once we have support for speech synthesis
+in browsers [1], cues of kind descriptions will be voiced by speech
+synthesis, and eventually we want to influence that speech synthesis
+with markup (possibly a subpart of SSML [2] or some other simpler
+markup that influences prosody).
+
+Since we have set ourselves up for parsing all cue content that comes
+out of WebVTT files into WebVTTCue objects, we now have to expand the
+WebVTTCue object with attributes for speech synthesis, e.g. I can
+imagine cue settings for descriptions to contain a field called
+&quot;channelMask&quot; to contain which audio channels a particular cue should
+be rendered into with values being center, left, right.
+
+Another example is that eventually somebody may want to introduce
+ThumbnailCues that contain data URLs for images and may have a
+&quot;transparency&quot; cue setting. Or somebody wants to formalize
+MidrollAdCues that contain data URLs for short video ads and may have
+a &quot;skippableAfterSecs&quot; cue setting.
+
+All of these new cue settings would end up as new attributes on the
+WebVTTCue object. This is a dangerous design path that we have taken.
+
+[1] <A HREF="https://dvcs.w3.org/hg/speech-api/raw-file/tip/speechapi.html#tts-section">https://dvcs.w3.org/hg/speech-api/raw-file/tip/speechapi.html#tts-section</A>
+[2] <A HREF="http://www.w3.org/TR/speech-synthesis/#S3.2">http://www.w3.org/TR/speech-synthesis/#S3.2</A>
+
+
+Problem analysis
+================
+What we have done by restricting ourselves to a single WebVTTCue
+object to represent all types of cues that come from a WebVTT file is
+to ignore that WebVTT is just a serialisation format for cues, but
+that cues are the ones that provide the different types of timed
+content to the browser. The browser should not have to care about the
+serialisation format. But it should care about the different types of
+content that a track cue could contain.
+
+For example, it is possible that a WebVTT caption cue (one with all
+the markup and cue settings) can be provided to the browser through a
+WebM file or through a MPEG file or in fact (gasp!) through a TTML
+file. Such a cue should always end up in a WebVTTCue object (will need
+a better name) and not in an object that is specific to the
+serialisation format.
+
+What we have done with WebVTT is actually two-fold:
+1. we have created a file format that serializes arbitrary content
+that is time-synchronized with a media element.
+2. and we have created a simple caption/subtitle cue format.
+
+That both are called &quot;WebVTT&quot; is the cause of a lot of confusion and
+not a good design approach.
+
+
+The solution
+===========
+We thus need to distinguish between cue formats in the browser and not
+between serialisation formats (we don't distinguish between different
+image formats or audio formats in the browser either - we just handle
+audio samples or image pixels).
+
+Once a WebVTT file is parsed into a list of cues, the browser should
+not have to care any more that the list of cues came from a WebVTT
+file or anywhere else. It's a list of cues with a certain type of
+content that has a parsing and a rendering algorithm attached.
+
+
+Spec consequences
+==================
+What needs to change in the specs to deal with this different approach
+to text tracks is not hard to deduct.
+
+
+Firstly, there are consequences on the WebVTT spec.
+
+I suggest we rename WebVTTCue [1] to VTTCaptionCue and allow such cues
+only on tracks of kind={caption, subtitle}.
+Also, we separate out the WebVTT serialisation format syntax
+specification from the cue syntax specification [2] and introduce
+separate parsers [3] for the different cue syntax formats.
+The rendering section [4] has already started distinguishing between
+cue rendering for chapters and for captions/subtitles. This will
+easily fit with the now separated cue syntax formats.
+
+We will then introduce a ChapterCue which adds a .text attribute and a
+constructor onto AbstractCue for cues (in WebVTT or from elsewhere)
+that are interpreted as chapters and have their own rendering
+algorithm.
+Similarly, we introduce a DescriptionCue which adds a .text attribute
+and a constructor onto AbstractCue and we define a rendering algorithm
+that makes use of the new speech synthesis API [5].
+Similarly, we introduce a MetadataCue which adds a .content attribute
+and a constructor onto AbstractCue with no rendering algorithm.
+I think these new cue objects would even make more sense being defined
+in HTML including their rendering algorithms rather than in the WebVTT
+spec, because they are generic and we don't want chapters to be
+rendered differently just because they have originated from a
+different serialisation format.
+
+[1] <A HREF="http://dev.w3.org/html5/webvtt/#webvtt-api">http://dev.w3.org/html5/webvtt/#webvtt-api</A>
+[2] <A HREF="http://dev.w3.org/html5/webvtt/#syntax">http://dev.w3.org/html5/webvtt/#syntax</A>
+[3] <A HREF="http://dev.w3.org/html5/webvtt/#parsing">http://dev.w3.org/html5/webvtt/#parsing</A>
+[4] <A HREF="http://dev.w3.org/html5/webvtt/#rendering">http://dev.w3.org/html5/webvtt/#rendering</A>
+[5] <A HREF="https://dvcs.w3.org/hg/speech-api/raw-file/tip/speechapi.html#tts-section">https://dvcs.w3.org/hg/speech-api/raw-file/tip/speechapi.html#tts-section</A>
+
+
+
+Secondly, there are consequences for the TextTrackCue object hierarchy
+in the HTML spec.
+
+I suggest we rename TextTrackCue [6] to AbstractCue (or just Cue). It
+is simply the abstract result of parsing a serialisation of cues (e.g.
+a WebVTT file) into its individual cues.
+
+Similarly TextTrackCueList [7] should be renamed to CueList and should
+be a cue list of only one particular type of cue. Thus, the parsing
+and rendering algorithm in use for all cues in a CueList is fixed.
+Also, a CueList of e.g. ChapterCues should only be allowed to be
+attached to a track of kind=chapters, etc.
+
+[6] <A HREF="http://www.whatwg.org/specs/web-apps/current-work/#texttrackcue">http://www.whatwg.org/specs/web-apps/current-work/#texttrackcue</A>
+[7] <A HREF="http://www.whatwg.org/specs/web-apps/current-work/#texttrackcuelist">http://www.whatwg.org/specs/web-apps/current-work/#texttrackcuelist</A>
+
+
+
+Doing this will make WebVTT and the TextTrack API extensible for new
+cue formats, such as cues in SSML format, or ThumbnailCues, or
+MidrollAdCues or whatnot else we may see necessary in the future.
+
+This may look like a lot of changes, but it's really just some
+renaming and an introduction of a small number of semantically clean
+new objects.
+
+Feedback welcome.
+
+Regards,
+Silvia.
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="082091.html">[whatwg] Proposal:Improve internationalization in the autocomplete attribute
+</A></li>
+	<LI>Next message: <A HREF="082003.html">[whatwg] Reconsidering how we deal with text track cues
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#39727">[ date ]</a>
+              <a href="thread.html#39727">[ thread ]</a>
+              <a href="subject.html#39727">[ subject ]</a>
+              <a href="author.html#39727">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

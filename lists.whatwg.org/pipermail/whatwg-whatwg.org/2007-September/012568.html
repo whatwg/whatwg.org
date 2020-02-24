@@ -1,0 +1,165 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Comments on updated SQL API
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Comments%20on%20updated%20SQL%20API&In-Reply-To=%3CPine.LNX.4.62.0709250407440.21662%40hixie.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="012544.html">
+   <LINK REL="Next"  HREF="012564.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Comments on updated SQL API</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Comments%20on%20updated%20SQL%20API&In-Reply-To=%3CPine.LNX.4.62.0709250407440.21662%40hixie.dreamhostps.com%3E"
+       TITLE="[whatwg] Comments on updated SQL API">ian at hixie.ch
+       </A><BR>
+    <I>Mon Sep 24 21:18:04 PDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="012544.html">[whatwg] Comments on updated SQL API
+</A></li>
+        <LI>Next message: <A HREF="012564.html">[whatwg] Comments on updated SQL API
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#12568">[ date ]</a>
+              <a href="thread.html#12568">[ thread ]</a>
+              <a href="subject.html#12568">[ subject ]</a>
+              <a href="author.html#12568">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Sat, 22 Sep 2007, Timothy Hatcher wrote:
+&gt;<i>
+</I>&gt;<i> The callback syntax is nice but the implicit thread-global transaction 
+</I>&gt;<i> is confusing and can lead to programmer error and unneeded database 
+</I>&gt;<i> locking.
+</I>
+There isn't really a thread-global transaction, the transactions are 
+per-sequence-of-executeSql-calls, as in:
+
+   executeSql('sql1', function (result) {
+     executeSql('sql2', function (result) {
+       executeSql('sql3', function (result) {
+         // this is all in one transaction
+       });
+     });
+   });
+   executeSql('sql4', function (result) {
+     executeSql('sql5', function (result) {
+       executeSql('sql6', function (result) {
+         // this is all in another transaction
+       });
+     });
+   });
+
+...where the likely order of execution is sql1 and sql4 at the same time, 
+then sql2 and sql5, then sql3 and sql6, assuming all the statements take 
+the same amount of time.
+
+
+&gt;<i> It doesn't look like you can rollback the implicit transaction (one of the big
+</I>&gt;<i> features of transactions.)
+</I>
+You can rollback just by throwing an exception in the callback.
+
+
+&gt;<i> Also what access locks does the implicit transaction take? What if you 
+</I>&gt;<i> need exclusive access to the database temporarily? These cases would be 
+</I>&gt;<i> solved by adding explicit transactions with control to access locks and 
+</I>&gt;<i> rolling back.
+</I>
+There are various ways of solving these, indeed. Another way would be to 
+support 'BEGIN TRANSACTION EXCLUSIVE' as the first statement of a 
+transaction, which would set the transaction type. (e.g.)
+
+
+&gt;<i> Here is an example:
+</I>&gt;<i> 
+</I>&gt;<i>     transation1 = db.beginTransation();
+</I>&gt;<i>     transation1.executeQuery(&quot;SELECT * FROM document&quot;, function(result1) {
+</I>&gt;<i>         if(...) {
+</I>&gt;<i>             result1.transation.executeQuery(&quot;UPDATE document WITH ... WHERE
+</I>&gt;<i> document = ?&quot;, result1.namedItem(&quot;id&quot;), function(result2) {
+</I>&gt;<i>                 ...
+</I>&gt;<i>             });
+</I>&gt;<i>         }
+</I>&gt;<i>     });
+</I>&gt;<i> 
+</I>&gt;<i>     transation2 = db.beginTransation(Database.ExclusiveTransactionLocks);
+</I>&gt;<i>     transation2.executeQuery(&quot;UPDATE user WITH ... WHERE user = ?&quot;, &quot;123&quot;,
+</I>&gt;<i> function(result1) {
+</I>&gt;<i>         if(...) {
+</I>&gt;<i>             result1.transation.executeQuery(&quot;UPDATE user WITH ... WHERE user =
+</I>&gt;<i> ?&quot;, result1.namedItem(&quot;id&quot;), function(result2) {
+</I>&gt;<i>                 result1.transation.commit();
+</I>&gt;<i>             });
+</I>&gt;<i>         } else {
+</I>&gt;<i>             result1.transation.rollback();
+</I>&gt;<i>         }
+</I>&gt;<i>     });
+</I>
+This is basically what the spec supports now, except without any explicit 
+mentioning of the transactions.
+
+
+&gt;<i> I think an explicit commit should be required for the transactions. So 
+</I>&gt;<i> you can keep the transcript object around and add to it over time.
+</I>
+Currently the spec commits if you don't add a new query to the 
+transaction. Could you elaborate on your use case?
+
+
+&gt;<i> Some other comments:
+</I>&gt;<i> 
+</I>&gt;<i> You might notice that I have been using executeQuery() instead of 
+</I>&gt;<i> executeSql(). I think it is weird and unneeded to say Sql in the 
+</I>&gt;<i> function name. If anything, it should be executeSQL().
+</I>
+The name &quot;sql&quot; is there so that we can add other types of queries at a 
+later date. The capitalisation is based on typical capitalisation of other 
+members in the DOM.
+
+
+&gt;<i> I think the ResultSet object should have a property to get the Database 
+</I>&gt;<i> and the Transaction objects. As I mentioned earlier, not everyone will 
+</I>&gt;<i> use closures and will need access to these to do anything else.
+</I>
+You don't need access to the transaction object if anything executed 
+during the callback is added to the transaction, as far as I can tell; and 
+the database would just be the database... you can pass that around 
+however you like, no need for an explicit member.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="012544.html">[whatwg] Comments on updated SQL API
+</A></li>
+	<LI>Next message: <A HREF="012564.html">[whatwg] Comments on updated SQL API
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#12568">[ date ]</a>
+              <a href="thread.html#12568">[ thread ]</a>
+              <a href="subject.html#12568">[ subject ]</a>
+              <a href="author.html#12568">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

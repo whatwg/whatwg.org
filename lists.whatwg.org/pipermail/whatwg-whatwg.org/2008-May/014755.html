@@ -1,0 +1,128 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Adding mouseenter and mouseleave events
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Adding%20mouseenter%20and%20mouseleave%20events&In-Reply-To=%3Cmnqb24tustkltn9940amhf2g2bb670rkug%40hive.bjoern.hoehrmann.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="014749.html">
+   <LINK REL="Next"  HREF="014757.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Adding mouseenter and mouseleave events</H1>
+<!--htdig_noindex-->
+    <B>Bjoern Hoehrmann</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Adding%20mouseenter%20and%20mouseleave%20events&In-Reply-To=%3Cmnqb24tustkltn9940amhf2g2bb670rkug%40hive.bjoern.hoehrmann.de%3E"
+       TITLE="[whatwg] Adding mouseenter and mouseleave events">derhoermi at gmx.net
+       </A><BR>
+    <I>Sat May 10 19:23:25 PDT 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="014749.html">[whatwg] Script, style and backwards compatibility
+</A></li>
+        <LI>Next message: <A HREF="014757.html">[whatwg] Progressive rendering
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#14755">[ date ]</a>
+              <a href="thread.html#14755">[ thread ]</a>
+              <a href="subject.html#14755">[ subject ]</a>
+              <a href="author.html#14755">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>* Magnus Kristiansen wrote:
+&gt;<i>Mouseover/out events will trigger when elements contained inside the  
+</I>&gt;<i>EventTarget are hovered, and then bubble up. This is contrary to the most  
+</I>&gt;<i>obvious interpretation, as you are still inside (over) the targeted  
+</I>&gt;<i>element. IE supports two events, mouseenter[1] and mouseleave[2], which  
+</I>&gt;<i>solve this problem by not bubbling.
+</I>
+This actually has little to do with the bubbling behavior but with the
+fact that the mouse events are always targeted at the most deeply nested
+element, while mouseenter and mouseleave are targeted at all ancestors
+not shared by the two relevant event targets. So moving the cursor from
+$a to $b you get (in this order):
+
+  mouseleave to `$a/ancestor-or-self::* except $b/ancestor-or-self::*`
+  mouseenter to `$b/ancestor-or-self::* except $a/ancestor-or-self::*`
+
+in, respectively, reverse document order and document order. This means
+for example that you get no mouseleave event when moving from an element
+to one of its descendants, and no mouseenter event when moving from an
+element to one of its ancestors. Calling them mouse-joins-descendant-or-
+self-axis and mouse-leaves-descendant-or-self-axis would be clearer.
+
+&gt;<i>It is possible to work around the problem by using target/relatedTarget  
+</I>&gt;<i>and walking up the DOM tree. However, this requires extra code for every  
+</I>&gt;<i>event handler. Besides, these events were often not meant to be generated  
+</I>&gt;<i>in the first place, by the intent of the author.
+</I>
+You can simply generate your own events, using document.createEvent(),
+and thereby avoid writing code for each handler. You can also use a
+general purpose wrapper for your handlers that is registered instead
+and decides whether to call the wrapped handler to a similar effect.
+For the former you could simply register this brevity-optimized handler
+on the document for the capture phase for both mouseover and mouseout:
+
+  function (evt) {
+    var t = [], n = 'mouseenter', b = evt.relatedTarget;
+    for (var x = evt.target; x; x = x.parentNode)
+      if (!b || !((x.compareDocumentPosition(b) || 0x10) &amp; 0x10))
+        t.push(x);
+
+    if (evt.type == 'mouseout') { n = 'mouseleave'; t = t.reverse(); }
+
+    while (t.length) {
+      var ne = document.createEvent(&quot;MouseEvents&quot;);
+      ne.initMouseEvent(n, false, evt.cancelable, evt.view,
+        evt.detail, evt.screenX, evt.screenY, evt.clientX,
+        evt.clientY, evt.ctrlKey, evt.altKey, evt.shiftKey,
+        evt.metaKey, evt.button, evt.relatedTarget);
+      t.pop().dispatchEvent(ne); } }
+
+In browsers that support the features used above the effect would be
+as if they support the two additional events. The code for the other
+method would be simpler, as you can see in several script libraries
+that support these events in some way.
+
+&gt;<i>I have no statistics for how often mouseover/out are used with and without  
+</I>&gt;<i>intent of bubbling, but the anecdotal evidence from my own experience has  
+</I>&gt;<i>never found me wanting it.
+</I>
+Not caring about bubbled up event objects is quite different from the
+mouseenter and mouseleave events, you can simply check the .eventPhase
+to ignore the former and that you have to do so is a limitation of the
+registration system. The mouseenter and mouseleave events have their
+own pseudo-bubbling behavior which might let you forget the benefits.
+-- 
+Bj&#246;rn H&#246;hrmann &#183; mailto:<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">bjoern at hoehrmann.de</A> &#183; <A HREF="http://bjoern.hoehrmann.de">http://bjoern.hoehrmann.de</A>
+Weinh. Str. 22 &#183; Telefon: +49(0)621/4309674 &#183; <A HREF="http://www.bjoernsworld.de">http://www.bjoernsworld.de</A>
+68309 Mannheim &#183; PGP Pub. KeyID: 0xA4357E78 &#183; <A HREF="http://www.websitedev.de/">http://www.websitedev.de/</A> 
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="014749.html">[whatwg] Script, style and backwards compatibility
+</A></li>
+	<LI>Next message: <A HREF="014757.html">[whatwg] Progressive rendering
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#14755">[ date ]</a>
+              <a href="thread.html#14755">[ thread ]</a>
+              <a href="subject.html#14755">[ subject ]</a>
+              <a href="author.html#14755">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

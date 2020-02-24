@@ -1,0 +1,179 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Adding ECMAScript 5 array extras to HTMLCollection
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Adding%20ECMAScript%205%20array%20extras%20to%20HTMLCollection&In-Reply-To=%3CAANLkTi%3Dggm4Krjg0GXbU7DB%3DFKKqVi96RPS1tF21%3D%3DPq%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="027436.html">
+   <LINK REL="Next"  HREF="027461.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Adding ECMAScript 5 array extras to HTMLCollection</H1>
+<!--htdig_noindex-->
+    <B>Garrett Smith</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Adding%20ECMAScript%205%20array%20extras%20to%20HTMLCollection&In-Reply-To=%3CAANLkTi%3Dggm4Krjg0GXbU7DB%3DFKKqVi96RPS1tF21%3D%3DPq%40mail.gmail.com%3E"
+       TITLE="[whatwg] Adding ECMAScript 5 array extras to HTMLCollection">dhtmlkitchen at gmail.com
+       </A><BR>
+    <I>Thu Jul 29 22:15:18 PDT 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="027436.html">[whatwg] Adding ECMAScript 5 array extras to HTMLCollection
+</A></li>
+        <LI>Next message: <A HREF="027461.html">[whatwg] Adding ECMAScript 5 array extras to HTMLCollection
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#27448">[ date ]</a>
+              <a href="thread.html#27448">[ thread ]</a>
+              <a href="subject.html#27448">[ subject ]</a>
+              <a href="author.html#27448">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On 7/29/10, Ian Hickson &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">ian at hixie.ch</A>&gt; wrote:
+&gt;<i>
+</I>&gt;<i> The e-mails quoted below consist of the salient points of this thread:
+</I>&gt;<i>
+</I>&gt;<i> On Fri, 23 Apr 2010, David Bruant wrote:
+</I>&gt;&gt;<i>
+</I>
+[...]
+
+&gt;&gt;<i> Or we can just leave the DOM as it is and get used to calling the
+</I>&gt;&gt;<i> equivalent of Prototype's $A() function.
+</I>&gt;<i>
+</I>&gt;<i> Before changing something this substantial, I'd like to have implementor
+</I>&gt;<i> feedback regarding what the best way to address this is:
+</I>&gt;<i>
+</I>&gt;<i>  - somehow make HTMLCollections and NodeLists inherit from Array?
+</I>&gt;<i>
+</I>
+Again, mutable operations including [[Put]] include reverse, sort,
+push, pop won't make sense.
+
+&gt;<i>  - define a bunch of feature on HTMLCollections and NodeLists so that
+</I>&gt;<i>    they're like arrays?
+</I>&gt;<i>
+</I>
+What about StyleSheetList and CSSRuleList and HTMLOptionsCollection, et al?
+
+Too generalized and too complicated. For example, the side effects of
+cssRuleList.reverse() would be complicated and probably pointless. I'd
+would not even consider trying to write a generalized fallback for
+that, even if the implementations decided to implement it (I'm, pretty
+sure they wont).
+
+&gt;<i>  - provide a toArray() method or equivalent?
+</I>&gt;<i>
+</I>
+Isn't it duplicate functionality of Array.prototype.slice.call(obj),
+so long as `obj` is a Native ECMAScript object?
+
+Where do you define `toArray`? Do you define an interface with solely
+a toArray method and then put that on each collection? Or do you
+instead define a toArray individually for each indexed collection?
+
+That's duplicate functionality repeated for each interface. If you're
+going to do that, defining a toArray on its own interface and define
+its functionality in one spot would avoid repetition and concomitant
+problems associated (e.g. shotgun surgery).
+
+&gt;<i>  - do nothing?
+</I>&gt;<i>
+</I>
+SImple for implementors and a simple fallback an be provided.
+
+Scripts can use Array.prototype.slice.call(obj) where that works and a
+`for` loop where it doesn't.  A problem with that is the various DOM
+objects are not required to be implemented with native ECMAScript
+object semantics.
+
+&gt;<i>  - something else?
+</I>&gt;<i>
+</I>
+Could create a super interface that, for ES Binding, is required to be
+a Native ECMAScript object.
+
+If you're going to do that, you could define [[Get]] that finds the
+property as the various `item()` method does. This is partially
+specified in various places in the DOM, though is not implemented
+consistently*.
+
+Some interfaces that could implement this hypothetical interface (call
+it &quot;IndexedCollection&quot; if you like), would be StyleSheetList,
+CSSRuleList or NodeList or Collection or HTMLFormControlsCollection.
+
+That way, there would be good safety from:
+
+var sheet = document.styleSheets[0], rules;
+if(sheet &amp;&amp; sheet.cssRules) {
+  rules = Array.prototype.slice.call(sheet.cssRules);
+}
+
+The difficulty is getting the special behavior for [[Get]] which would
+seem to require some sort of catchall behavior that I linked to
+earlier and when it comes to [[HasProperty]] checks, that can be
+complicated (e.g. `&quot;0&quot; in document.forms` doesn't work).
+
+<A HREF="http://wiki.ecmascript.org/doku.php?id=strawman:catchalls">http://wiki.ecmascript.org/doku.php?id=strawman:catchalls</A>
+
+* Invoking the `item` method and using property accessor are not
+equivalent, though different w3c DOM specifications state, in various
+places:
+|<i> Note: This object can also be dereferenced using square
+</I>|<i> bracket notation (e.g. obj[1]). Dereferencing with an integer
+</I>|<i> index is equivalent to invoking the item method with that index.
+</I>
+And we can see that sometimes browsers will return null for
+`obj.item(888)` and undefined for `obj[888]`.
+
+The main ideas of the proposed hypothetical interface are to 1)
+consolidate that into one place and 2) define that whatever is a
+collection is a Native ECMAScript Object.
+-- 
+Garrett
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="027436.html">[whatwg] Adding ECMAScript 5 array extras to HTMLCollection
+</A></li>
+	<LI>Next message: <A HREF="027461.html">[whatwg] Adding ECMAScript 5 array extras to HTMLCollection
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#27448">[ date ]</a>
+              <a href="thread.html#27448">[ thread ]</a>
+              <a href="subject.html#27448">[ subject ]</a>
+              <a href="author.html#27448">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

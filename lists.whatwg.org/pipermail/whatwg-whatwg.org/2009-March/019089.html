@@ -1,0 +1,153 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Worker feedback
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Worker%20feedback&In-Reply-To=%3Cf965ae410903301122h48fa2b92gd2ed99bba6219a74%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="019069.html">
+   <LINK REL="Next"  HREF="019091.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Worker feedback</H1>
+<!--htdig_noindex-->
+    <B>Drew Wilson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Worker%20feedback&In-Reply-To=%3Cf965ae410903301122h48fa2b92gd2ed99bba6219a74%40mail.gmail.com%3E"
+       TITLE="[whatwg] Worker feedback">atwilson at google.com
+       </A><BR>
+    <I>Mon Mar 30 11:22:29 PDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="019069.html">[whatwg] Worker feedback
+</A></li>
+        <LI>Next message: <A HREF="019091.html">[whatwg] Worker feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19089">[ date ]</a>
+              <a href="thread.html#19089">[ thread ]</a>
+              <a href="subject.html#19089">[ subject ]</a>
+              <a href="author.html#19089">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Fri, Mar 27, 2009 at 6:23 PM, Ian Hickson &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">ian at hixie.ch</A>&gt; wrote:
+
+&gt;<i>
+</I>&gt;<i> Another use case would be keeping track of what has been done so far, for
+</I>&gt;<i> this I guess it would make sense to have a localStorage API for shared
+</I>&gt;<i> workers (scoped to their name). I haven't added this yet, though.
+</I>
+
+On a related note, I totally understand the desire to protect developers
+from race conditions, so I understand why we've removed localStorage access
+from dedicated workers. In the past we've discussed having synchronous APIs
+for structured storage that only workers can use - it's a much more
+convenient API, particularly for applications porting to HTML5 structured
+storage from gears. It sounds like if we want to support these APIs in
+workers, we'd need to enforce the same kind of serializability guarantees
+that we have for localStorage in browser windows (i.e. add some kind of
+structured storage mutex similar to the localStorage mutex).
+
+
+
+&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> &gt; &gt; &gt; Gears had an explicit permissions variable applications could check,
+</I>&gt;<i> &gt; &gt; &gt; which seems valuable - do we do anything similar elsewhere in HTML5
+</I>&gt;<i> &gt; &gt; &gt; that we could use as a model here?
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; HTML5 so far has avoided anything that requires explicit permission
+</I>&gt;<i> &gt; &gt; grants, because they are generally a bad idea from a security
+</I>&gt;<i> &gt; &gt; perspective (users will grant any permissions the system asks them
+</I>&gt;<i> &gt; &gt; for).
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; The Database spec has a strong implication that applications can request
+</I>&gt;<i> &gt; a larger DB quota, which will result in the user being prompted for
+</I>&gt;<i> &gt; permission either immediately, or at the point that the default quota is
+</I>&gt;<i> &gt; exceeded. So it's not without precedent, I think. Or maybe I'm just
+</I>&gt;<i> &gt; misreading this:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; User agents are expected to use the display name and the estimated
+</I>&gt;<i> &gt; database size to optimize the user experience. For example, a user agent
+</I>&gt;<i> &gt; could use the estimated size to suggest an initial quota to the user.
+</I>&gt;<i> &gt; This allows a site that is aware that it will try to use hundreds of
+</I>&gt;<i> &gt; megabytes to declare this upfront, instead of the user agent prompting
+</I>&gt;<i> &gt; the user for permission to increase the quota every five megabytes.
+</I>&gt;<i>
+</I>&gt;<i> There are many ways to expose this, e.g. asynchronously as a drop-down
+</I>&gt;<i> infobar, or as a pie chart showing the disk usage that the user can click
+</I>&gt;<i> on to increase the allocaton whenever they want, etc.
+</I>
+
+Certainly. I actually think we're in agreement here - my point is not that
+you need a synchronous permission grant (since starting up a worker is an
+inherently asynchronous operation anyway) - just that there's precedent in
+the spec for applications to request access to resources (storage space,
+persistent workers) that are not necessarily granted to all sites by
+default. It sounds like the specifics of how the UA chooses to expose this
+access control (pie charts, async dropdowns, domain whitelists, trusted
+zones with security levels) left to the individual implementation.
+
+
+&gt;<i> Re: cookies
+</I>&gt;<i> I suppose that network activity should also wait for the lock. I've made
+</I>&gt;<i> that happen.
+</I>&gt;<i>
+</I>
+Seems like that would restrict parallelism between network loads and
+executing javascript, which seems like the wrong direction to go.
+
+It feels like we are jumping through hoops to protect running script from
+having document.cookies modified out from underneath it, and now some of the
+ramifications may have real performance impacts. From a pragmatic point of
+view, I just want to remind people that many current browsers do not make
+these types of guarantees about document.cookies, and yet the tubes have not
+imploded.
+
+
+&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> &gt; Cookies have a cross-domain aspect (multiple subdomains can share cookie
+</I>&gt;<i> &gt; state at the top domain) - does this impact the specification of the
+</I>&gt;<i> &gt; storage mutex since we need to lockout multiple domains?
+</I>&gt;<i>
+</I>&gt;<i> There's only one lock, so that should work fine.
+</I>&gt;<i>
+</I>
+OK, I was assuming a single per-domain lock (ala localStorage) but it sounds
+like there's a group lock, cross-domain. This makes it even more onerous if
+network activity across all related domains has to serialize on a single
+lock.
+
+-atw
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: &lt;<A HREF="http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20090330/7799062c/attachment-0001.htm">http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20090330/7799062c/attachment-0001.htm</A>&gt;
+</PRE>
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="019069.html">[whatwg] Worker feedback
+</A></li>
+	<LI>Next message: <A HREF="019091.html">[whatwg] Worker feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19089">[ date ]</a>
+              <a href="thread.html#19089">[ thread ]</a>
+              <a href="subject.html#19089">[ subject ]</a>
+              <a href="author.html#19089">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

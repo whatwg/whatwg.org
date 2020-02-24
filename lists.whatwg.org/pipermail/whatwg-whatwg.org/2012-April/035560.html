@@ -1,0 +1,134 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Endianness of typed arrays
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Endianness%20of%20typed%20arrays&In-Reply-To=%3C5600A55D-E7DE-4B46-A1D9-852A6C88F4EC%40mozilla.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="035557.html">
+   <LINK REL="Next"  HREF="077835.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Endianness of typed arrays</H1>
+<!--htdig_noindex-->
+    <B>David Herman</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Endianness%20of%20typed%20arrays&In-Reply-To=%3C5600A55D-E7DE-4B46-A1D9-852A6C88F4EC%40mozilla.com%3E"
+       TITLE="[whatwg] Endianness of typed arrays">dherman at mozilla.com
+       </A><BR>
+    <I>Thu Apr 26 22:46:30 PDT 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="035557.html">[whatwg] Audio related feedback from years past
+</A></li>
+        <LI>Next message: <A HREF="077835.html">[whatwg] Endianness of typed arrays
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#35560">[ date ]</a>
+              <a href="thread.html#35560">[ thread ]</a>
+              <a href="subject.html#35560">[ subject ]</a>
+              <a href="author.html#35560">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Sorry for joining the conversation late.
+
+On Mar 28, 2012, at 1:39 PM, Kenneth Russell wrote:
+
+&gt;<i> On Wed, Mar 28, 2012 at 12:34 PM, Benoit Jacob &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">bjacob at mozilla.com</A>&gt; wrote:
+</I>&gt;&gt;<i> 
+</I>&gt;&gt;<i> 1. In webgl.bufferData implementation, don't call glBufferData, instead just cache the buffer data.
+</I>&gt;&gt;<i> 
+</I>&gt;&gt;<i> 2. In webgl.vertexAttribPointer, record the attributes structure (their types, how they use buffer data). Do not convert/upload buffers yet.
+</I>&gt;&gt;<i> 
+</I>&gt;&gt;<i> 3. In the first WebGL draw call (like webgl.drawArrays) since the last bufferData/vertexAttribPointer call, do the conversion of buffers and the glBufferData calls. Use some heuristics to drop the buffer data cache, as most WebGL apps will not have a use for it anymore.
+</I>&gt;<i> 
+</I>&gt;<i> It would never be possible to drop the CPU side buffer data cache. A
+</I>&gt;<i> subsequent draw call may set up the vertex attribute pointers
+</I>&gt;<i> differently for the same buffer object, which would necessitate going
+</I>&gt;<i> back through the buffer's data and generating new, appropriately
+</I>&gt;<i> byte-swapped data for the GPU.
+</I>
+That's true. But there are other plausible approaches. There's GL_PACK_SWAP_BYTES:
+
+    <A HREF="http://www.opengl.org/sdk/docs/man/xhtml/glPixelStore.xml">http://www.opengl.org/sdk/docs/man/xhtml/glPixelStore.xml</A>
+
+Or code generation: translate the shaders to do the byte-swapping explicitly in GLSL. For floats you should be able to cast back and forth to ints via intBitsToFloat/floatBitsToInt.
+
+But these days more and more big-endian systems have support for little-endian mode, which is probably the simplest approach. And honestly, there just don't seem to be WebGL-enabled user agents on big-endian systems. We've left a specification hole in a place that's easy to trip over, only out of concern for hypothetical systems -- in an era when little-endian has clearly won.
+
+If the web isn't already de facto little-endian -- and I believe my colleagues have seen evidence that sites are beginning to depend on it -- then typed arrays force developers to test on big-endian systems to make sure their code is portable, when it's quite likely they don't have any big-endian systems to test on. That's a tax on developers they may not be willing or able to pay. I should know, I am one! :)
+
+    <A HREF="https://github.com/dherman/float.js/blob/master/float.js">https://github.com/dherman/float.js/blob/master/float.js</A>
+
+In a hilariously ironic twist of fate, I recently noticed that the endianness-testing logic originally had a stupid bug that made LITTLE_ENDIAN always true. It's now fixed, but I didn't detect the bug because I didn't have a big-endian JS engine to test on.
+
+&gt;<i> Our emails certainly crossed, but please refer to my other email.
+</I>&gt;<i> WebGL applications that assemble vertex data for the GPU using typed
+</I>&gt;<i> arrays will already work correctly on big-endian architectures. This
+</I>&gt;<i> was a key consideration when these APIs were being designed. The
+</I>&gt;<i> problems occur when binary data is loaded via XHR and uploaded to
+</I>&gt;<i> WebGL directly. DataView is supposed to be used in such cases to load
+</I>&gt;<i> the binary data, because the endianness of the file format must
+</I>&gt;<i> necessarily be known.
+</I>
+I'm afraid this is wishful thinking. API's have more than a fixed set of use cases. The beautiful thing about platforms is that people invent new uses the designers didn't think of. Typed arrays are simple, powerful, and general-purpose, and people will use them for all kinds of purposes. Take my &quot;float explorer&quot;:
+
+    <A HREF="http://dherman.github.com/float.js/">http://dherman.github.com/float.js/</A>
+
+There's no XHR and no WebGL involved in that code. (And I didn't invent that to make a point here -- I wrote it months ago when I wanted to visualize the bit patterns of floating-point numbers.)
+
+Or imagine writing a crypto algorithm that optimizes bit manipulations by working on int-sized chunks via casts:
+
+    <A HREF="http://mxr.mozilla.org/mozilla-central/source/security/nss/lib/freebl/arcfour.c#347">http://mxr.mozilla.org/mozilla-central/source/security/nss/lib/freebl/arcfour.c#347</A>
+
+If you don't carefully endian-detect, the hashing logic will produce gibberish.
+
+&gt;<i> Once DataView is available everywhere then the top priority should be
+</I>&gt;<i> to write educational materials regarding binary I/O. It should be
+</I>&gt;<i> possible to educate the web development community about correct
+</I>&gt;<i> practices with only a few high profile articles.
+</I>
+DataView is great and we're working on it in SpiderMonkey, but as I say that won't solve this issue. There are all kinds of possibilities for using typed arrays with casts purely in-memory. Where there's incentive to write unportable code, people will write unportable code. A few articles or tutorials won't change that. That's not a knock against webdevs; it's entirely rational behavior.
+
+We shouldn't tax web developers by forcing them to implement portability logic they can't realistically test, nor should we expect that they will. Particularly when it's only for potential performance problems on hypothetical big-endian user agents. If worse comes to worst, and big-endian browsers crop up with serious performance problems, we can extend the API's to allow an optional boolean bigEndian flag (that defaults to false), and a way to feature-detect the system's native endianness (navigator.isBigEndian or something like that). That way, developers who don't opt in to writing portable logic get *performance degradation* instead of *incorrect behavior*.
+
+Dave
+
+</PRE>
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="035557.html">[whatwg] Audio related feedback from years past
+</A></li>
+	<LI>Next message: <A HREF="077835.html">[whatwg] Endianness of typed arrays
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#35560">[ date ]</a>
+              <a href="thread.html#35560">[ thread ]</a>
+              <a href="subject.html#35560">[ subject ]</a>
+              <a href="author.html#35560">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

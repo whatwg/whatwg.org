@@ -1,0 +1,176 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] using postMessage() to send to a newly-created window
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20using%20postMessage%28%29%20to%20send%20to%20a%20newly-created%20window&In-Reply-To=%3Cbd8f24d21001052130q1e4e573as37785a8bad1c3419%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="024680.html">
+   <LINK REL="Next"  HREF="024685.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] using postMessage() to send to a newly-created window</H1>
+<!--htdig_noindex-->
+    <B>Darin Fisher</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20using%20postMessage%28%29%20to%20send%20to%20a%20newly-created%20window&In-Reply-To=%3Cbd8f24d21001052130q1e4e573as37785a8bad1c3419%40mail.gmail.com%3E"
+       TITLE="[whatwg] using postMessage() to send to a newly-created window">darin at chromium.org
+       </A><BR>
+    <I>Tue Jan  5 21:30:17 PST 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="024680.html">[whatwg] using postMessage() to send to a newly-created window
+</A></li>
+        <LI>Next message: <A HREF="024685.html">[whatwg] using postMessage() to send to a newly-created window
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24681">[ date ]</a>
+              <a href="thread.html#24681">[ thread ]</a>
+              <a href="subject.html#24681">[ subject ]</a>
+              <a href="author.html#24681">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>It sounds tempting to say that the postMessage should be queued until the
+newly opened window is loaded, but what point in time is that exactly?  Is
+that after the load event is dispatched on the newly opened window?
+
+Note: a newly opened window can begin communicating with its opener much
+earlier (via inline script execution).
+
+However, if we try to dispatch the postMessage events before the load event
+then the newly opened window may not have registered its event handlers yet.
+ (A future &lt;script&gt; tag may define the event handler.)  So, I think we would
+have to delay until the load event for the semantics to be sane.
+
+There is perhaps a more critical issue that we should consider.  What
+happens if the named window already exists?
+
+Consider this case:
+
+window.open(&quot;<A HREF="http://a/">http://a/</A>&quot;, &quot;foo&quot;);
+...
+var w = window.open(&quot;<A HREF="http://b/">http://b/</A>&quot;, &quot;foo&quot;);
+w.postMessage(&quot;bar&quot;, &quot;*&quot;);
+
+I suspect the postMessage would be dispatched in this case, but the event
+dispatch would probably go to the document at <A HREF="http://a/">http://a/</A> instead of <A HREF="http://b/.">http://b/.</A>
+ This is because the browser has no way of knowing if <A HREF="http://b/">http://b/</A> will
+actually be displayable content.  It could be of a mime type that should
+just be downloaded (in which case the indicated window is not navigated).
+
+So, queuing is probably not a good idea.  Workers do not have this issue
+since they cannot be &quot;navigated&quot; like a window.
+
+-Darin
+
+
+On Tue, Jan 5, 2010 at 8:29 PM, Dirk Pranke &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">dpranke at chromium.org</A>&gt; wrote:
+
+&gt;<i> I understand the rationale, and the workaround you suggest does work,
+</I>&gt;<i> (I have tested it, in FF, Safari and Chrome). But, as Jonas mentioned,
+</I>&gt;<i> this isn't what we do with workers, and it feels counter-intuitive to
+</I>&gt;<i> me (I'm having trouble thinking of other async messaging models that
+</I>&gt;<i> require an application-level handshake like this before messaging can
+</I>&gt;<i> commence). Are there reasons other than implementation complexity (an
+</I>&gt;<i> okay reason) or backwards-compatibility (a better reason) not to have
+</I>&gt;<i> the post work in this case? Put differently, would anything break
+</I>&gt;<i> (other than a rather oddly written app that explicitly counted on this
+</I>&gt;<i> behavior) if this did work?
+</I>&gt;<i>
+</I>&gt;<i> As an alternative, would it be possible to create an onChildLoad()
+</I>&gt;<i> event in the parent so that the parent could reliably send a message
+</I>&gt;<i> without needing the child's cooperation? These seems only marginally
+</I>&gt;<i> better than having the child post to the parent, so it may not be
+</I>&gt;<i> worth it ...
+</I>&gt;<i>
+</I>&gt;<i> -- Dirk
+</I>&gt;<i>
+</I>&gt;<i> On Tue, Jan 5, 2010 at 5:00 PM, Darin Fisher &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">darin at chromium.org</A>&gt; wrote:
+</I>&gt;<i> &gt; The window doesn't open synchronously, so you should have to wait for
+</I>&gt;<i> &gt; <A HREF="http://x/">http://x/</A> to load (or for its document to at least be created) before
+</I>&gt;<i> you
+</I>&gt;<i> &gt; can start communicating with it.
+</I>&gt;<i> &gt; Note: If you instead open &quot;about:blank&quot; you should be able to communicate
+</I>&gt;<i> &gt; with it synchronously since &quot;about:blank&quot; is loaded synchronously.  It is
+</I>&gt;<i> &gt; special-cased.
+</I>&gt;<i> &gt; From the newly opened window, you could try posting a message to its
+</I>&gt;<i> opener.
+</I>&gt;<i> &gt;  The opener could then handle that event and use it as a signal to know
+</I>&gt;<i> that
+</I>&gt;<i> &gt; it can know begin communicating with the newly opened window.
+</I>&gt;<i> &gt; I haven't tested any of this ;-)
+</I>&gt;<i> &gt; -Darin
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; On Mon, Dec 21, 2009 at 7:24 PM, Dirk Pranke &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">dpranke at chromium.org</A>&gt;
+</I>&gt;<i> wrote:
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; Hi all,
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; In the course of testing something today, I attempted to create a
+</I>&gt;<i> &gt;&gt; window and immediately post a message to it, and was surprised that it
+</I>&gt;<i> &gt;&gt; didn't seem to work.
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; E.g.:
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; var w = window.open(&quot;<A HREF="http://x">http://x</A>&quot;);
+</I>&gt;<i> &gt;&gt; w.postMessage(&quot;hello, world&quot;, &quot;*&quot;);
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; w never got the message - this seemed to be consistent across Safari,
+</I>&gt;<i> &gt;&gt; Chrome, and FF (all I had installed on my Mac at the time, so
+</I>&gt;<i> &gt;&gt; apologies to Opera, IE, and anyone else I've left out).
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; Is this supposed to work? If not, is there a reliable way for the the
+</I>&gt;<i> &gt;&gt; source to know when it is safe to send a message to the target? The
+</I>&gt;<i> &gt;&gt; only way I can think of is for the target to send a message back to
+</I>&gt;<i> &gt;&gt; the source, which only works if the target can get a reference to the
+</I>&gt;<i> &gt;&gt; source using window.opener, which may or may not be possible or
+</I>&gt;<i> &gt;&gt; desirable ...
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; If this isn't supposed to work, can we state this explicitly in the
+</I>&gt;<i> spec?
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; -- dirk
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i>
+</I>-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: &lt;<A HREF="http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20100105/c7e02fe2/attachment.htm">http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20100105/c7e02fe2/attachment.htm</A>&gt;
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="024680.html">[whatwg] using postMessage() to send to a newly-created window
+</A></li>
+	<LI>Next message: <A HREF="024685.html">[whatwg] using postMessage() to send to a newly-created window
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24681">[ date ]</a>
+              <a href="thread.html#24681">[ thread ]</a>
+              <a href="subject.html#24681">[ subject ]</a>
+              <a href="author.html#24681">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

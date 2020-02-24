@@ -1,0 +1,145 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Comment Syntax and Parsing
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Comment%20Syntax%20and%20Parsing&In-Reply-To=%3C43D45A85.6080902%40lachy.id.au%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="005550.html">
+   <LINK REL="Next"  HREF="005554.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Comment Syntax and Parsing</H1>
+<!--htdig_noindex-->
+    <B>Lachlan Hunt</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Comment%20Syntax%20and%20Parsing&In-Reply-To=%3C43D45A85.6080902%40lachy.id.au%3E"
+       TITLE="[whatwg] Comment Syntax and Parsing">lachlan.hunt at lachy.id.au
+       </A><BR>
+    <I>Sun Jan 22 20:24:37 PST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="005550.html">[whatwg] Comment Syntax and Parsing
+</A></li>
+        <LI>Next message: <A HREF="005554.html">[whatwg] Comment Syntax and Parsing
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5553">[ date ]</a>
+              <a href="thread.html#5553">[ thread ]</a>
+              <a href="subject.html#5553">[ subject ]</a>
+              <a href="author.html#5553">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Ian Hickson wrote:
+&gt;<i> On Sun, 22 Jan 2006, Lachlan Hunt wrote:
+</I>&gt;&gt;<i> Firstly, Ian, could you please clarify what exactly made you change your 
+</I>&gt;&gt;<i> mind about this issue...?
+</I>&gt;<i> 
+</I>&gt;<i> What made me change my mind was a realisation that I was being stupid. The 
+</I>&gt;<i> person who originally implemented this feature in Mozilla, the current 
+</I>&gt;<i> maintainer of the HTML Parser in Mozilla, the person who implemented it in 
+</I>&gt;<i> Safari, the person who implemented it in Opera, the people who tested it 
+</I>&gt;<i> in Opera, the CTO of Opera Software, the president of Prince's YesLogic, 
+</I>&gt;<i> and one of YesLogic's board members, all came to me and told me that I was 
+</I>&gt;<i> being stupid, and it was only when a good portion of them all said it 
+</I>&gt;<i> within about two days of each other that I realised that they were right.
+</I>
+Well, for what it's worth, I still don't think you were being stupid, I 
+think you were right all along and had this been implemented by more 
+than just Mozilla 7 years ago, the result may have been different. 
+However, since interoperability and compatibility with the mistakes of 
+the past is more important, and the fact that all of those vendors have 
+unanimously voted against implementing proper comment handling in favour 
+of quirks-mode-style parsing, there really isn't a choice in the matter.
+
+&gt;&gt;<i> Secondly, what will now be defined as a conforming comment syntax for 
+</I>&gt;&gt;<i> use in a document?
+</I>&gt;<i> 
+</I>&gt;<i> Probably the same as XML. Or maybe just &quot;&lt;!--&quot; followed by zero or more 
+</I>&gt;<i> characters other than U+0000, followed by &quot;--&gt;&quot;.
+</I>
+I vote for keeping it very similar to XML, it'll be easier for authors 
+only having to learn and remember one comment syntax.
+
+&gt;&gt;<i> Ignoring parsing requirements, is it safe to assume that HTML will 
+</I>&gt;&gt;<i> borrow from the stricter XML comment syntax, which start with '&lt;!--' and 
+</I>&gt;&gt;<i> end with '--&gt;' and does not contain '--' anywhere in between?
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> In other words:
+</I>&gt;&gt;<i> &lt;!-- valid comment --&gt;
+</I>&gt;&gt;<i> &lt;!-- invalid -- comment --&gt;
+</I>&gt;&gt;<i> &lt;!-- invalid -- -- comment --&gt; (though, valid in HTML4)
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> That seems like the most backwards compatible method, it remains 
+</I>&gt;&gt;<i> compatible with the HTML4 syntax and is actually the way most good 
+</I>&gt;&gt;<i> tutorials teach authors to write comments.
+</I>&gt;<i> 
+</I>&gt;<i> Yeah. The question is do we really want to confuse people by telling them 
+</I>&gt;<i> that their comment is invalid when they write:
+</I>&gt;<i> 
+</I>&gt;<i>    &lt;!-----------------------------&gt;
+</I>
+Yes, for backwards compatibility reasons.  Current versions of Gecko 
+will  (depending on the number of &quot;--&quot;) either output that as content 
+due to the way it re-parses it or, if another similar comment follows, 
+comment out an entire section.
+
+e.g. Consider this case:
+
+&lt;!-- Start Section 1 -- [description of section 1] --&gt;
+&lt;h1&gt;Foo&lt;/h1&gt;
+&lt;p&gt;...&lt;/p&gt;
+
+&lt;!-- Start Section 2 -- [description of section 2] --&gt;
+&lt;h1&gt;Bar&lt;/h1&gt;
+&lt;p&gt;...&lt;/p&gt;
+
+In that case, in current versions of Mozilla (standards mode), section 1 
+will be entirely commented out.  In newer versions that implement these 
+new comment parsing requirements, it may show as intended by the author.
+
+Another question is, do we wish to continue allowing white space like this:
+&lt;!-- comment --   &gt;
+
+I believe it's supported by all browsers without any difficulty (so no 
+backwards compatibility concerns) and regardless of whether it's a valid 
+syntax or not, parsers will need to handle it anyway, so we may as well 
+allow it.
+
+I'd define comments to match this syntax (borrowed from XML but added S? 
+to the end):
+
+Comment ::= '&lt;!--' ((Char - '-') | ('-' (Char - '-')))* '--' S? '&gt;'
+
+-- 
+Lachlan Hunt
+<A HREF="http://lachy.id.au/">http://lachy.id.au/</A>
+
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="005550.html">[whatwg] Comment Syntax and Parsing
+</A></li>
+	<LI>Next message: <A HREF="005554.html">[whatwg] Comment Syntax and Parsing
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5553">[ date ]</a>
+              <a href="thread.html#5553">[ thread ]</a>
+              <a href="subject.html#5553">[ subject ]</a>
+              <a href="author.html#5553">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

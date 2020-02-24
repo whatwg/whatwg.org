@@ -1,0 +1,113 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Canvas pixel manipulation and performance
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Canvas%20pixel%20manipulation%20and%20performance&In-Reply-To=%3C9DFACC0E-2E02-46C5-8A5C-63ACD3E2C84B%40kodewerx.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="066460.html">
+   <LINK REL="Next"  HREF="066475.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Canvas pixel manipulation and performance</H1>
+<!--htdig_noindex-->
+    <B>Jason Oster</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Canvas%20pixel%20manipulation%20and%20performance&In-Reply-To=%3C9DFACC0E-2E02-46C5-8A5C-63ACD3E2C84B%40kodewerx.org%3E"
+       TITLE="[whatwg] Canvas pixel manipulation and performance">parasyte at kodewerx.org
+       </A><BR>
+    <I>Sat Nov 28 12:44:53 PST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="066460.html">[whatwg] Canvas pixel manipulation and performance
+</A></li>
+        <LI>Next message: <A HREF="066475.html">[whatwg] Canvas pixel manipulation and performance
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#66474">[ date ]</a>
+              <a href="thread.html#66474">[ thread ]</a>
+              <a href="subject.html#66474">[ subject ]</a>
+              <a href="author.html#66474">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>My apologies for the direct reply, Oliver.  This was meant to go back to the list:
+
+
+On Nov 26, 2009, at 3:35 PM, Oliver Hunt wrote:
+&gt;<i> WebGL has completely different constraints to that of the 2d canvas -- when the developer provides resources to GL the developer has to provide a myriad of type details, this means that the developer needs to be able to request storage of a specific type.  The WebGL array types are specifically targeting this use case -- they don't make sense for canvas2d where the only storage is not a developer specified format.
+</I>That is understandable.
+
+&gt;<i> History has shown that any time a developer won't handle both byte orders -- developers tend to work on the assumption that if something works for them it must be correct, this is why we end up with sites that claim &quot;This site needs IE/Safari/Firefox to run&quot; type messages.  Even conscientious developers who test multiple browsers, and validate their content, etc will be able to produce accidentally broken sites because this would add a hardware dependency on spec behaviour.
+</I>We certainly don't want any more of that.
+
+&gt;<i> Realistically simply making an separate object that has indexes 32bit rgba pixels would resolve the problem you're trying to describe -- the implementation would need to do byte order correct, but given that 2/3 canvas implementations already do unpre-&gt;premultiplied data conversion on putImageData this is unlikely to add any cost at all (in fact in the webkit implementation i don't believe there would be any difference in the logic in get/putImageData).
+</I>Once again, I agree.  My confusion on the type-specific arrays for WebGL is that they were specific and general enough to use in other cases.  If they should not be used in 2D canvas implementations (or elsewhere) then a 2D-canvas-specific array or object would be the way forward.
+
+&gt;&gt;<i> Take for instance, the following pseudo code:
+</I>&gt;&gt;<i> 
+</I>&gt;&gt;<i> var canvas = document.getElementById(&quot;canvas&quot;);
+</I>&gt;&gt;<i> var ctx = canvas.getContext(&quot;2d&quot;);
+</I>&gt;&gt;<i> var pixels = ctx.createUnsignedByteArray(8, 8);
+</I>&gt;&gt;<i> // Fill with medium gray
+</I>&gt;&gt;<i> for (var i = 0; i &lt; 8 * 8; i++) {
+</I>&gt;&gt;<i>  pixels.data[i] = ctx.mapRGBA(128, 128, 128, 255);
+</I>&gt;&gt;<i> }
+</I>&gt;&gt;<i> ctx.putUnsignedByteArray(pixels, 0, 0);
+</I>&gt;<i> 
+</I>&gt;<i> Adding a function call would make your code much slower.
+</I>Yes, it would.  Once again, this was only for illustrative purposes.  More commonly, a Look-Up Table would be created, containing all of the colors used in the scene before any pixels are touched.  For any kind of low-resolution pixel art (as found in classic gaming consoles), the palette is typically indexed and consisting of 256 colors or fewer.  In extreme cases, an LUT with thousands of colors would be far faster than using such a function call.
+
+I neglected to mention any optimal way of using a &quot;mapRGBA&quot; function; that's not what I was trying to illustrate.
+
+&gt;&gt;<i> I understand this a bad way to fill a portion of a canvas with a solid color; this is for illustration purposes only.  The overall idea is that setting fewer array elements per pixel will perform better.
+</I>&gt;<i> 
+</I>&gt;<i> Have you actually measured this?  How long is spent in each part?  I suspect if you're not using the dirty region arguments you're pushing back (and doing premult conversion) on a lot more pixels than necessary.  Yes setting 4 properties is slower than setting 1, but where is your time actually being spent.
+</I>I have not directly done any measurements, sorry.  What I do have is a mecurial repository for a level editor project (which draws independent pixels directly to very large canvas elements) showing the progression of optimizations I've introduced.  Many of the modifications intended to make the drawing faster have done so by avoiding pixel access wherever possible.  Certainly it is not the most efficient code, but I've optimized enough to make the time spent setting pixel arrays worth investigating.  I still do not have any actual numbers to throw around, however.
+
+&gt;&gt;<i> We've already seen the emergence of emulators written in JavaScript/Canvas.  In fact, there are loads of them[4], and they would all benefit from having a better way to interact directly with canvas pixels.  Of course, the use cases are not limited to emulation; my NES/SNES level editor projects would enjoy faster pixel manipulation as well.  These kinds of projects can use arbitrarily sized canvases (up to 4864px &#215; 3072px in one case[5]) and can take a good deal of time to fully render, even with several off-ImageData optimization tricks.
+</I>&gt;<i> 
+</I>&gt;<i> Without seeing the code for your demo i'd have no idea whether what you're doing is actually efficient -- have you profiled?  Both Safari and Firefox have built in profilers.
+</I>
+The trouble with profiling my project is that it is a XULRunner application, and does not run directly in web browsers as-is.  The code can largely be hacked to work as a web application.  If you are interested in a &quot;demo&quot; of sorts, the code is all available here:<A HREF="http://hg.kodewerx.org/index.cgi/syndrome/">http://hg.kodewerx.org/index.cgi/syndrome/</A>  and documentation here: <A HREF="http://www.kodewerx.org/wiki/index.php/Syndrome">http://www.kodewerx.org/wiki/index.php/Syndrome</A>
+
+Changeset 2b56c4771d5c reduced the number of pixel array elements accessed by caching the 256px x 256px &quot;rooms&quot; within the stage map, and passing the cached rooms to putImageData().  Once again, it is not the most efficient code.  There are several areas I could continue to improve, but that is not my point.
+
+My point, as you concur, is that setting four array elements (properties) is slower than setting just one.  I am looking for a viable solution to this specific issue, and not merely working around it.  If a workaround was sufficient, I would not have come to the WHATWG for a discussion.
+
+Thanks for listening!
+Jason Oster
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: &lt;<A HREF="http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20091128/a1c8d57b/attachment-0002.htm">http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20091128/a1c8d57b/attachment-0002.htm</A>&gt;
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="066460.html">[whatwg] Canvas pixel manipulation and performance
+</A></li>
+	<LI>Next message: <A HREF="066475.html">[whatwg] Canvas pixel manipulation and performance
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#66474">[ date ]</a>
+              <a href="thread.html#66474">[ thread ]</a>
+              <a href="subject.html#66474">[ subject ]</a>
+              <a href="author.html#66474">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

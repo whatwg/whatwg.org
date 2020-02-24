@@ -1,0 +1,250 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Combining the DedicatedWorker and SharedWorker	interfaces
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Combining%20the%20DedicatedWorker%20and%20SharedWorker%0A%09interfaces&In-Reply-To=%3C63df84f0811130212n3462ae98tc975f8557cf64d4%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017042.html">
+   <LINK REL="Next"  HREF="017146.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Combining the DedicatedWorker and SharedWorker	interfaces</H1>
+<!--htdig_noindex-->
+    <B>Jonas Sicking</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Combining%20the%20DedicatedWorker%20and%20SharedWorker%0A%09interfaces&In-Reply-To=%3C63df84f0811130212n3462ae98tc975f8557cf64d4%40mail.gmail.com%3E"
+       TITLE="[whatwg] Combining the DedicatedWorker and SharedWorker	interfaces">jonas at sicking.cc
+       </A><BR>
+    <I>Thu Nov 13 02:12:19 PST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017042.html">[whatwg] Combining the DedicatedWorker and SharedWorker	interfaces
+</A></li>
+        <LI>Next message: <A HREF="017146.html">[whatwg] Combining the DedicatedWorker and SharedWorker	interfaces
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17138">[ date ]</a>
+              <a href="thread.html#17138">[ thread ]</a>
+              <a href="subject.html#17138">[ subject ]</a>
+              <a href="author.html#17138">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Alexey Proskuryakov wrote:
+&gt;<i>
+</I>&gt;<i> Nov 6, 2008, &#1074; 2:18 AM, Jonas Sicking &#1085;&#1072;&#1087;&#1080;&#1089;&#1072;&#1083;(&#1072;):
+</I>&gt;<i>
+</I>&gt;&gt;&gt;<i> Similarly, having separate interfaces for Worker and SharedWorker
+</I>&gt;&gt;&gt;<i> implies that there is some fundamental difference in their behavior -
+</I>&gt;&gt;&gt;<i> a difference that eludes me so far.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> A shared worker is shared between all scripts on a single site[*] that
+</I>&gt;&gt;<i> instantiates a worker with the same name. I.e. where the second
+</I>&gt;&gt;<i> argument to the constructor is the same. (Don't remember what happens
+</I>&gt;&gt;<i> if the second argument is the same as an existing worker, but the
+</I>&gt;&gt;<i> first is not, check with the spec).
+</I>&gt;<i>
+</I>&gt;<i> Sure, that part is clear - but it's only about the behavior of the
+</I>&gt;<i> object's constructor, not the object itself! It alone doesn't warrant
+</I>&gt;<i> having a separate interface.
+</I>&gt;<i>
+</I>&gt;<i> As an example from another area, see mmap(2) function - you can pass
+</I>&gt;<i> MAP_ANON or MAP_FILE via its flags to achieve similar results. Note also
+</I>&gt;<i> that it has a number of other options. If we create a separate interface
+</I>&gt;<i> for every Worker isolation level needed (both inside and outside), we'll
+</I>&gt;<i> soon end up with PrivateWorker, SharedDataWorker and who knows what else.
+</I>
+So at this point the main problem with making any changes is that we
+are very close to shipping Firefox 3.1. I.e. it is extremely hard to
+make changes. It is very unfortunate that we have ended up in this
+situation again. We were in a very similar to the window.postMessage
+API where we had to scramble last minute to make changes, the result
+that time was that security issues in the API slipped by since those
+changes happened after we had done our security review of the spec.
+
+A few months ago representatives from google, apple, and mozilla met
+to try to agree to an API. We came up with a few guidelines, such as
+that it was ok to have a separate API for shared and dedicated workers
+as well as others that I don't specifically remember. At the end of
+the meeting we had a rough sketch of an API. A few days after that
+Hixie published a proposal. At mozilla we were largely fine with the
+proposal modulo some details that we commented on fairly quickly and
+then proceeded to implement.
+
+Now, months later, both google and apple is asking for some pretty
+significant changes, including reverting things like separate APIs for
+shared and dedicated workers. It is very close to release for us and
+we are already in a very frozen state, so making changes at this point
+is somewhere between risky and impossible.
+
+If we really want to make changes to the spec, we better make them
+really fast, ideally within a day or two. And depending on the
+complexity of the changes we might still be able to do them. The other
+alternative is of course removing workers from FF 3.1 and waiting
+until next release (judging by past releases, somewhere between a year
+or two from now). Finally, we can simply stick with the current API,
+none of the complains about the current syntax seems to have been very
+catastrophic, such as &quot;doesn't satisfy use cases&quot;, &quot;hard to
+understand&quot;, &quot;easy to have hard-to-discover bugs&quot;, etc. They mostly
+seem to be syntactic and the case of the matter is as always that
+there is no perfect syntax as the problem is over constrained.
+
+I see lots of ideas floating around but many of them are severly
+lacking in detail so it's hard to comment on. Things like 'rename
+startConversation to connect' is very ambiguous as has shown by recent
+discussions. So what follows is an effort to try to focus in on some
+discussed changes more concretely:
+
+The main two things that people seem to dislike in the current are
+1. The many communication mechanisms.
+2. Different APIs for shared and dedicated workers.
+
+I've said before that I don't really think 1 is true. There is
+currently one communication mechanism (postMessage/onmessage) and one
+connection mechanism (onconnect). There is also one convenience
+function on top of the communication mechanism (startConversaion), but
+is a stretch to call it a separate communication mechanism. The
+communication mechanism (postMessage/onmessage) does come in two
+flavors though as you for shared workers and dedicated workers call
+the functions on different objects.
+
+2 I think is as much of a feature as a bug. Dedicated workers are by
+nature simpler since there is a one-to-one relationship between
+browsing context and worker rather than a many-to-one. So by having
+different APIs we can allow the dedicated worker API to be simpler.
+That said, I do agree that it is unfortunate that the mechanisms are
+different.
+
+
+So, here are some concrete proposals for a few changes we can make,
+and comments i've heard/made about them. The changes refer to the
+*current draft*, so please check the behavior defined there.
+
+* Remove startConversation
+Details:
+Simply remove the startConversaion function on all interfaces where it
+is defined. Since it doesn't define any new events no other changes
+are needed.
+
+Comments:
+There seemed to be opinions before on that it should definitely be
+removed, however it sounds like that is less the case now. I don't
+really care about this one. startConversation is just a convenience
+function on top of postMessage anyway. If there still is any
+disagreement about its neccessity or the fact that it adds to that we
+have too many communication mechanisms i'd prefer we remove it for now
+and then discuss it once we've agreed on the rest of the API, or we
+can let it be for this version of the spec. Others have commented that
+startConversation is a red herring in these discussions, I agree.
+ (This would be no problem for us since we don't implement
+startConversation yet).
+
+* Make the external API for shared workers that of the current dedicated worker
+Details:
+Move the postMessage/onmessage functions from the SharedWorker.port
+object to the SharedWorker object. The SharedWorker would act as a
+MessagePort that is entangled with the port that is provided to the
+SharedWorkerGlobalScope through already specified 'connect' event that
+is fired when a SharedWorker is created.
+
+Comments:
+The result of this would be that on the outside shared workers and
+dedicated workers have exactly the same API to the outside world,
+except that dedicated workers have a terminate() function (formerly
+known as close(), changed in the latest version of the spec).
+I think this is a good idea all around and we should make this change.
+(This would be no problem for us since we don't implement shared
+workers yet).
+Hixie expressed some dislike about the fact that we'd end up with
+MessagePort entangled with something that isn't a MessagePort. This
+can result in uglyness if the MessagePort is passed out outside the
+SharedWorker, and then passed on anywhere. A page could create a setup
+where calling postMessage on a SharedWorker object actually resulted
+in onmessage being called inside another window rather than inside a
+worker global scope.
+I don't really think this is a big deal though, you have a very
+similar situation today where calling postMessage on a
+SharedWorker.port object can do exactly the same thing.
+
+* Make dedicated workers receive a 'connect' event when they are created
+Details:
+Make the internal communication API for a dedicated worker exactly
+that of what a shared worker is currently specced as. This means
+ - Once a dedicated worker is instantiated automatically fire a
+'connect' event which contains a MessagePort object (accessible
+through event.port).
+ - Make the Worker object entangled with this MessagePort.
+ - Remove the postMessage/onmessage functions from DedicatedWorkerGlobalScope
+
+Comments:
+I don't feel super strongly about this. From a purely dedicated worker
+perspective this doesn't really add any value but rather just
+complexity. Everyone using dedicated workers will have to set up a
+dummy function that just listens for a 'connect' event and sets a
+global port variable. The upside is that combined with the above
+change it makes the API for dedicated and shared workers exactly the
+same.
+We are currently looking in to if this is doable without adding too
+much risk to FF3.1. The big concern here is more objects means more
+chances of leak bugs since we can't reuse the same leak prevention
+mechanisms as we do on the main thread since that one isn't
+threadsafe. Anyhow, it's an implementation detail, but it is a big
+part of why making even small at this stage is non-trivial.
+
+* Add a connect() method to Worker and/or SharedWorker
+There has been lots of talk about this, but I'm still confused as to
+what the exact proposals are due to lack of details. But here is my
+interpretation
+Details:
+ - Make instantiating a SharedWorker *not* fire a 'connect' event automatically.
+ - Remove the .port property from SharedWorker
+ - Remove the postMessage/onmessage functions from Worker and
+DedicatedWorkerGlobalScope
+ - Add a onconnect property on WorkerGlobalScope
+ - Add a connect() method on AbstractWorker. The function fires a
+'connect' even on the WorkerGlobalScope, the event has a .port
+property which is a MessagePort. This MessagePort is entangled with
+another MessagePort which is the value from the connect() function.
+
+Comments:
+Compared to just doing the other above proposals I think this adds
+needless complexion for value that I don't quite see. If you want to
+have several 'conversations', I.e. several separate MessagePorts, with
+a dedicated worker you can use postMessage and |new MessageChannel|
+(or the startConversation shorthand) to accomplish that. If you want
+several conversations with a dedicated worker you can do the same
+thing, or even call |new SharedWorker| multiple times.
+
+
+Ok, I hope I've covered all angles. Again, if we really need to make
+changes that require changes to FF3.1 we need to make them fast and
+keep them scoped if we are going to have any chance of making it.
+
+/ Jonas
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017042.html">[whatwg] Combining the DedicatedWorker and SharedWorker	interfaces
+</A></li>
+	<LI>Next message: <A HREF="017146.html">[whatwg] Combining the DedicatedWorker and SharedWorker	interfaces
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17138">[ date ]</a>
+              <a href="thread.html#17138">[ thread ]</a>
+              <a href="subject.html#17138">[ subject ]</a>
+              <a href="author.html#17138">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

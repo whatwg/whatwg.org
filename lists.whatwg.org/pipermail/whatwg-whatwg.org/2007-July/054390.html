@@ -1,0 +1,144 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Canvas arcTo
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Canvas%20arcTo&In-Reply-To=%3Cea09c0d10707020442v7ff30513mcbe9b2e47997bd62%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="054398.html">
+   <LINK REL="Next"  HREF="054394.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Canvas arcTo</H1>
+<!--htdig_noindex-->
+    <B>Philip Taylor</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Canvas%20arcTo&In-Reply-To=%3Cea09c0d10707020442v7ff30513mcbe9b2e47997bd62%40mail.gmail.com%3E"
+       TITLE="[whatwg] Canvas arcTo">excors+whatwg at gmail.com
+       </A><BR>
+    <I>Mon Jul  2 04:42:10 PDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="054398.html">[whatwg] Gears caching at identical URIs (was: Gears design	goals)
+</A></li>
+        <LI>Next message: <A HREF="054394.html">[whatwg] Canvas arcTo
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#54390">[ date ]</a>
+              <a href="thread.html#54390">[ thread ]</a>
+              <a href="subject.html#54390">[ subject ]</a>
+              <a href="author.html#54390">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>As implemented, the operation of arcTo in Firefox (2, 3) and Opera
+(9.2, 9.5) is utterly unrelated to the spec and arguably crazy. At
+least Opera has the right spirit and tries drawing arcs between
+points, though they're the wrong points and they're always
+semicircles. Safari nearly matches the spec, and it's still sensible
+when it disagrees with the spec, so that's the only one that's
+relevant to consider. There are some examples at
+&lt;<A HREF="http://canvex.lazyilluminati.com/misc/arcto.html">http://canvex.lazyilluminati.com/misc/arcto.html</A>&gt;.
+
+&quot;If the point (x2, y2) is on the line defined by the points (x0, y0)
+and (x1, y1) then the method must do nothing, as no arc would satisfy
+the above constraints.&quot; - why would no arc satisfy the constraints? If
+P0, P1, P2 are collinear and non-coincident, then (I think) any of the
+(infinitely many) circles which have the given radius and touch
+tangential to the line P0-&gt;P2 will satisfy the constraints (i.e. being
+tangential to P0-&gt;P1 at some point and to P1-&gt;P2 at some point).
+
+When P0-&gt;P1 and P1-&gt;P2 are parallel and the same direction, Safari
+just draws the line P0-&gt;P1. When they are parallel but opposing
+directions, it instead draws a line from P0 to a point infinitely far
+from P0 in the direction P1-&gt;P2. That is sensible in both cases since
+it's equal to the limit as the two lines tend towards parallelism.
+
+If P0=P1 (and either P2=P1 or P2!=P1) then Safari does nothing at all
+and does not add any points to the subpath (or, equivalently, it does
+add the point P1 to the subpath, which has no effect since the line
+P0-&gt;P1 has zero length). If P1=P2 and P0!=P1, then it adds the point
+P1 to the subpath. Both of these seem generally sane - there's no
+sensible limit as the points tend towards coincidence, so there's no
+real correct answer, and drawing the straight line P0-&gt;P1 seems an
+adequate thing to do.
+
+&quot;Negative or zero values for radius must cause the implementation to
+raise an INDEX_SIZE_ERR exception.&quot; - why not allow zero? You just get
+an arc at P1 with zero length, with the start and end tangent points
+both at P1, so the effect would be a straight line from P0 to P1,
+without needing to handle it as a special case. Safari works like
+that.
+
+So, I think the following definition would cover all the cases and match Safari:
+
+&quot;&quot;&quot;
+The arcTo(x1, y1, x2, y2, radius) method must do nothing if the
+context has no subpaths. If the context does have a subpath, then the
+behaviour depends on the arguments and the last point in the subpath.
+
+Let the point (x0, y0) be the last point in the subpath. If x0=x1 and
+y0=y1, then the method must do nothing. Otherwise, if x1=x2 and y1=y2,
+or if the line defined by the points (x0, y0) and (x1, y1) is parallel
+and in the same direction as the line defined by the points (x1, y1)
+and (x2, y2), then the method must connect the point (x0, y0) to the
+point (x1, y1) by a straight line and add the point (x1, y1) to the
+subpath.
+
+Otherwise, if the line defined by the points (x0, y0) and (x1, y1) is
+parallel and in the opposite direction to the line defined by the
+points (x1, y1) and (x2, y2), then the method must connect the point
+(x0, y0) to the point obtained by extending an infinite distance from
+(x0, y0) in the direction of the line defined by (x1, y1) and (x2,
+y2), and add that new point to the subpath.
+
+Otherwise, let The Arc be the shortest arc given by the circumference
+of the circle that has one point tangent to the line defined by the
+points (x0, y0) and (x1, y1), another point tangent to the line
+defined by the points (x1, y1) and (x2, y2), and that has radius
+radius. The points at which this circle touches these two lines are
+called the start and end tangent points respectively. The method must
+connect the point (x0, y0) to the start tangent point by a straight
+line, then connect the start tangent point to the end tangent point by
+The Arc, and finally add the start and end tangent points to the
+subpath.
+
+Negative values for radius must cause the implementation to raise an
+INDEX_SIZE_ERR exception.
+&quot;&quot;&quot;
+
+-- 
+Philip Taylor
+<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">excors at gmail.com</A>
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="054398.html">[whatwg] Gears caching at identical URIs (was: Gears design	goals)
+</A></li>
+	<LI>Next message: <A HREF="054394.html">[whatwg] Canvas arcTo
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#54390">[ date ]</a>
+              <a href="thread.html#54390">[ thread ]</a>
+              <a href="subject.html#54390">[ subject ]</a>
+              <a href="author.html#54390">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

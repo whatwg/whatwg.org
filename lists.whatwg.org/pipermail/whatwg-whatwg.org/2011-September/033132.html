@@ -1,0 +1,468 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Feedback regarding script execution
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Feedback%20regarding%20script%20execution&In-Reply-To=%3CPine.LNX.4.64.1109062156340.10228%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="075488.html">
+   <LINK REL="Next"  HREF="075409.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Feedback regarding script execution</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Feedback%20regarding%20script%20execution&In-Reply-To=%3CPine.LNX.4.64.1109062156340.10228%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg] Feedback regarding script execution">ian at hixie.ch
+       </A><BR>
+    <I>Wed Sep  7 14:53:49 PDT 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="075488.html">[whatwg] [editing] New conformance tests
+</A></li>
+        <LI>Next message: <A HREF="075409.html">[whatwg] readystatechange for SCRIPT (Re: Feedback regarding	script	execution)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#33132">[ date ]</a>
+              <a href="thread.html#33132">[ thread ]</a>
+              <a href="subject.html#33132">[ subject ]</a>
+              <a href="author.html#33132">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>
+Note that I recently checked in some changes to &lt;script&gt; to expose a 
+readyState IDL attribute and to fire 'readystatechange' events, based on 
+what IE has implemented here.
+
+On Tue, 24 May 2011, Alexandre Morgaut wrote:
+&gt;<i> 
+</I>&gt;<i> My understanding right now is that:
+</I>&gt;<i> 
+</I>&gt;<i> - if we want a script to be downloaded without blocking the UI, we 
+</I>&gt;<i> should use &quot;async&quot;
+</I>
+Right.
+
+
+&gt;<i> - implementors shouldn't block the UI while parsing the JS (but it 
+</I>&gt;<i> should still respect the order of execution when required)
+</I>
+I'd say &quot;need not block&quot;, rather than &quot;should not block&quot;. The latter is 
+more a judgement call.
+
+
+&gt;<i> Some script are not &quot;required&quot; to be executed until a user action like a 
+</I>&gt;<i> &quot;click&quot;, so that's great if their loading, parsing, and execution 
+</I>&gt;<i> doesn't block.  For progressive enhancement, I like to run first only 
+</I>&gt;<i> what is mainly required.
+</I>&gt;<i>
+</I>&gt;<i> But once the user does this kind of more specific action, the event 
+</I>&gt;<i> handler may not work as a the script providing the required behavior 
+</I>&gt;<i> might not be yet executed.
+</I>&gt;<i> 
+</I>&gt;<i> Try to resolve this:
+</I>&gt;<i> 
+</I>&gt;<i> - I consider scripts providing such behaviors as named modules
+</I>&gt;<i>
+</I>&gt;<i> - when such user action happens
+</I>&gt;<i>
+</I>&gt;<i>         - I fix a setTimeout() with a handler showing a &quot;processing&quot; 
+</I>&gt;<i> feed back to the UI if the action takes to much time, as I would if I 
+</I>&gt;<i> need to fetch data
+</I>&gt;<i>
+</I>&gt;<i>         - instead of invoking my specific behavior, I add its invocation 
+</I>&gt;<i> in a named callbacks list which will be looked by the &quot;module&quot; having 
+</I>&gt;<i> the same name at the end of its initialization
+</I>&gt;<i>
+</I>&gt;<i>                 - Note: the callback will cancel the setTimeout or 
+</I>&gt;<i> remove the &quot;processing&quot; feedback
+</I>&gt;<i> 
+</I>&gt;<i> So I can already do this without new vendor implementation.
+</I>
+Yup, that should work pretty well in the current model.
+
+
+&gt;<i> It just add more asynchronous code in my app to handle But, to be 
+</I>&gt;<i> honest, my first intuition was:
+</I>&gt;<i>
+</I>&gt;<i> - change the &quot;async&quot; attribute value of the script element to false to 
+</I>&gt;<i> block the script execution of the &quot;click&quot; (or any other) event handler 
+</I>&gt;<i> until the required script as been executed
+</I>&gt;<i>
+</I>&gt;<i>         -&gt; it could prevent the requirement of handling asynchronous 
+</I>&gt;<i> code via callback lists, but I'm not sure how much it is acceptable
+</I>
+Yeah, I could see how that would be an intuitive way of thinking it would 
+work. It doesn't (as you discovered). Since it would mean the browser just 
+locking up while the download finished, or at least showing its own 
+progress bar UI rather than something that feels like part of the app, I'm 
+not sure how desireable it really would be anyway.
+
+
+On Tue, 24 May 2011, Nicholas Zakas wrote:
+&gt;<i> 
+</I>&gt;<i> There is a general need on the web for speed (duh). We want not just the 
+</I>&gt;<i> current experience to be fast but the *next* experience to be fast. The 
+</I>&gt;<i> next experience is frequently made up of HTML, CSS, and JavaScript that 
+</I>&gt;<i> isn't needed immediately, and so is deferred. The timing of when to 
+</I>&gt;<i> download these resources is something that we've struggled with due to 
+</I>&gt;<i> the various ways different resources get loaded.
+</I>&gt;<i> 
+</I>&gt;<i> We did a number of things on the Yahoo! homepage to help the next 
+</I>&gt;<i> experience be fast (note: not all are still deployed):
+</I>&gt;<i> 
+</I>&gt;<i> 1) After page load, we started to load CSS and JavaScript for the apps 
+</I>&gt;<i> we previously had on the left side of the page. The intent was to make 
+</I>&gt;<i> sure they came up as quickly as possible.
+</I>&gt;<i> 
+</I>&gt;<i> 2) Preload images that may be needed for the next experience via (new 
+</I>&gt;<i> Image().src = &quot;foo.png&quot;).
+</I>&gt;<i> 
+</I>&gt;<i> 3) We delayed loading JavaScript for the search assist dropdown until 
+</I>&gt;<i> the user set focus to the searchbox.
+</I>&gt;<i> 
+</I>&gt;<i> Your assertion that loading a file that simply defines a function will 
+</I>&gt;<i> solve the problem is a bit too simplistic for most web applications. 
+</I>&gt;<i> This is what we did in #1 and it actually caused performance problems as 
+</I>&gt;<i> the browser would stop to execute the script as it came in, interrupting 
+</I>&gt;<i> whatever the user was already doing. Amazingly, delays of longer than 
+</I>&gt;<i> 100ms are actually perceivable by users[1], and small delays interrupt 
+</I>&gt;<i> running animations very noticeably (a common complaint we had while 
+</I>&gt;<i> testing some of the preload strategies).
+</I>
+Fixing this latency can be done entirely in the browsers today, by moving 
+compilation off the main thread. We don't have to change the language to 
+support this feature.
+
+
+&gt;<i> Moving parsing and compilation to a background thread solves part of the 
+</I>&gt;<i> problem, the problem where doing so freezes the UI currently. It doesn't 
+</I>&gt;<i> solve what I consider to be the important part of the problem, and that 
+</I>&gt;<i> is the inability to have a JavaScript resource downloaded but not 
+</I>&gt;<i> applied to the page. The best next experience can only be achieved when 
+</I>&gt;<i> the resources are ready and then applied at the right moment.
+</I>
+Since the download and compilation can all be done in the background, 
+then, *once browsers do this*, scripts can be structured to do nothing but 
+provide a single callback that &quot;applies&quot; the script, before which the 
+script does nothing. That would do exactly what you describe, as far as I 
+can tell.
+
+
+&gt;<i> To be clear: this is not a problem that is unique to JavaScript. The 
+</I>&gt;<i> same problem exists with all external resources, such as images and CSS. 
+</I>&gt;<i> The difference is that both images and CSS allow you to download the 
+</I>&gt;<i> resource and then apply to the page later when you want (images via new 
+</I>&gt;<i> Image(), CSS via dynamic &lt;link&gt; element that is only applied when added 
+</I>&gt;<i> to the page).
+</I>
+Script allows this too, just by having the script do nothing except define 
+a callback. Defining a callback is trivially fast to do (the cost is in 
+the download and compilation stages, which can be done in the background).
+
+
+I recommend approaching the browser vendors directly to convince them that 
+moving compilation to a secondary thread is a worthwhile optimisation.
+
+
+On Wed, 25 May 2011, Nicholas Zakas wrote:
+&gt;<i>
+</I>&gt;<i> Parsing and compilation on a background thread removes some of the 
+</I>&gt;<i> problem but not all of it. Ultimately, even if the script is just a 
+</I>&gt;<i> function waiting to be called, the browser still executes it in a 
+</I>&gt;<i> blocking fashion after parsing and compilation. It's the execution that 
+</I>&gt;<i> is troublesome part because it interferes with the UI. The fact that the 
+</I>&gt;<i> script isn't doing much is helpful, but once again, there will be a 
+</I>&gt;<i> non-zero interrupt that can affect user experience.
+</I>
+If the script does nothing but define a callback, executing it will take 
+roughly zero time. Certainly far less time than is perceivable or than 
+could interfere with animations.
+
+
+On Thu, 26 May 2011, James Robinson wrote:
+&gt;<i> 
+</I>&gt;<i> This isn't practical if the contents of the &lt;script&gt; are not under the 
+</I>&gt;<i> author's direct control.  For example, an author that wanted to use 
+</I>&gt;<i> jquery would create a &lt;script&gt; tag with the src set to one of the 
+</I>&gt;<i> popular jquery mirrors (to maximize the chance of the resource being 
+</I>&gt;<i> cached), but then have no control over when the script actually 
+</I>&gt;<i> evaluated.  It's easy to imagine a case where the author wants to 
+</I>&gt;<i> initiate the network load as soon as possible but might not need to 
+</I>&gt;<i> actually start using the code until some point further along in the 
+</I>&gt;<i> loading sequence, possibly after a simple form of the page is made 
+</I>&gt;<i> visible to the user.
+</I>
+I think it's pretty clear that if browsers started moving as much JS 
+processing as possible off the main thread, that libraries would start 
+taking advantage of this, so I don't think we need to worry about this 
+case. It's an issue only during transition.
+
+
+&gt;<i> For this use case I think it would be handy to have a way to express 
+</I>&gt;<i> &quot;please download this script but do not start evaluating it until I'm 
+</I>&gt;<i> ready&quot;.  As a straw man, what about using the disable attribute?  When 
+</I>&gt;<i> the load completes, if the disabled attribute is set then the script is 
+</I>&gt;<i> not evaluated until the disabled attribute is unset.  After the script 
+</I>&gt;<i> evaluates it goes into a state where the disabled attribute is ignored.  
+</I>&gt;<i> Browsers that ignored this behavior would evaluate the script sooner 
+</I>&gt;<i> than the author might expect, but it's usually every easy to detect when 
+</I>&gt;<i> this is happening and react appropriately.
+</I>
+If all you want to do is download it (not preprocess it) then you can just 
+use XHR and then stick the script contents into an inline &lt;script&gt;.
+
+
+On Fri, 27 May 2011, Boris Zbarsky wrote:
+&gt;<i> On 5/27/11 1:10 PM, Aryeh Gregor wrote:
+</I>&gt;<i> &gt; Also, consider a third possibility: currently, the part of&lt;script 
+</I>&gt;<i> &gt; async&gt; that's captured by the first timing in Ian's/Boris' example 
+</I>&gt;<i> &gt; (whether it's parsing or compilation or whatever) blocks the main 
+</I>&gt;<i> &gt; thread in browsers, even though it's async.  (Right?)
+</I>&gt;<i> 
+</I>&gt;<i> This is true at the moment in Gecko+Spidermonkey.  I can't speak for 
+</I>&gt;<i> others.
+</I>
+zewt's test case is interesting:
+
+<A HREF="https://zewt.org/~glenn/test-top-level-context-execution/">https://zewt.org/~glenn/test-top-level-context-execution/</A>
+
+On my machine, Gecko takes about 150ms to compile the code (time from 
+download finishing to script starting), about 0ms to run the top-level 
+code, and about 10ms to run the initialisation function. Chrome, on the 
+other hand, takes about 10ms to compile the code, about 0ms to run the 
+top-level code, and about 150ms to run the initialisation function.
+
+Gecko demonstrates that it is possible to move the vast bulk of the 
+execution time here off the main thread (though it hasn't yet been done), 
+indicating that we don't need a new feature to make preparing this kind of 
+script fast. Chrome, similarly, shows that today for this kind of code 
+there is no need for a feature to explicitly make the code prepare faster, 
+though in Chrome's case actually applying the code would be slow.
+
+
+On Tue, 24 May 2011, Steve Souders wrote:
+&gt;<i>
+</I>&gt;<i> I only want to do the processing on the second script if the user 
+</I>&gt;<i> activates the feature. This is important on mobile now to reduce power 
+</I>&gt;<i> consumption but is also important on desktops as CPUs become more power 
+</I>&gt;<i> sensitive and JS payloads grow.
+</I>
+If the problem is power consumption, then we really have to consider the 
+problem at a higher level. Will delaying the user by 100ms where the user 
+is just waiting looking at a &quot;please wait&quot; sign on the screen use more or 
+less power than downloading and running the script in the background so 
+that the user spends less total time with the screen on? Given the battery 
+cost of a big LCD screen vs the battery cost of the radio and CPU, this 
+might not be a clear-cut decision.
+
+To consider the battery cost here I'd really need to look at a concrete 
+example and do some measurements.
+
+
+On Mon, 30 May 2011, Kyle Simpson wrote:
+&gt;<i>
+</I>&gt;<i> [...]
+</I>
+The majority of your comments are essentially disagreeing with the basic 
+premise that if authors want to optimise their code, they need to be able 
+to control that code.
+
+Fundamentally, I disagree with the idea that the only code that a site can 
+update is the script loading code. Sites need to be able to handle 
+security problems in any of the code they rely on, and the same techniques 
+that can be used to resolve security problems can be used to solve loading 
+problem. Also, we need to design for the future, not the past. There will 
+be more sites made in the future than have been made to date. While it's 
+important that we not break past sites, it's more important to make future 
+sites faster than it is to make today's sites faster, especially in the 
+case of sites that simply can't (or won't) change their scripts.
+
+
+&gt;<i> There's a whole bunch of comments in this thread which allude to the 
+</I>&gt;<i> idea that the problems being expressed are simple to fix if authors just 
+</I>&gt;<i> change how they write their code. While that may (or may not) be true, 
+</I>&gt;<i> it's irrelevant to the real-world web we're trying to fix *right now*, 
+</I>&gt;<i> because the vast majority of JavaScript is not written this way (such 
+</I>&gt;<i> that it's entirely modular and causes no side-effects on &quot;execution&quot;).
+</I>
+Nothing discussed in this forum will help &quot;right now&quot;. Any changes to the 
+spec will take months if not years to deploy to a majority of browsers.
+
+
+&gt;<i> Continuing to suggest in this thread that the solution is to modify the 
+</I>&gt;<i> script is both aggravating and unhelpful, as it completely misses the 
+</I>&gt;<i> most important majority use-case: loading (almost) all the current 
+</I>&gt;<i> JavaScript on the web.
+</I>
+Since pages using those scripts are going to need to be adapted to use any 
+new feature we come up with, why would such adaptations be limited to the 
+script loading library and not other libraries?
+
+It's not like these adaptations are complicated. All we're talking about 
+here is moving things into a function that can be run later, instead of 
+running everything immediately. It's maybe a half-dozen lines of 
+boilerplate code in the most complicated case, as far as I can tell.
+
+
+&gt;<i> &gt; But really, it seems better to structure your scripts so that they 
+</I>&gt;<i> &gt; don't do anything when they are run except expose a callback that you 
+</I>&gt;<i> &gt; can run when you want the code to run.
+</I>&gt;<i> 
+</I>&gt;<i> Sure, it's better. But it's also unrealistic to expect all the millions 
+</I>&gt;<i> of scripts on the web to change simply because I want my pages to load 
+</I>&gt;<i> faster.
+</I>
+Any changes to the spec are going to have to result in changes to pages 
+for those pages to take advantage of the spec changes.
+
+In practice, sites are improved individually, and it is not at all 
+unrealistic to expect a site to improve its scripts.
+
+
+&gt;<i> And as I said, it's untenable to suggest that my ONLY remedy is to 
+</I>&gt;<i> self-host and modify such scripts.
+</I>
+No need to self-host them. Just like the scripts in question can be 
+patched to fix security bugs, they can be patched to have different setup 
+behaviour, and those patches can be hosted in the same place.
+
+
+&gt;<i> &gt; What problems do these solutions solve?
+</I>&gt;<i> 
+</I>&gt;<i> Specifically, they solve this problem:
+</I>&gt;<i> 
+</I>&gt;<i> I want to load two or more scripts that I don't control, from locations 
+</I>&gt;<i> that aren't my own, in parallel (for performance), and I want them to 
+</I>&gt;<i> execute in order..... BUT I want to control when that execution starts.
+</I>
+I think the better solution to this problem is to get control over those 
+scripts and locations. Without a concrete example of the problem (i.e. an 
+actual site, an actual explanation of why you can't control scripts that 
+you are trusting to run on your site!), it is hard to evaluate the 
+situation.
+
+
+&gt;<i> This thread seems to be so easily side-tracked into the minutia of 
+</I>&gt;<i> conjecturing about background thread parsing and different 
+</I>&gt;<i> implementation details. I wish we could just take as a given that 
+</I>&gt;<i> parsing/execution of a script are not zero-cost (though they may be 
+</I>&gt;<i> smaller cost, depending on various things), and that ANY control that a 
+</I>&gt;<i> web performance optimization expert can get in terms of when non-zero 
+</I>&gt;<i> cost items happen is, in general, a good thing.
+</I>
+I don't think that's a given at all. For example, it doesn't seem to be a 
+given that giving authors control over whether GC happens before or after 
+printing (say) is a good thing.
+
+There is a huge risk in giving authors control: many authors are not 
+experts, and will make poor choices.
+
+
+&gt;<i> The thread also makes a lot of references to &lt;script async&gt; and how that 
+</I>&gt;<i> seems to be the silver-bullet solution. The problem is two-fold:
+</I>&gt;<i> 
+</I>&gt;<i> 1. &lt;script async&gt; only effectively tells a user-agent to make the 
+</I>&gt;<i> loading of that script resource happen in parallel with other tasks, and 
+</I>&gt;<i> that it can choose to execute that script at any point whenever it feels 
+</I>&gt;<i> is good. This means that the script in fact can be executed still before 
+</I>&gt;<i> DOM-ready, or between DOM-ready and window.onload, or after 
+</I>&gt;<i> window.onload. Thus, the script's execution effects the page's rendering 
+</I>&gt;<i> in an intermittent way, depending on network speeds, etc.
+</I>&gt;<i> 
+</I>&gt;<i> &lt;script defer&gt; on the other hand specifically tells the script to wait 
+</I>&gt;<i> on its execution until after onload.
+</I>
+Actually both async and defer scripts in a page will run before the 
+'onload' handler for the page.
+
+
+On Mon, 13 Jun 2011, Diogo Resende wrote:
+&gt;<i> &gt; 
+</I>&gt;<i> &gt; If you just mean that you have several different &quot;panels&quot; or &quot;modes&quot; 
+</I>&gt;<i> &gt; that the user can switch between, then I would recommend just having 
+</I>&gt;<i> &gt; several &lt;section&gt; elements, one for each module, and all but the 
+</I>&gt;<i> &gt; active one have a hidden=&quot;&quot; attribute. Script-wise, you'd just have 
+</I>&gt;<i> &gt; each script loaded and active from the start, they'd just only work 
+</I>&gt;<i> &gt; with their own sections.
+</I>&gt;<i> 
+</I>&gt;<i> The sections are not possible to enumerate or can be too many to 
+</I>&gt;<i> enumerate. Imagine MobileMe, where each section of the web app has it's 
+</I>&gt;<i> own interaction (java)script (I suppose). I'm looking for the best way 
+</I>&gt;<i> to load that when switching between sections/modules and discarding it 
+</I>&gt;<i> when switch back.
+</I>&gt;<i> 
+</I>&gt;<i> Perhaps MobileMe could have the interaction all bundled in one script, 
+</I>&gt;<i> but for a bigger app to have a fast load/response time, the scripts 
+</I>&gt;<i> should be divided.. I think..
+</I>
+I'd have to see concrete examples to be able to profile them to determine 
+this one way or the other.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="075488.html">[whatwg] [editing] New conformance tests
+</A></li>
+	<LI>Next message: <A HREF="075409.html">[whatwg] readystatechange for SCRIPT (Re: Feedback regarding	script	execution)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#33132">[ date ]</a>
+              <a href="thread.html#33132">[ thread ]</a>
+              <a href="subject.html#33132">[ subject ]</a>
+              <a href="author.html#33132">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

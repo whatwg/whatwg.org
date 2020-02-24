@@ -1,0 +1,219 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Script preloading
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Script%20preloading&In-Reply-To=%3CCA%2Bc2ei8pT5s%2B2z-xPqz5x8sn2gGZD%3DuGB7FH9JcddE5xOpvVag%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="082454.html">
+   <LINK REL="Next"  HREF="082456.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Script preloading</H1>
+<!--htdig_noindex-->
+    <B>Jonas Sicking</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Script%20preloading&In-Reply-To=%3CCA%2Bc2ei8pT5s%2B2z-xPqz5x8sn2gGZD%3DuGB7FH9JcddE5xOpvVag%40mail.gmail.com%3E"
+       TITLE="[whatwg] Script preloading">jonas at sicking.cc
+       </A><BR>
+    <I>Mon Jul 22 15:22:32 PDT 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="082454.html">[whatwg] Script preloading
+</A></li>
+        <LI>Next message: <A HREF="082456.html">[whatwg] Script preloading
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#82455">[ date ]</a>
+              <a href="thread.html#82455">[ thread ]</a>
+              <a href="subject.html#82455">[ subject ]</a>
+              <a href="author.html#82455">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Mon, Jul 22, 2013 at 2:35 PM, Kyle Simpson &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">getify at gmail.com</A>&gt; wrote:
+&gt;<i> FWIW, I'd be much more in favor of Jonas' proposal, at this point, than the dependencies=.. proposal. The `noexecute/execute()` is conceptually pretty similar to the preload proposal I've been pushing. As far as I can tell from how Jonas describes it, it looks like it would fit most of the use-cases I've put forth as caring about.
+</I>&gt;<i>
+</I>&gt;<i> There's a few details to iron out, however:
+</I>&gt;<i>
+</I>&gt;<i> 1. Will it cause confusion for authors that the behavior of the `onload` event on script elements is modified from its current long-standing &quot;loaded and executed&quot; to just &quot;loaded&quot; when in the presence of the `noexecute` attribute/property? Seems like it could cause a fair bit of confusion.
+</I>&gt;<i>
+</I>&gt;<i> That's why the preload proposal proposed another event (`onpreload`), to reduce the conflation/confusion. But it might be tenable for authors. I'm sure as a script loader author I can work around it just fine if I need to.
+</I>
+Do you have a link to your preload proposal?
+
+Either way, I agree about the concern with onload. I personally have a
+hard time telling if it'll be confusing.
+
+Having the load event anytime we are done with a network request also
+seems beneficial. Rather than having most APIs use &quot;load&quot; whereas this
+would use &quot;preload&quot;.
+
+Generally speaking &quot;load&quot; means &quot;loaded and processed&quot;. The
+'noexecute' flag would change what the &quot;and processed&quot; piece includes.
+
+But I'm fine either way here. The same question and risk of confusion
+seems to exist with the &quot;whenneeded&quot; attribute. In general
+&quot;whenneeded&quot; seems very similar to &quot;noexecute&quot;, but with a little bit
+more stuff done automatically, for better or worse.
+
+&gt;<i> 2. What will the interaction be, if any different, with the `onerror` events? Script preloading not-withstanding, there's little cross-browser compatibility on the topic of just what exactly constitutes a script &quot;error&quot; event. Some browsers fire it for all of the common network error conditions (404, 5xx), others only some of them.
+</I>
+There are three opportunities to fire &quot;error stuff&quot; here:
+
+1. Failed network request
+2. Failed JS compilation
+3. Exception thrown from execution
+
+And there are two error reporting mechanisms in play
+
+A. Fire an &quot;error&quot; event on the &lt;script&gt; element.
+B. Fire the window.onerror callback (like an event, but not exactly the same).
+
+1 and 2 seems like they could behave exactly the same for noexecute
+scripts as for normal scripts. I'm not sure if that includes firing
+both A and B in current browsers? This would require implementations
+to do syntax checking (though not full compilation) of the script even
+before the execute() function is called. I *think* this is ok, but I'm
+not sure. Measurements in browsers would likely be needed.
+
+3 presumably only triggers B currently for normal scripts?
+
+&gt;<i> In particular, if we're just building off existing mechanisms and not inventing whole new ones, it would be nice, from an author perspective, if EITHER the `onload` or the `onerror` event ALWAYS fired, and never both, and never neither, and if it was consistent when each happened.
+</I>&gt;<i>
+</I>&gt;<i> I asked a couple of years ago on this list for that exact thing to be clarified in the spec, and was told at that time that implementors were left with the discretion, which accounted for the disparity. I of course would renew my request to reverse that and land on some common spec.
+</I>
+Indeed. Though we're only talking about the A mechanism about, right?
+
+I.e. the following would cause both a &quot;load&quot; event to be fired on the
+&lt;script&gt;, and window.onerror to be triggered?
+
+&lt;script src=&quot;data:text/plain,throw new Error();&quot;&gt;&lt;/script&gt;
+
+I would definitely be in support of that. Though compatibility with
+existing content could be a problem.
+
+&gt;<i> 3. The main reason people seem to favor the `dependencies=..` proposal or its variants is the idea of &quot;markup-only&quot; preloading, where the loading of a subsequent script tag or tags can implicitly be the signal to execute another previously loaded-and-waiting script. Not clear if/how Jonas' proposal could suit that view. Perhaps similar to how I proposed handling that desire in the preload proposal.
+</I>
+Can we get a good &quot;markup-only&quot; solution while still keeping both
+acceptable performance as well as correct functionality in downlevel
+browsers?
+
+I.e. something like:
+
+&lt;script src=&quot;script1.js&quot; id=&quot;s1&quot;&gt;
+&lt;script src=&quot;script2.js&quot; dependencies=&quot;s1&quot;&gt;
+
+would run correctly in downlevel browsers, but would force the scripts
+to be blocking.
+
+&lt;script src=&quot;script1.js&quot; id=&quot;s1&quot; async&gt;
+&lt;script src=&quot;script2.js&quot; async dependencies=&quot;s1&quot;&gt;
+
+would give you performant non-blocking behavior in downlevel browsers,
+but at the expense of the scripts not always running in scripts in the
+right order.
+
+/ Jonas
+
+&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> --Kyle
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> On Jul 22, 2013, at 4:00 PM, Jonas Sicking &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">jonas at sicking.cc</A>&gt; wrote:
+</I>&gt;<i>
+</I>&gt;&gt;<i> On Tue, Jul 9, 2013 at 12:39 PM, Ian Hickson &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">ian at hixie.ch</A>&gt; wrote:
+</I>&gt;&gt;&gt;<i> The proposals I've seen so far for extending the spec's script preloading
+</I>&gt;&gt;&gt;<i> mechanisms fall into two categories:
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> - provide some more control over the mechanisms already there, e.g.
+</I>&gt;&gt;&gt;<i>   firing events at various times, adding attributes to make the script
+</I>&gt;&gt;&gt;<i>   loading algorithm work differently, or adding methods to trigger
+</I>&gt;&gt;&gt;<i>   particular parts of the algorithm under author control.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> - provide a layer above the current algorithm that provides strong
+</I>&gt;&gt;&gt;<i>   semantics, but that doesn't have much impact on the loading algorithm
+</I>&gt;&gt;&gt;<i>   itself.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> I'm very hesitant to do the first of these, because the algorithm is _so_
+</I>&gt;&gt;&gt;<i> complicated that adding anything else to it is just going to result in
+</I>&gt;&gt;&gt;<i> bugs in browsers. There comes a point where an algorithm just becomes so
+</I>&gt;&gt;&gt;<i> hard to accurately test that it's a lost cause.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> The second seems more feasible, though.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> FWIW, I don't really know what functionality you put in the first
+</I>&gt;&gt;<i> category, and what you put in the second.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> However, as an implementor, I definitely think that the current
+</I>&gt;&gt;<i> proposal is more complicated to implement than the proposal that I
+</I>&gt;&gt;<i> pushed for before. I.e. adding a &quot;noexecute&quot; attribute on the &lt;script&gt;
+</I>&gt;&gt;<i> element which causes the script element not to execute when it
+</I>&gt;&gt;<i> normally would. Instead it fires the &quot;load&quot; event when the script has
+</I>&gt;&gt;<i> been loaded and does nothing more.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Once the page wants the script to execute, it would call a new
+</I>&gt;&gt;<i> .execute() function on the script which would cause the loaded script
+</I>&gt;&gt;<i> to execute. If the function is called before the load event has fired,
+</I>&gt;&gt;<i> an InvalidStateError exception would be thrown.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> I could absolutely believe that this is harder to specify than your
+</I>&gt;&gt;<i> proposal. I haven't looked at the spec in enough detail to know. But
+</I>&gt;&gt;<i> it's definitely easier to implement in at least Gecko. I'd be
+</I>&gt;&gt;<i> interested to hear what other implementors think. And implementations
+</I>&gt;&gt;<i> have a higher priority than spec writing in the hierarchy of
+</I>&gt;&gt;<i> constituents.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> I also think it's a simpler model for authors to understand.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Now, even higher priority in the hierarchy of constituents are
+</I>&gt;&gt;<i> authors. So if your proposal above is written with the goal of
+</I>&gt;&gt;<i> creating something authors prefer over the noexecute proposal, then
+</I>&gt;&gt;<i> that definitely seems like the right goal. I haven't read enough of
+</I>&gt;&gt;<i> the feedback here to get a clear picture of if the proposal in this
+</I>&gt;&gt;<i> thread is considered better than noexecute.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> I could definitely see that the &quot;dependencies&quot; feature could be
+</I>&gt;&gt;<i> attractive if it indeed would let authors avoid manually scheduling
+</I>&gt;&gt;<i> scripts for execution. But as always when building high-level
+</I>&gt;&gt;<i> features, there's a risk that if they don't solve the use-cases
+</I>&gt;&gt;<i> exactly, that they won't get used.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> / Jonas
+</I>&gt;<i>
+</I>
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="082454.html">[whatwg] Script preloading
+</A></li>
+	<LI>Next message: <A HREF="082456.html">[whatwg] Script preloading
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#82455">[ date ]</a>
+              <a href="thread.html#82455">[ thread ]</a>
+              <a href="subject.html#82455">[ subject ]</a>
+              <a href="author.html#82455">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

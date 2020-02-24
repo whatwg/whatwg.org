@@ -1,0 +1,174 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [html5] r3653 - [] (0) Simplify the intro example based on recent	changes. Tweak the way the new [...]
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commit-watchers%40lists.whatwg.org?Subject=Re%3A%20%5Bhtml5%5D%20r3653%20-%20%5B%5D%20%280%29%20Simplify%20the%20intro%20example%20based%20on%20recent%0A%09changes.%20Tweak%20the%20way%20the%20new%20%5B...%5D&In-Reply-To=%3C20090818050016.A47051389D1%40hixie.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="010526.html">
+   <LINK REL="Next"  HREF="010528.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[html5] r3653 - [] (0) Simplify the intro example based on recent	changes. Tweak the way the new [...]</H1>
+<!--htdig_noindex-->
+    <B>whatwg at whatwg.org</B> 
+    <A HREF="mailto:commit-watchers%40lists.whatwg.org?Subject=Re%3A%20%5Bhtml5%5D%20r3653%20-%20%5B%5D%20%280%29%20Simplify%20the%20intro%20example%20based%20on%20recent%0A%09changes.%20Tweak%20the%20way%20the%20new%20%5B...%5D&In-Reply-To=%3C20090818050016.A47051389D1%40hixie.dreamhostps.com%3E"
+       TITLE="[html5] r3653 - [] (0) Simplify the intro example based on recent	changes. Tweak the way the new [...]">whatwg at whatwg.org
+       </A><BR>
+    <I>Mon Aug 17 22:00:16 PDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="010526.html">[html5] r3652 - [owr] (2) Add a feature to openDatabase() to make	creating the database the firs [...]
+</A></li>
+        <LI>Next message: <A HREF="010528.html">[html5] r3654 - [e] (0) A brief introduction to avoiding sql	injection.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#10527">[ date ]</a>
+              <a href="thread.html#10527">[ thread ]</a>
+              <a href="subject.html#10527">[ subject ]</a>
+              <a href="author.html#10527">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Author: ianh
+Date: 2009-08-17 22:00:15 -0700 (Mon, 17 Aug 2009)
+New Revision: 3653
+
+Modified:
+   source
+Log:
+[] (0) Simplify the intro example based on recent changes. Tweak the way the new creation callback is defined to make it safer in race conditions. Let changeVersion()'s success callback be omitted.
+
+Modified: source
+===================================================================
+--- source	2009-08-18 04:39:44 UTC (rev 3652)
++++ source	2009-08-18 05:00:15 UTC (rev 3653)
+@@ -60630,43 +60630,13 @@
+   actual work, in this case &lt;code title=&quot;&quot;&gt;showDocCount()&lt;/code&gt;.&lt;/p&gt;
+ 
+   &lt;pre&gt;function prepareDatabase(ready, error) {
+-  // first open the database with no version to see if it exists
+-  var db = openDatabase('documents', '', 'Offline document storage', 5*1024*1024);
+-  if (db.version == '') {
+-    // database didn't exist
++  return openDatabase('documents', '1.0', 'Offline document storage', 5*1024*1024, function (db) {
+     db.changeVersion('', '1.0', function (t) {
+-      // create the tables
+       t.executeSql('CREATE TABLE docids (id, name)');
+-    }, function (e) {
+-      // in case of error:
+-      if (db.version == '1.0') {
+-        // the database got upgraded while we were trying to do it.
+-        // (there's a race condition between us checking db.version and
+-        // calling changeVersion(), so this is possible if the user opened this
+-        // page twice at the same time)
+-        // let's try reopening it
+-        getDatabase(ready, error);
+-      } else {
+-        // some other error occurred
+-        error(e);
+-      }
+-    }, function () {
+-      // in case of success:
+-      getDatabase(ready, error);
+-    });
+-  } else {
+-    getDatabase(ready, error);
+-  }
++    }, error);
++  });
+ }
+ 
+-function getDatabase(ready, error) {
+-  try {
+-    ready(openDatabase('documents', '1.0', 'Offline document storage', 5*1024*1024);
+-  } catch (e) {
+-    error(e);
+-  }
+-}
+-
+ function showDocCount(db, span) {
+   db.readTransaction(function (t) {
+     t.executeSql('SELECT COUNT(*) FROM docids', [], function (t, r) {
+@@ -60744,9 +60714,16 @@
+   arguments: a database name, a database version, a display name, an
+   estimated size &mdash; in bytes &mdash; of the data that will be
+   stored in the database, and optionally a callback to be invoked if
+-  the database has not yet been created.&lt;/p&gt;
++  the database has not yet been created. The callback, if provided, is
++  intended to be used to call &lt;code
++  title=&quot;dom-database-changeVersion&quot;&gt;changeVersion()&lt;/code&gt;; the
++  callback is invoked with the database having the empty string as its
++  version regardless of the given database version. If the callback is
++  not provided, the database is created with the given database
++  version as its version.&lt;/p&gt;
+ 
+-  When invoked, these methods must run the following steps:&lt;/p&gt;
++  &lt;p&gt;When invoked, these methods must run the following steps, with all
++  but the last two steps being run atomically:&lt;/p&gt;
+ 
+   &lt;ol&gt;
+ 
+@@ -60783,11 +60760,14 @@
+    &lt;li&gt;
+ 
+     &lt;p&gt;If no database with the given name from the origin &lt;var
+-    title=&quot;&quot;&gt;origin&lt;/var&gt; exists, then create the database, let its
+-    version be the given database version (which might be the empty
+-    string), and let &lt;var title=&quot;&quot;&gt;created&lt;/var&gt; be true. Otherwise,
+-    let &lt;var title=&quot;&quot;&gt;created&lt;/var&gt; be false.&lt;/p&gt;
++    title=&quot;&quot;&gt;origin&lt;/var&gt; exists, then create the database and let
++    &lt;var title=&quot;&quot;&gt;created&lt;/var&gt; be true. Otherwise, let &lt;var
++    title=&quot;&quot;&gt;created&lt;/var&gt; be false.&lt;/p&gt;
+ 
++    &lt;p&gt;If a callback was passed to the method, then let the database's
++    version be the empty string. Otherwise, let its version be the
++    given database version&lt;/p&gt;
++
+    &lt;/li&gt;
+ 
+    &lt;li&gt;
+@@ -60967,7 +60947,7 @@
+   void &lt;span title=&quot;dom-database-readTransaction&quot;&gt;readTransaction&lt;/span&gt;(in &lt;span&gt;SQLTransactionCallback&lt;/span&gt; callback, optional in &lt;span&gt;SQLTransactionErrorCallback&lt;/span&gt; errorCallback, optional in &lt;span&gt;SQLVoidCallback&lt;/span&gt; successCallback);
+ 
+   readonly attribute DOMString &lt;span title=&quot;dom-database-version&quot;&gt;version&lt;/span&gt;;
+-  void &lt;span title=&quot;dom-database-changeVersion&quot;&gt;changeVersion&lt;/span&gt;(in DOMString oldVersion, in DOMString newVersion, in &lt;span&gt;SQLTransactionCallback&lt;/span&gt; callback, in &lt;span&gt;SQLTransactionErrorCallback&lt;/span&gt; errorCallback, in &lt;span&gt;SQLVoidCallback&lt;/span&gt; successCallback);
++  void &lt;span title=&quot;dom-database-changeVersion&quot;&gt;changeVersion&lt;/span&gt;(in DOMString oldVersion, in DOMString newVersion, in &lt;span&gt;SQLTransactionCallback&lt;/span&gt; callback, in &lt;span&gt;SQLTransactionErrorCallback&lt;/span&gt; errorCallback, in optional &lt;span&gt;SQLVoidCallback&lt;/span&gt; successCallback);
+ };
+ 
+ [Callback=FunctionOnly, NoInterfaceObject]
+
+
+</PRE>
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="010526.html">[html5] r3652 - [owr] (2) Add a feature to openDatabase() to make	creating the database the firs [...]
+</A></li>
+	<LI>Next message: <A HREF="010528.html">[html5] r3654 - [e] (0) A brief introduction to avoiding sql	injection.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#10527">[ date ]</a>
+              <a href="thread.html#10527">[ thread ]</a>
+              <a href="subject.html#10527">[ subject ]</a>
+              <a href="author.html#10527">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/commit-watchers-whatwg.org">More information about the Commit-Watchers
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

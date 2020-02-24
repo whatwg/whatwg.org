@@ -1,0 +1,141 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] several messages about the versioning feature in the	SQL API
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20several%20messages%20about%20the%20versioning%20feature%20in%20the%0A%09SQL%20API&In-Reply-To=%3CPine.LNX.4.62.0710170733290.19595%40hixie.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="012685.html">
+   <LINK REL="Next"  HREF="012761.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] several messages about the versioning feature in the	SQL API</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20several%20messages%20about%20the%20versioning%20feature%20in%20the%0A%09SQL%20API&In-Reply-To=%3CPine.LNX.4.62.0710170733290.19595%40hixie.dreamhostps.com%3E"
+       TITLE="[whatwg] several messages about the versioning feature in the	SQL API">ian at hixie.ch
+       </A><BR>
+    <I>Wed Oct 17 00:47:10 PDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="012685.html">[whatwg] SQL API and database versioning
+</A></li>
+        <LI>Next message: <A HREF="012761.html">[whatwg] several messages about the versioning feature in	the	SQL API
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#12757">[ date ]</a>
+              <a href="thread.html#12757">[ thread ]</a>
+              <a href="subject.html#12757">[ subject ]</a>
+              <a href="author.html#12757">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Fri, 5 Oct 2007, Brady Eidson wrote:
+&gt;<i>
+</I>&gt;<i> I think `bool changeVersion()` has a deficient design, and the content 
+</I>&gt;<i> of its description - combined with the lack of clarity around &quot;active&quot; 
+</I>&gt;<i> and &quot;open&quot; transactions - makes implementing it even more dubious.
+</I>&gt;<i>
+</I>&gt;<i> First off, it is synchronous.
+</I>
+Fixed.
+
+
+&gt;<i> But I also have some confusion about the actual intention of the method.  
+</I>&gt;<i> The line that is the source of most confusion - &quot;When the method is 
+</I>&gt;<i> invoked, the user agent must obtain a full lock of the database (waiting 
+</I>&gt;<i> for all open transactions to be closed), and then must verify that the 
+</I>&gt;<i> current version of the database matches the first argument to the 
+</I>&gt;<i> method.&quot;
+</I>&gt;<i> 
+</I>&gt;<i> It's easy to read this line as stating that changeVersion() needs to 
+</I>&gt;<i> block waiting for all nested levels of executeSql() and their callbacks 
+</I>&gt;<i> to complete, which seems nonsensical.
+</I>
+Actually that's what we want -- the method is intended for when you want 
+to change the schema of the database. First you want to wait for all 
+outstanding changes to be committed, and then you want the schema to be 
+changed.
+
+
+On Wed, 10 Oct 2007, Brady Eidson wrote:
+&gt;<i>
+</I>&gt;<i> openDatabase() is called with a database name and an expected version 
+</I>&gt;<i> string.
+</I>&gt;<i> 
+</I>&gt;<i> If the database has a version, and it is different than the expected 
+</I>&gt;<i> version, openDatabase() fails.  This makes sense.  But...
+</I>&gt;<i> 
+</I>&gt;<i> &quot;Otherwise, if the database version is the empty string, or if the 
+</I>&gt;<i> database doesn't yet exist, or if the database exists and the version 
+</I>&gt;<i> provided to the openDatabase() method is the same as the current version 
+</I>&gt;<i> associated with the database, then the method must return a Database 
+</I>&gt;<i> object...&quot;
+</I>&gt;<i> 
+</I>&gt;<i> 1 of these 3 situations doesn't make sense.  A database without a 
+</I>&gt;<i> version should not be considered valid if the caller to openDatabase() 
+</I>&gt;<i> expects a version.
+</I>
+Yeah, that should have been &quot;if the expected version is the empty string&quot;.
+
+Fixed.
+
+
+On Thu, 11 Oct 2007, Scott Hess wrote:
+&gt;<i> 
+</I>&gt;<i> Actually, I don't quite understand why simply having the empty string be 
+</I>&gt;<i> a version isn't sufficient.  If you don't want to bother with 
+</I>&gt;<i> versioning, always use the empty string (or make the parameter 
+</I>&gt;<i> optional).  If you do want versioning, then it's likely that you don't 
+</I>&gt;<i> want the versioning to be advisory, which is what allowing the empty 
+</I>&gt;<i> string to match anything does.
+</I>
+The idea is that you might not know what the version is (say, because some 
+rogue code changed the version to a random string), and you want to go in 
+and fix it. You need a way in.
+
+
+&gt;<i> It may be worthwhile to allow the version to be an array.  Then the app 
+</I>&gt;<i> could easily say &quot;Open this database, and here is the set of versions I 
+</I>&gt;<i> understand.&quot;  That operation could be wrapped in a helper function which 
+</I>&gt;<i> runs through the open calls catching exceptions, but it seems like 
+</I>&gt;<i> something reasonable to just bake into the API, because if you have 
+</I>&gt;<i> database versioning, you're almost certainly going to have multiple 
+</I>&gt;<i> outstanding database versions (unlike with a server-side app, you have 
+</I>&gt;<i> little control over when a client executes your app).
+</I>
+We could do that. I'm a little wary of adding arrays everywhere though. 
+What do other people think? Is this worthwhile?
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="012685.html">[whatwg] SQL API and database versioning
+</A></li>
+	<LI>Next message: <A HREF="012761.html">[whatwg] several messages about the versioning feature in	the	SQL API
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#12757">[ date ]</a>
+              <a href="thread.html#12757">[ thread ]</a>
+              <a href="subject.html#12757">[ subject ]</a>
+              <a href="author.html#12757">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

@@ -1,0 +1,187 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] [mimesniff] Complete MIME type parsing algorithm for	section 5
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20%5Bmimesniff%5D%20Complete%20MIME%20type%20parsing%20algorithm%20for%0A%09section%205&In-Reply-To=%3C492803336E0B41ED945CE86452049D29%40PeterPC%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="081895.html">
+   <LINK REL="Next"  HREF="081909.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] [mimesniff] Complete MIME type parsing algorithm for	section 5</H1>
+<!--htdig_noindex-->
+    <B>Peter Occil</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20%5Bmimesniff%5D%20Complete%20MIME%20type%20parsing%20algorithm%20for%0A%09section%205&In-Reply-To=%3C492803336E0B41ED945CE86452049D29%40PeterPC%3E"
+       TITLE="[whatwg] [mimesniff] Complete MIME type parsing algorithm for	section 5">poccil14 at gmail.com
+       </A><BR>
+    <I>Tue May 28 13:25:12 PDT 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="081895.html">[whatwg] [mimesniff] Complete MIME type parsing algorithm for	section 5
+</A></li>
+        <LI>Next message: <A HREF="081909.html">[whatwg] [mimesniff] Complete MIME type parsing algorithm for section 5
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#81908">[ date ]</a>
+              <a href="thread.html#81908">[ thread ]</a>
+              <a href="subject.html#81908">[ subject ]</a>
+              <a href="author.html#81908">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>
+I see you've updated the MIME sniffing algorithm in response to my feedback. 
+Here
+I'll go over the difference and I want you to comment on these.
+
+1. I assume the term &quot;whitespace character&quot; means the same as a &quot;whitespace 
+byte&quot; under
+the MIME Sniffing spec.  As such the use of that term is inadequate for the 
+following reasons.
+
+   * A whitespace character includes 0x0C, form feed (FF), which is not 
+considered whitespace
+      in either HTTP or the Internet Message Format (IMF, RFC5322).
+
+      For example, the following would not be well-formed under HTTP or IMF:
+
+      text/plain{FF}; charset=utf-8
+
+      But the current algorithm would consider that string well-formed 
+anyway.
+
+   * All steps in the document that are the same as step 7 skip all 
+whitespace characters, even
+      if the whitespace isn't well formed under HTTP or IMF.  For example, a 
+bare carriage
+      return (CR) or line feed character (LF) is not allowed, and a CR-LF 
+pair not followed by either
+      SPACE or TAB is also not allowed. IMF also allows comments within 
+whitespace.
+
+      For example, the following would not be well-formed under HTTP or IMF:
+
+      text/plain;{CR} charset=utf-8
+      text/plain;{LF} charset=utf-8
+      text/plain;{CR}{LF}charset=utf-8
+
+      (Note the lack of space in the last example. Note also that folding 
+whitespace is deprecated
+      under the current HTTP draft.)
+
+      And the following examples would be allowed under IMF, but not HTTP:
+
+      (comment) text/plain; charset=utf-8
+      text/plain; (comment) charset=utf-8
+      text/plain; (comment (nested)) charset=utf-8
+      text/plain; charset=utf-8 (comment)
+      text/plain; {CR}{LF} (comment) charset=utf-8
+
+2. While the type, subtype, and parameter name are checked for their length, 
+the other rules
+  for wellformedness are not checked in your version, namely, that they must 
+not be empty,
+  contain a byte that isn't a MIME type byte (see my original message), or 
+begin with a byte that
+  isn't an ASCII alphanumeric.
+
+  For example, the following would not be well-formed under RFC6838:
+
+  te*xt/plain;charset=utf-8
+  text/pl*ain;charset=utf-8
+  text/plain;ch*arset=utf-8
+  text/plain;=utf-8
+  text/;charset=utf-8
+  /plain;charset=utf-8
+
+  The first three examples are because &quot;*&quot; isn't a MIME type byte.
+
+
+3. Unquoted parameter values are not checked to ensure that they are not 
+empty and do
+  not contain a byte that isn't a parameter value byte (see my original 
+message).
+
+  For example, the following would not be well-formed under HTTP or MIME:
+
+  text/plain;charset=ut?f-8
+  text/plain;charset=utf=8
+
+4. Quoted parameter values are not checked to ensure that they do not 
+contain a 0x7F byte
+  or a byte other than TAB (0x09) that is less than 0x20.
+
+  For example, the following would not be well-formed under HTTP or MIME:
+
+  text/plain;charset=&quot;utf{LF}-8&quot;
+  text/plain;charset=&quot;utf{0x7F}-8&quot;
+  text/plain;charset=&quot;utf\{LF}-8&quot;
+  text/plain;charset=&quot;utf\{0x7F}-8&quot;
+
+Please give your comments.
+
+--Peter
+
+-----Original Message----- 
+From: Gordon P. Hemsley
+Sent: Saturday, May 25, 2013 1:26 PM
+To: Peter Occil
+Cc: WHATWG
+Subject: Re: [whatwg] [mimesniff] Complete MIME type parsing algorithm for 
+section 5
+
+On Sat, May 25, 2013 at 12:46 PM, Peter Occil &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">poccil14 at gmail.com</A>&gt; wrote:
+&gt;<i> My algorithm skips only SPACE and TAB instead of all whitespace characters
+</I>&gt;<i> because it assumes that the field value was already extracted from
+</I>&gt;<i> Content-Type according to the HTTP/HTTPbis spec (0x0C, form feed, is never
+</I>&gt;<i> considered whitespace in HTTP headers). In particular, it assumes that
+</I>&gt;<i> folding whitespace (obs-fold) was replaced with spaces (or the message 
+</I>&gt;<i> with
+</I>&gt;<i> obs-fold rejected) before the Content-Type value was interpreted.
+</I>
+Thanks for your detailed explanation.
+
+It'll take me a little while to evaluate what you've proposed here,
+but in the meantime: Keep in mind that the Content-Type header is not
+the only source for a MIME type. This algorithm needs to consider MIME
+types from all possible sources.
+
+--
+Gordon P. Hemsley
+<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">me at gphemsley.org</A>
+<A HREF="http://gphemsley.org/">http://gphemsley.org/</A> &#8226; <A HREF="http://gphemsley.org/blog/">http://gphemsley.org/blog/</A> 
+
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="081895.html">[whatwg] [mimesniff] Complete MIME type parsing algorithm for	section 5
+</A></li>
+	<LI>Next message: <A HREF="081909.html">[whatwg] [mimesniff] Complete MIME type parsing algorithm for section 5
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#81908">[ date ]</a>
+              <a href="thread.html#81908">[ thread ]</a>
+              <a href="subject.html#81908">[ subject ]</a>
+              <a href="author.html#81908">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

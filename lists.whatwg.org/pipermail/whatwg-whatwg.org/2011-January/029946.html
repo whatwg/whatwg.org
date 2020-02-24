@@ -1,0 +1,263 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Limiting the amount of downloaded but not watched video
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Limiting%20the%20amount%20of%20downloaded%20but%20not%20watched%20video&In-Reply-To=%3CAANLkTinGMKYAcYRbq7UM45RoRbKtiBnHsMs0TAqc5vCM%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="029941.html">
+   <LINK REL="Next"  HREF="029947.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Limiting the amount of downloaded but not watched video</H1>
+<!--htdig_noindex-->
+    <B>Andy Berkheimer</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Limiting%20the%20amount%20of%20downloaded%20but%20not%20watched%20video&In-Reply-To=%3CAANLkTinGMKYAcYRbq7UM45RoRbKtiBnHsMs0TAqc5vCM%40mail.gmail.com%3E"
+       TITLE="[whatwg] Limiting the amount of downloaded but not watched video">andyberkheimer at youtube.com
+       </A><BR>
+    <I>Tue Jan 18 16:35:18 PST 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="029941.html">[whatwg] Limiting the amount of downloaded but not watched video
+</A></li>
+        <LI>Next message: <A HREF="029947.html">[whatwg] Limiting the amount of downloaded but not watched video
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#29946">[ date ]</a>
+              <a href="thread.html#29946">[ thread ]</a>
+              <a href="subject.html#29946">[ subject ]</a>
+              <a href="author.html#29946">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Tue, Jan 18, 2011 at 5:11 PM, Zachary Ozer &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">zach at longtailvideo.com</A>&gt; wrote:
+&gt;<i> I've heard from some people that they're a bit lost, so I wanted to
+</I>&gt;<i> take a moment to summarize.
+</I>&gt;<i>
+</I>&gt;<i> We have two competing interests here:
+</I>&gt;<i> &#160;* Viewers want a smooth playback experience regardless of their
+</I>&gt;<i> bandwidth or device. Some viewers may also want to limit the amount
+</I>&gt;<i> they download because they're paying for bandwidth. Additionally,
+</I>&gt;<i> devices may have memory limitations in terms of how much they're able
+</I>&gt;<i> to buffer.
+</I>&gt;<i> &#160;* Content providers are worried about bandwidth costs. While they
+</I>&gt;<i> want a great experience for viewers, a lot of people click play and
+</I>&gt;<i> then watch just a small fraction of their video.
+</I>
+In the case where the viewer does not have enough bandwidth to stream
+the video in realtime, there are two basic options for the experience:
+- buffer the majority of the video (per Glenn and Boris' discussion)
+- switch to a lower bitrate that can be streamed in realtime
+
+This thread has focused primarily of the first option and this is an
+experience that we see quite a bit.  This is the option favored
+amongst enthusiasts and power users, and also makes sense when a
+viewer has made a purchase with an expectation of quality.  And
+there's always the possibility that the user does not have enough
+bandwidth for even the lowest available bitrate.
+
+But the second option is the experience that the majority of our viewers expect.
+
+The ideal interface would have a reasonable default behavior but give
+an application the ability to implement either experience depending on
+user preference (or lack thereof), viewing context, etc.  More on that
+below.
+
+&gt;<i> Currently, there's no way to stop / limit the browser from buffering -
+</I>&gt;<i> once you hit play, you start downloading and don't stop until the
+</I>&gt;<i> resource is completely loaded. This is largely the same as Flash, save
+</I>&gt;<i> the fact that some browsers don't respect the preload attribute. (Side
+</I>&gt;<i> note: I also haven't found a browser that stops loading the resource
+</I>&gt;<i> even if you destroy the video tag.)
+</I>
+As an example, I believe Chrome's current implementation _does_ stall
+the HTTP connection (stop reading from the socket interface but keep
+it open) after some amount of readahead - a magic hardcoded constant.
+We've run into issues there - their browser readahead buffer is too
+small and causing a lot of underruns.
+
+&gt;<i> There have been a few suggestions for how to deal with this, but most
+</I>&gt;<i> have revolved around using downloadBufferTarget - a settable property
+</I>&gt;<i> that determines how much video to buffer ahead in seconds. Originally,
+</I>&gt;<i> it was suggested that the content producers should have control over
+</I>&gt;<i> this, but most seem to favor the client retaining some control since
+</I>&gt;<i> they are the most likely to be in low bandwidth situations.
+</I>&gt;<i> (Publishers who want strict bandwidth control could use a more
+</I>&gt;<i> advanced server and communication layer ala YouTube).
+</I>
+The advanced layer you speak of is naive server-side throttling with
+no feedback from the client, and a few tricks to kill the current
+progressive download and open a new one for out-of-buffer seeks.  This
+has a lot of bad behaviors that we'd like to fix - which comes to the
+crux of the issue.
+
+No matter how much data you pass between client and server, there's
+always some useful playback state that the client knows and the server
+does not - or the server's view of the state is stale.  This is
+particularly true if there's an HTTP proxy between the user agent and
+the server.  Any behavior that could be implemented through an
+advanced server/communication layer can be achieved in a simpler, more
+robust fashion with a solid buffer management implementation that
+provides &quot;advanced&quot; control through javascript and attributes.
+
+
+&gt;<i> The simplest enhancement would be to honor the downloadBufferTarget
+</I>&gt;<i> only when readyState=HAVE_ENOUGH_DATA and playback is paused, as this
+</I>&gt;<i> would imply that there is not a low bandwidth situation.
+</I>&gt;<i>
+</I>&gt;<i> As an enhancement to this, the browser could always respect the
+</I>&gt;<i> downloadBufferTarget until the buffer underruns
+</I>&gt;<i> (networkState=NETWORK_LOADING and readyState=HAVE_CURRENT_DATA). At
+</I>&gt;<i> this point, the browser could either:
+</I>&gt;<i> &#160;* Ignore downloadBufferTarget and load as fast as possible
+</I>&gt;<i> &#160;* Double the size of downloadBufferTarget
+</I>&gt;<i>
+</I>&gt;<i> As a further enhancement, the browser could store these values per
+</I>&gt;<i> site so that they are not recalculated on each playback. Finally, if
+</I>&gt;<i> there is a playback with no underruns, the browser would reduce
+</I>&gt;<i> downloadBufferTarget by some factor to ensure that it is not over
+</I>&gt;<i> buffering.
+</I>&gt;<i>
+</I>&gt;<i> Separately, there has been some discussion about how much buffer needs
+</I>&gt;<i> to be retained / when the buffer should be cleared. (I think this
+</I>&gt;<i> should be moved off to a separate discussion.)
+</I>&gt;<i>
+</I>&gt;<i> ==
+</I>&gt;<i>
+</I>&gt;<i> Personally, I really like the idea of allowing the content provider to
+</I>&gt;<i> specify a downloadBufferTarget, but allowing the browser to override
+</I>&gt;<i> this based on historical data / current network conditions. I'm not
+</I>&gt;<i> sure how much work each of the proposed solutions would be, I think
+</I>&gt;<i> that respecting downloadBufferTarget until the buffer underruns and
+</I>&gt;<i> then downloading as fast as possible would be fairly straight forward,
+</I>&gt;<i> and a big improvement on what's available today.
+</I>
+downloadBufferTarget is a target for how to behave when the network
+can keep up with video.  When that is not true, you are in an
+exceptional state.
+
+Automatic buffer growth in this situation as a default behavior with
+no user or application input seems ill-advised, as this could harm
+both the application and the user.
+
+At the very least, the application should be able to override this
+behavior if it can do something more appropriate.  For something like
+YouTube, there's no one default that's right in every context.  Here's
+a more concrete example, though by no means exhaustive or precise:
+
+- be able to determine when the clients network connection can't keep
+up using something in the spirit of mozDownloadRate (ok to leave it up
+to application to know what fast enough is - remember this is
+&quot;advanced&quot;)
+- be able to set downloadBufferTarget to something large in this
+situation if appropriate for the context and our guess at user intent
+- be able to observe if the browser could not accept this large
+downloadBufferTarget value due to some browser setting (e.g. the
+browser has a more explicit signal of user intent)
+
+-Andy
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="029941.html">[whatwg] Limiting the amount of downloaded but not watched video
+</A></li>
+	<LI>Next message: <A HREF="029947.html">[whatwg] Limiting the amount of downloaded but not watched video
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#29946">[ date ]</a>
+              <a href="thread.html#29946">[ thread ]</a>
+              <a href="subject.html#29946">[ subject ]</a>
+              <a href="author.html#29946">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

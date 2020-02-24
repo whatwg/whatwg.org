@@ -1,0 +1,170 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Solving the login/logout problem in HTML
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Solving%20the%20login/logout%20problem%20in%20HTML&In-Reply-To=%3Cop.uk8u3plrflu5h5%40quark-mac-pro.local%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="059834.html">
+   <LINK REL="Next"  HREF="059808.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Solving the login/logout problem in HTML</H1>
+<!--htdig_noindex-->
+    <B>Asbj&#248;rn Ulsberg</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Solving%20the%20login/logout%20problem%20in%20HTML&In-Reply-To=%3Cop.uk8u3plrflu5h5%40quark-mac-pro.local%3E"
+       TITLE="[whatwg] Solving the login/logout problem in HTML">list at asbjorn.ulsberg.no
+       </A><BR>
+    <I>Wed Nov 26 12:55:49 PST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="059834.html">[whatwg] Solving the login/logout problem in HTML
+</A></li>
+        <LI>Next message: <A HREF="059808.html">[whatwg] Solving the login/logout problem in HTML
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#59798">[ date ]</a>
+              <a href="thread.html#59798">[ thread ]</a>
+              <a href="subject.html#59798">[ subject ]</a>
+              <a href="author.html#59798">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Tue, 25 Nov 2008 19:54:46 +0100, Julian Reschke &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">julian.reschke at gmx.de</A>&gt; wrote:
+
+&gt;<i> thanks a lot for this proposal which seems to go into the right  
+</I>&gt;<i> direction.
+</I>
+Indeed. I think this is an area with an enormous potential for improvement and it's very encouraging to see so many great ideas about the issues involved and how to solve them.
+
+&gt;<i> I didn't yet have time to look into this in detail, but it currently  
+</I>&gt;<i> seems to require the UA to still parse the HTML page. Wouldn't it be  
+</I>&gt;<i> better of the *headers* of the response (such as WW-Authenticate, Link,  
+</I>&gt;<i> ...) would contain sufficient information to perform the login without  
+</I>&gt;<i> having to do that; such as a URI to POST to, plus the parameter names  
+</I>&gt;<i> for user name and password?
+</I>
+I agree that more should happen on the HTTP level and with more control given to the web application. Considering the state of the next version of the HTTP specification(s), would it perhaps be a good idea to discuss this with the HTTP WG as well?
+
+'WWW-Authenticate: HTML' or something similar is a step in the right direction. I don't see it as necessary to identify the form that does the authentication, though. Just as [1], I think that puts a burden on the user agent that really isn't necessary.
+
+Web application developers pulls a lot of hair doing web form-based authentication already and are used to having control over just about every part of it. Taking that control and responsibility away at this point is only deterring, imho.
+
+Instead, we should leave the control in the hands of the web application developers and force as little as possible on to the user agent developers. The way I see it, the following example should be enough to perform a successful authentication:
+
+  [Request 1]
+
+  GET /administration/ HTTP/1.1
+
+
+  [Response 1]
+
+  HTTP/1.1 401 Unauthorized
+  WWW-Authenticate: HTML realm=&quot;Administration&quot;
+
+  &lt;!DOCTYPE html&gt;
+  &lt;html&gt;
+    ....
+    &lt;form action=&quot;/login&quot;&gt;
+      &lt;input name=&quot;username&quot;&gt;
+      &lt;input type=&quot;password&quot; name=&quot;password&quot;&gt;
+      &lt;input type=&quot;submit&quot;&gt;
+    &lt;/form&gt;
+  &lt;/html&gt;
+
+
+  [Request 2]
+
+  POST /login HTTP/1.1
+
+  username=admin&amp;password=secret
+
+
+  [Response 2]
+
+  HTTP/1.1 302 Found
+  Authorization: HTML QWxhZGRpbjpvcGVuIHNlc2FtZQ== realm=&quot;Administration&quot;
+  Location: /administration/
+  
+
+  [Request 3]
+
+  GET /administration/ HTTP/1.1
+  Authorization: HTML QWxhZGRpbjpvcGVuIHNlc2FtZQ== realm=&quot;Administration&quot;
+
+  [Response 3]
+
+  HTTP/1.1 200 OK
+
+  &lt;!DOCTYPE html&gt;
+  &lt;html&gt;
+    ...
+    &lt;h1&gt;Welcome!&lt;/h1&gt;
+  &lt;/html&gt;
+
+The twist here is that it is up to the server to provide the authentication token and through the 'Authorization' header, give the client a way to authorize future requests. I append the &quot;realm&quot; parameter to the 'Authorization' header to give the server and client a way to control authorization and more importantly deauthenticate (e.g. logout) for different realms on the same web site.
+
+Since more is up to the web application now, a deauthenticate works the following way:
+
+  [Request]
+
+  POST /logout HTTP/1.1
+
+
+  [Response]
+
+  HTTP/1.1 200 OK
+  Authorization: HTML realm=&quot;Administration&quot;
+
+  &lt;!DOCTYPE html&gt;
+  &lt;html&gt;
+    ...
+    &lt;h1&gt;Good bye!&lt;/h1&gt;
+  &lt;/html&gt;
+
+The empty token in the 'Authorization' header indicates that it should be forgotten for the given realm by the user agent and that future requests to resources within the same realm requires a reauthentication.
+
+This suggestion overloads the 'Authorization' header quite a bit, but since we're inventing a new authentication scheme that the UA needs to understand anyway, and especially if we get the HTTP WG on board here, I think this can only give positive effects.
+
+The alternative is to invent a new response header to serve the same purpose, but seeing as the request and response header -- if 'Authorization' is used -- are identical, a typical authentication by a browser supporting the &quot;HTML&quot; scheme is just to opaquely copy+pasting the entire 'Authorization' header from the request to the response.
+
+
+____
+[1] &lt;<A HREF="http://www.w3.org/TR/NOTE-authentform">http://www.w3.org/TR/NOTE-authentform</A>&gt;
+
+-- 
+Asbj&#248;rn Ulsberg         -=|=-          <A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">asbjorn at ulsberg.no</A>
+&#171;He's a loathsome offensive brute, yet I can't look away&#187;
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="059834.html">[whatwg] Solving the login/logout problem in HTML
+</A></li>
+	<LI>Next message: <A HREF="059808.html">[whatwg] Solving the login/logout problem in HTML
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#59798">[ date ]</a>
+              <a href="thread.html#59798">[ thread ]</a>
+              <a href="subject.html#59798">[ subject ]</a>
+              <a href="author.html#59798">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

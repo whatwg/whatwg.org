@@ -1,0 +1,159 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Methods defined for one document called after that document is no longer the one being displayed
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Methods%20defined%20for%20one%20document%20called%20after%20that%0A%20document%20is%20no%20longer%20the%20one%20being%20displayed&In-Reply-To=%3C89657E62-7785-4335-9CE7-BDB4354B27F7%40apple.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="060214.html">
+   <LINK REL="Next"  HREF="060223.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Methods defined for one document called after that document is no longer the one being displayed</H1>
+<!--htdig_noindex-->
+    <B>Maciej Stachowiak</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Methods%20defined%20for%20one%20document%20called%20after%20that%0A%20document%20is%20no%20longer%20the%20one%20being%20displayed&In-Reply-To=%3C89657E62-7785-4335-9CE7-BDB4354B27F7%40apple.com%3E"
+       TITLE="[whatwg] Methods defined for one document called after that document is no longer the one being displayed">mjs at apple.com
+       </A><BR>
+    <I>Wed Dec 24 12:04:33 PST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="060214.html">[whatwg] StorageEvent deficiency
+</A></li>
+        <LI>Next message: <A HREF="060223.html">[whatwg] [rest-discuss] HTML5 and RESTful HTTP in browsers
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#60216">[ date ]</a>
+              <a href="thread.html#60216">[ thread ]</a>
+              <a href="subject.html#60216">[ subject ]</a>
+              <a href="author.html#60216">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>
+On Aug 5, 2008, at 2:12 AM, Ian Hickson wrote:
+
+&gt;<i>
+</I>&gt;<i> I would like some input from browser vendors.
+</I>&gt;<i>
+</I>&gt;<i> Right now, if you navigate an iframe to a document, and take a
+</I>&gt;<i> reference to a method defined in that document, and then navigate that
+</I>&gt;<i> iframe to another document, and then call the method, browsers  
+</I>&gt;<i> differ in
+</I>&gt;<i> what they do.
+</I>&gt;<i>
+</I>&gt;<i> There are several behaviours:
+</I>&gt;<i>
+</I>&gt;<i> - In one browser, the Window object changes with each navigation,
+</I>&gt;<i>   and the global object is that object, and the method runs fine.
+</I>
+I believe this design is not compatible with the Web, as there are  
+sites that take the Window object of another frame or window and  
+expect it to remain valid across navigations.
+
+&gt;<i> - In one browser, the method call fails, saying that methods can't be
+</I>&gt;<i>   called while the document that defined them isn't the active  
+</I>&gt;<i> document
+</I>&gt;<i>   of the browsing context whose global object is the method's.
+</I>
+I think adding checks for this condition at every JS-to-JS call  
+boundary would be an unacceptable performance cost. This is a highly  
+optimized code path in modern JITting implementations of JavaScript  
+and I would be against slowing it down with extra checks just because  
+the resulting behavior seems simple.
+
+(Should the check also occur at native-to-JS or JS-to-native  
+boundaries? That would lead to outright broken behavior as event  
+listeners in inactive documents wouldn't fire even when events occur  
+that should trigger them, and getElementById on inactive documents  
+wouldn't work. It wasn't clear to me if you had either of those cases  
+in mind.)
+
+&gt;<i> - In one browser, the Window object acts as a kind of view on the  
+</I>&gt;<i> global
+</I>&gt;<i>   object, which changes with each navigation, leading the method to  
+</I>&gt;<i> see
+</I>&gt;<i>   the original global object in its scope chain, but the new one if it
+</I>&gt;<i>   uses the 'window' object. (In this environment, 'this' at the top  
+</I>&gt;<i> scope
+</I>&gt;<i>   returns the 'window' object, not the global object.)
+</I>
+This roughly describes the implementation internals of both Gecko- 
+based and WebKit-based browsers with the latest version of the  
+respective engines -- the so-called &quot;split window&quot; design. Modulo some  
+of the details about the value of &quot;this&quot; (which could reasonably go  
+either way), this would be the natural way for browsers adopting this  
+design to behave, if they do not explicitly add additional checks.
+
+&gt;<i>  - In one browser, the global object and the Window are the same,  
+</I>&gt;<i> but the
+</I>&gt;<i>   global object is totally wiped out with each navigation,  
+</I>&gt;<i> preventing the
+</I>&gt;<i>   method from accessing its global object's data. (In this browser,  
+</I>&gt;<i> the
+</I>&gt;<i>   results are slightly different when navigating top-level windows
+</I>&gt;<i>   instead of frames.)
+</I>
+
+
+&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> These results were derived from:
+</I>&gt;<i>   <A HREF="http://damowmow.com/playground/demos/global-object/004.html">http://damowmow.com/playground/demos/global-object/004.html</A>
+</I>&gt;<i>
+</I>&gt;<i> I propose to adopt the second behaviour above. It seems by far the
+</I>&gt;<i> simplest behaviour to define and implement. Are there any objections  
+</I>&gt;<i> to
+</I>&gt;<i> this? Given the lack of interoperability here, it seems like we aren't
+</I>&gt;<i> really constrained to pick something due to compatibility.
+</I>&gt;<i>
+</I>&gt;<i> The change would be that if a method is invoked when the script  
+</I>&gt;<i> execution
+</I>&gt;<i> context that the method was running in has a Document object that is  
+</I>&gt;<i> not
+</I>&gt;<i> the active Document object of its browsing context, then that method
+</I>&gt;<i> immediately throws an exception. Access to variables obtained from  
+</I>&gt;<i> such
+</I>&gt;<i> script execution contexts would be unaffected.
+</I>&gt;<i>
+</I>&gt;<i> -- 
+</I>&gt;<i> Ian Hickson               U+1047E                ) 
+</I>&gt;<i> \._.,--....,'``.    fL
+</I>&gt;<i> <A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _ 
+</I>&gt;<i> \  ;`._ ,.
+</I>&gt;<i> Things that are impossible just take longer.   `._.-(,_..'-- 
+</I>&gt;<i> (,_..'`-.;.'
+</I>
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="060214.html">[whatwg] StorageEvent deficiency
+</A></li>
+	<LI>Next message: <A HREF="060223.html">[whatwg] [rest-discuss] HTML5 and RESTful HTTP in browsers
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#60216">[ date ]</a>
+              <a href="thread.html#60216">[ thread ]</a>
+              <a href="subject.html#60216">[ subject ]</a>
+              <a href="author.html#60216">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

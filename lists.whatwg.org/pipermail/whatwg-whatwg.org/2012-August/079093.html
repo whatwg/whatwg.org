@@ -1,0 +1,202 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] StringEncoding open issues
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20StringEncoding%20open%20issues&In-Reply-To=%3CCA%2Bc2ei-zc1g0OuZjYEtRY4E3yUuj9skhhUVEyn7ByKtmYY2o8g%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="036816.html">
+   <LINK REL="Next"  HREF="079094.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] StringEncoding open issues</H1>
+<!--htdig_noindex-->
+    <B>Jonas Sicking</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20StringEncoding%20open%20issues&In-Reply-To=%3CCA%2Bc2ei-zc1g0OuZjYEtRY4E3yUuj9skhhUVEyn7ByKtmYY2o8g%40mail.gmail.com%3E"
+       TITLE="[whatwg] StringEncoding open issues">jonas at sicking.cc
+       </A><BR>
+    <I>Mon Aug  6 14:50:56 PDT 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="036816.html">[whatwg] StringEncoding open issues
+</A></li>
+        <LI>Next message: <A HREF="079094.html">[whatwg] StringEncoding open issues
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#79093">[ date ]</a>
+              <a href="thread.html#79093">[ thread ]</a>
+              <a href="subject.html#79093">[ subject ]</a>
+              <a href="author.html#79093">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Mon, Aug 6, 2012 at 11:29 AM, Joshua Bell &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">jsbell at chromium.org</A>&gt; wrote:
+&gt;<i> Regarding the API proposal at: <A HREF="http://wiki.whatwg.org/wiki/StringEncoding">http://wiki.whatwg.org/wiki/StringEncoding</A>
+</I>&gt;<i>
+</I>&gt;<i> It looks like we've got some developer interest in implementing this, and
+</I>&gt;<i> need to nail down the open issues. I encourage folks to look over the
+</I>&gt;<i> &quot;Resolved&quot; issues in the wiki page and make sure the resolutions - gathered
+</I>&gt;<i> from loose consensus here and offline discussion - are truly resolved or if
+</I>&gt;<i> anything is not future-proof and should block implementations from
+</I>&gt;<i> proceeding. Also, look at the &quot;Notes to Implementers&quot; section; this should
+</I>&gt;<i> be non-controversial but may be non-obvious.
+</I>&gt;<i>
+</I>&gt;<i> This leaves two open issues: behavior on encoding error, and handling of
+</I>&gt;<i> Byte Order Marks (BOMs)
+</I>&gt;<i>
+</I>&gt;<i> == Encoding Errors ==
+</I>&gt;<i>
+</I>&gt;<i> The proposal builds on Anne's
+</I>&gt;<i> <A HREF="http://dvcs.w3.org/hg/encoding/raw-file/tip/Overview.html">http://dvcs.w3.org/hg/encoding/raw-file/tip/Overview.html</A> encoding spec,
+</I>&gt;<i> which defines when encodings should emit an encoder error. In that spec
+</I>&gt;<i> (which describes the existing behavior of Web browsers) encoders are used
+</I>&gt;<i> in a limited fashion, e.g. for encoding form results before submission via
+</I>&gt;<i> HTTP, and hence the cases are much more restricted than the errors
+</I>&gt;<i> encountered when browsers are asked to decode content from the wild. As
+</I>&gt;<i> noted, the encoding process could terminate when an error is emitted.
+</I>&gt;<i> Alternately (and as is necessary for forms, etc) there is a
+</I>&gt;<i> use-case-specific escaping mechanism for non-encodable code points.
+</I>&gt;<i>
+</I>&gt;<i> The proposed TextDecoder object takes a TextDecoderOptions options with a
+</I>&gt;<i> |fatal| flag that controls the decode behavior in case of error - if
+</I>&gt;<i> |fatal| is unset (default) a decode error produces a fallback character
+</I>&gt;<i> (U+FFFD); if |fatal| is set then a DOMException is raised instead.
+</I>&gt;<i>
+</I>&gt;<i> No such option is currently proposed for the TextEncoder object; the
+</I>&gt;<i> proposal dictates that a DOMException is thrown if the encoder emits an
+</I>&gt;<i> error. I believe this is sufficient for V1, but want feedback. For V2 (or
+</I>&gt;<i> now, if desired), the API could be extended to accept an options object
+</I>&gt;<i> allowing for some/all of these cases;
+</I>
+Not introducing options for the encoder for V1 sounds like a good idea
+to me. However I would definitely prefer if the default for encoding
+matches the default for decoding and used replacement characters
+rather than threw an exception.
+
+This also matches what the recent WebSocket spec which recently
+changed from throwing to using replacement characters for encoding.
+
+The reason WebSocket was changed was because it's relatively easy to
+make a mistake and cause a surrogate UTF16 pair be cut into two, which
+results in an invalidly encoded DOMString. The problem with this is
+that it's very data dependent and so might not happen on the
+developer's computer, but only in the wild when people write text
+which uses non-BMP characters. In such cases throwing an exception
+will likely result in more breakage than using a replacement
+character.
+
+&gt;<i> * Don't throw, instead emit a standard/encoding-specific replacement
+</I>&gt;<i> character (e.g. '?')
+</I>
+Yes, using the replacement character sounds good to me.
+
+&gt;<i> * Don't throw, instead emit a fixed placeholder character (byte?) sequence
+</I>&gt;<i> * Don't throw, instead call a user-defined callback and allow it to produce
+</I>&gt;<i> a replacement &quot;escaped&quot; character sequence, e.g. &quot;&amp;#xXXXX;&quot;
+</I>&gt;<i>
+</I>&gt;<i> The latter seems the most flexible (superset of the rest) but is probably
+</I>&gt;<i> overkill for now. Since it can be added in easily later, can we defer until
+</I>&gt;<i> we have implementer and user feedback?
+</I>
+Indeed, we can explore these options if the need arises.
+
+&gt;<i> == Byte Order Marks (BOMs) ==
+</I>&gt;<i>
+</I>&gt;<i> Once again, the proposal builds on Anne's
+</I>&gt;<i> <A HREF="http://dvcs.w3.org/hg/encoding/raw-file/tip/Overview.html">http://dvcs.w3.org/hg/encoding/raw-file/tip/Overview.html</A> encoding spec,
+</I>&gt;<i> which describes the existing behavior of Web browsers. In the wild,
+</I>&gt;<i> browsers deal with a variety of mechanisms for indicating the encoding of
+</I>&gt;<i> documents (server headers, meta tags, XML preludes, etc), many of which are
+</I>&gt;<i> blatantly incorrect or contradictory. One form is fortunately rarely wrong
+</I>&gt;<i> - if the document is encoded in UTF-8, UTF-16LE or UTF-16BE and includes
+</I>&gt;<i> the byte order mark (the encoding-specific serialization of U+FEFF). This
+</I>&gt;<i> is built into the Encoding spec - given a byte sequence to decode and an
+</I>&gt;<i> encoding label, the label is ignored if the sequence starts with one of the
+</I>&gt;<i> three UTF BOMs, and the BOM-indicated encoding is used to decode the rest
+</I>&gt;<i> of the stream.
+</I>&gt;<i>
+</I>&gt;<i> The proposed API will have different uses, so it is unclear that this is
+</I>&gt;<i> necessary or desirable.
+</I>&gt;<i>
+</I>&gt;<i> At a minimum, it is clear that:
+</I>&gt;<i>
+</I>&gt;<i> * If one of the UTF encodings is specified AND the BOM matches then the
+</I>&gt;<i> leading BOM character (U+FEFF) MUST NOT be emitted in the output character
+</I>&gt;<i> sequence (i.e. it is silently consumed)
+</I>
+Agreed.
+
+&gt;<i> Less clear is this behavior in these two cases.
+</I>&gt;<i>
+</I>&gt;<i> * If one of the UTF encodings is specified AND and a different BOM is
+</I>&gt;<i> present (e.g. UTF-16LE but a UTF-16BE BOM)
+</I>&gt;<i> * If one of the non-UTF encodings is specified AND a UTF BOM is present
+</I>&gt;<i>
+</I>&gt;<i> Options include:
+</I>&gt;<i> * Nothing special - decoder does what it will with the bytes, possibly
+</I>&gt;<i> emitting garbage, possibly throwing
+</I>&gt;<i> * Raise a DOMException
+</I>&gt;<i> * Switch the decoder from the user-specified encoding to the DOM-specified
+</I>&gt;<i> encoding
+</I>&gt;<i>
+</I>&gt;<i> The latter seems the most helpful when the proposed API is used as follows:
+</I>&gt;<i>
+</I>&gt;<i> var s = TextDecoder().decode(bytes); // handles UTF-8 w/o BOM and any UTF
+</I>&gt;<i> w/ BOM
+</I>&gt;<i>
+</I>&gt;<i> ... but it does seem a little weird when used like this;
+</I>&gt;<i>
+</I>&gt;<i> var d = TextDecoder('euc-jp');
+</I>&gt;<i> assert(d.encoding === 'euc-jp');
+</I>&gt;<i> var s = d.decode(new Uint8Array([0xFE]), {stream: true});
+</I>&gt;<i> assert(d.encoding === 'euc-jp');
+</I>&gt;<i> assert(s.length === 0); // can't emit anything until BOM is definitely
+</I>&gt;<i> passed
+</I>&gt;<i> s += d.decode(new Uint8Array([0xFF]), {stream: true});
+</I>&gt;<i> assert(d.encoding === 'utf-16be'); // really?
+</I>
+I would add the case of &quot;no encoding was specified and a BOM was
+detected&quot; to the &quot;clear&quot; category. I.e. I think we clearly here should
+honor the BOM.
+
+As for what to do if an encoding is specified (UTF or otherwise), and
+a different BOM is detected, that I agree is much less clear. I don't
+have a strong opinion of if it should throw or attempt to decode
+(possibly into garbage). But silently ignoring the specified encoding
+feels strange. In gecko we decided to throw since that would leave the
+most options for adjusting to spec changes.
+
+/ Jonas
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="036816.html">[whatwg] StringEncoding open issues
+</A></li>
+	<LI>Next message: <A HREF="079094.html">[whatwg] StringEncoding open issues
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#79093">[ date ]</a>
+              <a href="thread.html#79093">[ thread ]</a>
+              <a href="subject.html#79093">[ subject ]</a>
+              <a href="author.html#79093">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

@@ -1,0 +1,167 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] API for encoding/decoding ArrayBuffers into text
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20API%20for%20encoding/decoding%20ArrayBuffers%20into%20text&In-Reply-To=%3CCA%2Bc2ei9Jt1j2cKHsOKL685x_7PkOXE948w0gvzxW0iFc%2BX-M9w%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="077473.html">
+   <LINK REL="Next"  HREF="077559.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] API for encoding/decoding ArrayBuffers into text</H1>
+<!--htdig_noindex-->
+    <B>Jonas Sicking</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20API%20for%20encoding/decoding%20ArrayBuffers%20into%20text&In-Reply-To=%3CCA%2Bc2ei9Jt1j2cKHsOKL685x_7PkOXE948w0gvzxW0iFc%2BX-M9w%40mail.gmail.com%3E"
+       TITLE="[whatwg] API for encoding/decoding ArrayBuffers into text">jonas at sicking.cc
+       </A><BR>
+    <I>Tue Mar 27 23:44:13 PDT 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="077473.html">[whatwg] API for encoding/decoding ArrayBuffers into text
+</A></li>
+        <LI>Next message: <A HREF="077559.html">[whatwg] API for encoding/decoding ArrayBuffers into text
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#77479">[ date ]</a>
+              <a href="thread.html#77479">[ thread ]</a>
+              <a href="subject.html#77479">[ subject ]</a>
+              <a href="author.html#77479">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Tue, Mar 27, 2012 at 4:45 PM, Glenn Maynard &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">glenn at zewt.org</A>&gt; wrote:
+&gt;<i> On Tue, Mar 27, 2012 at 12:41 AM, Jonas Sicking &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">jonas at sicking.cc</A>&gt; wrote:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> The memchr is purely overhead, I.e. we are comparing memchr+decoding
+</I>&gt;&gt;<i> to decoding. So I don't see what's backing up the &quot;probably the
+</I>&gt;&gt;<i> fastest thing&quot; claim.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> If you don't do it as an initial pass, then you have to embed null checks
+</I>&gt;<i> into the inner loop of your decoding algorithm.&#160; For example, an ASCII
+</I>&gt;<i> decoder may look like:
+</I>&gt;<i>
+</I>&gt;<i> // char *input = input buffer
+</I>&gt;<i> // char *input_end = one past last byte of input buffer
+</I>&gt;<i> // wchar_t *output = output buffer
+</I>&gt;<i> input_end = memchr(input, 0, input_end - input);
+</I>&gt;<i> while(input &lt; input_end)
+</I>&gt;<i> {
+</I>&gt;<i> &#160;&#160;&#160; if(*input &gt;= 0x80)
+</I>&gt;<i> &#160;&#160;&#160;&#160;&#160;&#160;&#160; *output++ = 0xFFFD;
+</I>&gt;<i> &#160;&#160;&#160; else
+</I>&gt;<i> &#160; &#160;&#160; &#160;&#160; *output++ = *input;
+</I>&gt;<i> &#160;&#160;&#160; ++input;
+</I>&gt;<i> }
+</I>&gt;<i>
+</I>&gt;<i> If you don't do the initial search, then it becomes:
+</I>&gt;<i>
+</I>&gt;<i> while(input &lt; input_end &amp;&amp; *input != 0)
+</I>&gt;<i> {
+</I>&gt;<i> &#160;&#160;&#160; if(*input &gt;= 0x80)
+</I>&gt;<i> &#160;&#160;&#160;&#160;&#160;&#160;&#160; *output++ = 0xFFFD;
+</I>&gt;<i> &#160;&#160;&#160; else
+</I>&gt;<i> &#160; &#160;&#160; &#160;&#160; *output++ = *input;
+</I>&gt;<i> &#160;&#160;&#160; ++input;
+</I>&gt;<i> }
+</I>&gt;<i>
+</I>&gt;<i> which means that you have an additional branch each time through the loop to
+</I>&gt;<i> check for the null terminator.&#160; That's likely to be slower than just doing
+</I>&gt;<i> another pass.
+</I>&gt;<i>
+</I>&gt;<i> But anyway, please either make a benchmark or two to show the differences
+</I>&gt;<i> we're talking about, or drop &quot;performance&quot; as an argument.&#160; This is all just
+</I>&gt;<i> a distraction otherwise.&#160; I don't think the speed of conversion is even a
+</I>&gt;<i> serious issue, much less the microseconds taken by memchr.
+</I>
+The extra null-check is basically free since you are going to be bound
+on memory IO. I.e. the extra nullcheck will just happen in the bubble
+in the CPU pipeline while waiting for data from memory.
+
+Scanning over the buffer twice will cause a lot more memory IO and
+will definitely be slower.
+
+&gt;&gt;<i> &gt; It doesn't seem materially harder (a little more code, yes, but that's
+</I>&gt;&gt;<i> &gt; not
+</I>&gt;&gt;<i> &gt; the same thing), and it's more general-purpose.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> I agree it doesn't seem materially harder. I also agree that I don't
+</I>&gt;&gt;<i> have data to show that it's materially slower. But it sounds like
+</I>&gt;&gt;<i> we're in agreement that keeping the logic outside is both harder and
+</I>&gt;&gt;<i> slower which honestly doesn't speak strongly in its favor.
+</I>&gt;<i>
+</I>&gt;<i> Sorry, I'm confused--you're saying that it isn't harder, but we're in
+</I>&gt;<i> agreement that it's harder.&#160; Please clarify what you mean.
+</I>&gt;<i>
+</I>&gt;<i> I don't believe it's meaningfully slower or harder.
+</I>
+I'm saying that having separate functions for
+* finding the null terminator
+* decoding a set number of bytes
+
+is both harder and slower for the webpage, than having a single
+function which just decodes to the null terminator.
+
+We can argue weather it's meaningfully slower or harder. But it seems
+like we agree that it's slower and harder.
+
+&gt;&gt;<i> I don't understand the argument that the alternative is more
+</I>&gt;&gt;<i> &quot;general-purpose&quot;. The API is already generic in that you can use
+</I>&gt;&gt;<i> whatever delimiter you want since you pass in a view. The only
+</I>&gt;&gt;<i> functionality which is not available is finding a null-terminator in
+</I>&gt;&gt;<i> an arraybuffer which you are arguing below shouldn't be part of the
+</I>&gt;&gt;<i> decoder (which I agree with).
+</I>&gt;<i>
+</I>&gt;<i> I'm confused.&#160; What are you arguing?&#160; &quot;The alternative&quot;--taking the null
+</I>&gt;<i> terminator search out of the decoder--you seem to argue against (first
+</I>&gt;<i> sentence), then to agree with (last sentence).&#160; Can you back up and restate
+</I>&gt;<i> what you're saying from scratch?
+</I>
+If you agree that creating separate functions for finding the null
+terminator and then decoding to it, rather than having a single
+function which does both things, while yet agreeing that having
+separate functions are better, then clearly you must think that having
+separate functions bring some other benefits.
+
+I still don't understand what that benefit you are seeing is. You
+hinted at some &quot;more generic&quot; argument, but I still don't understand
+it. So far the only reason that has been brought up is that it
+provides an API for simply finding null terminators which could be
+useful if you are doing things other than decoding. Is that what you
+are talking about when you are saying that it's &quot;more generic&quot;?
+
+/ Jonas
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="077473.html">[whatwg] API for encoding/decoding ArrayBuffers into text
+</A></li>
+	<LI>Next message: <A HREF="077559.html">[whatwg] API for encoding/decoding ArrayBuffers into text
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#77479">[ date ]</a>
+              <a href="thread.html#77479">[ thread ]</a>
+              <a href="subject.html#77479">[ subject ]</a>
+              <a href="author.html#77479">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

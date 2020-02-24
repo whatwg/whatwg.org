@@ -1,0 +1,119 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] postMessage support now in Firefox trunk, implementation issues, feedback, tests
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20postMessage%20support%20now%20in%20Firefox%20trunk%2C%0A%20implementation%20issues%2C%20feedback%2C%20tests&In-Reply-To=%3C47A01B03.306%40mit.edu%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="013779.html">
+   <LINK REL="Next"  HREF="013802.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] postMessage support now in Firefox trunk, implementation issues, feedback, tests</H1>
+<!--htdig_noindex-->
+    <B>Jeff Walden</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20postMessage%20support%20now%20in%20Firefox%20trunk%2C%0A%20implementation%20issues%2C%20feedback%2C%20tests&In-Reply-To=%3C47A01B03.306%40mit.edu%3E"
+       TITLE="[whatwg] postMessage support now in Firefox trunk, implementation issues, feedback, tests">jwalden+whatwg at MIT.EDU
+       </A><BR>
+    <I>Tue Jan 29 22:36:51 PST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="013779.html">[whatwg] HTML5 frame navigation policy
+</A></li>
+        <LI>Next message: <A HREF="013802.html">[whatwg] A potential slight security enhancement to postMessage
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#13795">[ date ]</a>
+              <a href="thread.html#13795">[ thread ]</a>
+              <a href="subject.html#13795">[ subject ]</a>
+              <a href="author.html#13795">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE><A HREF="https://bugzilla.mozilla.org/show_bug.cgi?id=postMessage">https://bugzilla.mozilla.org/show_bug.cgi?id=postMessage</A>
+
+I just landed HTML5 postMessage support in Firefox, so it should be in Firefox 3!  Thanks to WebKit people for pushing on this, because I didn't think this had a chance of making 3, to be utterly honest, having tried once before several months ago.  To be honest, I'm still in a state of shock this got taken.  :-)
+
+
+First:
+
+I strongly encourage all implementers of postMessage to compare how they do against the set of tests (for both postMessage and MessageEvent functionality) that I wrote during implementation of postMessage.  I made special efforts not to do any Mozilla-specific testing without a user-agent guard, and I don't believe there are any unguarded Mozilla-specific tests any more -- and to an extent nothing not specified by HTML5 or otherwise commonly implemented, more or less.  There's significant bustage against the tests in the user agents I tested even on basic functionality, to the extent that the API's not usable for what it was intended due to incorrect errors being thrown on access and such.  (I've guarded against these problems in the tests with try/catches and &quot;sentinel&quot; timeout checks when there's no other way to communicate a failure).  The tests are available here:
+
+<A HREF="http://web.mit.edu/jwalden/www/whatwg/postMessage.zip">http://web.mit.edu/jwalden/www/whatwg/postMessage.zip</A>
+
+To run the tests, extract them somewhere on your hard drive and start an HTTP server on port 8888 serving the postMessage/ folder as its root folder.  Make sure that your server will serve .xhtml files with the XHTML MIME-type -- a couple tests use it because I was too lazy to use external files for scripts and wanted to include special characters literally (or wanted to test specific Unicode-related handling).  Next, set up proxy autoconfig in your UA to point to &lt;<A HREF="http://localhost:8888/proxy.js">http://localhost:8888/proxy.js</A>&gt;.  Now navigate to:
+
+<A HREF="http://localhost:8888/tests/dom/tests/mochitest/whatwg/">http://localhost:8888/tests/dom/tests/mochitest/whatwg/</A>
+
+&gt;<i>From there click the &quot;Run tests&quot; link to see how you do.  For individual test results, see the individual test links.  Be very careful when you run these -- the uri-checking hard-codes URIs instead of using something like location.href in the interest of robustness against colluding failures, so running with, say, a stray hash or question mark at the end of a page URL will usually cause that test to fail.
+</I>
+I spent a lot of time on these tests, and I'm not aware of any bugs in them, but I'd very much appreciate people reading through them, running them, and checking for any errors I might have made, say, in not marking a test as Moz-specific or such (subject to the points noted below).
+
+
+Second:
+
+The spec's incomplete or vague on a few points right now.  The points I know where I forged new ground or think clarifications/explicit notes may be in order are:
+
+* event.domain/uri values in a rewritten about:blank document
+The spec seems to somewhat indicate that we should be using about:blank and &quot;&quot; as uri/domain right now, but that's fairly useless in terms of allowing postMessage in dynamically-created pages.  This probably wants to change to reflect the document's origin/principal, and assuming things go the way most browsers have implemented it, this means those values are the same as for the opener of about:blank.  This is tested in test_postMessage_special.xhtml.  Note that there are two different tests of this behavior which change the document in slightly different ways, and Mozilla expects them to have the same results right now.
+
+* event.domain/uri values in data: URLs
+Mozilla currently gives data: URLs the principal of the opener/parent, so we use that URI for computing uri/domain of messages from data: URLs.  The two tests for this are UA-guarded for now as behaviors differ across browsers on this, but in the long run everyone should come to an agreement on this.
+
+* event.domain with non-standard ports
+We have it so domain doesn't include the port number, ever.  The spec says this, but it's not absolutely explicit.
+
+* event.domain/uri values for IDN URLs
+We use the Unicode-ized values of these, not the Punycode versions.  (Actually, that's a lie -- what we use depends on whether the relevant TLD is whitelisted for non-punycode display or not, which is clearly the wrong behavior; at the moment I doubt this will be fixed for Firefox 3, sadly.)  I think this is what authors would most likely expect, if not now then when IDN is truly widespread (when we'd be stuck with punycode if we were to choose it now), but the spec doesn't say anything about IDN yet.
+
+* event.domain/uri when calling through another same-origin page
+Page A and B are same-origin; A calls a method in B, which calls postMessage.  The dispatched event has uri/domain of B, not of A.  The spec's reasonably clear on this, but best to note it explicitly here.
+
+* event.domain for non-hierarchical URLs
+I don't test this because I'm aware of no common protocol that would be cross-browser, but .domain would be the empty string, not null, in this case.  If we ever changed the behavior of data: URLs, I suspect we'd hit the logic to return an empty string.
+
+* event.domain when document.domain has been changed
+The value of event.domain is the original domain for the page, not the value to which document.domain may have been set.
+
+* handling a postMessage-dispatched MessageEvent by throwing
+Any exceptions thrown by exception handlers when postMessage is called on a window are ignored; they are not propagated up to an exception handlers.  In particular, this happens regardless of the origin of the window whose script threw an exception, even if it is identical to that of the window that called postMessage.  It doesn't seem like a good design to me to have to check for a pending exception and only allow it if the target had the same origin; best to avoid the problem entirely and just unconditionally prevent any exceptions from propagating rather than introduce the possibility of error in determining when an exception may be safely propagated.  (Also consider that if you were to propagate in the cross-origin case you'd have to make sure the thrower hadn't set any properties on the exception, or at least that said properties would not be accessible to the postMessage caller.)
+
+
+(One last note that's relevant yet not relevant: if you're wondering what Mozilla does for &quot;chrome&quot; content that runs with elevated privileges, we forcibly make the source of the dispatched events null.  In this way chrome can postMessage chrome or content, but no method is provided for response or even for referring to the sender.  To respond, the target window must be able to get a reference to the sending window some other way.)
+
+
+
+That covers everything I ran into while implementing this; comments, suggestions for other tests, complaints about test bugs, suggestions for error message clarifications, yadda yadda are all greatly appreciated!
+
+Jeff Walden
+
+P.S. -- Mailman, you suck for not using using the various vendor-specific and standard forms of pre-wrap on the ASCII emails you display, and I refuse to acquiesce to your demands for line breaks in what I type.
+
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="013779.html">[whatwg] HTML5 frame navigation policy
+</A></li>
+	<LI>Next message: <A HREF="013802.html">[whatwg] A potential slight security enhancement to postMessage
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#13795">[ date ]</a>
+              <a href="thread.html#13795">[ thread ]</a>
+              <a href="subject.html#13795">[ subject ]</a>
+              <a href="author.html#13795">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

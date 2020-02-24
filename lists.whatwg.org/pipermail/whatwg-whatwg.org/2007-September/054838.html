@@ -1,0 +1,142 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Comments on updated SQL API
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Comments%20on%20updated%20SQL%20API&In-Reply-To=%3CPine.LNX.4.62.0709250310280.21662%40hixie.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="054839.html">
+   <LINK REL="Next"  HREF="054840.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Comments on updated SQL API</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Comments%20on%20updated%20SQL%20API&In-Reply-To=%3CPine.LNX.4.62.0709250310280.21662%40hixie.dreamhostps.com%3E"
+       TITLE="[whatwg] Comments on updated SQL API">ian at hixie.ch
+       </A><BR>
+    <I>Mon Sep 24 20:29:43 PDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="054839.html">[whatwg] Comments on updated SQL API
+</A></li>
+        <LI>Next message: <A HREF="054840.html">[whatwg]  Why SQL?  was: Comments on updated SQL API
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#54838">[ date ]</a>
+              <a href="thread.html#54838">[ thread ]</a>
+              <a href="subject.html#54838">[ subject ]</a>
+              <a href="author.html#54838">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Sat, 22 Sep 2007, Aaron Boodman wrote:
+&gt;<i> 
+</I>&gt;<i> 4.12.3, step 3:
+</I>&gt;<i> 
+</I>&gt;<i> I don't think you should implicitly join active transactions unless
+</I>&gt;<i> you're inside a callback from a previous executeSql call.
+</I>
+That's what the spec requires. I've tried to make it a bit clearer.
+
+
+&gt;<i> Otherwise all code that wants to call executeSql needs to know about all 
+</I>&gt;<i> other code using it and know to wait if it wants isolation. In the case 
+</I>&gt;<i> where you're a top-level call to executeSql, you should start a new 
+</I>&gt;<i> transaction.
+</I>
+That's what the spec does.
+
+
+&gt;<i> Some thought needs to be given to the type of transaction that should be 
+</I>&gt;<i> started implicitly. Most database vendors support several. Here is the 
+</I>&gt;<i> list of SQLite's:
+</I>&gt;<i> 
+</I>&gt;<i> <A HREF="http://www.sqlite.org/lang_transaction.html">http://www.sqlite.org/lang_transaction.html</A>
+</I>&gt;<i> 
+</I>&gt;<i> I think the &quot;immediate&quot; type is the best all-around choice.
+</I>
+In the case of SQLite, with the API as specced, there would be no 
+different between DEFERRED (the default in recent versions) and IMMEDIATE, 
+as you can only start a transaction by doing a statement.
+
+But yeah. I think we'll have to define the SQL subset in more detail at 
+some point, and at that point, more detail will have to be defined in 
+terms of what transaction support we should have.
+
+
+&gt;<i> 4.12.3, step 5: I think you need to fail with a specific error so that 
+</I>&gt;<i> the caller knows this is the problem and can do the right thing
+</I>
+There is an error code for this condition (version mismatch); see the 
+table lower down.
+
+
+&gt;<i> I don't think closeTransaction() is necessary. For one thing, SQL 
+</I>&gt;<i> already has &quot;COMMIT&quot; and &quot;ROLLBACK&quot;. Secondly, if the developer wants 
+</I>&gt;<i> each statement to be it's own transaction, he can make separate 
+</I>&gt;<i> top-level calls.
+</I>
+The reason for closeTransaction() is as follows:
+
+   var database = window.openDatabase('test', '1.0');
+   database.executeSql('INSERT INTO foo (x) VALUES (1)', function (result) {
+     if (result.errorCode) {
+       // it broke, transaction has rolled back
+       // if we just call executeSql() here, it'll fail
+       database.closeTransaction();
+       ... // ok now we can call executeSql() and it'll work
+       return;
+     }
+     ... // do whatever the rest of the transaction will be
+   });
+
+We require this because we want this to fail:
+
+   var database = window.openDatabase('test', '1.0');
+   database.executeSql('INSERT INTO foo (x) VALUES (1)', function (result) {
+     // no error checking
+     // the following call will raise an exception if the previous call
+     // failed, so that we don't ignore errors recklessly
+     database.executeSql('INSERT INTO foo (x) VALUES (2)', function (result) {
+       // ...
+     });
+   });
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="054839.html">[whatwg] Comments on updated SQL API
+</A></li>
+	<LI>Next message: <A HREF="054840.html">[whatwg]  Why SQL?  was: Comments on updated SQL API
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#54838">[ date ]</a>
+              <a href="thread.html#54838">[ thread ]</a>
+              <a href="subject.html#54838">[ subject ]</a>
+              <a href="author.html#54838">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

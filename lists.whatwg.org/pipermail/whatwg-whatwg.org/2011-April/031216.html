@@ -1,0 +1,143 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] How to handle multitrack media resources in HTML
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20How%20to%20handle%20multitrack%20media%20resources%20in%20HTML&In-Reply-To=%3CCE6229D8-C790-4AEE-9B74-782709C985D9%40apple.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="031211.html">
+   <LINK REL="Next"  HREF="031222.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] How to handle multitrack media resources in HTML</H1>
+<!--htdig_noindex-->
+    <B>Jer Noble</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20How%20to%20handle%20multitrack%20media%20resources%20in%20HTML&In-Reply-To=%3CCE6229D8-C790-4AEE-9B74-782709C985D9%40apple.com%3E"
+       TITLE="[whatwg] How to handle multitrack media resources in HTML">jer.noble at apple.com
+       </A><BR>
+    <I>Mon Apr 11 22:37:13 PDT 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="031211.html">[whatwg] How to handle multitrack media resources in HTML
+</A></li>
+        <LI>Next message: <A HREF="031222.html">[whatwg] How to handle multitrack media resources in HTML
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#31216">[ date ]</a>
+              <a href="thread.html#31216">[ thread ]</a>
+              <a href="subject.html#31216">[ subject ]</a>
+              <a href="author.html#31216">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>
+On Apr 11, 2011, at 5:26 PM, Ian Hickson wrote:
+
+&gt;<i> On Fri, 8 Apr 2011, Jer Noble wrote:
+</I>&gt;&gt;<i> 
+</I>&gt;&gt;<i> Sorry, by playbackState, I meant readyState.  And I was suggesting that, 
+</I>&gt;&gt;<i> much in the same way that you've provided .buffered and .seekable 
+</I>&gt;&gt;<i> properties which &quot;expose the intersection of the slaved media elements' 
+</I>&gt;&gt;<i> corresponding ranges&quot;, that a readyState property could similarly 
+</I>&gt;&gt;<i> reflect the readyState values of all the slaved media elements. In this 
+</I>&gt;&gt;<i> case, the MediaController's hypothetical readyState wouldn't flip to 
+</I>&gt;&gt;<i> HAVE_ENOUGH_DATA until all the constituent media element's ready states 
+</I>&gt;&gt;<i> reached at least the same value.
+</I>&gt;<i> 
+</I>&gt;<i> So basically it would return the lowest possible value amongst the slaved 
+</I>&gt;<i> elements? I guess we could expose such a convenience accessor, but what's 
+</I>&gt;<i> the use case? It seems easy enough to implement manually in JS, so unless 
+</I>&gt;<i> there's a compelling case, I'd be reluctant to add it.
+</I>
+Yes, this would be just a convenience, as I tried to make clear below.  So I don't want to seem like I'm pushing this too hard.  But since you asked...
+
+&gt;&gt;<i> Of course, this would imply that the load events fired by a media 
+</I>&gt;&gt;<i> element (e.g. loadedmetadata, canplaythrough) were also fired by the 
+</I>&gt;&gt;<i> MediaController, and I would support this change as well.
+</I>&gt;<i> 
+</I>&gt;<i> I don't see why it would imply that, but certainly we could add events 
+</I>&gt;<i> like that to the controller. Again though, what's the use case?
+</I>
+The use case for the events is the same one as for the convenience property: without a convenience event, authors would have to add event listeners to every slave media element.   So by &quot;imply&quot;, I simply meant that if the use case for the first was compelling enough to warrant new API, the second would be warranted as well.
+
+Lets say, for example, an author wants to change the color of a play button when the media in a media group all reaches the HAVE_ENOUGH_DATA readyState.
+
+Current API:
+	function init() {
+		var mediaGroupElements = document.querySelectorAll(&quot;*[mediaGroup=group1]&quot;);
+		for (var i = 0; i &lt; mediaGroupElements.length; ++i)
+			mediaGroupElements.item(i).addEventListener('canplaythrough', readyStateChangeListener, false);
+	}
+
+	function readyStateChangeListener(e) {
+		var mediaGroupElements = document.querySelectorAll(&quot;*[mediaGroup=group1]&quot;);
+		var ready = mediaGroupElements.length &gt; 0;
+		for (var i = 0; i &lt; mediaGroupElements.length; ++i)
+			if (mediaGroupElements.item(i).readyState &lt; HAVE_ENOUGH_DATA)
+				ready = false;
+		if (ready)
+			changePlayButtonColor();
+	}
+
+&quot;Convenience&quot; API:
+	function init() {
+		var controller = document.querySelector(&quot;*[mediaGroup=group1]&quot;).controller;
+		controller.addEventListener('canplaythrough'), changePlayButtonColor, true;
+	}
+
+I think the convenience benefits are pretty obvious.  Maybe not compelling enough, however. :)
+
+&gt;&gt;<i> Again, this would be just a convenience for authors, as this information 
+</I>&gt;&gt;<i> is already available in other forms and could be relatively easily 
+</I>&gt;&gt;<i> calculated on-the-fly in scripts.  But UAs are likely going to have do 
+</I>&gt;&gt;<i> these calculations anyway to support things like autoplay, so adding 
+</I>&gt;&gt;<i> explicit support for them in API form would not (imho) be unduly 
+</I>&gt;&gt;<i> burdensome.
+</I>&gt;<i> 
+</I>&gt;<i> Autoplay is handled without having to do these calculations, as far as I 
+</I>&gt;<i> can tell. I don't see any reason why the UA would need to do these 
+</I>&gt;<i> calculations actually. If there are compelling use cases, though, I'm 
+</I>&gt;<i> happy to add such accessors.
+</I>
+
+Well, how exactly is autoplay handled in a media group?  Does the entire media group start playing when the first media element in a group with it's autoplay attribute set reaches HAVE_ENOUGH_DATA?
+
+-Jer
+
+&#63743; Jer Noble &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">jer.noble at apple.com</A>&gt;
+
+</PRE>
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="031211.html">[whatwg] How to handle multitrack media resources in HTML
+</A></li>
+	<LI>Next message: <A HREF="031222.html">[whatwg] How to handle multitrack media resources in HTML
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#31216">[ date ]</a>
+              <a href="thread.html#31216">[ thread ]</a>
+              <a href="subject.html#31216">[ subject ]</a>
+              <a href="author.html#31216">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

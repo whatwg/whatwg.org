@@ -1,0 +1,677 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg]  Proposal for separating script downloads and execution
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20%20Proposal%20for%20separating%20script%20downloads%20and%20execution&In-Reply-To=%3CPine.LNX.4.64.1105232146420.19153%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="031766.html">
+   <LINK REL="Next"  HREF="074047.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg]  Proposal for separating script downloads and execution</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20%20Proposal%20for%20separating%20script%20downloads%20and%20execution&In-Reply-To=%3CPine.LNX.4.64.1105232146420.19153%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg]  Proposal for separating script downloads and execution">ian at hixie.ch
+       </A><BR>
+    <I>Mon May 23 18:35:55 PDT 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="031766.html">[whatwg] Allowing size and maxlength attributes for all new input types would provide better fallbacks
+</A></li>
+        <LI>Next message: <A HREF="074047.html">[whatwg] Proposal for separating script downloads and execution
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#31768">[ date ]</a>
+              <a href="thread.html#31768">[ thread ]</a>
+              <a href="subject.html#31768">[ subject ]</a>
+              <a href="author.html#31768">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>
+This thread was rather light on use cases and heavy on conjecture and 
+proposals. To make sure that we don't add features that are not actually 
+necessary, I have reordered this thread to go through the use cases first, 
+and to then only consider proposals based on how they address those use 
+cases. I have ignored all arguments drawn from conjecture and only looked 
+at those based on measured data or first-hand knowledge. If you think I 
+have ignored your e-mail incorrectly, please do not hesitate to bring my 
+attention to it; despite reading through the 158 messages on this thread 
+twice, I may have missed something important! Finally, at the end of this 
+e-mail I respond to several e-mails that purport to describe problems but 
+fail to do so, to illustrate the importance of actually describing the 
+real problem we are trying to solve before suggesting solutions.
+
+
+USE CASES
+
+Problem A:
+
+On Tue, 8 Feb 2011, John Tamplin wrote:
+&gt;<i>
+</I>&gt;<i> simply parsing the downloaded script takes a lot of time and interferes 
+</I>&gt;<i> with user interaction with the UI, so as awkward as it seems, 
+</I>&gt;<i> downloading the script in a comment in the background, and then 
+</I>&gt;<i> evaluating it when needed does provide a better user experience on 
+</I>&gt;<i> mobile devices.
+</I>&gt;<i> 
+</I>&gt;<i> See 
+</I>&gt;<i> <A HREF="http://googlecode.blogspot.com/2009/09/gmail-for-mobile-html5-series-reducing.html">http://googlecode.blogspot.com/2009/09/gmail-for-mobile-html5-series-reducing.html</A> 
+</I>&gt;<i> for the official blog post about this technique.
+</I>
+The problem here seems to boil down to &quot;we want our script-heavy page to 
+load fast without blocking UI, but browsers block the UI thread while 
+parsing after downloading but before executing&quot;.
+
+
+On Thu, 10 Feb 2011, John Tamplin wrote:
+&gt;<i> 
+</I>&gt;<i> [...] on mobile phones in particular the process of reading the contents 
+</I>&gt;<i> of a script tag [...] is way too slow and interrupts the UI.
+</I>
+Right, that's the same problem.
+
+I shall refer to this as &quot;problem A&quot; below.
+
+
+On Fri, 11 Feb 2011, Glenn Maynard wrote:
+&gt;<i> 
+</I>&gt;<i> Javascript applications are bigger and more complex than they used to 
+</I>&gt;<i> be, and they'll only get bigger and yet more complex.  Having codebases 
+</I>&gt;<i> several megabytes in size in the future seems a fair prediction.  Once 
+</I>&gt;<i> we get to that point, having browsers parse all of that at once, no 
+</I>&gt;<i> matter how fast parsers are, seems unreasonable
+</I>
+Why? The parsing doesn't have to block loading; it can all happen in the 
+background, while the page is loading.
+
+
+&gt;<i> we should have a solid framework to allow modular codebases, as every 
+</I>&gt;<i> other serious application platform has.
+</I>
+I'm not sure what you mean by &quot;modular&quot;. Do you mean like dynamic linking 
+to libraries, where code is loaded later? We can do that now, just insert 
+a &lt;script&gt; element dynamically. Do you mean like system services? We can 
+do that now, with shared workers, which load in the background and are 
+shared amongst tabs. Do you mean like namespacing? That's a language-level 
+feature, I don't think HTML would be the right place to solve that.
+
+I'm not sure what problem you mean here exactly.
+
+
+&gt;<i> It also seems like it may become very useful to allow browsers to spend 
+</I>&gt;<i> time (whether idle time or otherwise) not just on parsing but on more 
+</I>&gt;<i> expensive optimizations, and having a framework that gives them access 
+</I>&gt;<i> to scripts to do that in advance seems like a very good idea.
+</I>
+&lt;script async&gt; seems to do this already.
+
+
+PROPOSALS
+
+The simplest solution to problem A seems to be to have the browsers do the 
+script parsing on a background thread, rather than blocking the UI. This 
+requires no changes to the specification at all. It can be combined with 
+lazy downloading by inserting a &lt;script&gt; node when the script is needed; 
+basically, it is combining the &quot;downloading&quot; and &quot;parsing&quot; background 
+steps into one. There doesn't seem to be any need to treat them as 
+separate steps for solving problem A.
+
+
+On Tue, 1 Feb 2011, Nicholas Zakas wrote:
+&gt;<i> 
+</I>&gt;<i> Add a new attribute to the &lt;script&gt; called noexecute (for lack of a 
+</I>&gt;<i> better term) that instructs the browser to download the script but do 
+</I>&gt;<i> not execute it. Developers must manually execute the code by calling an 
+</I>&gt;<i> execute() method on the script node. Simple example:
+</I>&gt;<i> 
+</I>&gt;<i> var script = document.createElement(&quot;script&quot;);
+</I>&gt;<i> script.noexecute = true;
+</I>&gt;<i> script.src = &quot;foo.js&quot;;
+</I>&gt;<i> document.head.appendChild(script);
+</I>&gt;<i> 
+</I>&gt;<i> //later
+</I>&gt;<i> script.execute();
+</I>
+Given that script execution (as opposed to the preprocessing that occurs 
+before execution, including parsing and compilation) can be trivially 
+fast (e.g. by making the script do nothing but expose an object), what is 
+the benefit of delaying the execution?
+
+This doesn't seem to address problem A.
+
+
+On Tue, 1 Feb 2011, Kyle Simpson wrote:
+&gt;<i> 
+</I>&gt;<i> In step 12:
+</I>&gt;<i> &quot;For performance reasons, user agents may start fetching the script as 
+</I>&gt;<i> soon as the attribute is set, instead, in the hope that the element will 
+</I>&gt;<i> be inserted into the document. Either way, once the element is inserted 
+</I>&gt;<i> into the document, the load must have started. If the UA performs such 
+</I>&gt;<i> prefetching, but the element is never inserted in the document, or the 
+</I>&gt;<i> src attribute is dynamically changed, then the user agent will not 
+</I>&gt;<i> execute the script, and the fetching process will have been effectively 
+</I>&gt;<i> wasted.&quot;
+</I>&gt;<i> 
+</I>&gt;<i> In other words, you can begin downloading one or more scripts (but not 
+</I>&gt;<i> executing them) by simply creating a script element dynamically and 
+</I>&gt;<i> setting its `src` property. The script will not be executed (even if it 
+</I>&gt;<i> finishes downloading) until the script element is added to the DOM. In 
+</I>&gt;<i> this way, you can easily create several script elements (but not append 
+</I>&gt;<i> them to the DOM), and then when you want to execute them, you simply 
+</I>&gt;<i> append them to the DOM in the order you prefer.
+</I>
+Given that the time the script takes to execute is already under the 
+control of the author, and can be trivially short, this solution doesn't 
+seem to address problem A: anything the browser does in the background 
+before the &lt;script&gt; is inserted can just as easily be done in the 
+background after the &lt;script&gt; is inserted.
+
+
+&gt;<i> IE goes one step further, which I think is useful, which is to give a 
+</I>&gt;<i> `readyState` (and `onreadystatechange` event handling) to the script 
+</I>&gt;<i> element, which notifies the code of the state of this &quot;preloading&quot;. Why 
+</I>&gt;<i> this is useful is that you may choose to wait until all scripts have 
+</I>&gt;<i> finished loading before starting to execute them. Being notified of when 
+</I>&gt;<i> they finish loading (but not executing) can be a very useful addition to 
+</I>&gt;<i> this technique.
+</I>
+The problem with this technique is that there's no guarantee that the 
+script will be downloaded at all -- it depends on the UA's belief about 
+what will lead to the best experience. For example, if the system has idle 
+cycles, it might happen sooner than if the UA is extremely busy already. 
+That's rather the point of the feature. :-)
+
+Also, readyState isn't actually especially useful here, at least not in 
+the context of problem A. Consider the two possibilities: (1) by the time 
+you want to run the script, it is already loaded, and (2) by the time you 
+want to run the script, it is not yet loaded. In (1), you can insert the 
+element into the DOM and it'll just work. And in (2)... well you want the 
+script to run ASAP, so why wait? You just insert the element into the DOM 
+and as soon as it can, the UA will execute it, and so again, it just 
+works. No need to track when it is ready.
+
+If you need to track when it's ready to make sure you execute another 
+script after it, then just using the 'load' event on &lt;script&gt; is 
+sufficent: just wait for the previous script to have run, then insert the 
+one you care about. But really, it seems better to structure your scripts 
+so that they don't do anything when they are run except expose a callback 
+that you can run when you want the code to run.
+
+
+&gt;<i> The wording in the spec lists this idea as &quot;may&quot;. I suggest that the 
+</I>&gt;<i> discussion Nicholas has proposed should shift to discussing if the spec 
+</I>&gt;<i> should:
+</I>&gt;<i>
+</I>&gt;<i> 1) change &quot;may&quot; to &quot;shall&quot; or &quot;will&quot; to move it from being a suggestion 
+</I>&gt;<i> to being a directly specified thing (that way the other browsers besides 
+</I>&gt;<i> IE have incentive to eventually include it)
+</I>
+(As a side-note, in the HTML spec the words &quot;shall&quot; and &quot;will&quot; don't have 
+any normative meaning. See the &quot;Conformance requirements&quot; section.)
+
+We could change &quot;may&quot; to &quot;must&quot;, but it would merely constrain 
+implementations further: instead of being able to optimise in certain 
+situations by _not_ fetching scripts that might never be used, it would 
+force the network to be used in these situations. That seems like a loss, 
+and does nothing to address problem A.
+
+
+On Tue, 1 Feb 2011, Nicholas Zakas wrote:
+&gt;<i>
+</I>&gt;<i> The major issue I have with the way the spec is written is that there is 
+</I>&gt;<i> no way to feature detect this capability.
+</I>
+That is entirely intentional: it's a UA optimisation; we don't want to 
+expose those, as it constrains what UAs can do to improve.
+
+
+On Thu, 3 Feb 2011, Jonas Sicking wrote:
+&gt;<i> 
+</I>&gt;<i> One reason I like the noexecute proposal more than relying on readyState 
+</I>&gt;<i> is that noexecute can be used in markup. I.e. you can do things like:
+</I>&gt;<i> 
+</I>&gt;<i> &lt;html&gt;
+</I>&gt;<i> &lt;head&gt;
+</I>&gt;<i> &lt;script src=a.js noexecute onload=&quot;...&quot;&gt;
+</I>&gt;<i> &lt;script src=b.js noexecute onload=&quot;...&quot;&gt;
+</I>&gt;<i> &lt;script src=c.js noexecute onload=&quot;...&quot;&gt;
+</I>&gt;<i> &lt;/head&gt;
+</I>
+What would the onload=&quot;...&quot;s be? I don't understand the benefit of not 
+executing the scripts here. If you want your scripts to not do anything, 
+just have them not do anything except expose a function that you can call 
+whenever you want the actual code to run.
+
+
+On Thu, 3 Feb 2011, Kyle Simpson wrote:
+&gt;<i> 
+</I>&gt;<i> Doesn't &lt;link rel=prefetch&gt; mostly address the use-case of 
+</I>&gt;<i> load-but-don't-execute in markup?
+</I>
+&lt;link rel=prefetch&gt; doesn't solve problem A because it doesn't give the UA 
+any hint that the resource is a script it should compile.
+
+
+On Thu, 10 Feb 2011, John Tamplin wrote:
+&gt;<i>
+</I>&gt;<i> [problem A] has driven crude hacks like the comment hack, which in fact 
+</I>&gt;<i> precludes the browsers [ever] getting smarter about doing the 
+</I>&gt;<i> parsing/etc in the background or during idle time.
+</I>
+I don't see why it would preclude them from getting smarter. The smarts 
+wouldn't improve the pages with the hacks, but that's ok. It doesn't hurt 
+them either.
+
+
+&gt;<i> This proposal is about a way to hint to the browser that only the 
+</I>&gt;<i> download part should happen now, and the parsing/execution of the 
+</I>&gt;<i> downloaded script will happen later, which in fact enables smarter 
+</I>&gt;<i> browsers to make smarter decisions.
+</I>
+That doesn't solve problem A: you still end up blocking the UI when you do 
+the parsing if that's all you change.
+
+
+On Fri, 11 Feb 2011, Bjoern Hoehrmann wrote:
+&gt;<i> 
+</I>&gt;<i> [...] some analyis beyond the simple &quot;&lt;script&gt; processing seems slow 
+</I>&gt;<i> right now, so let authors say don't process a &lt;script&gt; with side-effects 
+</I>&gt;<i> until the author commands it&quot; is. In Perl for instance the problem is 
+</I>&gt;<i> solved with AUTOLOAD, a routine that is called when a subroutine is 
+</I>&gt;<i> undefined, to act in its stead.
+</I>
+AUTOLOAD doesn't reduce the time the parser spends blocking the UI thread; 
+it just spreads the time around. That doesn't really work for UI, where 
+it would cause jerkiness.
+
+
+On Wed, 9 Feb 2011, Alexandre Morgaut wrote:
+&gt;<i> 
+</I>&gt;<i> &lt;link rel=&quot;prefetch&quot; type=&quot;text/javascript&quot; src=&quot;myscript.js&quot;&gt;
+</I>&gt;<i> 
+</I>&gt;<i> let the link HTML Element have an execute() method [...]
+</I>
+This seems equivalent to the noexecute=&quot;&quot; idea, but with different (worse) 
+legacy behaviour. I don't see how it solves problem A.
+
+
+On Wed, 9 Feb 2011, Alexandre Morgaut wrote:
+&gt;<i> 
+</I>&gt;<i> Adding a &quot;required&quot; relationShip could be more appropriate way
+</I>&gt;<i> 
+</I>&gt;<i> &lt;link id=&quot;someScript&quot; rel=&quot;required&quot; type=&quot;text/javascript&quot; src=&quot;someData.js&quot;&gt;
+</I>&gt;<i> &lt;link id=&quot;someData&quot; rel=&quot;required&quot; type=&quot;application/json&quot; src=&quot;someData.json&quot;&gt;
+</I>&gt;<i> &lt;link id=&quot;aTemplate&quot; rel=&quot;required&quot; type=&quot;text/html&quot; src=&quot;myTemplate.html&quot;&gt;
+</I>
+This seems the same.
+
+
+&gt;<i> This would still need:
+</I>&gt;<i> - a &quot;content&quot; property on HTML link elements (which may be also useful to access raw CSS definition)
+</I>
+This wouldn't work for cross-site cases.
+
+
+On Wed, 9 Feb 2011, John Tamplin wrote:
+&gt;<i> 
+</I>&gt;<i> Well, there is only a certain amount of processing power to go around.  
+</I>&gt;<i> No matter how well it is implemented, time spent parsing is time that 
+</I>&gt;<i> can't be spent doing other things if the app is pushing the client to 
+</I>&gt;<i> the limit, and it makes sense to let the app provide hints of when is a 
+</I>&gt;<i> good time to spend that effort and when isn't a good time.
+</I>
+It seems like &quot;when there's nothing else going on&quot; is the best time. How 
+would the script know when that is better than the UA?
+
+
+&gt;<i> I am not sure I understand why you are so opposed to providing a 
+</I>&gt;<i> mechanism for an application to tell the browser it would like the 
+</I>&gt;<i> parsing to not necessarily be performed immediately on a downloaded 
+</I>&gt;<i> script.
+</I>
+It's clear that the parsing/compiling has to happen between download and 
+execution, it seems that the browser is in the best position to know when 
+it could do it with minimal impact on the rest of the system. If you just 
+want it to happen soon but don't care exactly when, we have &quot;async&quot;. If 
+you want it to happen now, then the spec also supports that. It's not 
+clear why anything else is needed.
+
+
+On Tue, 22 Feb 2011, Glenn Maynard wrote:
+&gt;<i> 
+</I>&gt;<i> 3. My (and Nicholas's previous) proposal: Script elements are fetched 
+</I>&gt;<i> when inserted into the DOM[1].  An event is dispatched when the script 
+</I>&gt;<i> has been fetched, eg. &quot;onfetch&quot; or &quot;onpreload&quot;[2].  A &quot;preload&quot; 
+</I>&gt;<i> attribute is added; when true, the script will not be executed when the 
+</I>&gt;<i> fetch completes; call script.execute() to run the script.
+</I>
+The &quot;preload&quot;/onpreload part of this seems unnecesssary to solve problem 
+A: by the time the event fires, all the difficult work is done, and the 
+execution (the only thing this would allow you to delay, and the only 
+thing that has to block the UI thread) can be trivial in comparison. It 
+would be equivalent to just wrapping the code in the script in a function 
+that invokes the event manually and lets you call a callback.
+
+
+The only proposed solution that seems to actually solve problem A is for 
+the browsers to do the compilation stage in the background. There's 
+nothing we need to add to the platform to support this, it will just work.
+
+Now it's possible that there are other use cases that we should consider 
+that were not raised on this thread. If so, I encourage people to explain 
+the problem / use case with concrete examples in a new thread, without 
+conflating them with proposals. Then we can consider how to solve them.
+
+
+
+SOME OTHER COMMENTS
+
+On Tue, 1 Feb 2011, Nicholas Zakas wrote:
+&gt;<i>
+</I>&gt;<i> Problem Statement:
+</I>&gt;<i> 
+</I>&gt;<i> Loading JavaScript onto a page poses several performance issues.
+</I>
+Which issues?
+
+
+&gt;<i> With a regular &lt;script&gt; tag, the UA waits for download and then waits 
+</I>&gt;<i> for execution. The defer attribute helps by not blocking on download and 
+</I>&gt;<i> deferring execution until later but preserves execution order; the async 
+</I>&gt;<i> attribute helps by not blocking on download but does block on execution 
+</I>&gt;<i> (the timing of which cannot be controlled) and does not preserve order.
+</I>
+This doesn't seem to be a problem.
+
+
+&gt;<i> Each of the existing solutions shifts around when download and execution 
+</I>&gt;<i> happens by giving developers control over when the download occurs but 
+</I>&gt;<i> only minimally when execution happens. As a result, developers have 
+</I>&gt;<i> created ever more ingenius/fragile solutions to allow the separation of 
+</I>&gt;<i> script downloads and execution. Examples:
+</I>&gt;<i> 
+</I>&gt;<i> 1. Preloading JS without execution 
+</I>&gt;<i> (<A HREF="http://www.phpied.com/preload-cssjavascript-without-execution/">http://www.phpied.com/preload-cssjavascript-without-execution/</A>) by 
+</I>&gt;<i> Stoyan Stefanov, which describes how to download JavaScript without 
+</I>&gt;<i> execution it, as a cache-warming technique.
+</I>&gt;<i>
+</I>&gt;<i> 2. ControlJS (<A HREF="http://stevesouders.com/controljs/">http://stevesouders.com/controljs/</A>) by Steve Souders, 
+</I>&gt;<i> which extends Stoyan's model to allow on-demand execution of scripts.
+</I>&gt;<i>
+</I>&gt;<i> 3. Gmail putting JavaScript in comments and then parsing later 
+</I>&gt;<i> (<A HREF="http://googlecode.blogspot.com/2009/09/gmail-for-mobile-html5-series-reducing.html">http://googlecode.blogspot.com/2009/09/gmail-for-mobile-html5-series-reducing.html</A>) 
+</I>&gt;<i> to enable download without execution and then execution on-demand.
+</I>
+What problems do these solutions solve?
+
+
+On Thu, 3 Feb 2011, Steve Souders wrote:
+&gt;<i>
+</I>&gt;<i> This behavior is important to the next generation of web apps, 
+</I>&gt;<i> especially for mobile.
+</I>&gt;<i>     - download the bytes of JS now
+</I>&gt;<i>     - execute later when specified (eg, when the user initiates a feature)
+</I>
+Why?
+
+
+On Tue, 8 Feb 2011, Kyle Simpson wrote:
+&gt;<i> 
+</I>&gt;<i> For the purposes of this discussion, we are combining (but safely so, I 
+</I>&gt;<i> believe) &quot;execution&quot; and &quot;parsing&quot;, and saying that we want to be able 
+</I>&gt;<i> to defer the &quot;parse/execution&quot; phase of script loading.
+</I>
+I don't see any good reason to combine them. They seem emminently 
+separable and have very different characteristics (e.g. one has to be 
+synchronous, the other does not; one has side-effects, the other does not, 
+one's results can be cached, the other cannot, one can be made essentially 
+zero-cost by the author, the other cannot, etc).
+
+
+On Tue, 8 Feb 2011, John Tamplin wrote:
+&gt;<i> 
+</I>&gt;<i> I think it is useful to provide ignorable hints to browser to indicate 
+</I>&gt;<i> that you want this downloaded but you don't need it parsed right away.
+</I>
+What's the use case?
+
+
+On Tue, 8 Feb 2011, Kyle Simpson wrote:
+&gt;<i> 
+</I>&gt;<i> I would first refer you to the use-cases that Steve Souders has 
+</I>&gt;<i> documented around his ControlJS library. His commentary on this topic is 
+</I>&gt;<i> far more comprehensive than anything I can rabble off here.
+</I>&gt;<i> 
+</I>&gt;<i> <A HREF="http://www.stevesouders.com/blog/2010/12/15/controljs-part-1/">http://www.stevesouders.com/blog/2010/12/15/controljs-part-1/</A>
+</I>
+I don't really see any use cases there.
+
+
+On Fri, 11 Feb 2011, Will Alexander wrote:
+&gt;<i> 
+</I>&gt;<i>   Consider the controljs example in which the menu code does not load 
+</I>&gt;<i> until it is clicked.  There's no requirement that it run synchronously 
+</I>&gt;<i> so it is acceptable for the script's execution to simply be scheduled in 
+</I>&gt;<i> response to the click event.  A non-prefetching browser would not be as 
+</I>&gt;<i> &quot;performant&quot; but would still work.
+</I>
+Why not just run the code sometime before it is needed, while the page is 
+idle? Why is it necessary to delay the load until the last possible 
+minute? What problem are we solving? Problem A can't be the problem being 
+solved here, since the execution takes a trivially short time compared to 
+the download and compiling.
+
+
+On Tue, 8 Feb 2011, Kyle Simpson wrote:
+&gt;<i> 
+</I>&gt;<i> No matter how good the implementation of the JavaScript engine on 
+</I>&gt;<i> mobile, the mobile device will always be much more limited in processing 
+</I>&gt;<i> power than a desktop browser environment.
+</I>
+Mobile devices are hardly limited in power anymore. Heck, by the time 
+anything we discuss here is widely implemented, the average phone will 
+probably be dual-core. Our phones these days are ridiculously powerful.
+
+
+&gt;<i> 1. One use-case that I *am* quite familiar with is: script loaders (like 
+</I>&gt;<i> mine, LABjs) have the need to be able to download multiple scripts in 
+</I>&gt;<i> parallel (again, for performance optimization, but not just for 
+</I>&gt;<i> mobile!), but it's quite common that some scripts have dependencies on 
+</I>&gt;<i> each other.
+</I>
+Script loaders aren't a problem, they're a solution. What is the use case?
+
+
+&gt;<i> The problem is that scripts loaded dynamically are not guaranteed to 
+</I>&gt;<i> execute in any particular order. A mechanism for loading files in 
+</I>&gt;<i> parallel but controlling (or enforcing) their execution order, is 
+</I>&gt;<i> necessary.
+</I>
+There are a number of solutions to this problem now (onload, defer/async, 
+.async, the careful definitions of insertion/execution order, etc). What 
+is wrong with them that we need more solutions?
+
+
+&gt;<i> For instance, if I have two groups of scripts (&quot;A.js&quot;, &quot;B.js&quot; and 
+</I>&gt;<i> &quot;C.js&quot;) and (&quot;D.js&quot;, &quot;E.js&quot;, and &quot;F.js&quot;). Within each group, the order 
+</I>&gt;<i> must be maintained, but the two groups are completely independent. As 
+</I>&gt;<i> &quot;async=false&quot; is currently implemented, you cannot accomplish isolating 
+</I>&gt;<i> the two groups of scripts from affecting each other. The &quot;D,E,F&quot; group 
+</I>&gt;<i> will be forced to wait for the &quot;A,B,C&quot; group to finish executing.
+</I>
+When does this happen? Do you have a concrete example?
+
+Note that there are multiple solutions to this already:
+
+ - put A,B,C into one file and D,E,F into one file.
+ - write the scripts so that they don't rely on each other during 
+   execution, but instead expose a function that you can call when you 
+   want, e.g. when they are all loaded.
+ - run the scripts in two iframes.
+ - create &lt;script&gt; elements ahead of time and insert then in order, 
+   allowing the browser to download and compile them in parallel, but 
+   insert them in the order you need them, when they are ready, using 
+   onload to trigger B from A and C from B, etc.
+
+
+&gt;<i> 2. Another plausible use-case that occurs to me is loading two 
+</I>&gt;<i> overlapping plugins (like for jQuery, for instance). The author may have 
+</I>&gt;<i> a simple calendar widget and a much more complex calendar widget, and 
+</I>&gt;<i> the two may conflict or overlap in such a way that only one should be 
+</I>&gt;<i> executed. But for speed of response, the author may want to &quot;preload&quot; 
+</I>&gt;<i> both plugins and have them waiting on hand, and depending on what action 
+</I>&gt;<i> the user takes (or the state of data from an Ajax request), may then 
+</I>&gt;<i> decide at run-time which of the two plugins to execute.
+</I>
+Do you have a page that tries to do that kind of thing? I don't think I've 
+ever come across this kind of thing.
+
+
+&gt;<i> In 95% of cases, I'd probably agree.
+</I>
+We're only generally aiming for 80% of cases, so if what we have now 
+handles 95% of cases, we're well past done!
+
+
+&gt;<i> Most of the time, when a dev is painted into the corner in one of those 
+</I>&gt;<i> 5% of cases where the browser's &quot;smarts&quot; are hindering their goal, it 
+</I>&gt;<i> feels like the balance is too far to the side of &quot;let that be black-box 
+</I>&gt;<i> inside the browser and you just don't worry about it&quot; to give a web 
+</I>&gt;<i> author much of an option.
+</I>
+We're explicitly not trying to handle rare cases. There's too many big 
+things to fix still to worry about the little ones.
+
+
+On Wed, 23 Feb 2011, Boris Zbarsky wrote:
+&gt;<i> On 2/23/11 9:14 AM, Kyle Simpson wrote:
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; I strongly disagree with this characterization, based solely on the 
+</I>&gt;<i> &gt; fact that the wording of the current spec already says to do exactly 
+</I>&gt;<i> &gt; as I'm proposing. That's not a &quot;compatibility hack&quot;, that's further 
+</I>&gt;<i> &gt; standardizing the wisdom that the spec writers already thought through 
+</I>&gt;<i> &gt; and codified.
+</I>&gt;<i> 
+</I>&gt;<i> I think you're overestimating the &quot;wisdom&quot; and &quot;thought through&quot;, but 
+</I>&gt;<i> I'll let hixie respond to that.  It's just as likely that he just 
+</I>&gt;<i> specced the IE behavior as optional because IE was already doing it and 
+</I>&gt;<i> wasn't planning to change, and moved on.
+</I>
+Boris is entirely correct.
+
+
+On Thu, 3 Feb 2011, Kyle Simpson wrote:
+&gt;<i> 
+</I>&gt;<i> However, it's already possible to address that same use-case using 
+</I>&gt;<i> existing behavior... by simple specifying a bogus `type` for the inline 
+</I>&gt;<i> script element. Some JS templating solutions make use of this behavior, 
+</I>&gt;<i> like:
+</I>&gt;<i> 
+</I>&gt;<i> &lt;script type=&quot;template/foobar&quot;&gt;
+</I>&gt;<i> ...
+</I>&gt;<i> &lt;/script&gt;
+</I>
+Note that per spec this can't be a _bogus_ type, it has to be the actual 
+type of the data used in the data block.
+
+
+On Tue, 22 Feb 2011, Glenn Maynard wrote:
+&gt;<i> 
+</I>&gt;<i> To briefly restate the third proposal, so it's not lost in the noise [...]
+</I>
+Don't worry, I read every e-mail.
+
+
+Incidentally, just as a parting note: a lot of e-mails on this thread 
+seemed concerned about how hard something was to spec, for example 
+preferring solutions grounded in existing spec text, and avoiding 
+solutions that might be simple to implement but hard to spec. For the 
+record, how hard something is to spec is not an important consideration. 
+What matters is whether we solve use cases for authors, and within those 
+constraints, that we get something interoperable implemented in all the 
+relevant user agents (typically browsers, validators, or editors).
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="031766.html">[whatwg] Allowing size and maxlength attributes for all new input types would provide better fallbacks
+</A></li>
+	<LI>Next message: <A HREF="074047.html">[whatwg] Proposal for separating script downloads and execution
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#31768">[ date ]</a>
+              <a href="thread.html#31768">[ thread ]</a>
+              <a href="subject.html#31768">[ subject ]</a>
+              <a href="author.html#31768">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

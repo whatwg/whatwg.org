@@ -1,0 +1,184 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Implementation difficulties for MediaController
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Implementation%20difficulties%20for%20MediaController&In-Reply-To=%3CPine.LNX.4.64.1103300347210.25791%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="073350.html">
+   <LINK REL="Next"  HREF="073355.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Implementation difficulties for MediaController</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Implementation%20difficulties%20for%20MediaController&In-Reply-To=%3CPine.LNX.4.64.1103300347210.25791%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg] Implementation difficulties for MediaController">ian at hixie.ch
+       </A><BR>
+    <I>Tue Mar 29 21:05:02 PDT 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="073350.html">[whatwg] Implementation difficulties for MediaController
+</A></li>
+        <LI>Next message: <A HREF="073355.html">[whatwg] Implementation difficulties for MediaController
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#73354">[ date ]</a>
+              <a href="thread.html#73354">[ thread ]</a>
+              <a href="subject.html#73354">[ subject ]</a>
+              <a href="author.html#73354">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Tue, 29 Mar 2011, Jer Noble wrote:
+&gt;<i> 
+</I>&gt;<i> Contained is Eric and my feedback as to the difficulty of implementing 
+</I>&gt;<i> this proposal in Apple's port of WebKit:
+</I>
+Thank you very much for your feedback. I'll look into it more tomorrow 
+when I update the spec, but in the meantime I had some additional 
+questions:
+
+
+&gt;<i> &gt; * playing tracks synchronised at different offsets
+</I>&gt;<i> 
+</I>&gt;<i> However, if the in-band tracks will be played at a different time 
+</I>&gt;<i> offsets, or at different rates, playback becomes just as inefficient as 
+</I>&gt;<i> playing independent files.  To implement this we will have to open two 
+</I>&gt;<i> instances of a movie, enable different tracks on each, and then play the 
+</I>&gt;<i> two instances in sync.
+</I>
+Is that acceptable? That is, are you ok with implementing multiple file 
+(or two instances of the same file at different offsets) synchronisation?
+
+
+&gt;<i> &gt; * playing tracks at different rates
+</I>&gt;<i> 
+</I>&gt;<i> In addition to the limitation listed above, efficient playback of tracks 
+</I>&gt;<i> at different rates will require all tracks to be played in the same 
+</I>&gt;<i> direction.
+</I>
+Ah, interesting.
+
+Is it acceptable to implement multiple playback at different rates if 
+they're all in the same direction, or would you (at least for now) be 
+significantly helped by forcing the playback rates to be the same for all 
+slaved media tracks?
+
+
+&gt;<i> &gt; * changing any of the above while media is playing vs when it is 
+</I>&gt;<i> &gt; stopped
+</I>&gt;<i> 
+</I>&gt;<i> Modifying the media groups while the media is playing is probably 
+</I>&gt;<i> impossible to do without stalling.  The media engine may have thrown out 
+</I>&gt;<i> unneeded data from disabled tracks and may have to rebuffer that data, 
+</I>&gt;<i> even in the case of in-band tracks.
+</I>
+That makes sense. There's several ways to handle this; the simplest is 
+probably to say that when the list of synchronised tracks is changed, 
+or when the individual offsets of each track or the individual playback 
+rates of each track are changed, the playback of the entire group should 
+be automatically stopped. Is that sufficient?
+
+(In the future, if media frameworks optimise these cases, or if hardware 
+advances sufficiently that even inefficient implementations of this are 
+adequate, we could add a separate flag that controls whether or not this 
+automatic pausing happens.)
+
+
+&gt;<i> From a user's point of view, your proposal seems more complicated than 
+</I>&gt;<i> the basic use cases merit.  For example, attempting to fix the 
+</I>&gt;<i> synchronization of improperly authored media with micro-adjustments of 
+</I>&gt;<i> the playback rate isn't likely to be very successful or accurate.  The 
+</I>&gt;<i> metronome case, while an interesting experiment, would be better served 
+</I>&gt;<i> through something like the proposed Audio API.
+</I>
+Indeed. The use cases you mention here aren't the driving factor in this 
+design, they're just enabled mostly as a side-effect. The driving factor 
+is to avoid the symmetry problem described below:
+
+&gt;<i> Slaving multiple media elements' playback rate and current time to a 
+</I>&gt;<i> single master media element, Silvia and Eric's proposal, seems to 
+</I>&gt;<i> achieve the needs of the broadest use cases.
+</I>
+The problem with this design is that it is highly asymetric. The 
+implementation of a media element needs to have basically two modes: slave 
+and master, where the logic for both can be quite different. (Actually, 
+three modes if you count the lone media element case as a separate mode.) 
+This then also spills into the API, where the master is exposing both the 
+network state of its own media, as well as the overall state of playback. 
+We end up having to handle all kinds of special cases, such as what 
+happens when the master track is shorter than a slaved track, or what 
+happens when the master track is paused vs when a slaved track is paused. 
+It's not impossible to do, but it is significantly more messy than simply 
+having a distinct &quot;master&quot; object and having all the media elements only 
+deal with one &quot;mode&quot; (two if a lone media element counts as separate), 
+namely the &quot;slave&quot; mode. Any asymetry is reflected as differences between 
+the controller and the media element. Each media element only has to deal 
+with its own networking state, etc.
+
+For an example of why this matters, consider the use case of a movie site 
+with the option of playing movies with a director's commentary track. Some 
+director's commentaries are shorted than the movie (most, in fact, since 
+many directors stop commenting on the movie when the credits start!). Some 
+are longer (e.g. some Futurama commentaries, where the commentary is 
+basically a bunch of the cast and crew chatting away for a while and 
+sometimes they don't really care that the show is over, they still have 
+stuff to talk about). If we have to make a media element into the master, 
+then how do we handle this case without the site having to determine ahead 
+of time which is the longer track to decide which to use as the master?
+
+With just a controller, it doesn't matter.
+
+(Admittedly, as currently specified the controller object lacks a defined 
+&quot;current time&quot; and min and max times, and an Web app would have to 
+determine what the seek bar should display by looking at all the tracks. 
+But we can fix that in a later version. It's much harder to fix in the 
+case of one media element being promoted to a different state than the 
+others, since we already have defined what the media element API does.)
+
+
+&gt;<i> If adding independent playback rates becomes necessary later, adding 
+</I>&gt;<i> this support in a future revision will be possible.
+</I>
+Individual playback control is definitely not a critical use case, it's 
+just something that falls out of the design when you have a separate 
+controller object.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="073350.html">[whatwg] Implementation difficulties for MediaController
+</A></li>
+	<LI>Next message: <A HREF="073355.html">[whatwg] Implementation difficulties for MediaController
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#73354">[ date ]</a>
+              <a href="thread.html#73354">[ thread ]</a>
+              <a href="subject.html#73354">[ subject ]</a>
+              <a href="author.html#73354">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

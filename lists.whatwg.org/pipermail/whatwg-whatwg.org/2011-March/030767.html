@@ -1,0 +1,199 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Ongoing work on an editing commands (execCommand())	specification
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Ongoing%20work%20on%20an%20editing%20commands%20%28execCommand%28%29%29%0A%09specification&In-Reply-To=%3CAANLkTimcwrN3H%2B_gRZO-62oNh6JyH-0pestr2mRr5MsO%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="030751.html">
+   <LINK REL="Next"  HREF="030772.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Ongoing work on an editing commands (execCommand())	specification</H1>
+<!--htdig_noindex-->
+    <B>Aryeh Gregor</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Ongoing%20work%20on%20an%20editing%20commands%20%28execCommand%28%29%29%0A%09specification&In-Reply-To=%3CAANLkTimcwrN3H%2B_gRZO-62oNh6JyH-0pestr2mRr5MsO%40mail.gmail.com%3E"
+       TITLE="[whatwg] Ongoing work on an editing commands (execCommand())	specification">Simetrical+w3c at gmail.com
+       </A><BR>
+    <I>Wed Mar  2 11:18:08 PST 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="030751.html">[whatwg] Ongoing work on an editing commands (execCommand())	specification
+</A></li>
+        <LI>Next message: <A HREF="030772.html">[whatwg] Ongoing work on an editing commands (execCommand()) specification
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#30767">[ date ]</a>
+              <a href="thread.html#30767">[ thread ]</a>
+              <a href="subject.html#30767">[ subject ]</a>
+              <a href="author.html#30767">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Tue, Mar 1, 2011 at 5:11 PM, Ryosuke Niwa &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">rniwa at webkit.org</A>&gt; wrote:
+&gt;<i> Styling a Range doesn't support styleWithCSS=false
+</I>
+I saw this feature in Mozilla's docs, but I don't really get it.  What
+use-cases does it have?  Why do we need to support both ways of doing
+things if they create the same visible effect?
+
+&gt;<i> Ignores possibility of JavaScript&#160;modifying&#160;DOM while your algorithm is
+</I>&gt;<i> running - This is actually consistent with TOT WebKit where dispatches of
+</I>&gt;<i> DOM mutation events are delayed until the editing command finishes its
+</I>&gt;<i> algorithm.
+</I>
+Hmm, I hadn't considered that.  Since I'm not an expert on this, tell
+me if I understand correctly: most JavaScript will never get a chance
+to run in the middle of this algorithm, since events that get fired
+will wait to execute until the browser spins the event loop (?).  But
+some events are synchronous, which means they could theoretically
+interrupt the algorithm, and those could mess everything up.  Right?
+
+I've added a note to the spec in the Issues section.
+
+&gt;<i> Unstyling a Range doesn't work for text decorations because overriding
+</I>&gt;<i> text-decoration property doesn't clear underline nor line-through.
+</I>
+This is already noted as an issue in the spec (under &quot;underline&quot; in
+the command list).  I wrote a post to www-style asking for a new CSS
+property to use here:
+
+<A HREF="http://lists.w3.org/Archives/Public/www-style/2011Feb/0641.html">http://lists.w3.org/Archives/Public/www-style/2011Feb/0641.html</A>
+
+As I point out in that post, attempts to do anything with the current
+properties are inevitably going to fail in some cases.  E.g., this
+fails to remove the underline in Chrome:
+
+data:text/html,&lt;!doctype html&gt;
+&lt;button onclick=&quot;execCommand('underline', false, null)&quot;&gt;&lt;u&gt;U&lt;/u&gt;&lt;/button&gt;
+&lt;div contenteditable=true style=&quot;text-decoration: underline&quot;&gt;
+&lt;p&gt;Hello there!
+&lt;/div&gt;
+
+If you de-underline part of this text in Chrome, the underline color
+changes on the rest:
+
+data:text/html,&lt;!doctype html&gt;
+&lt;button onclick=&quot;execCommand('underline', false, null)&quot;&gt;&lt;u&gt;U&lt;/u&gt;&lt;/button&gt;
+&lt;div contenteditable=true&gt;
+&lt;p style=&quot;text-decoration: underline; color: red&quot;&gt;&lt;span style=&quot;color:
+blue&quot;&gt;Hello there!&lt;/span&gt;
+&lt;/div&gt;
+
+Etc.  So if we want a fix that won't fail in corner cases, we need CSS
+support for disabling ancestor text-decoration, and if we have that,
+my current general approach works.
+
+&gt;<i> Styling a Range / Unstyling a Range doesn't seem to split the range into
+</I>&gt;<i> segments of phrasing contents. &#160;How does your algorithm avoid wrapping a
+</I>&gt;<i> non-phrasing element with a span? (e.g. we don't want to wrap div,
+</I>&gt;<i> blockquote, etc... with a span)
+</I>
+I currently avoid this by just not wrapping anything but text nodes.
+This is part of what makes the algorithm horribly messy: bolding
+
+    abc &lt;i&gt;def&lt;/i&gt; &lt;br&gt; ghi
+
+gives
+
+    &lt;b&gt;abc &lt;/b&gt;&lt;i style=&quot;font-weight: bold&quot;&gt;def&lt;/i&gt;&lt;b&gt; &lt;/b&gt;&lt;br
+style=&quot;font-weight: bold&quot;&gt;&lt;b&gt; ghi&lt;/b&gt;
+
+instead of
+
+    &lt;b&gt;abc &lt;i&gt;def&lt;/i&gt; &lt;br&gt; ghi&lt;/b&gt;
+
+This is clearly not acceptable for a final algorithm.  I plan to work
+on polishing the markup cleanliness later, after I've got all the
+important features more or less working.  Currently I haven't even
+looked at commands as basic as &quot;delete&quot; -- although hopefully a lot of
+my work has been done for me by the research Google published some
+months ago on some of these commands.
+
+On Tue, Mar 1, 2011 at 11:39 PM, Roland Steiner
+&lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">rolandsteiner at google.com</A>&gt; wrote:
+&gt;<i> First, could it be that the link you posted is broken (I get &quot;404 - No such
+</I>&gt;<i> project.&quot; when clicking on it)?
+</I>
+It seems to be some sort of bug in Gmail and/or Chrome -- it converts
+the semicolons to %3B, which causes gitweb.cgi to interpret the query
+string as one long parameter (since it uses semicolons to delimit
+query parameters instead of ampersands), which causes it to not find
+the repo.  It works in Gmail from Firefox, and by copy-pasting in
+Chrome.
+
+&gt;<i> In general, I completely agree on 2), but I think there are several issues
+</I>&gt;<i> with 1) and the &quot;messy DOM&quot; part:
+</I>&gt;<i> .) If you produce messy DOMs, the DOM will get ever more messy the more the
+</I>&gt;<i> user edits stuff. IMHO producing nicer DOMs is more important than simple
+</I>&gt;<i> algorithms. Also, the messier the DOM, the harder it is for editors to cope
+</I>&gt;<i> with it. FWIW, for the new Browserscope RichText test suite I took the
+</I>&gt;<i> opposite stance: that the resulting DOM should be as concise as possible.
+</I>
+I agree that in the long term, the DOM needs to be simpler than what
+I'm currently producing.  I've changed the draft to clarify my intent
+for future revisions.  For now I'll focus on laying the groundwork for
+other features, and later I'll get back to fleshing out the stuff I've
+already started.  This way I'll have a better grasp of the big
+picture.
+
+&gt;<i> .) In your results you mix element-based styling and CSS-based styling. I
+</I>&gt;<i> don't think that's a good idea, for 2 reasons (apart from looking
+</I>&gt;<i> inconsistent): 1.) you force complexity on code that perhaps could live with
+</I>&gt;<i> just simple element-based markup &#160;2.) whether to produce element-based
+</I>&gt;<i> styling or CSS-based styling should be determined by whether or not
+</I>&gt;<i> &quot;StyleWithCSS&quot; was set. (Now, I'm not a huge fan of that command, but I do
+</I>&gt;<i> think it's important for users to have a way to specify this).
+</I>
+First, why do you think it's important for users to have a way to
+specify this?  I don't understand what the use-cases are.  We should
+just go with the simplest output that achieves the desired result, no?
+
+Second, the way I've currently specced it is essentially only
+CSS-based.  It's inspired by how Gecko works by default.  The only
+time I insert elements is around text nodes, where I have to insert an
+element anyway, so I use (for instance) &lt;b&gt; instead of &lt;span
+style=&quot;font-weight: bold&quot;&gt;.  I initially tried a purely element-based
+approach, but it wound up being far more complicated.  I might return
+to that approach in the future, however, especially now that I've seen
+an explanation of how WebKit does it (which seems no harder than how
+I'm doing it now, and maybe easier).
+
+
+Thanks again to everyone who's commented so far.
+</PRE>
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="030751.html">[whatwg] Ongoing work on an editing commands (execCommand())	specification
+</A></li>
+	<LI>Next message: <A HREF="030772.html">[whatwg] Ongoing work on an editing commands (execCommand()) specification
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#30767">[ date ]</a>
+              <a href="thread.html#30767">[ thread ]</a>
+              <a href="subject.html#30767">[ subject ]</a>
+              <a href="author.html#30767">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

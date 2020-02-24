@@ -1,0 +1,234 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Canvas line styles comments
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Canvas%20line%20styles%20comments&In-Reply-To=%3Cea09c0d10706191319k5d2d6d49q2011407de5bf63e7%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="054210.html">
+   <LINK REL="Next"  HREF="054157.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Canvas line styles comments</H1>
+<!--htdig_noindex-->
+    <B>Philip Taylor</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Canvas%20line%20styles%20comments&In-Reply-To=%3Cea09c0d10706191319k5d2d6d49q2011407de5bf63e7%40mail.gmail.com%3E"
+       TITLE="[whatwg] Canvas line styles comments">excors+whatwg at gmail.com
+       </A><BR>
+    <I>Tue Jun 19 13:19:47 PDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="054210.html">[whatwg] Clarity of the tag open state
+</A></li>
+        <LI>Next message: <A HREF="054157.html">[whatwg] Parsing: &lt;/li&gt; should be ignored
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#54156">[ date ]</a>
+              <a href="thread.html#54156">[ thread ]</a>
+              <a href="subject.html#54156">[ subject ]</a>
+              <a href="author.html#54156">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Lines are great fun.
+
+See <A HREF="http://canvex.lazyilluminati.com/misc/lines.html">http://canvex.lazyilluminati.com/misc/lines.html</A> for a random
+collection of demonstrations relating to the stuff below.
+
+
+For lineJoin, the term &quot;joins&quot; is used but not properly defined
+(except indirectly as &quot;where two lines meet&quot;). Given the
+implementations, this should be something like:
+&quot;&quot;&quot;
+For each subpath, a join exists at the point shared by each
+consecutive pair of lines. If the subpath is closed, then a join also
+exists at its first point (equivalent to its last point) connecting
+the first and last lines in the subpath.
+&quot;&quot;&quot;
+
+There are no conformance criteria for rendering lineCap.
+
+The definition of 'miter' is incorrect: it seems to say the miter gets
+truncated into a more-sided polygon if it would exceed miterLimit, but
+the behaviour of implementations is to revert to 'bevel' rendering
+instead. The definition of 'round' for lineJoin is slightly incorrect,
+since it talks about adding a filled arc when it needs to be a filled
+circle sector (or an arc plus a triangle).
+
+The definition for 'stroke' says &quot;The stroke() method must stroke each
+subpath of the current path in turn, using the strokeStyle, lineWidth,
+lineJoin, and (if appropriate) miterLimit attributes&quot;. That list
+should include lineCap.
+
+&quot;The lineWidth attribute gives the default width of lines, in
+coordinate space units.&quot; - why &quot;default&quot;?
+
+
+
+The expression &quot;the point where the inside edges of the lines touch&quot;
+doesn't make sense to me. (Actually, it did make sense for a while,
+but then I realised it was an incorrect sense). I think the problem is
+in being ambiguous about the distinction between geometric lines
+(which are infinitely thin and just a description of a path through
+space) and graphical lines (which are a thick filled shape, defined by
+their edges (which are geometric lines)) - the rendering details are
+describing how to convert the first sort of line into the second sort
+of line, but that seems to be made unclear.
+
+I believe it would be clearer to use the term &quot;line&quot; only in the first
+sense (so ctx.lineTo adds a line to the subpath, and ctx.fill fills
+the area enclosed by the path's lines, etc), and the term &quot;stroke&quot; [or
+a better name, since I don't really like this one, but I can't think
+of anything else] for the second sense (so ctx.stroke calculates and
+renders strokes, which are shapes that are based on the path's lines
+and widths and caps and joins). There also seems to be a danger of
+confusion between lines (like a single straight/arc/B&#233;zier line
+segment) and subpaths, like in the definition of what lineCap applies
+to.
+
+So perhaps it could say something like:
+
+&quot;&quot;&quot;
+The lineWidth attribute gives the width used for rendering lines, in
+coordinate space units. The outline of a rendered stroke must pass
+through the points at a distance lineWidth/2 perpendicular to each
+point in the line being stroked, and must be closed at each end by a
+straight line. [[...because it's good to define what the width
+actually means, though I'm not sure if this definition is sufficiently
+clear/correct.]]
+
+...
+
+The lineCap attribute defines the type of endings that UAs shall place
+on the end of lines. The three valid values are butt, round, and
+square. The butt value means that no cap shape will be added to the
+lines. [[...since you don't have to do anything extra at this stage -
+the earlier paragraph already said how to close the lines at the ends
+in a butt-like way.]] The round value means that a semi-circle with
+the diameter equal to the line width must be added on to the first and
+last points of each unclosed subpath. [[It needs to ignore closed
+subpaths - those get joined instead of capped.]] The square value
+means that a rectangle with the length of the line width and the width
+of half the line width must be placed flat against the edge
+perpendicular to the direction of the line, on the first and last
+points of each unclosed subpath. ...
+
+...
+
+At each join, if the two lines connected to the join have the same
+direction at that point, no line join is rendered. If the two lines
+have exactly opposite directions, and lineJoin is round, then a filled
+semi-circle must be added with its diameter equal to the line width,
+its origin at the join, and its flat edge touching the edges of the
+strokes; otherwise, when lineJoin is not round, no line is rendered.
+[[It won't make sense to talk about the outside edges at a join if all
+the edges are parallel, so these cases need to be handled specially.
+It also avoids issues like the miter trying to find an intersection
+point between parallel lines.]]
+
+Otherwise, if the two lines do not have equal or opposite directions,
+the following rendering steps are performed for the join:
+
+* A filled triangle must be added between the position of the join and
+the two corners of the strokes on the outside of the join. [[That
+triangular region is shared for all the following variations, so it
+seems easier to describe it as separate step.]] [[Things like &quot;outside
+of the join&quot; are not defined but seem clear enough to me.]]
+
+* If the value is bevel, then no extra rendering is needed.
+
+* If the value is round, then UAs must add a filled arc connecting the
+corners of the strokes on the outside of the join, with the arc's
+diameter equal to the line width and with its origin at the point of
+the join.
+
+* If the value is miter, then the intersection point P of the two
+tangents to the edges of the strokes on the outside of the join is
+calculated. If the distance from P to the join is greater than or
+equal to the miter limit ratio multiplied by the line width, then no
+extra rendering is needed. Otherwise, a triangle must be added between
+P and the corners of the strokes on the outside of the join.
+
+The final stroke shape of a path is the union of the line strokes,
+line caps and line joins for all of its subpaths. [[In particular,
+there's no non-zero winding number rule. Also, subpaths aren't drawn
+separately - they're just combined into one shape which then gets
+filled and composited.]]
+
+...much later...
+
+The stroke() method must calculate the final stroke shape of the
+current path, using the lineWidth, lineJoin, lineCap, and (if
+appropriate) miterLimit attributes, and then fill this shape using the
+strokeStyle attribute.
+&quot;&quot;&quot;
+
+(Hopefully there aren't too many errors in there.)
+
+(Is it worth having diagrams (kind of like
+<A HREF="http://canvex.lazyilluminati.com/misc/linejoin.png">http://canvex.lazyilluminati.com/misc/linejoin.png</A>), so normal people
+can tell what the interesting bits here actually mean? Or is that best
+left for tutorials and user reference guides?)
+
+
+There are some other issues I'm currently aware of, possibly requiring
+more complexity:
+
+What happens when a stroked path has zero length, in terms of drawing
+the line caps/joins? In particular, square caps are impossible because
+the line does not have a defined direction (assuming we're not having
+dashed paths for now). In Firefox 2 and Opera, nothing is drawn for
+zero-length paths. In Firefox 3 and Safari, round caps/joins are drawn
+(because the direction of the line doesn't matter in that case, so the
+output is well-defined), and nothing else is drawn.
+
+What happens when a stroked path contains a line with zero length,
+between non-zero-length lines? As far as I can tell, zero-length lines
+never have any effect (e.g. line-joins get drawn between two
+non-consecutive non-zero-length lines if they have only zero-length
+lines between them, so the earlier suggestion for defining 'join' is
+wrong) - except when the path has no non-zero-length lines in it, in
+which case the presence of a zero-width line causes round caps to be
+drawn in FF3/Safari. (...except in FF3 when it's a zero-length
+quadratic/B&#233;zier curve). Maybe it'd be best just to require that lines
+with zero length are never added to the subpath - so if you don't add
+any non-zero-length ones, the subpath will be empty and won't get
+drawn, which is slightly incompatible with Safari/FF3 but hopefully
+easy to fix in them, and compatible with Opera/FF2.
+
+-- 
+Philip Taylor
+<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">excors at gmail.com</A>
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="054210.html">[whatwg] Clarity of the tag open state
+</A></li>
+	<LI>Next message: <A HREF="054157.html">[whatwg] Parsing: &lt;/li&gt; should be ignored
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#54156">[ date ]</a>
+              <a href="thread.html#54156">[ thread ]</a>
+              <a href="subject.html#54156">[ subject ]</a>
+              <a href="author.html#54156">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

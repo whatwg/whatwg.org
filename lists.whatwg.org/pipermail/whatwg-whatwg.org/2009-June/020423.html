@@ -1,0 +1,373 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] html5 state handling: overview and extensions
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20html5%20state%20handling%3A%20overview%20and%20extensions&In-Reply-To=%3CBAY116-DAV4E7DCE878C73F3048D352A43E0%40phx.gbl%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020421.html">
+   <LINK REL="Next"  HREF="020485.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] html5 state handling: overview and extensions</H1>
+<!--htdig_noindex-->
+    <B>Mike Wilson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20html5%20state%20handling%3A%20overview%20and%20extensions&In-Reply-To=%3CBAY116-DAV4E7DCE878C73F3048D352A43E0%40phx.gbl%3E"
+       TITLE="[whatwg] html5 state handling: overview and extensions">mikewse at hotmail.com
+       </A><BR>
+    <I>Mon Jun 15 06:33:22 PDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020421.html">[whatwg] [gnu.org #451052] LGPL Question regarding Google's use of FFmpeg in Chromium and Chrome
+</A></li>
+        <LI>Next message: <A HREF="020485.html">[whatwg] html5 state handling: overview and extensions
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20423">[ date ]</a>
+              <a href="thread.html#20423">[ thread ]</a>
+              <a href="subject.html#20423">[ subject ]</a>
+              <a href="author.html#20423">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>INTRODUCTION
+
+HTML5 provides a number of constructs to transfer and manage 
+application state. In this post I attempt to classify these 
+constructs in a consistent manner to identify what kinds of state 
+management is taken care of, and what is not. My goal is to 
+discuss the uncovered areas to see if we can address them with 
+suitable additions to HTML5.
+
+
+DEFINITIONS
+
+State
+  To simplify this overview I limit myself to only addressing 
+  internal state that the application stores to keep track of the 
+  user's interaction with it, and that isn't directly accessible by
+  the user. 
+
+  This means f ex that hidden input fields are included in this 
+  overview (as these usually represent some internal state) but 
+  editable input fields are not (as these correspond more to page 
+  parameters than page state). I know this distinction may not be 
+  perfect, and at some point we might want to include the other 
+  parts, but I think it is good to start out with these 
+  restrictions.
+
+  State can be stored in many different ways, and many different 
+  things can be regarded as state, so consider the below scenario 
+  to understand what I regard as state in this post:
+  - a user makes some navigation action that makes the browser 
+    navigate to, and request <A HREF="http://host/page1">http://host/page1</A>
+  - when returning the response for page1, the server may include 
+    some state (&quot;ServerState&quot;) to be stored in the browser through
+    some state construct
+  - during the lifetime of the returned page in the browser, 
+    additional state may be produced by script (&quot;ScriptState&quot;) and
+    stored by some other state construct
+  - to qualify as state constructs in this overview, the constructs
+    used to store ServerState and ScriptState above should support
+    that the state survives the following actions:
+    . navigating away from, and then back again, to the current 
+      session history entry in the browsing context, including 
+      scenarios where the document objects have been discarded in 
+      the meantime
+    . page reload/refresh of the current page (this follows from 
+      the first point)
+    (there are many other actions that could be mentioned but the 
+    above two are enough for this overview)
+  State that survives these criteria is &quot;real&quot; state in the 
+  browser.
+
+Server-controlled state
+  This is state which is created by the server application and then
+  transmitted to the browser where it is stored, to later be 
+  transparently sent back to the server for identification or 
+  processing. As it is under server control it should not rely on 
+  script execution in the browser, so state constructs need to have
+  a mechanism that both automatically stores the state in browser,
+  and automatically transfers it back from browser to server when 
+  appropriate. Typically the transfer back and forth between server
+  and browser takes place on at least every page request and 
+  response.
+
+Script-controlled state
+  This is state created and stored by script in the browser. The 
+  preservation of state only applies to other script reading the 
+  data and any mechanism for transfer back and forth to the server
+  is optional.
+
+Scopes
+  State can be stored on different scopes, or contexts, to control
+  its reach and lifetime. HTML5 offers the following scopes where 
+  a higher item on the list encloses lower items:
+  - User agent (an application containing a collection of top-level
+    browsing contexts)
+  - Browsing context (has session history with a number of 
+    Documents)
+  - Document (corresponds to one page load from server but can be 
+    associated with multiple session history entries with different
+    navigational states)
+  - Session history entry (a single navigational state for a 
+    Document)
+
+  Apart from the different scopes, state is also kept separated by
+  origin, to not allow different sites to interfere with each 
+  other's state. I will just assume origin is in effect for the 
+  rest of this post.
+
+User visibility
+  For different scenarios it may, or may not, be desired to 
+  indicate the current state to the user through the browser user 
+  interface. This could f ex mean being part of the URL for 
+  bookmarkability etc. It is an advantage if the application author
+  can choose between state constructs both with and without user 
+  interface exposure.
+
+Request type (http method)
+  Some state constructs are unique to a certain http method. In 
+  this overview I list GET and POST methods.
+
+
+FEATURE TABLES
+
+Below are tables comparing properties of different state 
+constructs. There are many alternatives to how these tables could 
+be organized but I've tried to keep things simple and only add 
+columns for the most important properties for this discussion.
+
+
+SERVER-CONTROLLED STATE
+
+Scope             Visibility  Request : State construct
+-----             ----------  -------   ---------------------
+user agent,       invisible,  GET     : cookie
+user agent,       invisible,  POST    : cookie
+browsing context, invisible,  GET     : -
+browsing context, invisible,  POST    : -
+document,         invisible,  GET     : -
+document,         invisible,  POST    : form hidden input *
+document,         url,        GET     : url path/query (redir)
+document,         url,        POST    : url path/query (redir)
+
+Notes:
+- the session history entry scope is not listed here as it is not 
+  available to server code
+- url-based state is only listed for Document as this isn't 
+  applicable to user agent or browsing context
+
+Cookies
+  Cookies apply to the user agent level, which typically means all
+  browsing contexts belonging to the same process, or in f ex 
+  Google Chrome's case, group of processes. Actually, I haven't 
+  found any good definition of the relation between user agent and 
+  browsing contexts wrt the possibility of multiple user agent 
+  instances with their own sets of browsing contexts and cookies. 
+  The cookie spec at
+  <A HREF="http://tools.ietf.org/html/rfc2965">http://tools.ietf.org/html/rfc2965</A>
+  only mentions &quot;user agent&quot; in a singular form.
+
+Form hidden input *
+  Hidden form data is transferred from server to browser in the 
+  response body and is transparently sent back to the server at 
+  postback. It is marked with (*) as it violates transparency on history 
+  navigation with discarded state, or on page refresh, if the 
+  initial page itself was served with POST, due to the &quot;do you 
+  want to resubmit?&quot; question asked by browser user interface.
+  The resubmission question problem could be mitigated either by 
+  allowing the author control over when forms need to ask for 
+  resubmission, or by extending GET to allow for invisible state 
+  (discussed below) so PRG can be used without losing state.
+
+URL path/query (redirect)
+  URL path/query redirects can be used to transfer (small) server 
+  state to the browser, f ex:
+  . <A HREF="http://host/randomsudoku">http://host/randomsudoku</A>
+  . application determines a suitable sudoku for this user and 
+    redirects to:
+  . <A HREF="http://host/sudoku?no=72">http://host/sudoku?no=72</A>
+
+Browsing context state
+  There currently is no support for associating state with a 
+  browsing context. Many web application frameworks try to 
+  workaround this &quot;multiple windows/tabs&quot; problem, with mixed 
+  success. Here's a random link discussing this topic:
+  <A HREF="http://www.mail-archive.com/users@myfaces.apache.org/msg50204.html">http://www.mail-archive.com/users@myfaces.apache.org/msg50204.html</A>
+
+  Use-cases for browsing_context-oriented state constructs include
+  distinguishing between multiple conversations in different 
+  windows/tabs, or f ex allowing the the user to be logged in on 
+  different accounts in different windows/tabs.
+
+  A naive solution for this would be to add something similar to a
+  browser_context-scoped cookie.
+
+Invisible Document state for GET requests
+  There currently is no support for associating invisible state 
+  with a Document delivered with GET. This is also an area where 
+  web frameworks have worked around this problem, and typical 
+  workarounds are to use url-based (visible) state or to switch to
+  POST instead. See f ex Spring Web Flow for an example on using 
+  the url (_flowExecutionId parameter):
+  <A HREF="http://www.javalobby.org/articles/spring-webflow/">http://www.javalobby.org/articles/spring-webflow/</A>
+  or JSF and ASP.NET using &quot;view states&quot; hidden in form posts:
+  <A HREF="http://www.dotnetjohn.com/articles.aspx?articleid=71">http://www.dotnetjohn.com/articles.aspx?articleid=71</A>
+ 
+<A HREF="http://books.google.com/books?id=Iv9r-CT6ZwwC&amp;pg=PA20&amp;source=gbs_search_r&amp;ca">http://books.google.com/books?id=Iv9r-CT6ZwwC&amp;pg=PA20&amp;source=gbs_search_r&amp;ca</A>
+d=1_1#PPA20,M1 (see &quot;Saving and restoring state&quot;)
+  (View state requirements is not an exact match to this topic but
+  similar enough to deserve a mention. A typical ugly pattern seen
+  together with this is overriding all links in a page with script,
+  to submit the form containing the view state to ensure it is sent
+  back to server.)
+
+  Use-cases include keeping state for coordinating multiple 
+  selections over a number of steps in session history, to restore
+  the correct selections when going back or forward in history. 
+  Examples of this is found in the second half of this article:
+ 
+<A HREF="http://magazine.redhat.com/2007/10/31/continuing-the-conversation-understand">http://magazine.redhat.com/2007/10/31/continuing-the-conversation-understand</A>
+ing-seam-nested-conversations/
+
+  A naive solution for this would be to add something similar to a
+  Document-scoped cookie.
+
+
+SCRIPT-CONTROLLED STATE
+
+Scope             Visibility : State construct
+-----             ----------   ---------------------
+user agent,       invisible  : WS localStorage
+browsing context, invisible  : window.name, WS sessionStorage
+document,         invisible  : -
+history entry,    invisible  : history state
+history entry,    url,       : url hash
+
+Notes:
+- url-based state is only listed for history entries within the 
+  same Document as any other url change would navigate away from 
+  the current Document with the executing script
+
+WebStorage
+  WebStorage's localStorage and sessionStorage take care of the two
+  first scopes.
+
+Window.name
+  In addition, window.name is actually also a state construct that
+  can share data between different Documents in the same browsing 
+  context.
+
+History state
+  HTML5's History.pushState takes care of invisible state 
+  associated with history entries.
+
+URL hash
+  Traditional hash urls <A HREF="http://host/page#state">http://host/page#state</A> take care of url-
+  visible state asociated with history entries.
+
+Document state
+  There currently is no support for associating script state on the
+  Document level. Any state saved in DOM or script global object 
+  will be lost on a page reload.
+
+  Use cases would include single-page Ajax applications that want 
+  to store data independent of a certain history entry, but at the
+  same time not sharing it with other page loads (Documents) of the
+  same application in the history of the same browsing context 
+  (otherwise sessionStorage could be used).
+
+  Possible solutions would be to add a new &quot;documentStorage&quot; to 
+  WebStorage, or to offer a History.setDocumentState method.
+
+
+I welcome any discussion about the missing pieces, and possible 
+solutions, in these state construct listings.
+
+Best regards
+Mike Wilson
+
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020421.html">[whatwg] [gnu.org #451052] LGPL Question regarding Google's use of FFmpeg in Chromium and Chrome
+</A></li>
+	<LI>Next message: <A HREF="020485.html">[whatwg] html5 state handling: overview and extensions
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20423">[ date ]</a>
+              <a href="thread.html#20423">[ thread ]</a>
+              <a href="subject.html#20423">[ subject ]</a>
+              <a href="author.html#20423">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

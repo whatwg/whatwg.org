@@ -1,0 +1,200 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Canvas gradients color interpolation - change to	premultiplied?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Canvas%20gradients%20color%20interpolation%20-%20change%20to%0A%09premultiplied%3F&In-Reply-To=%3CAANLkTi%3Dhi35Lv-gDagZ-jgLKapG1Z6Bk5YeXVXKOmnRj%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="029098.html">
+   <LINK REL="Next"  HREF="071391.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Canvas gradients color interpolation - change to	premultiplied?</H1>
+<!--htdig_noindex-->
+    <B>Tab Atkins Jr.</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Canvas%20gradients%20color%20interpolation%20-%20change%20to%0A%09premultiplied%3F&In-Reply-To=%3CAANLkTi%3Dhi35Lv-gDagZ-jgLKapG1Z6Bk5YeXVXKOmnRj%40mail.gmail.com%3E"
+       TITLE="[whatwg] Canvas gradients color interpolation - change to	premultiplied?">jackalmage at gmail.com
+       </A><BR>
+    <I>Tue Nov 23 12:43:39 PST 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="029098.html">[whatwg] Returned mail: Data format error
+</A></li>
+        <LI>Next message: <A HREF="071391.html">[whatwg] Canvas gradients color interpolation - change to	premultiplied?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#29116">[ date ]</a>
+              <a href="thread.html#29116">[ thread ]</a>
+              <a href="subject.html#29116">[ subject ]</a>
+              <a href="author.html#29116">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Right now, canvas gradients interpolate their colors in
+non-premultiplied space; that is, the raw values of r, g, b, and a are
+interpolated independently.  This has the unfortunate effect that
+colors darken as they transition to transparent, as &quot;transparent&quot; is
+defined as &quot;rgba(0,0,0,0)&quot;, a transparent black.  Under this scheme,
+the color halfway between &quot;yellow&quot; and &quot;transparent&quot; is
+&quot;rgba(127,127,0,.5)&quot;, a partially-transparent dark yellow, rather than
+&quot;rgba(255,255,0,.5)&quot;.*
+
+The rest of the platform has switched to using premultiplied colors
+for interpolation, because they react better in cases like this**.
+CSS transitions and CSS gradients now explicitly use premultiplied
+colors, and SVG ends up interpolating similarly (they don't quite have
+the same problem - they track opacity separate from color, so
+transitioning from &quot;color:yellow;opacity:1&quot; to
+&quot;color:yellow;opacity:0&quot; gives you &quot;color:yellow;opacity:.5&quot; in the
+middle, which is the moral equivalent of &quot;rgba(255,255,0,.5)&quot;).
+
+It would be unfortunate for canvas gradients to be the only part of
+the platform that interpolates colors in a different and generally
+uglier way here.  I suspect that this can be changed without any real
+compat impact; the change will be a minor visual tweak to the middle
+half of gradients that go from a solid color to transparent (the
+initial and final quarter won't be noticeably different, solid-&gt;solid
+transitions aren't affected, and other transitions trace a shorter
+line and thus diverge from the &quot;pretty&quot; behavior less).
+
+I realize that this basically just depends on whether browsers are
+willing to change their current implementation.  Implementors, does
+this sounds like a change you can get behind?  We already changed
+canvas shadows to match behavior with CSS shadows; this is a much
+smaller change for spec-equivalence.
+
+~TJ
+
+* An even more obvious example can be seen by drawing a
+white-&gt;transparent gradient in a white rect on canvas.  This should
+pretty obviously just result in more white, right?  Instead, you get a
+symmetrical fade from white to gray and back to white.  (The reason it
+reverses halfway through is because it's now less than half opacity,
+so the background white is winning when it's composed with the
+gradient color.  The gradient is actually still getting darker until
+it hits black at the end, it just contributes less and less of that
+darkness to the final color of the pixels.)
+
+** Quick primer for those who don't understand color math well enough
+to follow the conversation (like me from a few days ago):
+
+&quot;Premultiplied&quot; means that you multiply the color components by the
+alpha component before doing compositing operations.  It turns out
+that this lets you get away with some simpler and faster math when
+compositing partially-transparent colors while getting equivalent
+results, so it's a common optimization.
+
+The effect of this is that the space of colors gets &quot;compressed&quot; as
+the alpha shrinks.  If the alpha is .5, then the total value range for
+the color components is only 0-127.  If the alpha is .1, the range is
+0-25.  This doesn't produce a material change in behavior, due to the
+way the compositing math works.  The only downside is that if you lose
+precision in the exact color, if you want to extract that back out
+from the premultiplied version - there are only 26^3 possible colors
+at alpha=.1, as opposed to the 255^3 colors at alpha=1.
+
+A nice benefit of this, though, is that tracing a straight line
+between two colors in premultiplied space gives you a more attractive
+transitions than doing so in non-premultiplied (that is, normal rgba)
+space.  As I noted above, the color halfway between yellow and
+transparent (defining &quot;transparent&quot; as transparent black, or
+rgba(0,0,0,0)) is rgba(127,127,0,.5) in non-premultiplied space, which
+has a dark yellow as its color component.  In premultiplied space, the
+midpoint is the 4-tuple (127,127,0,.5), which translates to the color
+rgba(255,255,0,.5) when you extract it back into normal rgba space.
+
+Of course, in normal rgba space you could fix this by explicitly
+transitioning from yellow to transparent yellow (in other words, from
+rgba(255,255,0,1) to rgba(255,255,0,0)), but that's more work.  In
+premultiplied space, all fully-transparent colors are equivalent, and
+naive transitions always &quot;do the right thing&quot;.
+
+~TJ
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="029098.html">[whatwg] Returned mail: Data format error
+</A></li>
+	<LI>Next message: <A HREF="071391.html">[whatwg] Canvas gradients color interpolation - change to	premultiplied?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#29116">[ date ]</a>
+              <a href="thread.html#29116">[ thread ]</a>
+              <a href="subject.html#29116">[ subject ]</a>
+              <a href="author.html#29116">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

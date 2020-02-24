@@ -1,0 +1,178 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] DOM Range: redefining behavior under DOM mutation
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20DOM%20Range%3A%20redefining%20behavior%20under%20DOM%20mutation&In-Reply-To=%3CAANLkTikJ_riztv9xwEWN5A6GCG82yw_iVG4d54LKMFC2%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="031052.html">
+   <LINK REL="Next"  HREF="073329.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] DOM Range: redefining behavior under DOM mutation</H1>
+<!--htdig_noindex-->
+    <B>Aryeh Gregor</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20DOM%20Range%3A%20redefining%20behavior%20under%20DOM%20mutation&In-Reply-To=%3CAANLkTikJ_riztv9xwEWN5A6GCG82yw_iVG4d54LKMFC2%40mail.gmail.com%3E"
+       TITLE="[whatwg] DOM Range: redefining behavior under DOM mutation">Simetrical+w3c at gmail.com
+       </A><BR>
+    <I>Mon Mar 28 12:28:26 PDT 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="031052.html">[whatwg] Time Parsing
+</A></li>
+        <LI>Next message: <A HREF="073329.html">[whatwg] DOM Range: redefining behavior under DOM mutation
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#31053">[ date ]</a>
+              <a href="thread.html#31053">[ thread ]</a>
+              <a href="subject.html#31053">[ subject ]</a>
+              <a href="author.html#31053">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>For execCommand(), it's very important that the position of the
+selection be defined (and sensible) after taking an editing action.
+So I've started looking at the problem of defining how Ranges behave
+when the document mutates, and have determined that current browser
+behavior (as specced by DOM Level 2 Range) is not optimal.
+
+Right now, when a node's parent is changed, Range mutation treats it
+like the inserted and removed nodes are entirely different.  For
+instance, if you have a range like
+
+  &lt;p&gt;&lt;b&gt;Foo&lt;/b&gt; bar &lt;i&gt;{baz}&lt;/i&gt;
+
+(with the curly braces meaning the range has start (&lt;i&gt;, 0) and end
+(&lt;i&gt;, 1); square brackets mean the boundary point lies in a text node)
+and you do p.insertBefore(baz, i), you get
+
+  &lt;p&gt;&lt;b&gt;Foo&lt;/b&gt; bar baz&lt;i&gt;{}&lt;/i&gt;
+
+with the selection collapsed inside &lt;i&gt;.  This sort of thing comes up
+a lot in execCommand().  For instance, if the user wanted to
+de-italicize the selection given, the natural way to do it would be to
+move the children of the &lt;i&gt; to its previous siblings, and then remove
+the &lt;i&gt;.  But that gets you
+
+  &lt;p&gt;&lt;b&gt;Foo&lt;/b&gt; bar baz{}
+
+with the selection collapsed after the &lt;i&gt;'s former children, instead of
+
+  &lt;p&gt;&lt;b&gt;Foo&lt;/b&gt; bar {baz}
+
+which is what we want: the child selected.
+
+I assume browsers hack around this specially for execCommand(), but
+that's not only a pain to spec, it's also not nice for authors, since
+their DOM mutations will not benefit from this magic.  I've compiled a
+list of all the times in the spec so far that I mutate the DOM, and
+the selection behavior I want in each case.  I've found that the
+following behavior would get the desired effect in all cases so far:
+
+If a node is moved to a position &quot;immediately before&quot; its original
+position, then preserve any boundary points in it.  &quot;Immediately
+before&quot; means that there are no nodes lying between the new and old
+positions: if you made a range whose boundary points are the new and
+old locations, and ran deleteContents(), it would be a no-op.  This
+would include when the first child of an element is being moved to the
+element's previous sibling, or to the last child of the previous
+sibling, or if an element is being moved to its previous sibling's
+last child, etc.  &quot;Preserving boundary points&quot; means that if a
+boundary point is in the node itself or a descendant, it's transferred
+as-is to the new location, and also that if it's &quot;immediately before&quot;
+or &quot;immediately after&quot; the original location (in the same sense as
+before), it gets moved to the new position's parent right before or
+after the new location.  Likewise, if a node is moved to a position
+immediately after its original position, preserve its boundary points
+in the same fashion.
+
+
+As an example of how this would work in a real case, suppose I have
+
+  &lt;p&gt;{Foo&lt;i&gt;bar&lt;/i&gt;}
+
+and the user wants to bold the selected text.  First you could create
+a new empty &lt;b&gt;:
+
+  &lt;p&gt;&lt;b&gt;&lt;/b&gt;{Foo&lt;i&gt;bar&lt;/i&gt;}
+
+This triggers no new behavior, since the old parent was null.  Then
+move the first selected node there:
+
+  &lt;p&gt;&lt;b&gt;{Foo&lt;/b&gt;&lt;i&gt;bar&lt;/i&gt;}
+
+Since we're moving the node immediately before its current position,
+and the boundary start was immediately before the moved node's
+original position, we move the boundary start to the new parent of the
+node, before the new location.
+
+Then we move the second selected node:
+
+  &lt;p&gt;&lt;b&gt;{Foo&lt;i&gt;bar&lt;/i&gt;}&lt;/b&gt;
+
+The end of the range was immediately after the moved node, so it gets
+moved to the node's new parent.  (In principle we could have left it
+in place here, but it makes no real difference, since the resulting
+range is logically more or less the same, and this way winds up
+looking a bit neater.)
+
+
+I'd like to know if implementers would be interested in moving to new
+behavior along these lines.  If not, what suggestions would you have
+for how to spec all this?  How is it actually implemented?
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="031052.html">[whatwg] Time Parsing
+</A></li>
+	<LI>Next message: <A HREF="073329.html">[whatwg] DOM Range: redefining behavior under DOM mutation
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#31053">[ date ]</a>
+              <a href="thread.html#31053">[ thread ]</a>
+              <a href="subject.html#31053">[ subject ]</a>
+              <a href="author.html#31053">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

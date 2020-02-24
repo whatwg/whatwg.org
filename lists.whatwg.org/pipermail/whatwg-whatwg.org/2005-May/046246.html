@@ -1,0 +1,224 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] General TCP connections API?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20General%20TCP%20connections%20API%3F&In-Reply-To=%3Ce3d981a0be7c93fe332df7d0dc03b795%40francetelecom.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="046253.html">
+   <LINK REL="Next"  HREF="046248.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] General TCP connections API?</H1>
+<!--htdig_noindex-->
+    <B>Joshua RANDALL FTRD/DIH/BOS</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20General%20TCP%20connections%20API%3F&In-Reply-To=%3Ce3d981a0be7c93fe332df7d0dc03b795%40francetelecom.com%3E"
+       TITLE="[whatwg] General TCP connections API?">joshua.randall at francetelecom.com
+       </A><BR>
+    <I>Thu May 26 13:19:46 PDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="046253.html">[whatwg] Web Forms 2.0 Typo
+</A></li>
+        <LI>Next message: <A HREF="046248.html">[whatwg] General TCP connections API?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#46246">[ date ]</a>
+              <a href="thread.html#46246">[ thread ]</a>
+              <a href="subject.html#46246">[ subject ]</a>
+              <a href="author.html#46246">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Charles,
+
+You state the need for real asynchronous communications between server  
+and client, and you are absolutely right that it is critically  
+important to have that for real web applications.  However, I believe  
+it would be shortsighted to solve the problem by creating an API to  
+make TCP connections from within a web application.  Aside from  
+security concerns, there are three major issues I see with that  
+solution.
+
+Firstly, it exposes a very low level protocol to the programmer of the  
+web application, forcing them to code higher-level protocols themselves  
+from within ECMAScript.  While certainly this would allow a high degree  
+of freedom on web application programmers, it would also put an  
+unnecessary burden on them when a higher-level, simpler solution would  
+have sufficed.
+
+Secondly, it probably wouldn't work in all cases -- for example clients  
+that require the use of a proxy server to access the network, or are  
+behind a firewall that allows only HTTP connections.
+
+Finally, it assumes that TCP connections are the best way to get data  
+from the server to the client.  While this is almost certainly the case  
+for desktop computers, it may not be a good assumption for mobile  
+terminals.  Operator networks might in the future have built-in  
+eventing protocols that can more efficiently dispatch data  
+asynchronously to client devices without the need for the overhead of  
+maintaining many virtually unused TCP connections.
+
+Luckily, there is already a proposed solution, part of which is  
+included in the Web Applications draft.  In section 9.1 of the draft  
+(<A HREF="http://www.whatwg.org/specs/web-apps/current-work/#server-sent">http://www.whatwg.org/specs/web-apps/current-work/#server-sent</A>) a  
+framework is proposed that allows for asynchronous communications from  
+server to client by way of server-sent DOM events.  Basically, the  
+server-sent DOM events would allow a web applications programmer to  
+make an API call to register for a remote event located at a particular  
+URI (on a server), and to subsequently receive DOM events when they  
+arrive from that server.  The details of the low-level connection are  
+left up to the user agent and the server to manage, rather than  
+requiring scripted code to handle them.  And, while the section in the  
+current draft shows examples using event sources at HTTP URIs, it  
+leaves the door open for them to be located at other URIs as well.
+
+Do you see any reason why you couldn't achieve everything you needed  
+using this method rather than by having low-level TCP connections  
+exposed in the API?
+
+I did notice that, while the server-sent DOM events described in the  
+current draft address by first two concerns, the third one has not been  
+specifically handled, although I suppose it is left open by allowing  
+other non-HTTP protocols.
+
+However, since ideally the same web application code would work on all  
+platforms and networks, it would be better if there was a way to  
+negotiate the low-level transport between the client and server rather  
+than have it hard-coded into the script.  For example, a web  
+application showing real-time stock prices wants to get an event stream  
+that updates the stock prices from a server, let's say stockserver.org.  
+  For most desktop clients, using the event-source URI  
+&quot;<A HREF="http://stockserver.org/stockprice">http://stockserver.org/stockprice</A>&quot; would be fine.  However, a mobile  
+client using the same page would waste a (relatively) lot of bandwidth  
+just by keeping that HTTP connection alive, and it so happens that the  
+particular (and fictitious) mobile network has low-level support for  
+SIP events (could just as easily be XMPP or perhaps even SMS or  
+WAP-Push).  Therefore, for that client it would be advantageous to use  
+a URI such as &quot;sip:stockserver.org;subscribe?event=stockprice&quot; instead  
+of HTTP since there would be significantly less network overhead that  
+way.  However, it is undesirable for the web application developer to  
+have to provide a separate version of the page for the mobile user on a  
+SIP-capable network, so it would be advantageous to have an option for  
+the server and client to negotiate the low-level transport.  Perhaps  
+this could be done using an extension to the proposed baseline  
+HTTP-based implementation?
+
+Ian, perhaps we could add to section 9.1 a header that can be sent by  
+the user agent along with the initial request to the event-source URI  
+that specified a list of event protocols that the user agent supports?   
+Perhaps something like &quot;capabilities&quot;?  Then, the server, knowing what  
+the client support was, would have the option of returning a 3xx  
+redirect to the other protocol URI instead of opening the event stream?  
+  If for some reason the user agent was unable to establish the event  
+stream using the new protocol, it could re-contact the server but  
+remove the failed protocol from it's list of capabilities.  This seems  
+to me to be the least obstrusive way of adding basic protocol  
+negotiation to the server-sent DOM events -- do you see any reason why  
+it shouldn't be in there?
+
+josh.
+
+
+On May 26, 2005, at 3:08 PM, Charles Iliya Krempeaux wrote:
+
+&gt;<i> Hello,
+</I>&gt;<i>
+</I>&gt;<i> (Please excuse me if this has already been discussed.  I'm still
+</I>&gt;<i> working my way through the mailing list archive.  Also, I hope I'm not
+</I>&gt;<i> out of place by just interjecting myself.)
+</I>&gt;<i>
+</I>&gt;<i> Are there any plans to add an API to create TCP connections?
+</I>&gt;<i>
+</I>&gt;<i> IMO, this is very necessary for creating &quot;web applications&quot;.  And it
+</I>&gt;<i> would be unfortunate if it wasn't included.
+</I>&gt;<i>
+</I>&gt;<i> Right now, there seems to be a new fad revolving around
+</I>&gt;<i> XmlHttpRequest.  It has been nicknamed AJAX by many.  And heralded as
+</I>&gt;<i> a means of asynchronous communication for the Web.  However, AJAX only
+</I>&gt;<i> gives the illusion of asynchronous communication between the server
+</I>&gt;<i> and client.  The client is polling the server.  And often a new TCP
+</I>&gt;<i> connection is created (and later tore down) each time the server is
+</I>&gt;<i> polled.  (Which, IMO, is bad.)
+</I>&gt;<i>
+</I>&gt;<i> The nice thing about XmlHttpRequest is that it makes it so you can
+</I>&gt;<i> &quot;update&quot; a webpage without having to reload it.  Which improves
+</I>&gt;<i> usability.  However, because of the polling, performance is adversely
+</I>&gt;<i> affected.  Not to mention that polling is not the optimal mode of
+</I>&gt;<i> communication.
+</I>&gt;<i>
+</I>&gt;<i> One could come up with a new protocol for asynchronous communication.
+</I>&gt;<i> (Maybe as something to accompany HTTP.  Or maybe even as an extension
+</I>&gt;<i> to it -- HTTP 1.2?)  Which may solve this problem.  But other
+</I>&gt;<i> &quot;problems&quot; could arise in the future.  It would be good to provide
+</I>&gt;<i> developers (of web applications) the building blocks to solve a wider
+</I>&gt;<i> set of problems.  And to me, I think having an API to create TCP
+</I>&gt;<i> connection is one of these building blocks.
+</I>&gt;<i>
+</I>&gt;<i> Some might say that letting the client create general TCP connects
+</I>&gt;<i> would bring up all sorts of security concerns.  However, I think these
+</I>&gt;<i> security concerns can be dealt with by making it so the API would only
+</I>&gt;<i> allow the client to create a TCP connection to the &quot;host&quot; that the
+</I>&gt;<i> client -- the webpage (or web application) -- came from.
+</I>&gt;<i>
+</I>&gt;<i> Or, alternatively, we could allow the host that the webpage (or web
+</I>&gt;<i> application) came from to specify a list of domains (or IP addresses)
+</I>&gt;<i> that clients could connect to.  (Of course, there would be
+</I>&gt;<i> restrictions on this.  The hosts in that list would need to &quot;allow&quot;
+</I>&gt;<i> the original host to do this.  A mechanism for this would need to be
+</I>&gt;<i> created.)
+</I>&gt;<i>
+</I>&gt;<i> There could even be other restrictions.  For example, a host could
+</I>&gt;<i> specify what ports it allows webpages (and web applications) to
+</I>&gt;<i> connnect to.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> So,... are there any plans to add an API to create TCP connections?
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> See ya
+</I>&gt;<i>
+</I>&gt;<i> --  
+</I>&gt;<i>      Charles Iliya Krempeaux, B.Sc.
+</I>&gt;<i>
+</I>&gt;<i>      charles @ reptile.ca
+</I>&gt;<i>      supercanadian @ gmail.com
+</I>&gt;<i> _______________________________________________________________________ 
+</I>&gt;<i> ____
+</I>&gt;<i>   Wikibooks, Free Open-Content Books                   
+</I>&gt;<i> <A HREF="http://wikibooks.org/">http://wikibooks.org/</A>
+</I>
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="046253.html">[whatwg] Web Forms 2.0 Typo
+</A></li>
+	<LI>Next message: <A HREF="046248.html">[whatwg] General TCP connections API?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#46246">[ date ]</a>
+              <a href="thread.html#46246">[ thread ]</a>
+              <a href="subject.html#46246">[ subject ]</a>
+              <a href="author.html#46246">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

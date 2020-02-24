@@ -1,0 +1,161 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Use of media queries to limit bandwidth/data transfer
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Use%20of%20media%20queries%20to%20limit%20bandwidth/data%20transfer&In-Reply-To=%3CPine.LNX.4.64.1201312238560.3868%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="034586.html">
+   <LINK REL="Next"  HREF="034588.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Use of media queries to limit bandwidth/data transfer</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Use%20of%20media%20queries%20to%20limit%20bandwidth/data%20transfer&In-Reply-To=%3CPine.LNX.4.64.1201312238560.3868%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg] Use of media queries to limit bandwidth/data transfer">ian at hixie.ch
+       </A><BR>
+    <I>Tue Jan 31 14:42:18 PST 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="034586.html">[whatwg] Supporting scrollTop and scrollLeft on the Canvas element
+</A></li>
+        <LI>Next message: <A HREF="034588.html">[whatwg] A better animation API
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#34587">[ date ]</a>
+              <a href="thread.html#34587">[ thread ]</a>
+              <a href="subject.html#34587">[ subject ]</a>
+              <a href="author.html#34587">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Thu, 8 Dec 2011, Ashley Sheridan wrote:
+&gt;<i>
+</I>&gt;<i> I couldn't find anything about this specifically, and I'm not sure if 
+</I>&gt;<i> this is the best place to ask this, but here we go.
+</I>&gt;<i> 
+</I>&gt;<i> I've been trying to optimise my site (as a test case) for mobile usage 
+</I>&gt;<i> and one area where I found issues was with the media queries used to 
+</I>&gt;<i> link CSS files. I noticed that despite each &lt;link&gt; tag including the 
+</I>&gt;<i> maximum and minimum screen widths (which is about the minimum that is 
+</I>&gt;<i> supported across every majority browser) the browsers (IE, Opera, 
+</I>&gt;<i> Firefox, Chrome) all seemed to download every CSS file. These days, when 
+</I>&gt;<i> it's recommended to use sprites to reduce bandwidth on multiple images, 
+</I>&gt;<i> it seems crazy that there's no contingency to reduce bandwidth on CSS 
+</I>&gt;<i> files that the browser should know it doesn't need. Is there a 
+</I>&gt;<i> particular reason for this? I can understand for devices like a tablet 
+</I>&gt;<i> where the orientation is expected to change often and it might want to 
+</I>&gt;<i> download multiple CSS files to reduce the latency that downloading as 
+</I>&gt;<i> required would bring, but that doesn't explain why a desktop browser 
+</I>&gt;<i> would still need to grab CSS that is clearly labelled as being for a 
+</I>&gt;<i> maximum screen width of 300px.
+</I>&gt;<i> 
+</I>&gt;<i> From a usage point of view, I wouldn't be too unhappy at having my 
+</I>&gt;<i> browser download extra CSS found in a media queried &lt;link&gt; if I decide 
+</I>&gt;<i> to resize my browser, as that is not what I'd call typical browsing 
+</I>&gt;<i> behavior, but I would expect a tablet or mobile to be more responsive as 
+</I>&gt;<i> they are types of devices that are prone to be moved around and tilted.
+</I>
+On Thu, 8 Dec 2011, Tab Atkins Jr. wrote:
+&gt;<i> 
+</I>&gt;<i> The reason for this is so that, if the document width later changes such 
+</I>&gt;<i> that one of the excluded stylesheets is now valid, we don't want to have 
+</I>&gt;<i> a noticeable delay while we fire off a network request and retrieve the 
+</I>&gt;<i> new stylesheet.  Remember that widths refer to the browser window, not 
+</I>&gt;<i> the monitor, so small widths *can* (and do) occur on desktop browsers.
+</I>&gt;<i> 
+</I>&gt;<i> This delay is potentially bad for usability, but more importantly, it's 
+</I>&gt;<i> bad for scripts, as there's a substantial window in which a &lt;link&gt;'s 
+</I>&gt;<i> media query resolves to true, but it either doesn't have an associated 
+</I>&gt;<i> Stylesheet object, or the Stylesheet is a &quot;dummy&quot; that doesn't yet 
+</I>&gt;<i> contain the real values.  Stylesheet access is synchronous, so we'd have 
+</I>&gt;<i> to block the entire JS thread while waiting for it to come in.
+</I>
+On Thu, 8 Dec 2011, Boris Zbarsky wrote:
+&gt;<i> 
+</I>&gt;<i> There are several separate problems here.  Below I focus on the Gecko 
+</I>&gt;<i> perspective, which is what I'm familiar with.
+</I>&gt;<i> 
+</I>&gt;<i> First of all, the code was written originally before mobile started 
+</I>&gt;<i> being a concern.  And in the desktop space, there are very few media 
+</I>&gt;<i> queries which are guaranteed to never match.  For example, the size of 
+</I>&gt;<i> the CSS viewport is not fixed on desktop.  Furthermore, until the recent 
+</I>&gt;<i> media query implementation all that you could filter on was the actual 
+</I>&gt;<i> medium, and in the common cases you wanted to download both the print 
+</I>&gt;<i> and screen sheets and other media were unused.  So there wasn't much 
+</I>&gt;<i> need to optimize away stylesheets whose media queries did not match.
+</I>&gt;<i> 
+</I>&gt;<i> Second, there is a slight problem of spec collision.  While sheets whose 
+</I>&gt;<i> media queries do not match should not affect rendering, there are no 
+</I>&gt;<i> provisions for not exposing their object model, which of course requires 
+</I>&gt;<i> downloading the stylesheet.  I agree it might be good to add such 
+</I>&gt;<i> provisions, because there are some media queries we really _do_ know 
+</I>&gt;<i> statically will never match in Gecko.  They're just a much smaller set 
+</I>&gt;<i> than most people think.  And of course there may be page compat 
+</I>&gt;<i> concerns.
+</I>&gt;<i> 
+</I>&gt;<i> [...]
+</I>&gt;<i> 
+</I>&gt;<i> Screen widths in media queries are in CSS pixels, not in device pixels.
+</I>&gt;<i> 
+</I>&gt;<i> There are operating system settings, that can even be changed 
+</I>&gt;<i> dynamically, that change the screen width in CSS pixels.  There are even 
+</I>&gt;<i> browser settings that change the screen width in CSS pixels.  Try this 
+</I>&gt;<i> in Firefox:
+</I>&gt;<i> 
+</I>&gt;<i>   &lt;input type=&quot;button&quot; onclick=&quot;alert(window.screen.width)&quot;
+</I>&gt;<i>          value=&quot;click me&quot;&gt;
+</I>&gt;<i> 
+</I>&gt;<i> Load that page, click the button, zoom in as much as you can using the 
+</I>&gt;<i> browser's zoom function, and click the button again.  Over here, the two 
+</I>&gt;<i> alerts show 1920 and 640 respectively.
+</I>
+I haven't changed the HTML specification in response to the above. It 
+isn't clear to me what we should do, if anything.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="034586.html">[whatwg] Supporting scrollTop and scrollLeft on the Canvas element
+</A></li>
+	<LI>Next message: <A HREF="034588.html">[whatwg] A better animation API
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#34587">[ date ]</a>
+              <a href="thread.html#34587">[ thread ]</a>
+              <a href="subject.html#34587">[ subject ]</a>
+              <a href="author.html#34587">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

@@ -1,0 +1,251 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Location object identity and navigation behavior
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Location%20object%20identity%20and%20navigation%20behavior&In-Reply-To=%3CPine.LNX.4.64.1211192313430.26354%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="080123.html">
+   <LINK REL="Next"  HREF="080290.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Location object identity and navigation behavior</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Location%20object%20identity%20and%20navigation%20behavior&In-Reply-To=%3CPine.LNX.4.64.1211192313430.26354%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg] Location object identity and navigation behavior">ian at hixie.ch
+       </A><BR>
+    <I>Mon Nov 19 17:38:02 PST 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="080123.html">[whatwg] Location object identity and navigation behavior
+</A></li>
+        <LI>Next message: <A HREF="080290.html">[whatwg] Location object identity and navigation behavior
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#80287">[ date ]</a>
+              <a href="thread.html#80287">[ thread ]</a>
+              <a href="subject.html#80287">[ subject ]</a>
+              <a href="author.html#80287">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Thu, 8 Nov 2012, Bobby Holley wrote:
+&gt;<i>
+</I>&gt;<i> The current spec for the Location object doesn't match reality. At the 
+</I>&gt;<i> moment, the spec says that Location is a per-Window object that 
+</I>&gt;<i> describes the associated Document. However, in our testing, it appears 
+</I>&gt;<i> that none of the user-agents (Gecko, WebKit, Trident, Presto) do this 
+</I>&gt;<i> [1]. Instead, all implementations of Location describe the active 
+</I>&gt;<i> document in the browsing context (that is to say, the referent of the 
+</I>&gt;<i> WindowProxy). This suggests that the spec's current language is likely 
+</I>&gt;<i> not web-compatible.
+</I>
+Fixed.
+
+
+&gt;<i> If the Location object describes the browsing context, we're left to 
+</I>&gt;<i> consider whether there should be one Location object per Window or one 
+</I>&gt;<i> Location object per browsing context. Gecko and Webkit currently do the 
+</I>&gt;<i> former, and Trident and Presto do the latter (see again [1]).
+</I>
+It seems IE changed in IE10 and now acts like WebKit.
+
+
+Arguments for the one-LocationProxy-per-WindowProxy behaviour:
+
+ - it would likely improve Gecko's security story since it would simplify 
+   Gecko's security invariants.
+
+ - it's what Opera and old IEs implement (I think?).
+
+Arguments for the one-Location-per-Window behaviour:
+
+ - it would likely improve WebKit's security story since it would simplify
+   Webkit's security checks (relative to the other option).
+
+ - it's what WebKit and new IEs implement (I think?).
+
+ - it has the clearer story for authors. Objects that change identity, or 
+   that gain or lose properties when a page navigates, are unintuitive.
+
+
+On Thu, 8 Nov 2012, Boris Zbarsky wrote:
+&gt;<i> On 11/8/12 6:09 PM, Adam Barth wrote:
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; In WebKit at least, it would be a security vulnerability to expose 
+</I>&gt;<i> &gt; JavaScript objects that belong to Document B to Document A because 
+</I>&gt;<i> &gt; that would give Document A access to the prototype objects for 
+</I>&gt;<i> &gt; Document B.
+</I>&gt;<i> 
+</I>&gt;<i> You presumably have a solution for this situation for the WindowProxy 
+</I>&gt;<i> case, right?  Certainly Gecko does, and we would be using the same 
+</I>&gt;<i> solution for Location if we tie the lifetime of a Location to the 
+</I>&gt;<i> lifetime of a WindowProxy.
+</I>
+This problem exists regardless of whether we have proxies, since the 
+Location object is visible cross-origin. Whether we proxy or not is 
+orthogonal. The question is just how we should protect the object.
+
+
+On Fri, 9 Nov 2012, Adam Barth wrote:
+&gt;<i> 
+</I>&gt;<i> The WindowProxy is a special, magical object because references to it 
+</I>&gt;<i> magically change which JavaScript object they refer to over time.  If 
+</I>&gt;<i> possible, I would like to avoid infecting other objects with its magic.
+</I>
+I do agree with this. I don't see why we would ever introduce an object 
+like this if we can help it.
+
+
+On Fri, 9 Nov 2012, Bobby Holley wrote:
+&gt;<i> 
+</I>&gt;<i> Right now, the Location object is the only object whose security 
+</I>&gt;<i> characteristics are not guaranteed to match its global, which is a major 
+</I>&gt;<i> pain point for us.
+</I>
+The Window object, the Document object, and the Location object, per spec, 
+all have exactly the same security characteristics, except that Window and 
+Location have certain properties that can be accessed. (This is also quite 
+similar to the Storage model, except Storage uses the actual origin, not 
+the effective script origin.)
+
+
+On Fri, 9 Nov 2012, Bobby Holley wrote:
+&gt;<i> 
+</I>&gt;<i> As noted, the Location object is the only object whose security 
+</I>&gt;<i> characteristics don't match its scope. This requires a lot of extra goop 
+</I>&gt;<i> in our compartment-based security model, and the goop is brittle 
+</I>&gt;<i> (recently forcing us to release two out-of-band updates, 16.0.1 and 
+</I>&gt;<i> 16.0.2). We've got enough belt-and-suspenders code now that I'm not 
+</I>&gt;<i> particularly worried, but I still want to make Location just like any 
+</I>&gt;<i> other object from a security perspective.
+</I>
+I don't think making it one of those proxy objects, of which there's only 
+one so far and it's very complicated, is making it &quot;just like any other 
+object&quot;, but I understand that the Gecko security model does make this 
+different than it first appears.
+
+
+&gt;<i> Also, FWIW, from the perspective of an average web-developer, IMO it 
+</I>&gt;<i> makes much more semantic sense to have one Location per WindowProxy if 
+</I>&gt;<i> the Location object describes the WindowProxy.
+</I>
+It has some pretty serious implications. It means if you have the object 
+in an iframe and install a shim to implement some of Anne's new features, 
+your shim will break as soon as you navigate the iframe. That's very odd. 
+It also means that the object's &quot;instanceof&quot; characteristic will keep 
+changing. Again, very unusual and not something authors normally see.
+
+
+On Fri, 9 Nov 2012, Boris Zbarsky wrote:
+&gt;<i> 
+</I>&gt;<i> One thing I'd like is some comment from Opera and Microsoft about what 
+</I>&gt;<i> their situation is, since implementing what WebKit does would mean both 
+</I>&gt;<i> of those changing.  This is probably the wrong venue to get hold of 
+</I>&gt;<i> Microsoft for an official statement, sadly.  :(
+</I>
+Microsoft seems to have already changed, from what I hear of IE10 (I 
+unfortunately don't have access to an instance to test for myself).
+
+Input from Opera people would indeed be welcome.
+
+
+On Fri, 9 Nov 2012, Bobby Holley wrote:
+&gt;<i> On Thu, Nov 8, 2012 at 6:09 PM, Adam Barth &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">w3c at adambarth.com</A>&gt; wrote:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; == Document A ==
+</I>&gt;<i> &gt; &lt;script&gt;
+</I>&gt;<i> &gt; Object.prototype.foo = &quot;A1&quot;;
+</I>&gt;<i> &gt; window.location.bar = &quot;A2&quot;;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; function f() {
+</I>&gt;<i> &gt;   var loc = window.location;
+</I>&gt;<i> &gt;   print(loc.foo); // print is a magic function that lets me see this value
+</I>&gt;<i> &gt;   print(loc.bar);
+</I>&gt;<i> &gt; }
+</I>&gt;<i> &gt; &lt;/script&gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; == Document B ==
+</I>&gt;<i> &gt; &lt;script&gt;
+</I>&gt;<i> &gt; Object.prototype.foo = &quot;B1&quot;;
+</I>&gt;<i> &gt; window.location.bar = &quot;B2&quot;;
+</I>&gt;<i> &gt; &lt;/script&gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; 1) Document A is displayed in browsing context X.
+</I>&gt;<i> &gt; 2) Browsing context X is navigated and now displays document B.
+</I>&gt;<i> &gt; 3) Function f is called.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; What values are printed?
+</I>&gt;<i> 
+</I>&gt;<i> Under the proposed behavior, both documents share the same Location 
+</I>&gt;<i> object.
+</I>
+Well, the proposal is that there's two Location objects, but 
+window.location always returns an object that refers to the active 
+document's one, right? Or is the proposal that there really only be one 
+instance? If the latter, whose prototype does it have? I don't see how we 
+could do the latter really.
+
+
+&gt;<i> As for loc.foo, our new implementation would give &quot;B1&quot;, because the 
+</I>&gt;<i> Location object has entirely transplanted into the new Document's scope. 
+</I>&gt;<i> This seems sane to me, but it's certainly up for discussion.
+</I>
+I don't think it seems sane from the author's perspective.
+
+
+For now I've tightened up the spec so it should be implementable, secure, 
+and Web-compatible, but it still has a unique instance per Document, not 
+the one-object-whose-prototype-keeps-changing model, nor the proxy model 
+(it's not entirely clear to me which is being proposed for Gecko).
+
+But more input on this is definitely welcome. I'm in particular curious 
+about what authors would find most intuitive, about what Gecko's plans are 
+regarding which Location interface object to use for the prototype of the 
+Location object instance(s), whether the proposal would enable 
+cross-origin shims (or indeed same-origin shims) on Location instances, 
+etc. I'm also curious as to why figuring out the &quot;entry script&quot;'s 
+characteristics needs to use the stack introspection rather than just 
+having an event-loop global &quot;first script&quot; variable, much as the spec 
+describes it -- the latter seems safer and more efficient to me. If the 
+spec's description can't be implemented, then it's something that should 
+be fixed.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="080123.html">[whatwg] Location object identity and navigation behavior
+</A></li>
+	<LI>Next message: <A HREF="080290.html">[whatwg] Location object identity and navigation behavior
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#80287">[ date ]</a>
+              <a href="thread.html#80287">[ thread ]</a>
+              <a href="subject.html#80287">[ subject ]</a>
+              <a href="author.html#80287">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

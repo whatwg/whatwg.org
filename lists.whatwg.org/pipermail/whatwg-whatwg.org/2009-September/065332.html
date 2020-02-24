@@ -1,0 +1,626 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] localStorage, the storage mutex, document.domain,	and workers
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20localStorage%2C%20the%20storage%20mutex%2C%20document.domain%2C%0A%09and%20workers&In-Reply-To=%3CPine.LNX.4.62.0909160952060.14605%40hixie.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="065314.html">
+   <LINK REL="Next"  HREF="065339.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] localStorage, the storage mutex, document.domain,	and workers</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20localStorage%2C%20the%20storage%20mutex%2C%20document.domain%2C%0A%09and%20workers&In-Reply-To=%3CPine.LNX.4.62.0909160952060.14605%40hixie.dreamhostps.com%3E"
+       TITLE="[whatwg] localStorage, the storage mutex, document.domain,	and workers">ian at hixie.ch
+       </A><BR>
+    <I>Thu Sep 17 01:32:02 PDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="065314.html">[whatwg] LocalStorage in workers
+</A></li>
+        <LI>Next message: <A HREF="065339.html">[whatwg] localStorage, the storage mutex, document.domain,	and workers
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#65332">[ date ]</a>
+              <a href="thread.html#65332">[ thread ]</a>
+              <a href="subject.html#65332">[ subject ]</a>
+              <a href="author.html#65332">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>
+SUMMARY:
+
+I haven't removed the storage mutex. I don't see any other workable 
+solution to the problem.
+
+We can't change the API, as much as we'd like to, because it's already 
+shipped in IE, and it would simply be dumb for us to screw Microsoft over 
+here. It's hard enough to get them to implement specs without giving their 
+management more reasons for not being on the cutting edge.
+
+We can't simply remove the storage mutex, because then we'll have race 
+conditions up the wazoo, especially for localStorage. We could probably 
+get away with letting document.cookie be unprotected, since IE has done 
+that for years and cookies aren't a high-traffic API, but who knows how 
+many bugs that's really causing. If implementations don't implement the 
+mutex around document.cookie access, I can't blame them, but it's a risk 
+that each implementor needs to evaluate on their own, the spec isn't going 
+to condone it.
+
+I have made sure that as far as I am aware, there are no ways to 
+synchronously invoke script from another origin in HTML5 without dropping 
+the mutex (specifically, I've made history.back() and changing of 
+document.domain drop the mutex), and I've made it so that you can only 
+access localStorage objects of your effective script origin (i.e. changing 
+document.domain means your localStorage is no longer accessible). This 
+means that it should be possible to implement the storage mutex on a 
+per-domain basis. This should minimise the potential damage.
+
+I haven't added localStorage to workers, because it'd be too easy to grab 
+the mutex and try to see if Pi is finite using a brute-force approach, 
+leaving all the other event loops that try to grab the mutex SOL.
+
+I haven't added an async callback to localStorage yet, because I don't 
+imagine that most authors will use it given that they don't need to and 
+see no problems when testing (you'd only see issues if you tested having 
+two apps from the same domain both doing storage updates in long scripts).
+
+
+LESSONS LEARNT
+
+If we ever define a new API that needs a lock of some kind, the way to do 
+it is to use a callback, so that the UA can wait for the lock 
+asynchronously, and then run the callback once it has it. (This is what 
+the Web Database spec does, for instance.)
+
+
+
+On Thu, 3 Sep 2009, timeless wrote:
+&gt;<i> On Sun, Aug 30, 2009 at 4:06 AM, Ian Hickson&lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">ian at hixie.ch</A>&gt; wrote:
+</I>&gt;<i> &gt; Upon further consideration I've renamed getStorageUpdates() to 
+</I>&gt;<i> &gt; yieldForStorageUpdates().
+</I>&gt;<i> 
+</I>&gt;<i> If getStorageUpdates() actually returned how *many* updates there were, 
+</I>&gt;<i> it could be a vaguely useful name.
+</I>&gt;<i> 
+</I>&gt;<i> If the answer is 0, then my application knows it doesn't need to try to 
+</I>&gt;<i> figure out how the world changed, right?
+</I>
+The answer 0 would only be useful if you were to grab the storage mutex 
+immediately upon receiving it, which defeats the point of the call.
+
+
+On Fri, 4 Sep 2009, Jeremy Orlow wrote:
+&gt;<i> 
+</I>&gt;<i> I like this idea except for one problem:  It doesn't tell whether 
+</I>&gt;<i> something got changed without your knowledge.  If you call alert, access 
+</I>&gt;<i> a plugin, etc it's possible to drop the lock.  I think some sort of 
+</I>&gt;<i> global counter, variable, etc would be more valuable since it solves 
+</I>&gt;<i> both problems.
+</I>
+What's the use case for this? I don't understand what a script making use 
+of this would look like. (I mean, I can see how to write a demo that shows 
+using it, but how would a real site use it?)
+
+
+On Fri, 4 Sep 2009, Chris Jones wrote:
+&gt;<i>
+</I>&gt;<i> I'd like to propose that HTML5 specify different schemes than a 
+</I>&gt;<i> conceptual global storage mutex to provide consistency guarantees for 
+</I>&gt;<i> localStorage and cookies.
+</I>&gt;<i> 
+</I>&gt;<i> Cookies would be protected according to Benjamin Smedberg's post in the 
+</I>&gt;<i> &quot;[whatwg] Storage mutex and cookies can lead to browser deadlock&quot; 
+</I>&gt;<i> thread. Roughly, this proposal would give scripts a consistent view of 
+</I>&gt;<i> document.cookie until they completed.  AIUI this is stronger consistency 
+</I>&gt;<i> than Google Chrome provides today, and anecdotal evidence suggests even 
+</I>&gt;<i> their weaker consistency hasn't &quot;broken the web.&quot;
+</I>
+I think if we're willing to run the risk of pages stomping on each other, 
+we should just go ahead and not have locking at all, rather than trying to 
+show a consistent view that we know to be a lie.
+
+That is, if this is going to fail when run in parallel:
+
+   var count = getCookie('counter');
+   counter += 1;
+   setCookie('data' + counter, data);
+   setCookie('counter', counter);
+
+...then there's not much point worrying about whether the view is 
+consistent. Either way, data loss will occur.
+
+
+&gt;<i> localStorage would be changed in a non-backwards-compatible way.
+</I>
+I think this is a non-starter, as described above.
+
+
+&gt;<i> [transactions]
+</I>
+The problem with a system where transactions might fail based on timing is 
+that there's not much for the author to do but just try again, and that's 
+really not a good pattern to encourage. It's also likely that many authors 
+won't notice the failure case, leading to just another kind of race 
+condition very similar to what we're trying to avoid in the first place.
+
+
+On Fri, 4 Sep 2009, Chris Jones wrote:
+&gt;<i> 
+</I>&gt;<i> My problem with storage mutex boils down to the fact that by the letter 
+</I>&gt;<i> of the spec, a script can lock out the UA indefinitely by just reading a 
+</I>&gt;<i> cookie.
+</I>
+Not indefinitely -- only until the UA kills the script. Also, it should be 
+possible to make this per-origin locks, so it would only lock up the pages 
+that share its event loop or that are same-origin (or share the event loop 
+of same-origin content). And then only if they themselves need the mutex.
+
+
+On Sat, 5 Sep 2009, Chris Jones wrote:
+&gt;<i> 
+</I>&gt;<i> The cases I've thought of so far where we will probably have to break 
+</I>&gt;<i> storage-mutex semantics are
+</I>&gt;<i> 
+</I>&gt;<i>   * clear private data
+</I>&gt;<i>   * close tab
+</I>&gt;<i>   * quit UA
+</I>&gt;<i>   * &quot;slow script&quot; timeout
+</I>&gt;<i>   * store-to-disk failure
+</I>&gt;<i>   * crash
+</I>
+I don't follow. Why would these break storage mutex semantics?
+
+I would presume that the first one would just grab the mutex like anyone 
+else. The &quot;close tab&quot; and &quot;quit UA&quot; cases don't seem to need the storage 
+mutex. The &quot;slow script&quot; timeout would just spin the event loop, which 
+releases the mutex. The &quot;store to disk failure&quot; and &quot;crash&quot; cases seem 
+like exceptional cases unrelated to the storage mutex.
+
+
+&gt;<i> In the &quot;secret-storage-mutex world,&quot; if you agree that the cases above 
+</I>&gt;<i> imply that the UA will have to interrupt scripts, then it's possible for 
+</I>&gt;<i> scripts to make changes to localStorage that are only partially applied, 
+</I>&gt;<i> going by the letter of the storage mutex spec.
+</I>
+Sure, but there are far easier ways for that to happen, like an exception 
+firing in the middle of the script.
+
+
+&gt;<i> I think that for sites that would care (e.g. gmail), partially-applied 
+</I>&gt;<i> changes are a bad thing.  And as I argued in the OP, I think 
+</I>&gt;<i> localStorage should be designed only with sites like gmail in mind.
+</I>
+I don't think it is a good idea to ignore the other sites, in particular 
+because frankly a case like GMail is far more likely to want to use the 
+Web Database feature with full transactions going on than localStorage. 
+However, it's quite possible to build crash-safe transactions on top of 
+localStorage if you have the implied locking semantics of the storage 
+mutex, so if authors want to handle that case, they can.
+
+
+On Tue, 8 Sep 2009, Robert O'Callahan wrote:
+&gt;<i> On Tue, Sep 8, 2009 at 8:45 PM, Jeremy Orlow &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">jorlow at chromium.org</A>&gt; 
+</I>&gt;<i> wrote:
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; You'd have to implement it via a mutex.  An optimized implementation 
+</I>&gt;<i> &gt; could wait until the first operation that can't be un-done before 
+</I>&gt;<i> &gt; acquiring it, and do everything optimistically until then.  This is 
+</I>&gt;<i> &gt; the same situation as WebDatabase if I understand it correctly.
+</I>&gt;<i> 
+</I>&gt;<i> AFAIK WebDatabase transactions can't have side effects outside the 
+</I>&gt;<i> database, so they can be implemented optimistically with automatic 
+</I>&gt;<i> retries so aborts aren't exposed to the developer.
+</I>
+WebDatabase transactions just always grab a lock on the DB. You decide 
+when creating the transaction whether it's a read lock or a write lock. If 
+you get a read lock, writes fail. If you get a write lock, you get an 
+exclusive lock for the entire database before your callback runs. They can 
+have side-effects, and they never get retried, because they can't fail 
+unpredictably.
+
+
+On Tue, 8 Sep 2009, Aaron Boodman wrote:
+&gt;<i> 
+</I>&gt;<i> Here are two cases I know of where it is possible to have synchronous 
+</I>&gt;<i> script execution across origins:
+</I>&gt;<i> 
+</I>&gt;<i> * Plugins. It is possible for script to invoke a plugin function in one 
+</I>&gt;<i> frame, and for the plugin to synchronously execute script in another 
+</I>&gt;<i> frame. We have addressed this in the spec by saying that invoking a 
+</I>&gt;<i> plugin releases the storage mutex, but that doesn't really solve the 
+</I>&gt;<i> problem. We are exchanging violation of run-to-completion for deadlock. 
+</I>&gt;<i> I guess it is an improvement, but it is still a bug.
+</I>
+If you call a plugin, all bets are off anyway. I mean, the plugin could go 
+and corrupt your database directly, for all you know.
+
+
+&gt;<i> * In WebKit, onresize is invoked synchronously. You can cause
+</I>&gt;<i> cross-origin synchronous script execution by resizing an iframe.
+</I>&gt;<i> AFAIK, the spec does not disallow this event from being synchronous.
+</I>
+I'm not aware of any spec that fires 'resize' events currently. They 
+should either fire asynchronously or release the mutex, though.
+
+
+On Wed, 9 Sep 2009, Chris Jones wrote:
+&gt;<i> 
+</I>&gt;<i> But in general, nesting transactions, both { localStorage { Web DataBase 
+</I>&gt;<i> } } and { localStorage { localStorage } }, is something the spec should 
+</I>&gt;<i> explicitly disallow.  There's not a clearly best way to resolve the 
+</I>&gt;<i> semantic problems that arise.  (Note that preventing nested transactions 
+</I>&gt;<i> also eliminates deadlock concerns for mutex implementations.)
+</I>
+You can't nest async Web Database transactions in anything, the Web 
+Database callbacks are called from the top-level event loop. You can get 
+deadlocks in Workers with sync transactions (e.g. opening a write 
+transaction inside another transaction, or a read transaction inside a 
+write transaction), but they're not race condition deadlocks, they're 
+reproduceable logic errors. (I expect UAs will detect those cases and just 
+fire the timeout exception immediately, though the spec doesn't 
+technically require that.)
+
+
+On Tue, 8 Sep 2009, Chris Jones wrote:
+&gt;<i> 
+</I>&gt;<i> No one has responded directly to my original proposal of making 
+</I>&gt;<i> |window.localStorage === undefined| until |window.transaction| or 
+</I>&gt;<i> whatever has been accessed.  Unlike your proposal and a similar one from 
+</I>&gt;<i> Jeremy, mine is a &quot;safe&quot; (non-racy) way for spec-compliant UAs to &quot;bend&quot; 
+</I>&gt;<i> backwards compatibility without explicitly breaking it.  Web apps slow 
+</I>&gt;<i> to change should theoretically be prepared for |window.localStorage === 
+</I>&gt;<i> undefined| anyway, as not all UAs support localStorage.  And if a UA 
+</I>&gt;<i> doesn't support window.transaction, a web app that cares never needs to 
+</I>&gt;<i> worry about racy localStorage because in non-compliant UAs, 
+</I>&gt;<i> |window.transaction === undefined|.
+</I>
+The problem is that sites that _don't_ check will work fine in IE8, and 
+fail everywhere else, and if IE8 gets enough market share that people 
+write pages that work with ie without checking other browsers, as happened 
+with IE6 for example, then we'll be forced to implement this anyway, 
+except Microsoft will get bad PR for being incompatible and acting 
+monopolistically. On the other hand, if, say, Firefox implements this 
+proposal, and it gets enough market share that the opposite happens, then 
+IE is SOL, because people will be calling .transaction() and it'll fail in 
+IE. Either way, Microsoft end up being burnt for having done the right 
+thing, implementing cutting edge specs, and then we run the risk of them 
+backing off even further from doing that again.
+
+
+On Fri, 4 Sep 2009, Jonas Sicking wrote:
+&gt;<i> &gt;&gt; 
+</I>&gt;<i> &gt;&gt; I really liked Darin's (?) suggestion of allowStorageUpdates as that
+</I>&gt;<i> &gt;&gt; seems to exactly describe the intended use of the function. We no longer
+</I>&gt;<i> &gt;&gt; prevent other page from updating the storage.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; &quot;allow&quot; implies a state change, which I don't think really matches what is
+</I>&gt;<i> &gt; happening here. (&quot;How do I disallow updates?&quot;)
+</I>&gt;<i> 
+</I>&gt;<i> I don't understand why you associate &quot;allow&quot; with &quot;state change&quot;? It
+</I>&gt;<i> could just as well be allowing anything else. The word &quot;Updates&quot; is
+</I>&gt;<i> much more associated with &quot;state change&quot; i'd say. And that word occurs
+</I>&gt;<i> in your proposal too. Really it should probably be allowStorageAccess
+</I>&gt;<i> or yeildForStorageAccess to be more correct.
+</I>
+A method called allowFoo() feels to me like it should be paired with 
+another disallowFoo() and feels like it sets a flag to enable foo or 
+disable foo. But maybe that's just me.
+
+Anyway I think yieldForStorageUpdates() is fine. I somewhat prefer 
+getStorageUpdates() but I agree that getFoo() methods should return 
+something.
+
+
+On Wed, 9 Sep 2009, Jens Alfke wrote:
+&gt;<i> On Sep 4, 2009, at 2:38 PM, Ian Hickson wrote:
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; Right. My point is the site can do that already, since we don't ever
+</I>&gt;<i> &gt; _stop_ the site from using the local storage area. It can prompt you for
+</I>&gt;<i> &gt; a name directly, without UA involvement.
+</I>&gt;<i> 
+</I>&gt;<i> I'm sorry, I don't understand that. We must somehow be talking about
+</I>&gt;<i> completely different things. Sure, the site can call prompt() to get a name,
+</I>&gt;<i> but how can the site then create a file on the user's machine?
+</I>
+Just setting anything in localStorage does it automatically.
+
+
+&gt;<i> &gt; &gt; You can't store 50MB of data in a cookie. I'm talking about the 
+</I>&gt;<i> &gt; &gt; entire local storage of a site here, not a 40-byte session ID or 
+</I>&gt;<i> &gt; &gt; something.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; Then that distinction can be what is exposed in the UI to distinguish 
+</I>&gt;<i> &gt; &quot;boring&quot; storage from &quot;important&quot; storage.
+</I>&gt;<i> 
+</I>&gt;<i> Size isn't an indicator of importance, if that's what you mean. A 
+</I>&gt;<i> 100-byte email draft could be vitally important, while 50MB of 
+</I>&gt;<i> downloaded cached textures for a game isn't. &quot;Importance&quot; is an 
+</I>&gt;<i> application-specific property and the UA's not going to be able to guess 
+</I>&gt;<i> it.
+</I>
+Well I don't think we can rely on the sites to declare it, either, so I 
+guess we're back to it all being important.
+
+
+On Wed, 9 Sep 2009, Michael Nordman wrote:
+&gt;<i>
+</I>&gt;<i> If this feature existed, we likely would have used it for offline Gmail 
+</I>&gt;<i> to coordinate which instance of the app (page with gmail in it) should 
+</I>&gt;<i> be responsible for sync'ing the local database with the mail service. In 
+</I>&gt;<i> the absence of a feature like this, instead we used the local database 
+</I>&gt;<i> itself to register which page was the 'syncagent'. This involved 
+</I>&gt;<i> periodically updating the db by the syncagent, and periodic polling by 
+</I>&gt;<i> the would be syncagents waiting to possibly take over. Much ugliness. 
+</I>
+Shared workers are the better solution to this.
+
+
+On Thu, 10 Sep 2009, James Robinson wrote:
+&gt;<i> 
+</I>&gt;<i> Is it really too late for DB and localStorage?  I'm still trying to get 
+</I>&gt;<i> used to the standards process used here but I thought the idea with UAs 
+</I>&gt;<i> implementing draft specs is that the feedback from the experience can be 
+</I>&gt;<i> used to refine the spec - a few UAs have implemented synchronous access 
+</I>&gt;<i> to a single resource from multiple threads and it appears to be 
+</I>&gt;<i> problematic.
+</I>&gt;<i> Wouldn't that mean it's a good time to revise the problematic parts?
+</I>
+Web Database is still very much in flux. However, localStorage is more or 
+less fixed because Microsoft shipped it and their release cycle means they 
+won't ship changes to it before it is solidly embedded in too many sites 
+to risk changes.
+
+
+On Fri, 11 Sep 2009, Jeremy Orlow wrote:
+&gt;<i> 
+</I>&gt;<i> If the intention is to split localStorage into multiple domains, I think 
+</I>&gt;<i> we should do just that.  For example, we could add 
+</I>&gt;<i> |window.getLocalStorage(name)| that would create a new object that 
+</I>&gt;<i> implements the storage interface.  |window.localStorage| could be an 
+</I>&gt;<i> alias to |window.getLocalStorage(null)| maybe?  We could then specify 
+</I>&gt;<i> that you can only hold a lock on one storage interface at once.
+</I>
+With a sync access model, this wouldn't help. You'd still need one lock 
+for each storage area, otherwise a single event loop could end up trying 
+to aquire too locks while another is doing the opposite, and they would 
+deadlock.
+
+We could have an additional API for async localstorage access that did 
+this division of data, but it's not clear that the additional value of 
+this makes it worth it given that we'd have to still offer the current API 
+as well. I don't think many people would use the new API.
+
+
+On Thu, 10 Sep 2009, Scott Hess wrote:
+&gt;<i>
+</I>&gt;<i> I think that you can either give web developers a strong set of 
+</I>&gt;<i> concurrent-programming primitives, or you can give them a weak set and 
+</I>&gt;<i> let them make up what they think they need out of those. &#160;The nice thing 
+</I>&gt;<i> about providing a very basic primitives is that it's more likely that 
+</I>&gt;<i> good developers can compose higher-level operations with the primitives.
+</I>
+The good developers are in the minority (through no fault of the others 
+-- it's just that the bar to developing on the Web is so low that many 
+more people who would never try programming some other platform are able 
+to do useful things on the Web despite their minimal knowledge).
+
+I think that providing any kind of explicit locking or mutex system to Web 
+authors would be like passing them a loaded gun with the safety off, and 
+them not being able to tell which side the bullet was going to come out 
+of. All the cool kids would be using it, so clearly they should do...
+
+I really think it would have spectacularly bad results.
+
+
+On Wed, 9 Sep 2009, Darin Fisher wrote:
+&gt;<i> 
+</I>&gt;<i> By the way, you can already pretty much create my acquireLock / 
+</I>&gt;<i> releaseLock API on top of SharedWorkers today, but in a slightly 
+</I>&gt;<i> crappier way.
+</I>
+How? Since the API is completely async, you can't make a spinlock.
+
+
+&gt;<i> Yes, I wholeheartedly agree.  Note: my concern is that there is no good 
+</I>&gt;<i> implementation for the storage mutex.  Implicitly dropping it at weird 
+</I>&gt;<i> times is not a good answer.
+</I>
+I think the few cases where it happens are actually pretty reasonable:
+
+ - changing document.domain
+ - history.back(), .forward(), .go(n)
+ - invoking a plugin
+ - alert(), confirm(), prompt(), print()
+ - showModalDialog()
+ - yieldForStorageUpdates()
+
+To examine each in turn:
+
+ - changing document.domain
+   After this, you can't access your storage area anymore anyway.
+
+ - history.back(), .forward(), .go(n)
+   Usually this unloads your document anyway. In the case where you're 
+   navigating an iframe, I could see some confusion arising, but it is 
+   likely quite a rare operation.
+
+ - invoking a plugin
+   All bets are off when calling a plugin.
+
+ - alert(), confirm(), prompt(), print()
+ - showModalDialog()
+   These are all fire long-term modal dialogs, so it makes sense that the 
+   storage area could change while they're running.
+
+ - yieldForStorageUpdates()
+   That's the point of the method.
+
+
+On Wed, 9 Sep 2009, Darin Fisher wrote:
+&gt;<i> 
+</I>&gt;<i> Yeah, if you had to call an API that asynchronously acquires exclusive 
+</I>&gt;<i> access to storage, then I believe that would nicely address most of the 
+</I>&gt;<i> issues.  It is the solution we have for database transactions.
+</I>&gt;<i> 
+</I>&gt;<i> I say &quot;most&quot; because I'm not sure that it eliminates the need to drop 
+</I>&gt;<i> the storage mutex in the showModalDialog case.
+</I>&gt;<i> 
+</I>&gt;<i> If I call showModalDialog from within a database transaction, and then 
+</I>&gt;<i> showModalDialog tries to create another database transaction, should I 
+</I>&gt;<i> expect that the transaction can be started within the nested run loop of 
+</I>&gt;<i> the modal dialog?  If not, then it may cause the app to get confused and 
+</I>&gt;<i> never allow the dialog to be closed (e.g., perhaps the close action is 
+</I>&gt;<i> predicated on a database query.)
+</I>
+You can get into a situation where the database query started from 
+showModalDialog() fails to ever aqcuire the lock and call its callback, 
+yes. The user can always manually dismiss the modal window, though, so 
+it's not a disaster (the callback would then run when the window was 
+closed and the parent transaction finishd). It's also reproduceable, so 
+it's not going to be that hard to debug.
+
+The same problem exists in workers, where you have synchronous 
+transactions.
+
+
+On Thu, 10 Sep 2009, Jeremy Orlow wrote:
+&gt;<i> 
+</I>&gt;<i> We could just disallow showModalDialog and any other trouble APIs like 
+</I>&gt;<i> that during localStorage and database &quot;transactions&quot;.  Doing so seems 
+</I>&gt;<i> better than silently dropping transactional semantics.
+</I>
+Right now, if the showModalDialog() is called from a write transaction, 
+nested transactions on the same database always fail, and from a read 
+transaction, nested write transactions always fail (in both cases, 
+assuming the user doesn't close the window and let the callback fire once 
+the parent transaction has finished). I think that's fine, we don't need 
+to either drop transactional semantics or block all nested transactions or 
+modal dialogs of any kind. We already have an error callback that fires 
+when the UA times out, and the UA could detect this situation and report 
+the likely cause of the timeout with a warning to the console to report it 
+for debugging purposes. I don't think it's a particularly big problem.
+
+
+On Wed, 9 Sep 2009, Darin Fisher wrote:
+&gt;<i> 
+</I>&gt;<i> It may not be so easy to disallow showModalDialog.  Imagine if you 
+</I>&gt;<i> script a plugin inside the transaction, and before returning, the plugin 
+</I>&gt;<i> scripts another window, where it calls showModalDialog.  There could 
+</I>&gt;<i> have been a process hop there.
+</I>
+If your script is linking processes in this way then you can have far more 
+serious deadlocks already (imagine two plugins both doing this but going 
+in the opposite direction).
+
+
+On Wed, 9 Sep 2009, Maciej Stachowiak wrote:
+&gt;<i> 
+</I>&gt;<i> I'm really hesitant to expose explicit locking to the Web platform. 
+</I>&gt;<i> Mutexes are incredibly hard to program with correctly, and we will 
+</I>&gt;<i> surely end up with stuck locks, race conditions, livelocks, and so 
+</I>&gt;<i> forth. For Workers I was happy that we managed to avoid any locking 
+</I>&gt;<i> primitives by using a message-passing model, but explicit mutexes would 
+</I>&gt;<i> ruin that.
+</I>
+I agree.
+
+
+On Tue, 15 Sep 2009, Jeremy Orlow wrote:
+&gt;<i>
+</I>&gt;<i> [storage in workers]
+</I>&gt;<i> One possible solution is to add an asynchronous callback interface for
+</I>&gt;<i> LocalStorage into workers.  For example:
+</I>&gt;<i> 
+</I>&gt;<i> function myCallback(localStorage) {
+</I>&gt;<i>   localStorage.accountBalance = localStorage.accountBalance + 100;
+</I>&gt;<i> }
+</I>&gt;<i> executeLocalStorageCallback(myCallback);
+</I>&gt;<i> 
+</I>&gt;<i> [...] Of course, it's still possible for a poorly behaving worker to do 
+</I>&gt;<i> large amounts of computation in the callback, but hopefully the fact 
+</I>&gt;<i> they're executing in a callback makes the developer more aware of the 
+</I>&gt;<i> problem.
+</I>
+I don't think we want to hang user experience on a hope that authors will 
+do the right thing. We've lost every time we've made that bet in the past.
+
+The only way I could see making localStorage visible to workers is with a 
+mechanism that took a finite list of operations to do and that could do 
+them asynchronously. However, short of inventing a new language like SQL, 
+or an elaborate API with some sort of symbolic expressions, I don't really 
+see how to expose that sanely.
+
+We could let the script see a stale copy of the data and have it say when 
+it wants its changes committed back, but then we'd overwrite data left 
+right and centre, as described earlier. Other solutions like explicit 
+locks and transactions that can fail unpredictably are equally big 
+pitfalls for Web authors.
+
+At least with what we have now the worst case scenario is pretty well 
+understood and is actually no worse than all pages from a particular 
+origin doing &quot;while (true) {}&quot; all at once, which is already possible, 
+and just results in a &quot;slow script&quot; dialog.
+
+
+On Tue, 15 Sep 2009, Jonas Sicking wrote:
+&gt;<i> 
+</I>&gt;<i> First off, I agree that not having localStorage in workers is a big 
+</I>&gt;<i> problem that we need to address.
+</I>&gt;<i> 
+</I>&gt;<i> If I were designing the localStorage interface today I would use the 
+</I>&gt;<i> above interface that you suggest. Grabbing localStorage can only be done 
+</I>&gt;<i> asynchronously, and while you're using it, no one else can get a 
+</I>&gt;<i> reference to it. This way there are no race conditions, but also no way 
+</I>&gt;<i> for anyone to have to lock.
+</I>&gt;<i> 
+</I>&gt;<i> So one solution is to do that in parallel to the current localStorage 
+</I>&gt;<i> interface. Let's say we introduce a 'clientStorage' object. You can only 
+</I>&gt;<i> get a reference to it using a 'getClientStorage' function. This function 
+</I>&gt;<i> is available both to workers and windows. The storage is separate from 
+</I>&gt;<i> localStorage so no need to worry about the 'storage mutex'.
+</I>
+I think we should be very careful before introducing a fourth storage 
+mechanism to make sure that whatever we introduce really is something 
+that's going to be very useful and really solve problems. I'd really 
+rather not rush into adding yet another mechanism at this point.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="065314.html">[whatwg] LocalStorage in workers
+</A></li>
+	<LI>Next message: <A HREF="065339.html">[whatwg] localStorage, the storage mutex, document.domain,	and workers
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#65332">[ date ]</a>
+              <a href="thread.html#65332">[ thread ]</a>
+              <a href="subject.html#65332">[ subject ]</a>
+              <a href="author.html#65332">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

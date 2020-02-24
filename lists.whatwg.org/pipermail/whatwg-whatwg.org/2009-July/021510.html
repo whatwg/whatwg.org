@@ -1,0 +1,165 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Error handling for MIME type parsing (canPlayType)
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Error%20handling%20for%20MIME%20type%20parsing%20%28canPlayType%29&In-Reply-To=%3CPine.LNX.4.62.0907290038290.3189%40hixie.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="021098.html">
+   <LINK REL="Next"  HREF="021099.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Error handling for MIME type parsing (canPlayType)</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Error%20handling%20for%20MIME%20type%20parsing%20%28canPlayType%29&In-Reply-To=%3CPine.LNX.4.62.0907290038290.3189%40hixie.dreamhostps.com%3E"
+       TITLE="[whatwg] Error handling for MIME type parsing (canPlayType)">ian at hixie.ch
+       </A><BR>
+    <I>Tue Jul 28 17:40:37 PDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="021098.html">[whatwg] Error handling for MIME type parsing (canPlayType)
+</A></li>
+        <LI>Next message: <A HREF="021099.html">[whatwg] AppCache can't serve different contents for different	users at the same URL
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21510">[ date ]</a>
+              <a href="thread.html#21510">[ thread ]</a>
+              <a href="subject.html#21510">[ subject ]</a>
+              <a href="author.html#21510">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Tue, 14 Jul 2009, Philip J&#228;genstedt wrote:
+&gt;<i>
+</I>&gt;<i> While implementing canPlayType I've found that Firefox/Safari/Chrome (and now
+</I>&gt;<i> Opera) all have different error handling in parsing the MIME types. RFC
+</I>&gt;<i> 2045[1] gives the BNF form, but it appears that no browser gives much weight
+</I>&gt;<i> to this.
+</I>&gt;<i> 
+</I>&gt;<i> Sample of quirks:
+</I>&gt;<i> 
+</I>&gt;<i> (Ignore &quot;no&quot; vs &quot;&quot; here, it's not relevant)
+</I>&gt;<i> 
+</I>&gt;<i> Firefox:
+</I>&gt;<i> 
+</I>&gt;<i> AUDIO/X-WAV: &quot;no&quot;
+</I>&gt;<i> audio/x-wav codecs: &quot;maybe&quot;
+</I>&gt;<i> audio/x-wav; codecs=: &quot;probably&quot;
+</I>&gt;<i> audio/x-wav; codecs=,: &quot;no&quot;
+</I>&gt;<i> 
+</I>&gt;<i> Safari:
+</I>&gt;<i> 
+</I>&gt;<i> AUDIO/X-WAV: &quot;no&quot;
+</I>&gt;<i> audio/x-wav codecs: &quot;no&quot;
+</I>&gt;<i> audio/x-wav; codecs=: &quot;probably&quot;
+</I>&gt;<i> audio/x-wav; codecs=,: &quot;maybe&quot;
+</I>&gt;<i> 
+</I>&gt;<i> Opera internal:
+</I>&gt;<i> 
+</I>&gt;<i> AUDIO/X-WAV: &quot;&quot;
+</I>&gt;<i> audio/x-wav codecs: &quot;&quot;
+</I>&gt;<i> audio/x-wav; codecs=: &quot;maybe&quot;
+</I>&gt;<i> audio/x-wav; codecs=,: &quot;maybe&quot;
+</I>&gt;<i> 
+</I>&gt;<i> Chrome ignores codecs, so I can't get meaningful results.
+</I>&gt;<i> 
+</I>&gt;<i> I believe the correct answers are:
+</I>&gt;<i> 
+</I>&gt;<i> AUDIO/X-WAV: same as for audio/x-wav (by RFC 2045, but we could ignore it
+</I>&gt;<i> because it looks ugly)
+</I>&gt;<i> audio/x-wav codecs: the same as audio/x-unknown-type (i.e. &quot;no&quot; for Firefox)
+</I>&gt;<i> audio/x-wav; codecs=: same as audio/x-wav (unless we want this to mean &quot;no
+</I>&gt;<i> codecs&quot;, in which case &quot;no&quot; would be more appropriate)
+</I>&gt;<i> audio/x-wav; codecs=,: same as audio/x-wav (i.e. ignore broken codecs
+</I>&gt;<i> parameter)
+</I>&gt;<i> 
+</I>&gt;<i> Has there been any work done on defining error handling for Content-Type 
+</I>&gt;<i> parsing or the like? It wouldn't be fun to get cross-browser bugs as 
+</I>&gt;<i> soon as someone forgets a semicolon...
+</I>
+On Wed, 15 Jul 2009, Robert O'Callahan wrote:
+&gt;<i> 
+</I>&gt;<i> In Firefox I just reused our existing MIME type parser. I'm not sure how
+</I>&gt;<i> tightly that parser is constrained by Web compatibility quirks issues.
+</I>&gt;<i> 
+</I>&gt;<i> audio/x-wav codecs: the same as audio/x-unknown-type (i.e. &quot;no&quot; for Firefox)
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> Yes, that seems like a bug.
+</I>&gt;<i> 
+</I>&gt;<i> audio/x-wav; codecs=: same as audio/x-wav (unless we want this to mean &quot;no
+</I>&gt;<i> &gt; codecs&quot;, in which case &quot;no&quot; would be more appropriate)
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> I interpret this as &quot;no codecs&quot;. In that case, &quot;probably&quot; is correct, since
+</I>&gt;<i> we support every codec in the list.
+</I>&gt;<i> 
+</I>&gt;<i> audio/x-wav; codecs=,: same as audio/x-wav (i.e. ignore broken codecs
+</I>&gt;<i> &gt; parameter)
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> I interpret this as two codecs, both whose name is the empty string. We
+</I>&gt;<i> don't support that codec.
+</I>&gt;<i> 
+</I>&gt;<i> Has there been any work done on defining error handling for Content-Type
+</I>&gt;<i> &gt; parsing or the like?
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> That's a very good question, but I don't know the answer.
+</I>
+HTML5 has some rules for parsing Content-Type that are designed for 
+particular cases where it is constrained, but I don't think this is such a 
+case. I would recommend asking the relevant working group (HTTP?) for 
+guidance on how to parse these headers when they have bogus values.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="021098.html">[whatwg] Error handling for MIME type parsing (canPlayType)
+</A></li>
+	<LI>Next message: <A HREF="021099.html">[whatwg] AppCache can't serve different contents for different	users at the same URL
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21510">[ date ]</a>
+              <a href="thread.html#21510">[ thread ]</a>
+              <a href="subject.html#21510">[ subject ]</a>
+              <a href="author.html#21510">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

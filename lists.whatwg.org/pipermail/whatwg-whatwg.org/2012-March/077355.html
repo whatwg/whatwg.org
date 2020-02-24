@@ -1,0 +1,156 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] API for encoding/decoding ArrayBuffers into text
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20API%20for%20encoding/decoding%20ArrayBuffers%20into%20text&In-Reply-To=%3CCAD649j6qB1daujH6JbYu1X2je2PKeXn%2BPPm338DTjcHk8i4TVQ%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="077354.html">
+   <LINK REL="Next"  HREF="077356.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] API for encoding/decoding ArrayBuffers into text</H1>
+<!--htdig_noindex-->
+    <B>Joshua Bell</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20API%20for%20encoding/decoding%20ArrayBuffers%20into%20text&In-Reply-To=%3CCAD649j6qB1daujH6JbYu1X2je2PKeXn%2BPPm338DTjcHk8i4TVQ%40mail.gmail.com%3E"
+       TITLE="[whatwg] API for encoding/decoding ArrayBuffers into text">jsbell at chromium.org
+       </A><BR>
+    <I>Fri Mar 16 09:19:44 PDT 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="077354.html">[whatwg] API for encoding/decoding ArrayBuffers into text
+</A></li>
+        <LI>Next message: <A HREF="077356.html">[whatwg] API for encoding/decoding ArrayBuffers into text
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#77355">[ date ]</a>
+              <a href="thread.html#77355">[ thread ]</a>
+              <a href="subject.html#77355">[ subject ]</a>
+              <a href="author.html#77355">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Thu, Mar 15, 2012 at 5:20 PM, Glenn Maynard &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">glenn at zewt.org</A>&gt; wrote:
+
+&gt;<i> On Thu, Mar 15, 2012 at 6:51 PM, Jonas Sicking &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">jonas at sicking.cc</A>&gt; wrote:
+</I>&gt;<i>
+</I>&gt;&gt;<i> What's the use-case for the &quot;stringLength&quot; function? You can't decode
+</I>&gt;&gt;<i> into an existing datastructure anyway, so you're ultimately forced to
+</I>&gt;&gt;<i> call &quot;decode&quot; at which point the &quot;stringLength&quot; function hasn't helped
+</I>&gt;&gt;<i> you.
+</I>&gt;&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> stringLength doesn't return the length of the decoded string.  It returns
+</I>&gt;<i> the byte offset of the first \0 (or the length of the whole buffer, if
+</I>&gt;<i> none), for decoding null-terminated strings.  For multibyte encodings (eg.
+</I>&gt;<i> everything except UTF-16 and friends), it's just memchr(), so it's much
+</I>&gt;<i> faster than actually decoding the string.
+</I>&gt;<i>
+</I>
+And just to be clear, the use case is decoding data formats where string
+fields are variable length null terminated.
+
+
+&gt;<i> Currently the use-case of simply wanting to convert a string to a
+</I>&gt;&gt;<i> binary buffer is a bit cumbersome. You first have to call the
+</I>&gt;&gt;<i> &quot;encodedLength&quot; function, then allocate a buffer of the right size,
+</I>&gt;&gt;<i> then call the &quot;encode&quot; function.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> I suggested eg.
+</I>&gt;<i>
+</I>&gt;<i> result = encode(&quot;string&quot;, &quot;utf-8&quot;, null).output;
+</I>&gt;<i>
+</I>&gt;<i> which would create an ArrayBuffer of the required size.  Presumably the
+</I>&gt;<i> null ArrayBufferView argument would be optional, so you could just say
+</I>&gt;<i> encode(&quot;string&quot;, &quot;utf-8&quot;).
+</I>&gt;<i>
+</I>
+I think we want both encoding and destination to be optional. That leads us
+to an API like:
+
+out_dict = stringEncoding.encode(&quot;string&quot;, opt_dict);
+
+.. where both out_dict and opt_dict are WebIDL Dictionaries:
+
+opt_dict keys: view, encoding
+out_dict keys: charactersWritten, byteWritten, output
+
+... where output === view if view is supplied, otherwise a new Uint8Array
+(or Uint8ClampedArray??)
+
+If this instead is attached to String, it would look like:
+
+out_dict = my_string.encode(opt_dict);
+
+If it were attached to ArrayBufferView, having a right-size buffer
+allocated for the caller gets uglier unless we include a static version.
+
+It doesn't seem possible to implement the 'encode' function without
+&gt;&gt;<i> doing multiple scans over the string. The implementation seems
+</I>&gt;&gt;<i> required both to check that the data can be decoded using the
+</I>&gt;&gt;<i> specified encoding, as well as check that the data will fit in the
+</I>&gt;&gt;<i> passed in buffer. Only then can the implementation start decoding the
+</I>&gt;&gt;<i> data. This seems problematic.
+</I>&gt;&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> Only if it guarantees that it doesn't write anything to the output buffer
+</I>&gt;<i> unless the entire result will fit.  I don't think we need to do that; just
+</I>&gt;<i> guarantee that it'll be truncated on a whole codepoint.
+</I>&gt;<i>
+</I>
+Agreed. Input/output dicts mean the API documentation a caller needs to
+read to understand the usage is more complex than a function signature
+which is why I resisted them, but it does seem like the best approach.
+Thanks for pushing, Glenn!
+
+In the create-a-buffer-on-the-fly case there will be some memory juggling
+going on, either by initially over allocating or reallocating/moving.
+
+
+&gt;<i> I also don't think it's a good idea to throw an exception for encoding
+</I>&gt;&gt;<i> errors. Better to convert characters to the unicode replacement
+</I>&gt;&gt;<i> character. I believe we made a similar change to the WebSockets
+</I>&gt;&gt;<i> specification recently.
+</I>&gt;&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> Was that change made?  I filed
+</I>&gt;<i> <A HREF="https://www.w3.org/Bugs/Public/show_bug.cgi?id=16157,">https://www.w3.org/Bugs/Public/show_bug.cgi?id=16157,</A> but it still seems
+</I>&gt;<i> to be undecided.
+</I>&gt;<i>
+</I>
+Settling on an options dict means adding a flag to control this behavior
+(throws: true ?) doesn't extend the API surface significantly.
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="077354.html">[whatwg] API for encoding/decoding ArrayBuffers into text
+</A></li>
+	<LI>Next message: <A HREF="077356.html">[whatwg] API for encoding/decoding ArrayBuffers into text
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#77355">[ date ]</a>
+              <a href="thread.html#77355">[ thread ]</a>
+              <a href="subject.html#77355">[ subject ]</a>
+              <a href="author.html#77355">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

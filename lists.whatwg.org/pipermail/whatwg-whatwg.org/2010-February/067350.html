@@ -1,0 +1,153 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] DOMContentLoaded and stylesheets
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20DOMContentLoaded%20and%20stylesheets&In-Reply-To=%3C4B740F0A.4000002%40gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="067342.html">
+   <LINK REL="Next"  HREF="067351.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] DOMContentLoaded and stylesheets</H1>
+<!--htdig_noindex-->
+    <B>Mathias Sch&#228;fer</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20DOMContentLoaded%20and%20stylesheets&In-Reply-To=%3C4B740F0A.4000002%40gmail.com%3E"
+       TITLE="[whatwg] DOMContentLoaded and stylesheets">zapperlott at gmail.com
+       </A><BR>
+    <I>Thu Feb 11 06:07:06 PST 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="067342.html">[whatwg] DOMContentLoaded and stylesheets
+</A></li>
+        <LI>Next message: <A HREF="067351.html">[whatwg] DOMContentLoaded and stylesheets
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#67350">[ date ]</a>
+              <a href="thread.html#67350">[ thread ]</a>
+              <a href="subject.html#67350">[ subject ]</a>
+              <a href="author.html#67350">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Am 11.02.2010 01:16, schrieb Boris Zbarsky:
+
+&gt;<i> Gecko currently does not wait on stylesheet loads to complete before 
+</I>&gt;<i> firing DOMContentLoaded.  They might complete before the parser is
+</I>&gt;<i> done, or they might not.
+</I>
+Okay, my first testcase confirmed this.
+<A HREF="http://molily.de/domcontentloaded/t1-link-no-script.html">http://molily.de/domcontentloaded/t1-link-no-script.html</A>
+
+But if there&#8217;s a script after the stylesheet, DOMContentLoaded always
+fires after the stylesheet has been loaded. The explanation I&#8217;ve found
+is that the parser waits for the stylesheet to load before subsequent
+scripts are executed. Therefore, the whole parsing is halted and
+DOMContentLoaded is deferred. That&#8217;s what my second testcase demonstrates:
+<A HREF="http://molily.de/domcontentloaded/t2-link-external-script.html">http://molily.de/domcontentloaded/t2-link-external-script.html</A>
+
+&gt;&gt;<i> 2. Does the HTML5 parser specify that external stylesheets defer 
+</I>&gt;&gt;<i> external script execution? As far as I understand the specs, it
+</I>&gt;&gt;<i> doesn't.
+</I>&gt;<i> 
+</I>&gt;<i> <A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/scripting-1.html#running-a-script">http://www.whatwg.org/specs/web-apps/current-work/multipage/scripting-1.html#running-a-script</A>
+</I>&gt;<i>
+</I>&gt;<i> step 8 the cases that talk about &quot;a style sheet blocking scripts&quot;
+</I>&gt;<i> specify this.
+</I>
+Thanks for the hint. AFAICS only the third case talks about &#8220;a style
+sheet blocking scripts&#8221;. But this case only deals with &#8220;parser-inserted&#8221;
+inline scripts.
+
+The question is: Is a normal external script &#8220;parser-inserted&#8221; or not?
+I assume the flag to be false, since that&#8217;s the default value and I
+found &#8220;parser-inserted&#8221; to be true for XML parsing only
+(#parsing-xhtml-documents). Correct?
+
+Just to translate from HTML5 speak into my own words. I&#8217;ve got ...
+
+&lt;link rel=&quot;stylesheet&quot; href=&quot;...&quot;&gt;
+&lt;script src=&quot;...&quot;&gt;&lt;/script&gt;
+
+... and I would like to step through the parsing algorithm. This is my
+understanding so far:
+
+1. Run the script (#parsing-main-incdata, case &#8220;An end tag whose tag
+name is &quot;script&quot;&#8221;)
+2. Jump to #running-a-script
+3. Fetch the external script (step 7)
+4. We&#8217;ve reached step 8 which you&#8217;ve mentioned above. I assume the
+fourth case is true (&#8220;If the element has a src attribute&#8221;), since the
+script is not &#8220;parser-inserted&#8221;.
+6. Once the script fetching is complete, execute the script block
+(&#8220;The task that the networking task source places on the task queue once
+the fetching algorithm has completed must execute the script block.&#8221;)
+7. Jump to #executing-a-script-block
+8. If the load was successful, initialize it (step 1)
+9. &#8220;Pause until either any applicable style sheets have been fetched and
+applied, or the user agent has timed out and decided to not wait for
+those style sheets.&#8221; (step 2)
+
+--&gt; I guess *this* is where the waiting happens, right?
+
+10. Execute the script (&#8220;Create a script from the script element node&#8221;)
+11. Jump back to #parsing-main-incdata
+12. &#8222;if there is a pending parsing-blocking script&#8220; -- I guess there is
+none. So we&#8217;re done here.
+
+
+The handling of inline scripts is somewhat easier:
+
+1. Run the script (#parsing-main-incdata, case &#8220;An end tag whose tag
+name is &quot;script&quot;&#8221;)
+2. Jump to #running-a-script
+3. Step 8, Case 5 &#8220;Otherwise&#8221; (&#8220;The user agent must immediately execute
+the script block&#8221;
+4. Jump to #executing-a-script-block
+5. &#8220;If the load was successful&#8221;
+6. Step 1, Initialize, &#8220;If the script is inline and the script block&#8217;s
+type is a text-based language&#8221;: Set text attribute
+7. Step 2: &#8220;Pause until either any applicable style sheets have been
+fetched and applied, or the user agent has timed out and decided to not
+wait for those style sheets.&#8221;
+8. Step 3, execute the script
+
+That means, inline script execution should also wait for stylesheets to
+load. Am I right in this reading?
+
+
+Thanks,
+Mathias
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="067342.html">[whatwg] DOMContentLoaded and stylesheets
+</A></li>
+	<LI>Next message: <A HREF="067351.html">[whatwg] DOMContentLoaded and stylesheets
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#67350">[ date ]</a>
+              <a href="thread.html#67350">[ thread ]</a>
+              <a href="subject.html#67350">[ subject ]</a>
+              <a href="author.html#67350">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

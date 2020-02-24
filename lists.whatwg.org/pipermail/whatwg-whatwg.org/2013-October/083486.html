@@ -1,0 +1,155 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] onclose events for MessagePort
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20onclose%20events%20for%20MessagePort&In-Reply-To=%3CCA%2Bc2ei_d2bSY1sKJ71uCKyao%3D-Xr%3DECoSMNw1iSKpOt2D7zHpg%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="083434.html">
+   <LINK REL="Next"  HREF="083508.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] onclose events for MessagePort</H1>
+<!--htdig_noindex-->
+    <B>Jonas Sicking</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20onclose%20events%20for%20MessagePort&In-Reply-To=%3CCA%2Bc2ei_d2bSY1sKJ71uCKyao%3D-Xr%3DECoSMNw1iSKpOt2D7zHpg%40mail.gmail.com%3E"
+       TITLE="[whatwg] onclose events for MessagePort">jonas at sicking.cc
+       </A><BR>
+    <I>Fri Oct 18 17:26:45 PDT 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="083434.html">[whatwg] onclose events for MessagePort
+</A></li>
+        <LI>Next message: <A HREF="083508.html">[whatwg] onclose events for MessagePort
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#83486">[ date ]</a>
+              <a href="thread.html#83486">[ thread ]</a>
+              <a href="subject.html#83486">[ subject ]</a>
+              <a href="author.html#83486">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Thu, Oct 17, 2013 at 2:08 PM, Ehsan Akhgari &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">ehsan at mozilla.com</A>&gt; wrote:
+&gt;&gt;<i> It occurs to me that all of the proposals here does expose some amount
+</I>&gt;&gt;<i> of GC behavior. Even a &quot;channeldropped&quot; message which is sent only
+</I>&gt;&gt;<i> when the other side crashes exposes GC behavior. If GC happens to run
+</I>&gt;&gt;<i> before the crash and then collect the MessageChannel ports, then no
+</I>&gt;&gt;<i> channel exists at the time of crash, and thus no event is sent.
+</I>&gt;&gt;<i> However if the GC runs later, or if it doesn't successfully collect
+</I>&gt;&gt;<i> the MessageChannel ports, then the &quot;channeldropped&quot; event does fire.
+</I>&gt;<i>
+</I>&gt;<i> I'm not sure if I understand this.  If the MessagePort exists on the side
+</I>&gt;<i> that is interested to handle the event, then it can't be GCed on the other
+</I>&gt;<i> side either, right?
+</I>
+I thought the proposal was to not fire &quot;channeldropped&quot; when the
+channel is GCed. Thus allowing channels with both &quot;message&quot; and
+&quot;channeldropped&quot; event listeners on either side to still be GCed. Is
+that correct?
+
+If so, that exposes GC behavior. If at some point both pages that hold
+on to an endpoint of a message channel drop their references the
+channel can get GCed. If it is GCed no events fire.
+
+However if the page holding on to either port crashes before the GC
+happens, then the &quot;channeldropped&quot; event is fired on the other port.
+
+Hence the timing of the GC affects whether &quot;channeldropped&quot; is fired.
+Hence GC behavior is exposed.
+
+&gt;&gt;<i> That's not to say that this solution wouldn't work. Exposing some
+</I>&gt;&gt;<i> amount of GC behavior might be ok. But it does mean that we should
+</I>&gt;&gt;<i> have a realistic bar as we discuss expanding the event to more
+</I>&gt;&gt;<i> situations than just process crashes.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> One solution which I think would never expose GC behavior is to simply
+</I>&gt;&gt;<i> have a property on the MessagePort which indicates if the owner of the
+</I>&gt;&gt;<i> other side has been killed or navigated away from. No event would fire
+</I>&gt;&gt;<i> as that property changes value.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Since it's a property, it can only be read if a reference to the
+</I>&gt;&gt;<i> MessagePort is being held. As long as such a reference exists neither
+</I>&gt;&gt;<i> side of the MessageChannel can be GCed.
+</I>&gt;<i>
+</I>&gt;<i> Exposing this state as a property will make people who have use cases such
+</I>&gt;<i> as &quot;Update the UI if this other tab/page/app/etc is killed&quot; poll the
+</I>&gt;<i> attribute, which seems non-ideal to me.
+</I>
+I don't see a way to simultaneously fulfill all of the following constraints:
+
+1. Don't expose GC.
+2. Provide a callback when the other side crashes or lives in a thread
+that dies.
+3. Enable GC of channels where neither side referenced.
+
+What I think might work is to say that as long as a &quot;channeldropped&quot;
+event listener is registered with a port, that is equivalent to
+holding a strong reference to the port. I.e. that prevents the channel
+from being GCed. Even if no references are held to either port.
+
+In other words, we'd give up 3, but only when 2 is actively used.
+
+And then define that &quot;channeldropped&quot; is fired on a port whenever the
+other side is killed due to either living in a process that crashes,
+or living in a thread that is closed or terminated.
+
+We would also need to define that the &quot;channeldropped&quot; event is never
+fired on a port if that port's *owning* window has been navigated away
+from. Otherwise we could *never* GC a channel between two windows that
+has &quot;channeldropped&quot; registered on either side.
+
+So the expectation is that a caller should only register a
+&quot;channeldropped&quot; event if it's actively waiting for a response from
+that thread. It's not something that you should register when creating
+the port and then never unregister. Having a &quot;channeldropped&quot; event
+listener registered can cause a whole worker thread to be kept alive
+longer than it otherwise would.
+
+We could further define that &quot;channeldropped&quot; is fired when the owner
+of the *other side* is navigated away from. This would mean that
+events can be received even after a &quot;channeldropped&quot; event has been
+fired since other windows could still hold a reference to the port and
+send messages through it. However it would allow us to release the
+strong reference that the &quot;channeldropped&quot; event listener implicitly
+creates as soon as either side is navigated away from.
+
+&gt;<i> Also, having a setTimeout(0) loop which polls the attribute would open us to
+</I>&gt;<i> the exact same risks as the event would, I think.
+</I>
+How do you mean? Which risks in particular are you referring to?
+
+/ Jonas
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="083434.html">[whatwg] onclose events for MessagePort
+</A></li>
+	<LI>Next message: <A HREF="083508.html">[whatwg] onclose events for MessagePort
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#83486">[ date ]</a>
+              <a href="thread.html#83486">[ thread ]</a>
+              <a href="subject.html#83486">[ subject ]</a>
+              <a href="author.html#83486">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

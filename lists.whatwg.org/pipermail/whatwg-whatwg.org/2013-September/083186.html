@@ -1,0 +1,228 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Blurry lines in 2D Canvas
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Blurry%20lines%20in%202D%20Canvas&In-Reply-To=%3CCAA0H%2BQTBEPDr65ZJS7Y9LrHi4PZJ89%2BnXROp98yfA9muSjefxQ%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="083185.html">
+   <LINK REL="Next"  HREF="083192.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Blurry lines in 2D Canvas</H1>
+<!--htdig_noindex-->
+    <B>Jasper St. Pierre</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Blurry%20lines%20in%202D%20Canvas&In-Reply-To=%3CCAA0H%2BQTBEPDr65ZJS7Y9LrHi4PZJ89%2BnXROp98yfA9muSjefxQ%40mail.gmail.com%3E"
+       TITLE="[whatwg] Blurry lines in 2D Canvas">jstpierre at mecheye.net
+       </A><BR>
+    <I>Fri Sep 27 14:38:56 PDT 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="083185.html">[whatwg] Blurry lines in 2D Canvas
+</A></li>
+        <LI>Next message: <A HREF="083192.html">[whatwg] Blurry lines in 2D Canvas
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#83186">[ date ]</a>
+              <a href="thread.html#83186">[ thread ]</a>
+              <a href="subject.html#83186">[ subject ]</a>
+              <a href="author.html#83186">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>The issue here is that the canvas API does not specify how pixels are sited
+on the canvas: if you imagine pixels as enlarged squares on a grid (shush,
+I know), does an X coordinate of 5 name the center of the square, or the
+intersection between 4th and 5th squares?
+
+If we say that it names the center of the square itself, then we'll have
+sharp strokes but blurry fills -- filling from x=5 to x=10 will only fill
+half the area in the 5th square.
+If we say that it names the intersection between the pixels then we'll have
+blurry strokes but sharp fills.
+
+For perspective, old APIs that didn't have support for antialiased graphics
+like X11 and GDI say that it's the former, but the lack of antialiasing
+made it not noticeable.
+
+Modern APIs like cairo, Quartz 2D and Direct2D say it's the latter, and
+stick by it. The recommended solution is either to use even line widths
+with pixel-perfect coordinates or add 0.5 to all lines you draw so they're
+offset by half a pixel. [0]
+
+Neither of these are perfect solutions when you have transforms; perhaps
+optional support for crisp lines or otherwise turning off AA would be a
+good idea.
+
+But whatever we do, we should certainly pick a pixel citing system (and I'd
+highly suggest the latter) and make it explicit in the spec.
+
+<A HREF="http://cairographics.org/FAQ/#sharp_lines">http://cairographics.org/FAQ/#sharp_lines</A>
+
+
+On Fri, Sep 27, 2013 at 5:21 PM, Ruben Rodriguez II &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">whatwg at therealcha0s.net</A>
+&gt;<i> wrote:
+</I>
+&gt;<i> I would just like to note that sometimes we do not WANT to draw precise
+</I>&gt;<i> shapes. :) Many people enjoy the aesthetic of 2d pixel-based graphics, and
+</I>&gt;<i> it should be a viable choice for the graphical style of a game, for
+</I>&gt;<i> instance. Canvas makes this more difficult, and it shouldn't be so!
+</I>&gt;<i>
+</I>&gt;<i> Why can't we have a global option to turn this off if we want to? I'm not
+</I>&gt;<i> trying to advocate for throwing away all antialiasing... I understand that
+</I>&gt;<i> most applications will probably want it by default, and agree with having
+</I>&gt;<i> it as the default.
+</I>&gt;<i>
+</I>&gt;<i> Basically all it is is <A HREF="http://www.whatwg.org/specs/**">http://www.whatwg.org/specs/**</A>
+</I>&gt;<i> web-apps/current-work/**multipage/the-canvas-element.**
+</I>&gt;<i> html#image-smoothing&lt;<A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/the-canvas-element.html#image-smoothing">http://www.whatwg.org/specs/web-apps/current-work/multipage/the-canvas-element.html#image-smoothing</A>&gt;... except that we're not talking about scaling.
+</I>&gt;<i>
+</I>&gt;<i> On 09/05/2013 05:22 PM, Ian Hickson wrote:
+</I>&gt;<i>
+</I>&gt;&gt;<i> On Tue, 23 Jul 2013, Rik Cabanier wrote:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> we've noticed that if you draw lines in canvas or SVG, they always end
+</I>&gt;&gt;&gt;<i> up blurry. For instance see this fiddle: <A HREF="http://jsfiddle.net/V92Gn/128/">http://jsfiddle.net/V92Gn/128/</A>
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;<i> Not always, only if you don't draw the line aligned with the pixel grid
+</I>&gt;&gt;<i> (e.g. you draw a diagonal line, or a horizontal or vertical line that
+</I>&gt;&gt;<i> isn't centered in the middle of pixels on the pixels grid, or a horizontal
+</I>&gt;&gt;<i> or vertical line whose width isn't an integral number of pixels, etc).
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> The options, on a pixel grid display, are:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>   - don't honour the position precisely -- this leads to very ugly
+</I>&gt;&gt;<i>     artifacts when animating (lines jerk around), and basically means that
+</I>&gt;&gt;<i>     the graphics aren't accurate.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>   - instead of describing the shapes as vectors, describe them using
+</I>&gt;&gt;<i>     programs that can adapt to the position and size they're being drawn
+</I>&gt;&gt;<i>     at, such that they automatically snap to the pixel grid in a pretty
+</I>&gt;&gt;<i>     fashion -- this is what fonts do.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>   - try to trick the eye by using anti-aliasing when things don't line up
+</I>&gt;&gt;<i>     exactly on the pixel grid.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> The first two really aren't plausible options for &lt;canvas&gt;.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> On Wed, 24 Jul 2013, Kornel Lesi&#324;ski wrote:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> For 1-pixel lines it could be fixed by allowing authors to specify that
+</I>&gt;&gt;&gt;<i> path should be stroked with lines aligned to inside/outside of the path
+</I>&gt;&gt;&gt;<i> (which is a useful feature on its own).
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;<i> <A HREF="https://www.w3.org/Bugs/**Public/show_bug.cgi?id=22674&lt;https://www.w3.org/Bugs/Public/show_bug.cgi?id=22674">https://www.w3.org/Bugs/**Public/show_bug.cgi?id=22674&lt;https://www.w3.org/Bugs/Public/show_bug.cgi?id=22674</A>&gt;
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> On Tue, 23 Jul 2013, Rik Cabanier wrote:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> Sure, but how can we fix this?
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;<i> What is there to fix? The options above are basically the only options.
+</I>&gt;&gt;<i> You can't not do one of them -- there's no way to draw a crisp line that
+</I>&gt;&gt;<i> isn't pixel aligned. There's no pixels there. Similarly, there's no way to
+</I>&gt;&gt;<i> draw a line that's neither horizontal nor vertical yet is crisp and
+</I>&gt;&gt;<i> doesn't look jaggy. The pixels are squares, they don't rotate on modern
+</I>&gt;&gt;<i> pixel displays.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> On Wed, 24 Jul 2013, Kornel Lesi&#324;ski wrote:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> Should arc() and bezier curves also be snapped? What if you want a line
+</I>&gt;&gt;&gt;<i> that touches the curve?
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;<i> That's precisely the problem with snapping -- it is far worse than
+</I>&gt;&gt;<i> antialiasing. You can't draw precise shapes if you have snapping.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> On Wed, 24 Jul 2013, Dirk Schulze wrote:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> Means implementations would need to take viewport, transformations of
+</I>&gt;&gt;&gt;<i> the document, transformations on elements in the DOM hierarchy, zoom
+</I>&gt;&gt;&gt;<i> level, aspect ratio of the canvas, position of the canvas in the
+</I>&gt;&gt;&gt;<i> document, transformations in the canvas and device pixel resolution into
+</I>&gt;&gt;&gt;<i> account to snap lines to the correct position on the individual device,
+</I>&gt;&gt;&gt;<i> right?Otherwise it sounds to be hard to guarantee that you don't see
+</I>&gt;&gt;&gt;<i> antialiased strokes and lines might snap more then just one device
+</I>&gt;&gt;&gt;<i> pixel. This would also be a problem for aligning shapes to each other in
+</I>&gt;&gt;&gt;<i> the canvas I guess. What happens on the next transformation after a
+</I>&gt;&gt;&gt;<i> drawing operation. Say you draw a line that was snapped to the grid and
+</I>&gt;&gt;&gt;<i> then you do scale(1.1, 1.1). Shall the implementation redraw the canvas?
+</I>&gt;&gt;&gt;<i> After all it is an pixel image. A vector based drawing format would be
+</I>&gt;&gt;&gt;<i> better suited for such a task.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;<i> Indeed.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> On Sat, 10 Aug 2013, Rik Cabanier wrote:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> I was wondering if this is something that happens in Flash as well. It
+</I>&gt;&gt;&gt;<i> turns out that there's an option called &quot;hinting: Keep stroke anchors on
+</I>&gt;&gt;&gt;<i> full pixels to prevent blurry lines.&quot; There's a blog post on what this
+</I>&gt;&gt;&gt;<i> does:
+</I>&gt;&gt;&gt;<i> <A HREF="http://www.kaourantin.net/**2005/08/stroke-hinting-in-**">http://www.kaourantin.net/**2005/08/stroke-hinting-in-**</A>
+</I>&gt;&gt;&gt;<i> flash-player-8-aka.html&lt;<A HREF="http://www.kaourantin.net/2005/08/stroke-hinting-in-flash-player-8-aka.html">http://www.kaourantin.net/2005/08/stroke-hinting-in-flash-player-8-aka.html</A>&gt;
+</I>&gt;&gt;&gt;<i> &lt;<A HREF="http://www.kaourantin.net/**2005/08/stroke-hinting-in-**">http://www.kaourantin.net/**2005/08/stroke-hinting-in-**</A>
+</I>&gt;&gt;&gt;<i> flash-player-8-aka.html&lt;<A HREF="http://www.kaourantin.net/2005/08/stroke-hinting-in-flash-player-8-aka.html">http://www.kaourantin.net/2005/08/stroke-hinting-in-flash-player-8-aka.html</A>&gt;
+</I>&gt;&gt;&gt;<i> &gt;
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> I created an example (in flash sorry) that shows the feature:
+</I>&gt;&gt;&gt;<i> <A HREF="http://cabanier.github.io/**BlendExamples/pixelsnap/**pixelsnap.html&lt;http://cabanier.github.io/BlendExamples/pixelsnap/pixelsnap.html">http://cabanier.github.io/**BlendExamples/pixelsnap/**pixelsnap.html&lt;http://cabanier.github.io/BlendExamples/pixelsnap/pixelsnap.html</A>&gt;
+</I>&gt;&gt;&gt;<i> 2 sets of strokes move across the screen and are also scaled.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> The top strokes behave like canvas does today. They start of blurry and
+</I>&gt;&gt;&gt;<i> during the animation they slowly get ticker. For some reason it doesn't
+</I>&gt;&gt;&gt;<i> look very smooth.
+</I>&gt;&gt;&gt;<i> The bottom strokes have hinting turned on. They are sharp at the
+</I>&gt;&gt;&gt;<i> beginning
+</I>&gt;&gt;&gt;<i> and during the animation they stay the same size until the internal
+</I>&gt;&gt;&gt;<i> stroke
+</I>&gt;&gt;&gt;<i> width is large enough. At that point you see a 'jump'.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> I think canvas should have a similar feature...
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;<i> Can you elaborate on how exactly you would want this to work? How would
+</I>&gt;&gt;<i> you avoid the alignment and distortion problems when applying this to
+</I>&gt;&gt;<i> anything less trivial than a rectangle?
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;<i>
+</I>
+
+-- 
+  Jasper
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="083185.html">[whatwg] Blurry lines in 2D Canvas
+</A></li>
+	<LI>Next message: <A HREF="083192.html">[whatwg] Blurry lines in 2D Canvas
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#83186">[ date ]</a>
+              <a href="thread.html#83186">[ thread ]</a>
+              <a href="subject.html#83186">[ subject ]</a>
+              <a href="author.html#83186">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

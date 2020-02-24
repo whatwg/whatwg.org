@@ -1,0 +1,117 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] The choice of script global object to use when the	script element is moved
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20The%20choice%20of%20script%20global%20object%20to%20use%20when%20the%0A%09script%20element%20is%20moved&In-Reply-To=%3CAFBE2143-C013-48AA-B940-B5528123D5B4%40iki.fi%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="070632.html">
+   <LINK REL="Next"  HREF="070677.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] The choice of script global object to use when the	script element is moved</H1>
+<!--htdig_noindex-->
+    <B>Henri Sivonen</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20The%20choice%20of%20script%20global%20object%20to%20use%20when%20the%0A%09script%20element%20is%20moved&In-Reply-To=%3CAFBE2143-C013-48AA-B940-B5528123D5B4%40iki.fi%3E"
+       TITLE="[whatwg] The choice of script global object to use when the	script element is moved">hsivonen at iki.fi
+       </A><BR>
+    <I>Tue Sep  7 01:40:37 PDT 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="070632.html">[whatwg] The choice of script global object to use when the script element is moved
+</A></li>
+        <LI>Next message: <A HREF="070677.html">[whatwg] The choice of script global object to use when the script element is moved
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#70657">[ date ]</a>
+              <a href="thread.html#70657">[ thread ]</a>
+              <a href="subject.html#70657">[ subject ]</a>
+              <a href="author.html#70657">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>NOTE! This email contains URLs to pages that crash WebKit on reload, so you probably shouldn't follow the URLs here in any WebKit-based browser where you have something important going on in the same renderer process. (In Chrome, only the isolated content process crashes.)
+
+&gt;<i> On Fri, Sep 3, 2010 at 3:49 AM, Henri Sivonen &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">hsivonen at iki.fi</A>&gt; wrote:
+</I>&gt;&gt;<i> When evaluating a parser-inserted script, there are three potential script global objects to use:
+</I>&gt;&gt;<i>  1) The script global object of the document whose active parser the parser that inserted the script is.
+</I>&gt;&gt;<i>  2) The script global object of the document that owned the script element at the time of invoking the &quot;run&quot; algorithm.
+</I>&gt;&gt;<i>  3) The script global object of the document that owns the script element at the time of script evaluation.
+</I>&gt;&gt;<i> 
+</I>&gt;&gt;<i> The spec says the answer is #3. WebKit (with HTML5 parser or without) says the answer is #1. Firefox 3.6 says the answer is #2.
+</I>
+On Sep 3, 2010, at 20:47, Adam Barth wrote:
+
+&gt;<i> I'm not sure it makes much of a difference from a security point of
+</I>&gt;<i> view.  I suspect WebKit does #3 because it grabs the security context
+</I>&gt;<i> immediately before executing the script.  
+</I>
+With my demos, WebKit seems to be doing #1:
+<A HREF="http://hsivonen.iki.fi/test/moz/move-during-parse-parent.html">http://hsivonen.iki.fi/test/moz/move-during-parse-parent.html</A>
+<A HREF="http://hsivonen.iki.fi/test/moz/move-during-parse-parent2.html">http://hsivonen.iki.fi/test/moz/move-during-parse-parent2.html</A>
+
+The second one doesn't finish loading in Gecko (both with new and old parser), because Gecko tries to unblock the parser on the wrong document and never unblock the parser that needs to be unblocked.
+
+&gt;<i> That actually seems
+</I>&gt;<i> marginally safer because it means you're unlikely to grab an out-dated
+</I>&gt;<i> security context.
+</I>
+Since the check &quot;If scripting is disabled for the script element, or if the user agent does not support the scripting language given by the script block's type for this script element, then the user agent must abort these steps at this point. The script is not executed.&quot; happens at the time of the &quot;run&quot; algorithm and since iframe sandboxing or Content Security Policies can cause scripting to be &quot;disabled&quot;, a security check has to happen at the time of invoking the &quot;run&quot; algorithm (assuming we don't want to change the pre-existing behavior of what happens in the common same-document case where a script gets rejected and we don't want to decouple the time on supported language check from the time of security-based rejections; this would be detectable in the document.write() case). 
+
+For external scripts, this means that if we want to evaluate against a script global object associated with the owner doc of the script node at evaluating time, the security checks may have been performed in the context of another document and script global object. If we want security checks against the script global object associated with the owner doc at evaluation time, I think it's necessary to do the security checks twice: one during the &quot;run&quot; algorithm (in which case failing the checks doesn't fire any error events) and another time right before evaluation (in which case I suppose a failure should act the same way as a network failure and fire the error event). That's more complex than what's in Gecko now. (Not insurmountably complex, but more complex anyway.)
+
+I'm worried about doing the security checks at &quot;run&quot; algorithm time and evaluating with a different script global object without redoing the security check. However, it may be that I only worry because I feel I don't know enough of all the possibilities to be confident that such a separation of time of check and time of use would be safe here.
+
+Is there any good reason (other than differing from current IE9 PP behavior) not to do #1 with the additional stipulation that making the document whose active parser the parser is go away makes the scripts that are pending to run in the context of its script global object behave (stop?) the same regardless of which document they are in? (I.e. if the document that had the active parser gets torn down before the scripts inserted into another doc have loaded, those scripts wouldn't be evaluated.) I still believe doing #1 in Gecko would be the simplest thing. With the test cases above, WebKit seems to be doing #1 already (and then crashing) and Opera fails to move the scripts so the execution context ends up being the same as it would in case #1.
+
+On Sep 3, 2010, at 20:55, Jonas Sicking wrote:
+
+&gt;<i> On Fri, Sep 3, 2010 at 10:47 AM, Adam Barth &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">w3c at adambarth.com</A>&gt; wrote:
+</I>&gt;&gt;<i> I'm not sure it makes much of a difference from a security point of
+</I>&gt;&gt;<i> view.
+</I>&gt;<i> 
+</I>&gt;<i> Agreed. Pages can only move elements between pages that are in the
+</I>&gt;<i> same security context anyway so I can't really think of any attacks
+</I>&gt;<i> that any of the approaches would enable or disable.
+</I>
+Suppose there are two docs from one Origin. The document that the parser is associated with doesn't have a CSP. A script in it moves a node in such a way that the parser ends up inserting subsequent scripts into another document. That document has a CSP that bans scripts. Would you consider it a bug if a script ran in the context of the script global object of the document whose CSP says no scripts?
+
+-- 
+Henri Sivonen
+<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">hsivonen at iki.fi</A>
+<A HREF="http://hsivonen.iki.fi/">http://hsivonen.iki.fi/</A>
+
+
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="070632.html">[whatwg] The choice of script global object to use when the script element is moved
+</A></li>
+	<LI>Next message: <A HREF="070677.html">[whatwg] The choice of script global object to use when the script element is moved
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#70657">[ date ]</a>
+              <a href="thread.html#70657">[ thread ]</a>
+              <a href="subject.html#70657">[ subject ]</a>
+              <a href="author.html#70657">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

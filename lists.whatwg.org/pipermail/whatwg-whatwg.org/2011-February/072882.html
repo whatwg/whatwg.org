@@ -1,0 +1,165 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Proposal for separating script downloads and execution
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Proposal%20for%20separating%20script%20downloads%20and%20execution&In-Reply-To=%3C55C6E46995CD47F1835241AAADEE35B3%40spartacus%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="072880.html">
+   <LINK REL="Next"  HREF="072883.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Proposal for separating script downloads and execution</H1>
+<!--htdig_noindex-->
+    <B>Kyle Simpson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Proposal%20for%20separating%20script%20downloads%20and%20execution&In-Reply-To=%3C55C6E46995CD47F1835241AAADEE35B3%40spartacus%3E"
+       TITLE="[whatwg] Proposal for separating script downloads and execution">getify at gmail.com
+       </A><BR>
+    <I>Tue Feb 22 12:07:17 PST 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="072880.html">[whatwg] Proposal for separating script downloads and execution
+</A></li>
+        <LI>Next message: <A HREF="072883.html">[whatwg] Proposal for separating script downloads and execution
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#72882">[ date ]</a>
+              <a href="thread.html#72882">[ thread ]</a>
+              <a href="subject.html#72882">[ subject ]</a>
+              <a href="author.html#72882">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>&gt;&gt;&gt;&gt;&gt;<i> 1) If your script is no-cache, or max-age:0, does IE make a new
+</I>&gt;&gt;&gt;&gt;&gt;<i> request for it for every&lt;script&gt; element?
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> For the most part this seems to be the case but there are two
+</I>&gt;&gt;&gt;&gt;<i> exceptions:
+</I>&gt;&gt;&gt;&gt;<i> a) Before a URL loads, if it's assigned to another script, only one
+</I>&gt;&gt;&gt;&gt;<i> request is made.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> OK, that would be a violation of the HTTP caching semantics.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Can you explain how, in more detail? In practice I haven't seen IE's
+</I>&gt;&gt;<i> behavior be a problem, but perhaps I'm not seeing the full context of
+</I>&gt;&gt;<i> the issue you're concerned with.
+</I>&gt;<i>
+</I>&gt;<i> If I have a response set to no-cache and you make two requests for it but 
+</I>&gt;<i> only one of those actually hits the server, then you're clearly caching it 
+</I>&gt;<i> in violation of the no-cache header.  Is that really that unclear?
+</I>
+Look above at what Will says... he says &quot;before a URL loads&quot; in (a). I 
+interpreted that to mean that if I make two requests in rapid fire 
+succession, and the browser hasn't yet gotten the response headers (from the 
+first request) to tell it not to cache, then it makes sense from an 
+optimization standpoint that IE would see the two simultaneous URL requests 
+as the same and assume to only load once instead of twice.
+
+Again, maybe I'm missing something, but the way Will describes it sounds 
+perfectly reasonable to me. It might be slightly on the aggressive side, but 
+I don't see how that, as described, is violating the HTTP caching semantics. 
+I don't see that those semantics imply that a browser must wait to fully 
+receive response-headers from a first request before deciding what to do 
+with a second request of the same URL.
+
+
+&gt;<i> Because it's the easy way to do it; we had to jump through some hoops in 
+</I>&gt;<i> Gecko to make sure an async XHR stays alive until it fires its last 
+</I>&gt;<i> readystate change event when no one is holding a ref to the XHR object.
+</I>
+Right, but in that case, the XHR object has a circular reference to itself 
+via the closure of the handler function (assuming it was an assigned 
+anonymous or in-scope function that was assigned). I was just saying that in 
+the case of actual DOM elements, when a circular reference is created 
+between the DOM element and a JS counter-part, through the closure of a 
+handler assigned to the element, I assumed this was enough to avoid GC.
+
+I recall in older IE days avoiding stuff like:
+
+var script = document.createElement(&quot;script&quot;);
+script.theobj = script;
+
+Because this created a circular reference, and thus a memory-leak, if you 
+didn't forcibly unset before unload the `theobj` reference to break the 
+circular ref.
+
+
+
+&gt;&gt;<i> In any case, for all intents and purposes, for someone to be using the
+</I>&gt;&gt;<i> &quot;preloading&quot; as we're suggesting (with either proposal), you'd have to
+</I>&gt;&gt;<i> keep around a reference to the script element anyway, so that you could
+</I>&gt;&gt;<i> later programmatically execute it.
+</I>&gt;<i>
+</I>&gt;<i> Well... no.  You could grab the ref in the onreadystatechange handler.
+</I>
+In the most rudimentary of cases, and only assuming the `onreadystatechange` 
+handler actually had a closure reference to the script element... it 
+wouldn't if say you just made reference to some outer/global scope function 
+that you just assigned to the `onreadystatechange` property, like:
+
+function handle(rs) {
+   if (rs == &quot;loaded&quot;) { ... }
+   // but, no ref to script object in here
+}
+
+(function(){
+   var script = document.createElement(&quot;script&quot;);
+   script.onreadystatechange = handle;
+   script.src = &quot;...&quot;;
+   // append to DOM
+})();
+
+Also, there's a whole set of more advanced &quot;preloader&quot; functionality at 
+stake for script loaders which wouldn't suffice *even if* the only reference 
+to a script element was via closure in the handler (and that was sufficient 
+to avoid GC). For instance, a script loader that needs to load a dozen 
+script files all in parallel, then execute some of them in particular order, 
+while others in just first-come-first-served order... he can't just 
+daisy-chain off the handlers, he needs to actually have a reference kept for 
+each script element, so that he can specifically execute each one in their 
+proper order.
+
+My point was, in practice, most advanced usages of preloading are in fact 
+going to have to keep around the reference, thus the GC isn't going to be an 
+issue. Only in the simple basic subset of the main proposal use-case would 
+this GC bug arise. And it's easily worked around by keeping a ref in scope.
+
+
+--Kyle
+
+
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="072880.html">[whatwg] Proposal for separating script downloads and execution
+</A></li>
+	<LI>Next message: <A HREF="072883.html">[whatwg] Proposal for separating script downloads and execution
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#72882">[ date ]</a>
+              <a href="thread.html#72882">[ thread ]</a>
+              <a href="subject.html#72882">[ subject ]</a>
+              <a href="author.html#72882">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

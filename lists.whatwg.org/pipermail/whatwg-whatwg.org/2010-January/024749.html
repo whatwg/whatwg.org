@@ -1,0 +1,164 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] about:blank synchronicity
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20about%3Ablank%20synchronicity&In-Reply-To=%3C4B4DFE2B.8070707%40mit.edu%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="024748.html">
+   <LINK REL="Next"  HREF="024751.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] about:blank synchronicity</H1>
+<!--htdig_noindex-->
+    <B>Boris Zbarsky</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20about%3Ablank%20synchronicity&In-Reply-To=%3C4B4DFE2B.8070707%40mit.edu%3E"
+       TITLE="[whatwg] about:blank synchronicity">bzbarsky at MIT.EDU
+       </A><BR>
+    <I>Wed Jan 13 09:08:59 PST 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="024748.html">[whatwg] about:blank synchronicity
+</A></li>
+        <LI>Next message: <A HREF="024751.html">[whatwg] about:blank synchronicity
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24749">[ date ]</a>
+              <a href="thread.html#24749">[ thread ]</a>
+              <a href="subject.html#24749">[ subject ]</a>
+              <a href="author.html#24749">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On 1/13/10 11:52 AM, Maciej Stachowiak wrote:
+&gt;<i> Question: if you generate a document on the fly via early access, does
+</I>&gt;<i> it get replaced when the about:blank task actually completes?
+</I>
+Yes.  More precisely, the document is replaced, but the inner window is 
+not (the latter required for pages that set variables on the window 
+before the load is complete).
+
+&gt;<i> It seems like if Gecko truly wanted to make about:blank synchronous, it
+</I>&gt;<i> should be possible simply by special-casing its load and performing a
+</I>&gt;<i> series of DOM calls right then and there, without ever involving the
+</I>&gt;<i> parser.
+</I>
+Turns out this actually breaks at least some things that expect 
+(asynchronous) onload events and the like for the about:blank load, at 
+least when Henri tried doing exactly that.  I _think_ this was for cases 
+where an explicit about:blank was listed as the src.  There is probably 
+also various non-web code that expects various network events (start of 
+network load, end of network load, etc) and the like in this 
+circumstance...  We could try to hunt it all down and change it, but 
+it's not exactly a trivial endeavor.  If it's necessary, it's necessary, 
+of course.
+
+&gt;<i> - Accessing the document of a frame with missing, empty or about:blank
+</I>&gt;<i> src has to always give you an HTML document with a body, even if there
+</I>&gt;<i> hasn't been a chance for the event loop to run.
+</I>
+Agreed.  This is an absolute requirement.
+
+&gt;<i> - A newly created iframe with missing, empty or about:blank src has to
+</I>&gt;<i> have an accessible document right away, without even cycling the event
+</I>&gt;<i> loop.
+</I>
+Yes.
+
+&gt;<i> 1) Some sites document.write or otherwise poke at the DOM of their
+</I>&gt;<i> about:blank frames or iframes in inline script, without waiting for the
+</I>&gt;<i> load event or anything.
+</I>
+Yep.  I believe Gecko treats a document.write the same way it treats a 
+location set in terms of network traffic: any loads that are happening 
+in that navigation context are canceled.  This is not specific to 
+pending about:blank loads.  For example, if you insert an iframe with 
+some http URI as @src into the DOM and then document.write into it 
+immediately, then the http load will be canceled.  Nothing special about 
+about:blank here.
+
+&gt;<i> 2) Some sites load multiple frames, yet one expects to poke at the
+</I>&gt;<i> other's DOM during its load. Since load order is not guaranteed, this
+</I>&gt;<i> would be a race condition, if the not-yet-loaded frame had no DOM, but
+</I>&gt;<i> synchronous about:blank lets such sites muddle on through. Before we had
+</I>&gt;<i> sufficiently synchronous loading of the initial empty frame document, we
+</I>&gt;<i> actually encountered sites like this that broke in Safari but not IE or
+</I>&gt;<i> Firefox.
+</I>&gt;<i>
+</I>&gt;<i> 3) Some sites make a new iframe element using DOM calls in an event
+</I>&gt;<i> handler, and expect it to have an empty document that's immediately
+</I>&gt;<i> ready for DOM manipulation, without any intervening returns to the event
+</I>&gt;<i> loop.
+</I>
+Fully agreed on these use cases.
+
+One question is whether in case 3 the sites expect the same DOM to be 
+available later on.  It seems to be in Safari and Opera.  It's not in 
+Gecko at the moment, as expected based on code inspection.   Testcase:
+
+&lt;!DOCTYPE html&gt;
+&lt;html&gt;
+   &lt;head&gt;
+     &lt;script&gt;
+       function doTheTest() {
+         alert(window.frames[0].document.documentElement.textContent);
+       }
+     &lt;/script&gt;
+   &lt;/head&gt;
+   &lt;body onload=&quot;doTheTest()&quot;&gt;
+     &lt;iframe src=&quot;&quot;&gt;&lt;/iframe&gt;
+     &lt;script&gt;
+       var doc = window.frames[0].document;
+       doc.documentElement.appendChild(doc.createTextNode(&quot;foopy&quot;));
+     &lt;/script&gt;
+   &lt;/body&gt;
+&lt;/html&gt;
+
+This alerts empty string in Gecko (and doesn't show the string &quot;foopy&quot; 
+in the iframe).
+
+-Boris
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="024748.html">[whatwg] about:blank synchronicity
+</A></li>
+	<LI>Next message: <A HREF="024751.html">[whatwg] about:blank synchronicity
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24749">[ date ]</a>
+              <a href="thread.html#24749">[ thread ]</a>
+              <a href="subject.html#24749">[ subject ]</a>
+              <a href="author.html#24749">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

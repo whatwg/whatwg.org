@@ -1,0 +1,207 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Imps] Reasonable limits on buffered values
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:implementors%40lists.whatwg.org?Subject=Re%3A%20%5BImps%5D%20Reasonable%20limits%20on%20buffered%20values&In-Reply-To=%3CAA183DF1-1A67-48B9-BC6D-42A85ED3D73E%40iki.fi%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000463.html">
+   <LINK REL="Next"  HREF="000465.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Imps] Reasonable limits on buffered values</H1>
+<!--htdig_noindex-->
+    <B>Henri Sivonen</B> 
+    <A HREF="mailto:implementors%40lists.whatwg.org?Subject=Re%3A%20%5BImps%5D%20Reasonable%20limits%20on%20buffered%20values&In-Reply-To=%3CAA183DF1-1A67-48B9-BC6D-42A85ED3D73E%40iki.fi%3E"
+       TITLE="[Imps] Reasonable limits on buffered values">hsivonen at iki.fi
+       </A><BR>
+    <I>Wed Jul  4 03:00:19 PDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000463.html">[Imps] Reasonable limits on buffered values
+</A></li>
+        <LI>Next message: <A HREF="000465.html">[Imps] Percentages of HTML tags with a given number of	attributes
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#810">[ date ]</a>
+              <a href="thread.html#810">[ thread ]</a>
+              <a href="subject.html#810">[ subject ]</a>
+              <a href="author.html#810">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Jul 4, 2007, at 11:55, Ian Hickson wrote:
+
+&gt;<i> On Thu, 28 Dec 2006, Henri Sivonen wrote:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> My primary strategy against denial of service attacks that target the
+</I>&gt;&gt;<i> conformance checking service is to limit the number of bytes  
+</I>&gt;&gt;<i> accepted as
+</I>&gt;&gt;<i> input. This indirectly throttles everything that is proportional  
+</I>&gt;&gt;<i> to the
+</I>&gt;&gt;<i> size of input, which is OK for most stuff that has linear growth
+</I>&gt;&gt;<i> behavior. (It doesn't address things like the billion laughs attack,
+</I>&gt;&gt;<i> though.)
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> I have additionally placed arbitrary hard limits on the size of
+</I>&gt;&gt;<i> particular buffers.
+</I>&gt;<i>
+</I>&gt;<i> I recommend a simpler and broader strategy: limit the total CPU and  
+</I>&gt;<i> memory
+</I>&gt;<i> usage of the process.
+</I>
+The case I have is threads running with a shared memory space. Of  
+course, fork()ing an initialized process and individually protected  
+process memory spaces would be nice for this kind of thing (even for  
+performance if you never called free() and just let the process die  
+after completing the HTTP response :-), but Java is what it is.
+
+&gt;<i> After a certain level of CPU or memory usage,
+</I>&gt;<i> possibly monitored by a separate, higher priority thread, simply  
+</I>&gt;<i> terminate
+</I>&gt;<i> the algorithm and explain that the system cannot handle the given
+</I>&gt;<i> document.
+</I>
+The basic problem is documented at
+<A HREF="http://java.sun.com/j2se/1.5.0/docs/guide/misc/">http://java.sun.com/j2se/1.5.0/docs/guide/misc/</A> 
+threadPrimitiveDeprecation.html
+
+One way to use the dangerous stuff less dangerously would be  
+converting all the actual conformance checking code to be lockless  
+(i.e. refactor Jing to use Java 1.2-or-later collections instead of  
+the Java 1.1 legacy), catching the ThreadDeath in the servlet and  
+making calling read() into the outbound shared HTTP client raise a  
+flag (until read() returns) that told the watchdog thread not to kill  
+the thread while the thread holds locks in the shared HTTP client.
+
+Letting the JVM kill a thread with an OutOfMemoryError is not cool,  
+because an innocent thread might get killed instead of the actual  
+resource hog.
+
+&gt;&gt;<i> I'm wondering if there's a best practice here. Is there data on  
+</I>&gt;&gt;<i> how long
+</I>&gt;&gt;<i> non-malicious attribute values legitimately appear on the Web?
+</I>&gt;<i>
+</I>&gt;<i> I have seen (and created) multimegabyte attribute values. (Typically,
+</I>&gt;<i> data: URIs of one kind or another, but not always.)
+</I>
+In my working copy, I have made the attribute value buffer grow on  
+demand. (Allocate a larger buffer and copy memory.) I haven't yet  
+figured a shrinking policy. I discard the whole parser after the  
+parse but other users of the parsing library might want to release  
+memory between multiple parses reusing one parser instance or release  
+memory during the parse as soon as possible. I'd be interested in  
+hearing how robust reusable Java libraries in general handle the  
+tradeoff between execution speed and avoiding retaining too much  
+memory in the form of grown buffers.
+
+&gt;&gt;<i> At least there can be only one attribute buffer being filled at a  
+</I>&gt;&gt;<i> time.
+</I>&gt;&gt;<i> Buffering of the textContent of &lt;progress&gt; and friends is potentially
+</I>&gt;&gt;<i> worse than an attribute buffer, because you could use the leading  
+</I>&gt;&gt;<i> 1 MB
+</I>&gt;&gt;<i> of bytes to establish &lt;progress&gt; start tags (each creating a  
+</I>&gt;&gt;<i> buffer for
+</I>&gt;&gt;<i> content) and then use the trailing 1 MB to fill those buffers
+</I>&gt;&gt;<i> simultaneously. Perhaps I should worry about those buffers  
+</I>&gt;&gt;<i> instead. What
+</I>&gt;&gt;<i> might be a reasonable strategy for securing those (short of  
+</I>&gt;&gt;<i> writing the
+</I>&gt;&gt;<i> associated algorithms as automata that don't need buffers)?
+</I>&gt;<i>
+</I>&gt;<i> In that kind of case, I would recommend having one buffer for all  
+</I>&gt;<i> decoded
+</I>&gt;<i> &quot;text&quot;, and then having all text nodes and text buffers refer to  
+</I>&gt;<i> start and
+</I>&gt;<i> end points in that buffer.
+</I>
+For a single contiguous buffer this assumes that you know how much  
+&quot;text&quot; you are going to get before you allocate the buffer.  
+(Otherwise you keep reallocating and copying.)
+
+The SAX API and my tokenizer use this idea to the extent that  
+character tokens are reported as ranges pointing to the tokenizer's  
+read buffer. However, the buffer has fixed max size and gets  
+overwritten, so the ranges are valid only until control returns back  
+to the tokenizer. (The interface makes no guarantees about how a run  
+of character tokens gets split into ranges.)
+
+&gt;<i> This is also remarkably cheap in both CPU and
+</I>&gt;<i> memory; you only have to pay the cost of a single copy of the text
+</I>&gt;<i> content, regardless of the complexity of the data. It is also  
+</I>&gt;<i> basically no
+</I>&gt;<i> overhead compared to having individual buffers, since you are still
+</I>&gt;<i> passing around strings. For mutable cases (e.g. to support  
+</I>&gt;<i> scripting), you
+</I>&gt;<i> can use a copy-on-write scheme.
+</I>
+For reporting character tokens or attribute values you can't just  
+pass a single range to the higher layer even if you had the whole  
+source text decoded to a single buffer: there may be entity  
+references in between.
+
+Moreover, *every* XML API for Java (SAX, XNI, DOM, JDOM, XOM, dom4j,  
+StAX) represents attribute values as java.lang.String, so in order to  
+work with any existing code, my tokenizer has to package attribute  
+values as java.lang.Strings. And with java.lang.String, you don't get  
+to manage the backing buffer.
+
+Currently, when preparing to create the string, I pessimistically  
+assume that every attribute value is going to have an entity  
+reference in them or is going to fall over a read buffer boundary. I  
+guess I could later optimize and assume a better case and lazily  
+switch to the bad case handling when the bad case is actually  
+realized. (Same with comments. Currently, I'm also pessimistic about  
+tag names and attribute names falling over the read buffer boundary.)
+
+&gt;&gt;<i> Is there data on haw large legitimate HTML documents appear on the  
+</I>&gt;&gt;<i> Web?
+</I>&gt;&gt;<i> The current limit of 2 MB is based on rounding the size of the Web  
+</I>&gt;&gt;<i> Apps
+</I>&gt;&gt;<i> spec up.
+</I>&gt;<i>
+</I>&gt;<i> I have seen infinitely long documents. Discounting those, I have seen
+</I>&gt;<i> documents of tens and hundrends of megabytes.
+</I>
+Yeah, but is it a good idea for a publicly accessible conformance  
+checker to try to ingest those?
+
+-- 
+Henri Sivonen
+<A HREF="http://lists.whatwg.org/listinfo.cgi/implementors-whatwg.org">hsivonen at iki.fi</A>
+<A HREF="http://hsivonen.iki.fi/">http://hsivonen.iki.fi/</A>
+
+
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000463.html">[Imps] Reasonable limits on buffered values
+</A></li>
+	<LI>Next message: <A HREF="000465.html">[Imps] Percentages of HTML tags with a given number of	attributes
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#810">[ date ]</a>
+              <a href="thread.html#810">[ thread ]</a>
+              <a href="subject.html#810">[ subject ]</a>
+              <a href="author.html#810">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/implementors-whatwg.org">More information about the Implementors
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

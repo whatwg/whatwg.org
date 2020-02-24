@@ -1,0 +1,330 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] HTML-to-plaintext conversion (innerText and	Selection.toString())
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20HTML-to-plaintext%20conversion%20%28innerText%20and%0A%09Selection.toString%28%29%29&In-Reply-To=%3CAANLkTinkLDTe_AMKc9tGzigPNTjUL2zNLX6yP4R8hxnj%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="030182.html">
+   <LINK REL="Next"  HREF="030197.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] HTML-to-plaintext conversion (innerText and	Selection.toString())</H1>
+<!--htdig_noindex-->
+    <B>Aryeh Gregor</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20HTML-to-plaintext%20conversion%20%28innerText%20and%0A%09Selection.toString%28%29%29&In-Reply-To=%3CAANLkTinkLDTe_AMKc9tGzigPNTjUL2zNLX6yP4R8hxnj%40mail.gmail.com%3E"
+       TITLE="[whatwg] HTML-to-plaintext conversion (innerText and	Selection.toString())">Simetrical+w3c at gmail.com
+       </A><BR>
+    <I>Wed Feb  2 16:50:06 PST 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="030182.html">[whatwg] HTML-to-plaintext conversion (innerText	and	Selection.toString())
+</A></li>
+        <LI>Next message: <A HREF="030197.html">[whatwg] HTML-to-plaintext conversion (innerText and	Selection.toString())
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#30188">[ date ]</a>
+              <a href="thread.html#30188">[ thread ]</a>
+              <a href="subject.html#30188">[ subject ]</a>
+              <a href="author.html#30188">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Wed, Feb 2, 2011 at 5:30 PM, Boris Zbarsky &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">bzbarsky at mit.edu</A>&gt; wrote:
+&gt;<i> This doesn't work for disconnected subtrees. &#160;Or rather, it presupposes
+</I>&gt;<i> certain things about the browser's architecture that I don't think we want
+</I>&gt;<i> to presuppose.
+</I>
+Specifically what?  That browsers might not resolve CSS for
+disconnected subtrees?  Note that AFAICT, WebKit treats innerText like
+textContent for such subtrees, and Gecko returns the empty string when
+you stringify a Selection that's not displayed.  This seems
+unreasonable from an author perspective, but it's not a big deal, so I
+can spec something different if it would be simpler for browsers.
+
+(Not sure what it should be, though.  Empty string, textContent-like
+behavior, or something that behaves like the normal algorithm except
+ignoring CSS?  The latter seems like the most complicated by far.  I'd
+lean toward an empty string, because it seems the least mysterious.)
+
+&gt;<i> That may be ok for Selection (though not sure it is for programmatic ones;
+</I>&gt;<i> see <A HREF="https://bugzilla.mozilla.org/show_bug.cgi?id=585229">https://bugzilla.mozilla.org/show_bug.cgi?id=585229</A>), but I fail to see
+</I>&gt;<i> why it's OK for a DOM property like innerText.
+</I>
+In WebKit, innerText is essentially the same as selecting the node and
+stringifying the Selection -- they use the same code and produce
+almost exactly the same results in my tests (modulo stuff like
+trailing newlines).  So maybe it shouldn't have been a DOM property,
+but that's how it works.  IE8 behaves similarly.
+
+&gt;<i> Note that until recently Gecko had no such dependency in
+</I>&gt;<i> selection.toString(). &#160; We made some changes because of the &quot;it's not what
+</I>&gt;<i> the user sees&quot; issue, but it's a pretty complicated problem, because due to
+</I>&gt;<i> CSS out-of-flows &quot;what the user sees&quot; and &quot;a DOM range&quot; might have very
+</I>&gt;<i> little to do with each other.
+</I>&gt;<i>
+</I>&gt;<i> You may want to read <A HREF="https://bugzilla.mozilla.org/show_bug.cgi?id=39098">https://bugzilla.mozilla.org/show_bug.cgi?id=39098</A> for
+</I>&gt;<i> some background on this part.
+</I>
+What do you mean by &quot;out-of-flows&quot;?  Clearly we can't do better than
+just an approximation here, since we're not going to handle stuff like
+absolute positioning and so on.
+
+&gt;<i> Generated content is tough, because there's no way to capture it with DOM
+</I>&gt;<i> ranges. &#160;So if you're using DOM ranges to represent your selections, there's
+</I>&gt;<i> just no sane way to handle generated content.
+</I>
+&gt;<i>From a UI perspective it's weird, yeah, but it doesn't seem hard.
+</I>You'd have to have the selection jump, so that it includes either the
+whole stretch of generated content or none of it.  This is the way the
+UI looks in Gecko right now for images that are displaying their alt
+text, like:
+
+data:text/html,&lt;img alt=test&gt;
+
+&gt;<i>From a programmatic perspective, it's also fairly straightforward to
+</I>see how it would work, as long as you don't demand that it be possible
+to partially select generated content.  Of course, it might not be
+straightforward to implement.
+
+&gt;<i> Looking briefly over the code we use to serialize to text for copy/paste
+</I>&gt;<i> (but also for other purposes, so this code has several different modes,
+</I>&gt;<i> which complicates things), there's stuff there to deal specially with tabs,
+</I>&gt;<i> nested ordered lists, &lt;h*&gt; vertical spacing and indentation, non-breaking
+</I>&gt;<i> spaces, blockquote (especially of type=&quot;cite&quot;), noscript/noframes/iframe,
+</I>&gt;<i> &lt;p&gt;, &lt;pre&gt; (especially inside blockquotes), &lt;tr&gt;, &lt;td&gt;/&lt;th&gt;, &lt;dl&gt;/&lt;dt&gt;,
+</I>&gt;<i> &lt;span&gt; (nesting level affects whether pretty line-wrapping happens or
+</I>&gt;<i> something like that), &lt;q&gt;, tags that are &quot;block-level&quot; in the HTML4 sense,
+</I>&gt;<i> &lt;sup&gt; and &lt;sub&gt;, &lt;code&gt;, &lt;strong&gt; and &lt;b&gt;, &lt;em&gt; and &lt;i&gt;, &lt;u&gt;.
+</I>&gt;<i>
+</I>&gt;<i> Plus there's the black magic about when to rewrap things and when to
+</I>&gt;<i> preserve the original whitespace or whatnot.
+</I>&gt;<i>
+</I>&gt;<i> See
+</I>&gt;<i> <A HREF="http://hg.mozilla.org/mozilla-central/file/1c2d53a2dcfb/content/base/src/nsPlainTextSerializer.cpp">http://hg.mozilla.org/mozilla-central/file/1c2d53a2dcfb/content/base/src/nsPlainTextSerializer.cpp</A>
+</I>&gt;<i> for details.
+</I>
+Thanks, I'll test those and take a look at that code.
+
+&gt;<i> I should note that it's not clear to me how much we want to standardize what
+</I>&gt;<i> browsers actually copy when the user copies. &#160;This seems like something that
+</I>&gt;<i> users may want to configure and where we want to let browsers experiment
+</I>&gt;<i> with heuristics and such; I have a really hard time believing that the
+</I>&gt;<i> current browser behavior here is the best we can do.
+</I>
+This occurred to me too.  It seems like a must to standardize how
+innerText and Selection.toString() behave, because those are visible
+to script and pretty widely used, and the interop story right now is
+terrible.  Of course, there's nothing to stop implementations from
+experimenting and passing the improvements back to the spec.
+
+&gt;<i> That leaves the question of whether Selection.toString should produce the
+</I>&gt;<i> same string as the user copying and pasting would, of course. Perhaps it
+</I>&gt;<i> shouldn't. &#160;I'm not sure we'd want to make what toString produce depend on
+</I>&gt;<i> new CSS layout modes, for example, since that could break scripts... but the
+</I>&gt;<i> user-facing copied text might want to depend on those.
+</I>
+I'm not sure why it would break many existing pages if it only kicks
+in with new layout modes.  But maybe I don't have a good enough grasp
+on how these functions are actually used.  I should probably comb
+through a sample of web pages to see people use this stuff.
+(Unfortunately it's not so easy to search for Selection
+stringification, but I can look for innerText.)
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="030182.html">[whatwg] HTML-to-plaintext conversion (innerText	and	Selection.toString())
+</A></li>
+	<LI>Next message: <A HREF="030197.html">[whatwg] HTML-to-plaintext conversion (innerText and	Selection.toString())
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#30188">[ date ]</a>
+              <a href="thread.html#30188">[ thread ]</a>
+              <a href="subject.html#30188">[ subject ]</a>
+              <a href="author.html#30188">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

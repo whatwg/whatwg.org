@@ -1,0 +1,206 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Fixing two security vulnerabilities in	registerProtocolHandler
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Fixing%20two%20security%20vulnerabilities%20in%0A%09registerProtocolHandler&In-Reply-To=%3CPine.LNX.4.64.1204070430450.22654%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="077654.html">
+   <LINK REL="Next"  HREF="077670.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Fixing two security vulnerabilities in	registerProtocolHandler</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Fixing%20two%20security%20vulnerabilities%20in%0A%09registerProtocolHandler&In-Reply-To=%3CPine.LNX.4.64.1204070430450.22654%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg] Fixing two security vulnerabilities in	registerProtocolHandler">ian at hixie.ch
+       </A><BR>
+    <I>Sat Apr  7 10:17:39 PDT 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="077654.html">[whatwg] Fixing two security vulnerabilities in	registerProtocolHandler
+</A></li>
+        <LI>Next message: <A HREF="077670.html">[whatwg] Fixing two security vulnerabilities in	registerProtocolHandler
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#77658">[ date ]</a>
+              <a href="thread.html#77658">[ thread ]</a>
+              <a href="subject.html#77658">[ subject ]</a>
+              <a href="author.html#77658">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Fri, 6 Apr 2012, Tyler Close wrote:
+&gt;<i> On Fri, Apr 6, 2012 at 3:36 PM, Ian Hickson &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">ian at hixie.ch</A>&gt; wrote:
+</I>&gt;<i> &gt; On Fri, 6 Apr 2012, Tyler Close wrote:
+</I>&gt;<i> &gt;&gt; &gt;
+</I>&gt;<i> &gt;&gt; &gt; Well if it's an iframe, the parent can't be anything but the 
+</I>&gt;<i> &gt;&gt; &gt; original origin, as far as I can tell.
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; What happens if the handler sends the postMessage to &quot;*&quot;, then the 
+</I>&gt;<i> &gt;&gt; parent is navigated? Will the postMessage be delivered or not?
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; A task queued on a Document is associated with that Document and can 
+</I>&gt;<i> &gt; only be processed when that document is active.
+</I>&gt;<i> 
+</I>&gt;<i> I'll assume that means it's not delivered, even though postMessage is a 
+</I>&gt;<i> method on a Window, not a Document.
+</I>
+Yes. See the event loop spec:
+
+   <A HREF="http://www.whatwg.org/specs/web-apps/current-work/#event-loops">http://www.whatwg.org/specs/web-apps/current-work/#event-loops</A>
+
+Tasks are always associated with a Document, which must be active for them 
+to be processed.
+
+
+&gt;<i> &gt; In the case of window.open, it's true that the opener could have 
+</I>&gt;<i> &gt; navigated by the time you try to communicate back. That's a general 
+</I>&gt;<i> &gt; problem with window.open(), though; it's not specific to 
+</I>&gt;<i> &gt; register*Handler(). The solution is to not use window.open(), which is 
+</I>&gt;<i> &gt; in any case bad UI.
+</I>&gt;<i> 
+</I>&gt;<i> A top-level window is the only context in which you can ask the user to 
+</I>&gt;<i> engage in security-sensitive interaction, like entering a password, or 
+</I>&gt;<i> making a selection that must not be vulnerable to clickjacking.
+</I>
+Then, again, we should fix this at the window.open() level, not the 
+handler level. It's not a problem specific to register*Handler().
+
+The simplest way to address this, which doesn't require any spec changes, 
+is for the opener to tell the window what origin to use, e.g. by opening 
+an iframe to do the work and then having the iframe pop up the window, or 
+by sending the origin in the URL, or using the postMessage() &quot;source&quot; 
+attribute, etc.
+
+
+&gt;<i> &gt;&gt; &gt; For such an example, you can just use a fallback section in the 
+</I>&gt;<i> &gt;&gt; &gt; appcache manifest. (Or a fragment identifier, indeed.)
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; Right, the obvious thing to do is use the fragment identifier, but 
+</I>&gt;<i> &gt;&gt; that's got some security problems. With a small tweak we can make 
+</I>&gt;<i> &gt;&gt; this safe and easy.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; I don't understand the security problem. Could you give a concrete 
+</I>&gt;<i> &gt; example of an attack scenario?
+</I>&gt;<i> 
+</I>&gt;<i> It is well-understood that URL fragment messaging is vulnerable to 
+</I>&gt;<i> tampering between windows or frames in the browser. Boris already posted 
+</I>&gt;<i> further clarifying this point and you seemed to understand. I don't know 
+</I>&gt;<i> what you're confused about.
+</I>
+I agree that there are ways to use Web technologies that are unsafe. For 
+example, you could just allow people to inject arbitrary markup into your 
+page.
+
+What I do not understand here is what the attack scenario is that is 
+specific to register*Handler(), if there is one.
+
+
+&gt;<i> &gt;&gt; &gt; Why would a mail client talk back to its opener?
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; It might not, but some RPH handlers will.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Why? What's the use case?
+</I>&gt;<i> 
+</I>&gt;<i> So, it seems you're arguing that the Mozilla blog post was silly and 
+</I>&gt;<i> developers won't try to solve problems that way. Is that so?
+</I>
+I haven't read the blog post recently. I am quite willing to believe that 
+it does things in an insecure manner; that does not, however, imply that 
+there is not a secure way to do things.
+
+
+&gt;<i> Well, perhaps it's not strictly necessary for you to understand it.
+</I>
+If you want me to change the spec, I need to understand why.
+
+
+On Fri, 6 Apr 2012, Tyler Close wrote:
+&gt;<i> &gt;&gt;&gt; On Mon, Apr 2, 2012 at 4:39 PM, Ian Hickson &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">ian at hixie.ch</A>&gt; wrote:
+</I>&gt;<i> &gt;&gt;&gt; &gt; On Mon, 26 Sep 2011, Tyler Close wrote:
+</I>&gt;<i> &gt;&gt;&gt; For example, a web mail program might have two registered RPH 
+</I>&gt;<i> &gt;&gt;&gt; handlers for mailto: &quot;<A HREF="https://example.org/?from=me@company&amp;q=%s">https://example.org/?from=me@company&amp;q=%s</A>&quot; and 
+</I>&gt;<i> &gt;&gt;&gt; &quot;<A HREF="https://example.org/?from=me@personal&amp;q=%s">https://example.org/?from=me@personal&amp;q=%s</A>&quot;. The user has 
+</I>&gt;<i> &gt;&gt;&gt; configured their browser to send mailto links to their personal 
+</I>&gt;<i> &gt;&gt;&gt; email editor. A malicious client page could directly open the URL 
+</I>&gt;<i> &gt;&gt;&gt; for the company email editor. The web mail editor needs a way to 
+</I>&gt;<i> &gt;&gt;&gt; detect when a client page is trying to subvert the user's chosen 
+</I>&gt;<i> &gt;&gt;&gt; preferences. So, an RPH handler needs a way to know that it was 
+</I>&gt;<i> &gt;&gt;&gt; loaded via the RPH dispatch. Once it knows this, it can also trust 
+</I>&gt;<i> &gt;&gt;&gt; that the arguments in the URL, such as &quot;from&quot; in this case, were not 
+</I>&gt;<i> &gt;&gt;&gt; tampered with by the client page.
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; I don't understand the attack scenario. Sure, a Web page can open 
+</I>&gt;<i> &gt;&gt; another Web page with arbitrary arguments. Why does it matter here?
+</I>&gt;<i> 
+</I>&gt;<i> In the example above, the user is expecting that clicking a mailto link 
+</I>&gt;<i> initiates sending of an email from their personal email account. The 
+</I>&gt;<i> attack page bypasses the RPH dispatch and directly sends the user to 
+</I>&gt;<i> their company email editor.
+</I>
+...then the user didn't click on the mailto: link, and the user's 
+expectation regarding mailto: links is quite irrelevant.
+
+
+&gt;<i> With the change I am asking for, the mailto RPH handler can detect that 
+</I>&gt;<i> the RPH dispatch was bypassed and show UI that says: &quot;Hey user, this was 
+</I>&gt;<i> an unusual request. Are you sure you want to use this account? Maybe you 
+</I>&gt;<i> want to use one of these others.&quot; In the legitimate scenario, the mail 
+</I>&gt;<i> handler page can assume that the user is using the account they intended 
+</I>&gt;<i> to, since the browser indicated that this is an RPH request and so this 
+</I>&gt;<i> handler is the one the user purposely selected.
+</I>
+People use the wrong identity regardless of people trying to trick them 
+into it, so I don't buy that this is a register*Handler()-specific issue.
+
+If a page really wanted to protect against being invoked directly rather 
+than through a register*Handler() request, they could just put a key in 
+their URL, specific to the user, and verify that. But that seems to rather 
+miss the point of the Web, which is all about allowing links between 
+pages.
+
+In any case, assuming we go with what I proposed in:
+
+   <A HREF="http://lists.whatwg.org/htdig.cgi/whatwg-whatwg.org/2012-April/035301.html">http://lists.whatwg.org/htdig.cgi/whatwg-whatwg.org/2012-April/035301.html</A>
+
+...then register*Handler()-triggered page loads will be detectable from 
+their intent object's value.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="077654.html">[whatwg] Fixing two security vulnerabilities in	registerProtocolHandler
+</A></li>
+	<LI>Next message: <A HREF="077670.html">[whatwg] Fixing two security vulnerabilities in	registerProtocolHandler
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#77658">[ date ]</a>
+              <a href="thread.html#77658">[ thread ]</a>
+              <a href="subject.html#77658">[ subject ]</a>
+              <a href="author.html#77658">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

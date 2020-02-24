@@ -1,0 +1,206 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Window and WindowProxy
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Window%20and%20WindowProxy&In-Reply-To=%3C5203F3B0.4000908%40mit.edu%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="082700.html">
+   <LINK REL="Next"  HREF="082705.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Window and WindowProxy</H1>
+<!--htdig_noindex-->
+    <B>Boris Zbarsky</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Window%20and%20WindowProxy&In-Reply-To=%3C5203F3B0.4000908%40mit.edu%3E"
+       TITLE="[whatwg] Window and WindowProxy">bzbarsky at MIT.EDU
+       </A><BR>
+    <I>Thu Aug  8 12:38:24 PDT 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="082700.html">[whatwg] Window and WindowProxy
+</A></li>
+        <LI>Next message: <A HREF="082705.html">[whatwg] Window and WindowProxy
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#82704">[ date ]</a>
+              <a href="thread.html#82704">[ thread ]</a>
+              <a href="subject.html#82704">[ subject ]</a>
+              <a href="author.html#82704">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On 8/8/13 2:48 PM, Ian Hickson wrote:
+&gt;&gt;<i> The current spec calls for the Window to be a proxy-like object, because
+</I>&gt;&gt;<i> that's the only way to implement the spec's indexed getter behavior.
+</I>&gt;<i>
+</I>&gt;<i> I don't understand what you mean. What's different about Window's indexed
+</I>&gt;<i> getter behaviour than the indexed getter behaviours of all the other
+</I>&gt;<i> interfaces in HTML that have indexed getters?
+</I>
+Absolutely nothing.  All the other indexed getter behaviors in HTML 
+require proxy-like behavior.
+
+But none of the rest of them are the global object, so they can just be 
+proxies and do their weird proxy things (again, in ES6 terms), and it's 
+all ok.
+
+&gt;&gt;<i> &quot;var&quot; needs to be able to define non-configurable properties.  Proxies
+</I>&gt;&gt;<i> don't necessarily offer useful guarantees about being able to define
+</I>&gt;&gt;<i> such properties on them, and in particular the behavior for index/named
+</I>&gt;&gt;<i> getters in WebIDL precludes definition of non-configurable properties of
+</I>&gt;&gt;<i> the corresponding kind on the relevant object.
+</I>&gt;<i>
+</I>&gt;<i> I don't understand what this means, sorry.
+</I>
+Hmm.  Which part is unclear?
+
+&gt;<i> If WebIDL makes it hard for an object that has indexed and named getters
+</I>&gt;<i> to also be a [Global] object, then we should fix WebIDL, since 33% of the
+</I>&gt;<i> [Global] objects, and nearly 100% of the actual [Global] objects in the
+</I>&gt;<i> wild, have indexed and named getters.
+</I>
+This is not a problem with WebIDL.  This is a problem with the fact that 
+indexed and named getters as implemented in modern browsers effectively 
+violate ES language invariants that the global is not allowed to violate.
+
+Now the good thing is that we defined things in WebIDL so that this is 
+ok: the named getters on the global are NOT on the global itself, but on 
+the NamedPropertiesObject on its prototype chain (and the difference is 
+readily observable; try &quot;var foo = 5; alert(foo);&quot; in a page that has 
+&lt;iframe name=&quot;foo&quot;&gt; and note that you get 5, which you would not if the 
+named getter were on the Window directly).  And the indexed getter on 
+Window, as I said, is black-box indistinguishable from living on the 
+WindowProxy, because you can't use indices as barewords.  So the upshot 
+is that a UA can just put them there and not have conflicts with the ES 
+spec.
+
+But, once again, if that's what UAs end up having to do anyway, we may 
+as well spec it that way.
+
+&gt;&gt;<i> I'm not sure what you mean.  The &quot;mapping&quot; that needs to happen is &quot;how
+</I>&gt;&gt;<i> do I have a global that's not a magic proxy while being black-box
+</I>&gt;&gt;<i> compatible with the spec?&quot;
+</I>&gt;<i>
+</I>&gt;<i> The Window object is just a regular object as far as I can tell. It has no
+</I>&gt;<i> magical proxiness.
+</I>
+The indexed getter behavior is &quot;magical proxiness&quot; as implemented in UAs 
+and specced in WebIDL.  Again, in ES6 terms.
+
+And we've tried to find other ways to define it; they all suck even more.
+
+&gt;<i> That's only WindowProxy, which isn't the global.
+</I>
+I think we might be using two different definitions of &quot;proxy&quot;.
+
+I am using &quot;proxy&quot; to indicate objects for which a normal, non-Proxy, 
+user-created object in JS would not be able to emulate their behavior. 
+Objects like that are why ES introduced Proxy objects, which are able to 
+have a much wider range of behaviors than normal objects, because they 
+can hook into various operations on a much lower level (specifically, 
+they can more or less directly implement the MOP).
+
+&gt;&gt;<i> Because getOwnPropertyNames should return the own properties of the
+</I>&gt;&gt;<i> object, but doing that on a WindowProxy for a cross-origin window should
+</I>&gt;&gt;<i> not in fact return the Window's own properties.
+</I>&gt;<i>
+</I>&gt;<i> Yes, it should. At least, IMHO.
+</I>
+Er... That's a cross-site information leak.  While some browsers 
+apparently do in fact have this leak, the web does not require it, I 
+don't think we should spec it, and Gecko certainly has no plans to add it.
+
+&gt;<i> WindowProxy should be _completely indistinguishable_ from the Window it
+</I>&gt;<i> currently points to, except for the way it can be distinguished when what
+</I>&gt;<i> it points to changes.
+</I>
+OK, so in this view there are multiple (one per origin, roughly) Window 
+objects in JS all representing the same underlying browser object?
+
+I don't understand how this can work with document.domain, where things 
+that used to not be same-origin suddenly become same-origin: in that 
+situation two different origins become the same origin and the fact that 
+they have different Window objects for the same current window ends up 
+observable.
+
+I feel like I must be missing something about the model you're working 
+with here.
+
+&gt;&gt;<i> Or another similar issue: getting a property descriptor from a
+</I>&gt;&gt;<i> WindowProxy (for a same-origin window) should probably never claim to
+</I>&gt;&gt;<i> have a non-configurable property, because on navigation the property
+</I>&gt;&gt;<i> will in fact disappear and non-configurable properties are not allowed
+</I>&gt;&gt;<i> to do that in ES.
+</I>&gt;<i>
+</I>&gt;<i> IMHO, yes, it should.
+</I>
+That's not allowed in ES.  Do see the thread I linked to.
+
+&gt;&gt;<i> See
+</I>&gt;&gt;<i> <A HREF="http://lists.w3.org/Archives/Public/public-script-coord/2012OctDec/0386.html">http://lists.w3.org/Archives/Public/public-script-coord/2012OctDec/0386.html</A>
+</I>&gt;&gt;<i> and the threads it references.  But of course Window is required to be
+</I>&gt;&gt;<i> able to have non-configurable properties (see &quot;var&quot;).  So WindowProxy
+</I>&gt;&gt;<i> can't just forward [[GetOwnProperty]] on to the Window.
+</I>&gt;<i>
+</I>&gt;<i> I think you're making this more complicated than it need be.
+</I>&gt;<i>
+</I>&gt;<i> Conceptually, it's just that the pointers to Window objects get redirected
+</I>&gt;<i> to point to a different Window object when the browsing context navigates.
+</I>
+Let me try to make this clearer.
+
+If an object (in this case a WindowProxy, since that's what the script 
+is working with) ever claims that it has a non-configurable property for 
+some property name, ES requires that it _always_ do that from that point 
+on.  This is a fundamental invariant that other parts of ES are built 
+on, and security libraries (caja and the like) plan to make use of this 
+invariant.
+
+&gt;<i> It's as if script had gone through every variable that points to the first
+</I>&gt;<i> Window object and set the variable to point to the new Window object.
+</I>
+I understand your mental model for this part; I'm just telling you that 
+it contradicts the ES spec and we need to reconcile the contradiction 
+somehow.
+
+&gt;<i> Every single MOP primitive for WindowProxy should just transparently proxy
+</I>&gt;<i> to the current underlying Window MOP primitive.
+</I>
+See above.
+
+-Boris
+
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="082700.html">[whatwg] Window and WindowProxy
+</A></li>
+	<LI>Next message: <A HREF="082705.html">[whatwg] Window and WindowProxy
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#82704">[ date ]</a>
+              <a href="thread.html#82704">[ thread ]</a>
+              <a href="subject.html#82704">[ subject ]</a>
+              <a href="author.html#82704">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

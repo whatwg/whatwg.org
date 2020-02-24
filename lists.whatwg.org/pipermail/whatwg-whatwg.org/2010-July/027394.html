@@ -1,0 +1,155 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Canvas: need getTransform() and getInverseTransform()	methods
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Canvas%3A%20need%20getTransform%28%29%20and%20getInverseTransform%28%29%0A%09methods&In-Reply-To=%3C4C506874.6030000%40davidflanagan.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="027422.html">
+   <LINK REL="Next"  HREF="027397.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Canvas: need getTransform() and getInverseTransform()	methods</H1>
+<!--htdig_noindex-->
+    <B>David Flanagan</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Canvas%3A%20need%20getTransform%28%29%20and%20getInverseTransform%28%29%0A%09methods&In-Reply-To=%3C4C506874.6030000%40davidflanagan.com%3E"
+       TITLE="[whatwg] Canvas: need getTransform() and getInverseTransform()	methods">david at davidflanagan.com
+       </A><BR>
+    <I>Wed Jul 28 10:27:16 PDT 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="027422.html">[whatwg] Questions about script attributes in HTML5
+</A></li>
+        <LI>Next message: <A HREF="027397.html">[whatwg] HTML5 Input (Color)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#27394">[ date ]</a>
+              <a href="thread.html#27394">[ thread ]</a>
+              <a href="subject.html#27394">[ subject ]</a>
+              <a href="author.html#27394">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>The Canvas API has a setTransform() method to set an arbitrary 
+transformation matrix, but has no corresponding getTransform() method to 
+query the current transformation matrix or even to use the CTM to 
+transform a point in the current coordinate system to the default 
+coordinate system.  The only way current to achieve this is to replace 
+translate(), scale(), and rotate() methods with instrumented versions 
+that explicitly keep track of the CTM.
+
+Here are the two use cases that I've run into in which I've needed a way 
+to convert from the current coordinates to the device coordinates.
+
+1) The shadowOffsetX,Y properties are not subject to the CTM (except in 
+Chrome, which gets it wrong).  This is probably as it should be.  But 
+suppose I've written a method draw_scene() that draws a pretty picture 
+with shadows.  Now suppose I want to render my scene at high-resolution 
+to produce a version suitable for printing with code like this, for example:
+
+         var bigcanvas = document.createElement(&quot;canvas&quot;);
+         bigcanvas.width = 5*canvas.width;
+         bigcanvas.height = 5*canvas.height;
+         var context = bigcanvas.getContext(&quot;2d&quot;);
+         context.scale(5,5);
+         draw_scene(context);
+         var img = bigcanvas.toDataURL();
+         window.open(img).print();
+
+In this scenario, I naturally want my shadows to scale along with the 
+rest of the picture, so that my high-resolution printable version of the 
+scene looks just like the on-screen version.
+
+In order to make this work right, I need some way to transform shadow 
+offsets in the current coordinate system into shadow offsets in the 
+default coordinate system.  In my draw_scene() method, for example, I 
+need to be able to write code like this:
+
+// Set shadow offsets to 5 units in the the current coordinates
+var offset0 = c.transformPoint(0,0);
+var offset1 = c.transformPoint(5,5);
+c.shadowOffsetX = offset1[0]-offset0[0];
+c.shadowOffsetY = offset1[1]-offset0[1];
+
+(That code is pretty ugly, but I think it accomplishes what I need. 
+Better might be a tranformDimension() method or tranformPoints() that 
+can take any number of pairs of x,y coordinates).
+
+2) The second use case I've encountered is when I want to perform some 
+kind of drawing operation on a portion of the canvas but first want to 
+make a backup copy so I can restore the dirty rectangle later.  To do 
+this, I obviously use drawImage() or getImageData() to extract the 
+pixels I want to save.  But both of these methods expect the coordinates 
+of the source rectangle in the default coordinate system.  If I don't 
+have a way to convert from the current coordinates back to default 
+coordinates then I end up having to back up the entire canvas rather 
+than just a rectangular portion of it.  (As an aside a 
+getPathBoundingBox() method would be nice for this scenario, too)
+
+In addition to the need to be able to transform points and dimensions 
+from the current coordinate system to the default coordinate system, 
+there is also a related need to be able to transform in the opposite 
+direction.  The use case I've thought about is when you want to be able 
+to determine the coordinates (in the current system) of the corners of 
+the canvas.  That is, I'd like to be able to transform canvas.width and 
+canvas.height to the current coordinates.
+
+ From an ease-of-specification perspective, the easiest way to enable 
+these things would be to add getTransform() and getInverseTransform() 
+methods that would return arrays of the 6 matrix elements.
+
+This would be a no-op:
+
+CanvasRenderingContext2D.prototype.setTransform.apply(c,c.getTransform())
+
+And this would be the same as calling setTransform(1,0,0,1,0,0):
+
+CanvasRenderingContext2D.prototype.transform.apply(c,c.getInverseTransform())
+
+getInverseTransform() would throw a suitable exception if the CTM was 
+not invertible.
+
+ From a programmer usability perspective, perhaps adding methods like 
+transformPoints(), transformBoundingBox(), and transformDimensions() 
+would be more helpful.  But I'm not sure what the optimal set of such 
+methods would be.
+
+     David Flanagan
+</PRE>
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="027422.html">[whatwg] Questions about script attributes in HTML5
+</A></li>
+	<LI>Next message: <A HREF="027397.html">[whatwg] HTML5 Input (Color)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#27394">[ date ]</a>
+              <a href="thread.html#27394">[ thread ]</a>
+              <a href="subject.html#27394">[ subject ]</a>
+              <a href="author.html#27394">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

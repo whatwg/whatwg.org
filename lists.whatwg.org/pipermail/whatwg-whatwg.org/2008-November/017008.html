@@ -1,0 +1,152 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Combining the DedicatedWorker and SharedWorker	interfaces
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Combining%20the%20DedicatedWorker%20and%20SharedWorker%0A%09interfaces&In-Reply-To=%3C4910C8AF.3000404%40sicking.cc%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017000.html">
+   <LINK REL="Next"  HREF="017009.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Combining the DedicatedWorker and SharedWorker	interfaces</H1>
+<!--htdig_noindex-->
+    <B>Jonas Sicking</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Combining%20the%20DedicatedWorker%20and%20SharedWorker%0A%09interfaces&In-Reply-To=%3C4910C8AF.3000404%40sicking.cc%3E"
+       TITLE="[whatwg] Combining the DedicatedWorker and SharedWorker	interfaces">jonas at sicking.cc
+       </A><BR>
+    <I>Tue Nov  4 14:11:59 PST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017000.html">[whatwg] Combining the DedicatedWorker and SharedWorker	interfaces
+</A></li>
+        <LI>Next message: <A HREF="017009.html">[whatwg] Combining the DedicatedWorker and SharedWorker	interfaces
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17008">[ date ]</a>
+              <a href="thread.html#17008">[ thread ]</a>
+              <a href="subject.html#17008">[ subject ]</a>
+              <a href="author.html#17008">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>&gt;<i> Here's an example in code:
+</I>&gt;<i> 
+</I>&gt;<i> // dedicated workers (outside)
+</I>&gt;<i> var worker = new Worker(&quot;foo.js&quot;);
+</I>&gt;<i> var port = worker.connect();
+</I>&gt;<i> port.onmessage = function() { }
+</I>&gt;<i> port.postMessage(&quot;ping&quot;);
+</I>&gt;<i> 
+</I>&gt;<i> // dedicated workers (inside)
+</I>&gt;<i> onconnect = function(e) {
+</I>&gt;<i>   e.port.onmessage = function(e) {
+</I>&gt;<i>     e.port.postMessage(&quot;pong&quot;);
+</I>&gt;<i>   }
+</I>&gt;<i> }
+</I>&gt;<i> 
+</I>&gt;<i> Shared workers are exactly the same except the constructor is
+</I>&gt;<i> SharedWorker(&quot;foo.js&quot;, &quot;foo&quot;);
+</I>&gt;<i> 
+</I>&gt;<i> Note that I do not think it is necessary to implement this all at
+</I>&gt;<i> once. For one, the SharedWorker constructor could easily be punted for
+</I>&gt;<i> future releases.
+</I>&gt;<i> 
+</I>&gt;<i> Thoughts?
+</I>
+My main concern is that I think this makes the most simple use case a 
+bit too complicated. In the case when you have a dedicated worker that 
+you want to offload some calculations too you need quite a bit of code 
+to set up that communication.
+
+With the current API you'd do the following:
+
+main.js:
+w = new Worker('worker.js');
+w.postMessage(17);
+w.onmessage = function(e) {
+   answer = e.data;
+}
+
+worker.js:
+function heavyCalulation(inValue) {
+   ...
+}
+onmessage = function(e) {
+   postMessage(heavyCalculation(e.data));
+}
+
+
+With the proposed API:
+
+main.js:
+w = new Worker('worker.js');
+p = w.connect();
+p.postMessage(17);
+p.onmessage = function(e) {
+   answer = e.data;
+}
+
+worker.js:
+function heavyCalulation(inValue) {
+   ...
+}
+onconnect = function(e) {
+   e.port.onmessage = function(e2) {
+     e.port.postMessage(heavyCalulation(e2.data));
+   }
+}
+
+
+This complexity I feel is extra bad since I suspect the simple case is 
+going to be the common case (I know we disagree there). I especially 
+dislike the fact that you have to wait for two events, first a 'connect' 
+event and then the actual message event. This seems overly complex for 
+the simple case of simply wanting to use a single communication channel 
+with a dedicated worker. And even though there isn't that much more code 
+in my example above, it took significantly more effort to get it right 
+given the nested two handlers that were needed.
+
+So I think we should keep the simple case of a dedicated worker and a 
+single communication channel as simple as possible. This means that I 
+think we should keep postMessage/onmessage available on the dedicated 
+worker directly, as well as the dedicated worker global scope.
+
+As an added bonus this keeps things very similar to message passing 
+between windows.
+
+
+I'm fine with removing things like 'startConversation' and the implicit 
+call to connect() on shared workers. 'startConversation' isn't really a 
+new communication mechanism, but rather a convenience method on top of 
+postMessage.
+
+/ Jonas
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017000.html">[whatwg] Combining the DedicatedWorker and SharedWorker	interfaces
+</A></li>
+	<LI>Next message: <A HREF="017009.html">[whatwg] Combining the DedicatedWorker and SharedWorker	interfaces
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17008">[ date ]</a>
+              <a href="thread.html#17008">[ thread ]</a>
+              <a href="subject.html#17008">[ subject ]</a>
+              <a href="author.html#17008">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

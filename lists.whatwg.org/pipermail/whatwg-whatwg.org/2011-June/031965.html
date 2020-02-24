@@ -1,0 +1,267 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Recursion and loops of Microdata items
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Recursion%20and%20loops%20of%20Microdata%20items&In-Reply-To=%3CPine.LNX.4.64.1106081923410.19153%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="031951.html">
+   <LINK REL="Next"  HREF="031973.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Recursion and loops of Microdata items</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Recursion%20and%20loops%20of%20Microdata%20items&In-Reply-To=%3CPine.LNX.4.64.1106081923410.19153%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg] Recursion and loops of Microdata items">ian at hixie.ch
+       </A><BR>
+    <I>Wed Jun  8 12:51:57 PDT 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="031951.html">[whatwg] Recursion and loops of Microdata items
+</A></li>
+        <LI>Next message: <A HREF="031973.html">[whatwg] Recursion and loops of Microdata items
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#31965">[ date ]</a>
+              <a href="thread.html#31965">[ thread ]</a>
+              <a href="subject.html#31965">[ subject ]</a>
+              <a href="author.html#31965">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Wed, 8 Jun 2011, Tomasz Jamroszczak wrote:
+&gt;<i> 
+</I>&gt;<i> I've been looking into Microdata specification and it struck me, that 
+</I>&gt;<i> crawling algorithm is so complex, when it comes to expressing simple 
+</I>&gt;<i> ideas.  I think that foremost the algorithm should be described in the 
+</I>&gt;<i> specification with explanation what it's supposed to do, before steps of 
+</I>&gt;<i> what exactly is to be done are written.
+</I>&gt;<i>
+</I>&gt;<i> Let's see, what are the properties of Microdata item from HTML element 
+</I>&gt;<i> with id=up from following HTML:
+</I>&gt;<i> 
+</I>&gt;<i> &lt;div itemscope id=up itemprop=prop0&gt;
+</I>&gt;<i> 	&lt;div itemscope id=down itemprop=prop1 itemref=&quot;up&quot;&gt;&lt;/div&gt;
+</I>&gt;<i> &lt;/div&gt;
+</I>
+The microdata item with id=up has exactly one property, &quot;prop1&quot;, whose 
+value is an item.
+
+
+&gt;<i> CRAWL
+</I>&gt;<i> root = up
+</I>&gt;<i> memory = {}
+</I>&gt;<i> 1. xxx
+</I>&gt;<i> 2. COLLECT
+</I>&gt;<i>   1. results = {}
+</I>&gt;<i>      pending = {}
+</I>&gt;<i>   3. pending = {down}
+</I>&gt;<i>   4. xxx
+</I>&gt;<i>   5. pending = {}
+</I>&gt;<i>      current = down
+</I>&gt;<i>   7. xxx
+</I>&gt;<i>   8. results = {down}
+</I>&gt;<i>   results = {down}
+</I>&gt;<i> 3. xxx
+</I>&gt;<i> 4. new_memory = {up}
+</I>&gt;<i> 5. element = down
+</I>&gt;<i>   CRAWL
+</I>&gt;<i>   0. memory2 = {up}
+</I>&gt;<i>      root2 = down
+</I>&gt;<i>   1. xxx
+</I>&gt;<i>   2. COLLECT
+</I>&gt;<i>      1. results2 = {}
+</I>&gt;<i>         pending2 = {}
+</I>&gt;<i>      3. xxx
+</I>&gt;<i>      4. pending2 = {up}
+</I>&gt;<i>      5. pending2 = {}
+</I>&gt;<i>         current2 = up
+</I>&gt;<i>      7. xxx
+</I>&gt;<i>      8. results2 = {up}
+</I>&gt;<i>      results2 = {up}
+</I>&gt;<i>   3. xxx
+</I>&gt;<i>   4. new_memory2 = {up, down}
+</I>&gt;<i>   5. element2 = up
+</I>&gt;<i>      CRAWL
+</I>&gt;<i>      0. memory3 = {up, down}
+</I>&gt;<i>         root3 = up
+</I>&gt;<i>      1. return FAIL
+</I>&gt;<i> !!!   results2 = results2 - up = {}
+</I>&gt;<i>   7. return results2 == {} (not FAIL).
+</I>&gt;<i> 7. return results == {down}
+</I>&gt;<i> 
+</I>&gt;<i> In the end properties of Microdata item from HTML element with id=up
+</I>&gt;<i> has length=1.
+</I>
+Yup.
+
+
+&gt;<i> The troubling part is in the line marked with triple exclamation marks.  
+</I>&gt;<i> It means that step 5. of the algorithm should be simplified to &quot;For each 
+</I>&gt;<i> element in results that has an itemscope attribute specified, if the 
+</I>&gt;<i> element is equal to /root/, then remove the element from results [and 
+</I>&gt;<i> increment errors]&quot;.  Further recursive crawling is not needed.
+</I>
+Yeah, you're right, the way it's written is way more complex than needed 
+to get the effect described. It goes beyond what you've described, in 
+fact; for example, the &quot;find the properties of an item&quot; algorithm defined 
+a few paragraphs earlier says what to do when the &quot;crawl&quot; algorithm fails, 
+but it cannot ever fail as written in that context.
+
+
+&gt;<i> But then there's problem with infinite recursion when going through 
+</I>&gt;<i> stringification algorithm of [&quot;extract the microdata from those nodes 
+</I>&gt;<i> into a JSON form&quot;] for HTML given above.  We can proceed in two ways:
+</I>&gt;<i> 
+</I>&gt;<i> a) allow loops of Microdata items and make JSONification of Microdata 
+</I>&gt;<i> item behave just like JSONification of any javascript object, that is - 
+</I>&gt;<i> throw exception when loop is found.  Or
+</I>&gt;<i> 
+</I>&gt;<i> b) exclude loops of Microdata items (so in above example Microdata item 
+</I>&gt;<i> from HTML element with id=up would have no Microdata properties).  This 
+</I>&gt;<i> will result in crippling functionality of a quite nice HTML API, but 
+</I>&gt;<i> also it will produce consistent results in HTMLPropertiesCollection and 
+</I>&gt;<i> stringification.  Third solution:
+</I>&gt;<i> 
+</I>&gt;<i> c) cut only offending links, is not good, because in case of graph of 
+</I>&gt;<i> Microdata items with following paths: &quot;A-&gt;B-&gt;C-&gt;D-&gt;B&quot; and &quot;E-&gt;D&quot; 
+</I>&gt;<i> stringification of item A would result in item D having no properties, 
+</I>&gt;<i> while stringification of E would result in D having property B - so 
+</I>&gt;<i> presence of property would depend on path's starting part.
+</I>
+The idea, IIRC, was that an element would never have properties that 
+involved a loop. Clearly I failed at speccing that, but that was the 
+intent.
+
+
+&gt;<i> 	I can imagine good usages of loops of Microdata items, for example
+</I>&gt;<i> &quot;John knows Amy, Amy knows John&quot;:
+</I>&gt;<i> 
+</I>&gt;<i> &lt;div itemscope id=&quot;john&quot; itemprop&gt;
+</I>&gt;<i> 	&lt;div itemprop=&quot;friends&quot; itemref=&quot;fred1 jenny2 amy1&quot;&gt;&lt;/div&gt;
+</I>&gt;<i> &lt;/div&gt;
+</I>&gt;<i> &lt;div itemscope id=&quot;amy1&quot; itemprop&gt;
+</I>&gt;<i> 	&lt;div itemprop=&quot;friends&quot; itemref=&quot;john&quot;&gt;&lt;/div&gt;
+</I>&gt;<i> &lt;/div&gt;
+</I>&gt;<i> 
+</I>&gt;<i> There's loop:  jonh-&gt;amy1-&gt;john-&gt;... .
+</I>
+There's no loop there. It's invalid. itemref=&quot;&quot; only works on an element 
+with an itemscope attribute. This use case is currently intentionally not 
+explicitly supported; officially the way to handle this case is using 
+itemid=&quot;&quot; and URLs (much as in one example you had that I snipped here).
+
+
+&gt;<i> The problem I'm addressing revolves around meaning of link between 
+</I>&gt;<i> itemref and id attributes.  Is it meant to be a part of Microdata data 
+</I>&gt;<i> model? Or maybe it is introduced to cope with the fact that Microdata 
+</I>&gt;<i> graph is defined on top of existing data, which is something completely 
+</I>&gt;<i> different, and is meant to be rendered to the user (that is on top of 
+</I>&gt;<i> HTML tree)?  So the meaning of itemref attribute should also hint 
+</I>&gt;<i> interpretation of it inside the specification.
+</I>
+The goal of itemref=&quot;&quot; was just to have a way to handle cases where you 
+have an item's properties scattered around a document.
+
+It's caused us more difficulties than helped anything, as far as I can 
+tell. Has anyone implemented it or used it and liked it? I'd be fine with 
+removing it if it's not a lot of trouble...
+
+I haven't fixed the algorithm to be written more simply, nor fixed the 
+loops in the JSON stuff, because if we remove itemref=&quot;&quot; then those 
+problems just go away. If we want to keep itemref=&quot;&quot;, though, I will fix 
+them. Any opinions one way or the other?
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="031951.html">[whatwg] Recursion and loops of Microdata items
+</A></li>
+	<LI>Next message: <A HREF="031973.html">[whatwg] Recursion and loops of Microdata items
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#31965">[ date ]</a>
+              <a href="thread.html#31965">[ thread ]</a>
+              <a href="subject.html#31965">[ subject ]</a>
+              <a href="author.html#31965">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

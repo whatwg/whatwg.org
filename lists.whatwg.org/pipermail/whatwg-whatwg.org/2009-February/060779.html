@@ -1,0 +1,119 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Script/parser interaction bug?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Script/parser%20interaction%20bug%3F&In-Reply-To=%3CPine.LNX.4.62.0902120645590.28232%40hixie.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="060778.html">
+   <LINK REL="Next"  HREF="060805.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Script/parser interaction bug?</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Script/parser%20interaction%20bug%3F&In-Reply-To=%3CPine.LNX.4.62.0902120645590.28232%40hixie.dreamhostps.com%3E"
+       TITLE="[whatwg] Script/parser interaction bug?">ian at hixie.ch
+       </A><BR>
+    <I>Wed Feb 11 22:55:18 PST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="060778.html">[whatwg] HTML 5 : Misconceptions Documented
+</A></li>
+        <LI>Next message: <A HREF="060805.html">[whatwg] Script/parser interaction bug?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#60779">[ date ]</a>
+              <a href="thread.html#60779">[ thread ]</a>
+              <a href="subject.html#60779">[ subject ]</a>
+              <a href="author.html#60779">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Tue, 20 Jan 2009, Kartikaya Gupta wrote:
+&gt;<i>
+</I>&gt;<i> I have a test case that works in major browsers (FF, Opera, Safari, IE6) 
+</I>&gt;<i> but that I don't think would work if the they followed the behavior as 
+</I>&gt;<i> currently specified in HTML5. I've put the test case online:
+</I>&gt;<i> 
+</I>&gt;<i> <A HREF="http://stakface.com/pub/mango/ext7.html">http://stakface.com/pub/mango/ext7.html</A>
+</I>&gt;<i> 
+</I>&gt;<i> The assertion &quot;document.getElementById('r').firstChild.data == 'PASS'&quot; 
+</I>&gt;<i> is true after the page has loaded, whereas according to the spec I don't 
+</I>&gt;<i> think it shouldn't be.
+</I>&gt;<i> 
+</I>&gt;<i> The steps are roughly as follows:
+</I>&gt;<i> - tokenize/treebuild ext7.html until the first closing script tag is found (for the 7a.js script)
+</I>&gt;<i> - run the script. this sets 7a.js to be the &quot;pending external script&quot;
+</I>&gt;<i> - execute the &quot;pending external script&quot; (7a.js) since it's not a re-entrant invocation of the tree builder
+</I>&gt;<i> --- insert the 7b.js line into the input stream
+</I>&gt;<i> --- tokenize/treebuild the 7b.js script tag until the &lt;/script&gt; for 7b.js is found
+</I>&gt;<i> --- run the script. this sets 7b.js to be the &quot;pending external script&quot;
+</I>&gt;<i> --- now, since there is a &quot;pending external script&quot; and this is a re-entrant invocation, set the pause flag to true and bail
+</I>&gt;<i> --- insert the other stuff in 7a.js into the input stream
+</I>&gt;<i> --- since the parser pause flag is set this other stuff does NOT get tokenized/treebuilt yet
+</I>&gt;<i> - 7a.js finishes executing, and now we have a new &quot;pending external script&quot;, which is 7b.js
+</I>
+I think the parser pause flag gets set to false again here.
+
+&gt;<i> - execute 7b.js
+</I>&gt;<i> --- throws
+</I>&gt;<i> - continue processing input stream (this now has the contents of the document.write calls from 7a.js, line 2 onwards)
+</I>&gt;<i> - tokenize/treebuild the input stream until the &lt;/script&gt; that was document.write'd at the bottom of 7a.js is encountered
+</I>&gt;<i> - execute the script
+</I>&gt;<i> --- insert the div into the input stream
+</I>&gt;<i> --- since the parser pause flag is still set the div does NOT get tokenized/treebuilt
+</I>
+Why is it still set?
+
+&gt;<i> --- run the line that sets .firstChild.data to PASS. since the div isn't in the DOM yet, this throws and the script is done
+</I>&gt;<i> - unwind back to the treebuilder, which clears the parser pause flag since the script nesting level drops to zero
+</I>&gt;<i> - tokenize/treebuild the input stream, which contains the div tag
+</I>&gt;<i> - add div with content FAIL to the DOM
+</I>&gt;<i> - done
+</I>&gt;<i> 
+</I>&gt;<i> Here, I think the pause flag needs to get cleared earlier, so that when 
+</I>&gt;<i> the div is inserted into the input stream, it gets tokenized and added 
+</I>&gt;<i> to the DOM. This would make the behavior consistent with what I'm seeing 
+</I>&gt;<i> in major browsers. Thoughts?
+</I>
+Could you reannotate the above but with the script nesting level 
+explicitly given at each step?
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="060778.html">[whatwg] HTML 5 : Misconceptions Documented
+</A></li>
+	<LI>Next message: <A HREF="060805.html">[whatwg] Script/parser interaction bug?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#60779">[ date ]</a>
+              <a href="thread.html#60779">[ thread ]</a>
+              <a href="subject.html#60779">[ subject ]</a>
+              <a href="author.html#60779">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

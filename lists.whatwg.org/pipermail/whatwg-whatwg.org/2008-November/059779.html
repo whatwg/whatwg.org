@@ -1,0 +1,199 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Database feedback
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Database%20feedback&In-Reply-To=%3CPine.LNX.4.62.0811261059020.17414%40hixie.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="059849.html">
+   <LINK REL="Next"  HREF="059792.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Database feedback</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Database%20feedback&In-Reply-To=%3CPine.LNX.4.62.0811261059020.17414%40hixie.dreamhostps.com%3E"
+       TITLE="[whatwg] Database feedback">ian at hixie.ch
+       </A><BR>
+    <I>Wed Nov 26 03:46:52 PST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="059849.html">[whatwg] usemap=&quot;&quot; and related issues
+</A></li>
+        <LI>Next message: <A HREF="059792.html">[whatwg] Database feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#59779">[ date ]</a>
+              <a href="thread.html#59779">[ thread ]</a>
+              <a href="subject.html#59779">[ subject ]</a>
+              <a href="author.html#59779">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>
+There's a question at the bottom about how best to make transactions be 
+free of concurrency problems. Input welcome.
+
+On Fri, 23 May 2008, Aaron Boodman wrote:
+&gt;<i>
+</I>&gt;<i> I noticed one unfortunate thing about the new Database API. Because the 
+</I>&gt;<i> executeSql() callback holds open the transaction, it is easy to 
+</I>&gt;<i> accidentally do intensive work inside there and hold open the 
+</I>&gt;<i> transaction too long. A common mistake might be to do a big select and 
+</I>&gt;<i> then hold open the transaction while the UI is updated. This could hold 
+</I>&gt;<i> open the tx maybe an extra couple hundred ms. A bigger problem would be 
+</I>&gt;<i> to do synchronous XHR (for example, in workers). This could hold open 
+</I>&gt;<i> the tx for seconds.
+</I>&gt;<i> 
+</I>&gt;<i> The right place to do work like this is in transaction()'s success 
+</I>&gt;<i> callback. But because the resultsets aren't easily accessible there, I 
+</I>&gt;<i> think authors are more likely to do work in executeSql()'s success 
+</I>&gt;<i> callback and use transaction()'s success callback less frequently.
+</I>&gt;<i> 
+</I>&gt;<i> Off hand about the best solution I can think of to this problem is to 
+</I>&gt;<i> have some sort of state on the transaction object that gathers the 
+</I>&gt;<i> results.
+</I>&gt;<i> 
+</I>&gt;<i> This is not very satisfying though. Does anyone have a better idea? Or 
+</I>&gt;<i> think this is not a big enough concern to worry about?
+</I>
+I agree that this might be a problem. I'm not sure how to address it.
+
+
+On Tue, 27 May 2008, Scott Hess wrote:
+&gt;<i> 
+</I>&gt;<i> I think the only way you can really make it better is to put something 
+</I>&gt;<i> like an executeSql() function directly on Database objects, which could 
+</I>&gt;<i> shift the success callback entirely outside the transaction scope.  I 
+</I>&gt;<i> think that would reasonably match server-side SQL use (you either send a 
+</I>&gt;<i> bare SELECT with implicit transaction, or use explicit BEGIN/END to 
+</I>&gt;<i> group things which must be consistent).
+</I>
+I don't want to add this yet, in case it turns out we don't really need 
+it, but implementation experience will definitely tell us whether this is 
+needed or not and if it is we will have to add it in v2.
+
+
+On Mon, 26 May 2008, Aaron Boodman wrote:
+&gt;<i>
+</I>&gt;<i> Quick thing. I don't think the spec makes it clear whether it is allowed 
+</I>&gt;<i> to do this:
+</I>&gt;<i> 
+</I>&gt;<i> var db1 = window.openDatabase(&quot;foo&quot;, &quot;&quot;, &quot;&quot;, &quot;&quot;);
+</I>&gt;<i> var db2 = window.openDatabase(&quot;foo&quot;, &quot;1&quot;, &quot;&quot;, &quot;&quot;);
+</I>&gt;<i> 
+</I>&gt;<i> I think the answer should be &quot;no&quot;. Thoughts?
+</I>&gt;<i>
+</I>&gt;<i> If so, perhaps edit this sentence:
+</I>&gt;<i> 
+</I>&gt;<i> If the database version provided is not the empty string, and the 
+</I>&gt;<i> database already exists but has a different version, then the method 
+</I>&gt;<i> must raise an INVALID_STATE_ERR exception.
+</I>&gt;<i> 
+</I>&gt;<i> To read like this:
+</I>&gt;<i> 
+</I>&gt;<i> If the database version provided is not the empty string, and the 
+</I>&gt;<i> database already exists but has a different version, or no version, then 
+</I>&gt;<i> the method must raise an INVALID_STATE_ERR exception.
+</I>
+Fixed.
+
+
+On Mon, 26 May 2008, Chris Prince wrote:
+&gt;<i>
+</I>&gt;<i> I think the spec is technically correct.  What's confusing is that the 
+</I>&gt;<i> same line can mean two different things:
+</I>&gt;<i> 
+</I>&gt;<i> // Start with no databases.
+</I>&gt;<i> 
+</I>&gt;<i> // On the 1st call, this line means &quot;create a database,
+</I>&gt;<i> // and set the version string to the empty string&quot;.
+</I>&gt;<i> var db1 = window.openDatabase(&quot;foo&quot;, &quot;&quot;, &quot;&quot;, &quot;&quot;);
+</I>&gt;<i> 
+</I>&gt;<i> // On the 2nd call, the meaning has changed to
+</I>&gt;<i> // &quot;open the 'foo' database, regardless of the version string&quot;.
+</I>&gt;<i> var db2 = window.openDatabase(&quot;foo&quot;, &quot;&quot;, &quot;&quot;, &quot;&quot;);
+</I>
+Yeah, that's a bit confusing. Not sure what to do about it.
+
+
+On Mon, 4 Aug 2008, Aaron Boodman wrote:
+&gt;<i>
+</I>&gt;<i> It seems like you need a way to abort an in-progress transaction. An 
+</I>&gt;<i> easy way to do this would be to add an abort() method to SQLTransaction.
+</I>
+What's the use case? Can we wait until v2 to add this, or is it critical?
+
+
+On Mon, 4 Aug 2008, Aaron Boodman wrote:
+&gt;<i> 
+</I>&gt;<i> Currently, the database API has an error code for the situation where 
+</I>&gt;<i> you open a transaction for read, then try to write but the database is 
+</I>&gt;<i> locked.
+</I>&gt;<i> 
+</I>&gt;<i> I think that the spec should at least suggest, but perhaps require, 
+</I>&gt;<i> implementors to serialize access to a single database to prevent this 
+</I>&gt;<i> from happening. Without this, developers must wrap every single write 
+</I>&gt;<i> attempt in error handling and retry if a lock error occurs.
+</I>&gt;<i> 
+</I>&gt;<i> It seems likely that developers will forget to do this and it will be a 
+</I>&gt;<i> significant pain point with the API. Applications will seem to work, but 
+</I>&gt;<i> then mysteriously fail in production when users have multiple copies of 
+</I>&gt;<i> the application open.
+</I>&gt;<i> 
+</I>&gt;<i> Even if the developer adds retry logic, it is easy for a page to get 
+</I>&gt;<i> starved by another page.
+</I>&gt;<i> 
+</I>&gt;<i> Serializing access would prevent all these problems at the cost of read 
+</I>&gt;<i> concurrency, which I think is OK for the first version of this API. A 
+</I>&gt;<i> future version of the API could add the concept of &quot;read transactions&quot; 
+</I>&gt;<i> which would allow concurrency, but would fail immediately when you try 
+</I>&gt;<i> to write with them.
+</I>
+I am loath to do this, because of the performance hit. However, what we 
+could do is say that if the first statement is read-only, they all have to 
+be, and if the first statement is a write, then it locks the database? 
+Though that would be rather weird...
+
+We could have a .writeTransaction() and a .readTransaction(), where the 
+former always run in isolation.
+
+Any preferences?
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="059849.html">[whatwg] usemap=&quot;&quot; and related issues
+</A></li>
+	<LI>Next message: <A HREF="059792.html">[whatwg] Database feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#59779">[ date ]</a>
+              <a href="thread.html#59779">[ thread ]</a>
+              <a href="subject.html#59779">[ subject ]</a>
+              <a href="author.html#59779">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

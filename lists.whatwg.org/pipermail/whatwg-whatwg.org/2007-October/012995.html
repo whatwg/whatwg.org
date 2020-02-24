@@ -1,0 +1,153 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] SQL API complex for simple cases
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20SQL%20API%20complex%20for%20simple%20cases&In-Reply-To=%3CA8DCF0C7-ED79-463F-90DB-D67096DD85B6%40apple.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="012994.html">
+   <LINK REL="Next"  HREF="012997.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] SQL API complex for simple cases</H1>
+<!--htdig_noindex-->
+    <B>Brady Eidson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20SQL%20API%20complex%20for%20simple%20cases&In-Reply-To=%3CA8DCF0C7-ED79-463F-90DB-D67096DD85B6%40apple.com%3E"
+       TITLE="[whatwg] SQL API complex for simple cases">beidson at apple.com
+       </A><BR>
+    <I>Wed Oct 31 17:40:35 PDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="012994.html">[whatwg] SQL API complex for simple cases
+</A></li>
+        <LI>Next message: <A HREF="012997.html">[whatwg] SQL API complex for simple cases
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#12995">[ date ]</a>
+              <a href="thread.html#12995">[ thread ]</a>
+              <a href="subject.html#12995">[ subject ]</a>
+              <a href="author.html#12995">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>&gt;&gt;&gt;<i> On Wed, 31 Oct 2007, Brady Eidson wrote:
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> My understanding with this design is that you would get this
+</I>&gt;&gt;&gt;&gt;<i> SQLTransaction object back and it would just sit around, not doing
+</I>&gt;&gt;&gt;&gt;<i> anything.  When you first call executeSql on it, you kick off the
+</I>&gt;&gt;&gt;&gt;<i> transaction steps as they already exist.  Until you call
+</I>&gt;&gt;&gt;&gt;<i> executeSql(), it's just a dummy object that doesn't interfere with
+</I>&gt;&gt;&gt;&gt;<i> the database at all.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> What if there's a problem with opening the transaction itself? You
+</I>&gt;&gt;&gt;<i> don't want to run all the code for preparing the statement only to
+</I>&gt;&gt;&gt;<i> find you didn't have a chance for the statement to run in the first
+</I>&gt;&gt;&gt;<i> place.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> While the spec *does* currently enforce preparing the statement at  
+</I>&gt;&gt;<i> the
+</I>&gt;&gt;<i> time of calling executeSql() just to mark the statement bogus,  
+</I>&gt;&gt;<i> &quot;marking
+</I>&gt;&gt;<i> the statement bogus&quot; is only a flag that takes effect later during  
+</I>&gt;&gt;<i> the
+</I>&gt;&gt;<i> transaction effects.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Therefore, why is it so necessary to prepare the statement before the
+</I>&gt;&gt;<i> transaction is opened?  Why don't we parse and validate the  
+</I>&gt;&gt;<i> statement in
+</I>&gt;&gt;<i> the transaction steps themselves?
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> If we adopted both of these models (Tims idea and allowing the  
+</I>&gt;&gt;<i> statement
+</I>&gt;&gt;<i> to be parsed in the transaction steps) and there was a problem with
+</I>&gt;&gt;<i> opening the transaction itself, you'd get the
+</I>&gt;&gt;<i> SQLTransactionErrorCallback and the statement would never even be
+</I>&gt;&gt;<i> touched at all.
+</I>&gt;<i>
+</I>&gt;<i> I'm talking about:
+</I>&gt;<i>
+</I>&gt;<i>   var transaction = db.transaction(errorCallback);
+</I>&gt;<i>   // the transaction has failed at this point
+</I>&gt;<i>   // but we have no way to stop the next few lines from running:
+</I>&gt;<i>   ...do lots of work to get the data to put into the transaction...
+</I>&gt;<i>   transaction.executeSql('...', [expensiveData], ...);
+</I>&gt;<i>
+</I>&gt;<i> vs:
+</I>&gt;<i>
+</I>&gt;<i>   db.transaction(function (transaction) {
+</I>&gt;<i>     // this never gets called, since the transaction failed
+</I>&gt;<i>     ...do lots of work to get the data to put into the transaction...
+</I>&gt;<i>     transaction.executeSql('...', [expensiveData], ...);
+</I>&gt;<i>   }, errorCallback);
+</I>
+Interesting.  I think you've swayed me with this argument.
+
+I have an alternative to propose - how about reinstating  
+Database.executeSql(), and do something like this.
+
+db.executeSql(&quot;select * from table;&quot;, [], &lt;SQLStatementCallback&gt;,  
+&lt;SQLStatementErrorCallback&gt;, &lt;SQLTransactionErrorCallback&gt;);
+
+This would &quot;fire and forget&quot; a single, individual statement in its own  
+transaction.  It would follow transaction steps exactly as they  
+currently exist, except it would skip the SQLTransactionCallback  
+because the first sql statement to execute is already queued.
+
+This way you could do:
+
+db.executeSql(&quot;SELECT * FROM Notes&quot;, [], function(tx, results) { //  
+Start a new transaction with one sql statement on the queue
+	tx.executeSql(&quot;INSERT INTO Notes...&quot;, [], ...);  // Add a new  
+statement to this transaction
+	db.executeSql(&quot;SOME OTHER SQL STATEMENT&quot;, ...); // Start a new  
+transaction with its first sql statement queued up
+	}, statementErrorCallback, txErrorCallback);
+
+But could also do something as simple as:
+
+db.executeSql(&quot;CREATE TABLE Notes (...)&quot;, [], NULL, NULL, NULL);
+
+Someone I talked to about this in person was concerned about the  
+naming collision of executeSql() - it might be confusing if JS  
+developers start making custom classes and you start seeing  
+this.executeSql() - is it a database or a sqltransaction?  Perhaps  
+naming one of them something other than executeSql().
+
+But I do think this is a reasonable way to A - make it easier to kick  
+off an individual statement and B - allows the developer, in the best  
+case scenario of no failures, kick off a sql statement that runs to  
+completion with *no* callbacks.
+
+I think both of these points are important.
+
+Thanks,
+~Brady
+
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="012994.html">[whatwg] SQL API complex for simple cases
+</A></li>
+	<LI>Next message: <A HREF="012997.html">[whatwg] SQL API complex for simple cases
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#12995">[ date ]</a>
+              <a href="thread.html#12995">[ thread ]</a>
+              <a href="subject.html#12995">[ subject ]</a>
+              <a href="author.html#12995">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

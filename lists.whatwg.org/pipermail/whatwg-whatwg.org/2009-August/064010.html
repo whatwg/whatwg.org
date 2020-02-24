@@ -1,0 +1,154 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Issues with Web Sockets API
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Issues%20with%20Web%20Sockets%20API&In-Reply-To=%3CPine.LNX.4.62.0908042344470.6420%40hixie.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="064241.html">
+   <LINK REL="Next"  HREF="064011.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Issues with Web Sockets API</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Issues%20with%20Web%20Sockets%20API&In-Reply-To=%3CPine.LNX.4.62.0908042344470.6420%40hixie.dreamhostps.com%3E"
+       TITLE="[whatwg] Issues with Web Sockets API">ian at hixie.ch
+       </A><BR>
+    <I>Tue Aug  4 16:47:41 PDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="064241.html">[whatwg] &quot;Fullscreenable&quot; and &quot;Mouselockable&quot; attributes
+</A></li>
+        <LI>Next message: <A HREF="064011.html">[whatwg] Issues with Web Sockets API
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#64010">[ date ]</a>
+              <a href="thread.html#64010">[ thread ]</a>
+              <a href="subject.html#64010">[ subject ]</a>
+              <a href="author.html#64010">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Tue, 28 Jul 2009, Alexey Proskuryakov wrote:
+&gt;<i> 28.07.2009, &#1074; 16:40, Ian Hickson &#1085;&#1072;&#1087;&#1080;&#1089;&#1072;&#1083;(&#1072;):
+</I>&gt;<i> &gt; &gt; 
+</I>&gt;<i> &gt; &gt; 3) A Web Sockets server cannot respond with a redirect to another 
+</I>&gt;<i> &gt; &gt; URL. I'm not sure if the intention is to leave this to 
+</I>&gt;<i> &gt; &gt; implementations, or to add in Web Sockets v2, but it definitely 
+</I>&gt;<i> &gt; &gt; looks like an important feature to me, maybe something that needs to 
+</I>&gt;<i> &gt; &gt; be in v1.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; What's the use case? Why does this need to be at the connection layer 
+</I>&gt;<i> &gt; rather than the application layer? (Why would we need this, when TCP 
+</I>&gt;<i> &gt; doesn't have it? Would you also need &quot;redirect&quot;-like functonality in 
+</I>&gt;<i> &gt; IRC, IMAP, SSH, and other such protocols?)
+</I>&gt;<i> 
+</I>&gt;<i> Just like with HTTP, redirects will make it possible to move services to 
+</I>&gt;<i> a different location. I guess the use cases are exactly the same that 
+</I>&gt;<i> tell us that we should allow redirects with cross-site XMLHttpRequest 
+</I>&gt;<i> (but I can't enumerate those).
+</I>&gt;<i> 
+</I>&gt;<i> Other protocols do not get accessed from Web pages, so transparent 
+</I>&gt;<i> redirect support is not needed to keep web apps working after services 
+</I>&gt;<i> they use move. The Web has redirects all over the place, and WebSocket 
+</I>&gt;<i> has &quot;Web&quot; in its name :)
+</I>&gt;<i> 
+</I>&gt;<i> Finally, since it's likely that WebSocket servers will share ports with 
+</I>&gt;<i> HTTP ones, one can expect that returning a 307 for all requests 
+</I>&gt;<i> (including those with Upgrade: WebSocket) will be enough to preserve 
+</I>&gt;<i> application functionality.
+</I>&gt;<i> 
+</I>&gt;<i> Redirects surely add a lot of complexity though.
+</I>
+I've added support for redirects. While I was at it I also added support 
+for authentication.
+
+So far I've only changed the client handshake part of this, I expect in 
+time I'll update the intro and the server-side part, but I wanted to get 
+feedback on the client-side part first.
+
+
+&gt;<i> &gt; &gt; 11) There is no way for the client to know that the connection has been
+</I>&gt;<i> &gt; &gt; closed. For example:
+</I>&gt;<i> &gt; &gt; - socket.close() is called from JavaScript;
+</I>&gt;<i> &gt; &gt; - onclose handler is invoked;
+</I>&gt;<i> &gt; &gt; - more data arrives from the server, and onmessage is dispatched (which I
+</I>&gt;<i> &gt; &gt; think is correct, and it matches what TCP does);
+</I>&gt;<i> &gt; &gt; - finally, a TCP FIN arrives, indicating that there will be no more data
+</I>&gt;<i> &gt; &gt; from
+</I>&gt;<i> &gt; &gt; the server (the underlying TCP connection is in TIME_WAIT state after
+</I>&gt;<i> &gt; &gt; that);
+</I>&gt;<i> &gt; &gt; - the client never learns that the server is done sending data.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; The onclose only fires once the connection has closed, which is after the
+</I>&gt;<i> &gt; TCP FIN, so it happens after the last 'message' event.
+</I>&gt;<i> 
+</I>&gt;<i> Maybe this could be clarified in the spec. The current text is:
+</I>&gt;<i> 
+</I>&gt;<i> &quot;The close() method must close the Web Socket connection or connection 
+</I>&gt;<i> attempt, if any. If the connection is already closed, it must do 
+</I>&gt;<i> nothing. Closing the connection causes a close event to be fired and the 
+</I>&gt;<i> readyState attribute's value to change, as described below.&quot;
+</I>&gt;<i> 
+</I>&gt;<i> I was reading it as a requirement to immediately change readyState to 
+</I>&gt;<i> CLOSED, and to fire a close event. If all this happens asynchronously 
+</I>&gt;<i> after the server agrees to close the connection, then my example will 
+</I>&gt;<i> work fine, of course.
+</I>
+The text &quot;Closing the connection causes a close event to be fired and the 
+readyState attribute's value to change, as described below&quot; is not 
+normative (it has no &quot;must&quot;s in it). It's just letting you know that 
+subsequent requirements as described lower in the spec do result in that.
+
+Is there some way I can make that clearer?
+
+
+On Tue, 28 Jul 2009, Jeremy Orlow wrote:
+&gt;<i> 
+</I>&gt;<i> They can be implemented at the application layer though, right?  I 
+</I>&gt;<i> suppose this does add complexity, but it doesn't seem like it'd add 
+</I>&gt;<i> _that_ much. Especially if you're already doing authentication at the 
+</I>&gt;<i> application level as well.
+</I>&gt;<i> 
+</I>&gt;<i> I definitely agree these are good items for v2, but I think what's 
+</I>&gt;<i> already in the spec is a good start.
+</I>
+It ended up not adding too much, so I just went ahead and added it now.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="064241.html">[whatwg] &quot;Fullscreenable&quot; and &quot;Mouselockable&quot; attributes
+</A></li>
+	<LI>Next message: <A HREF="064011.html">[whatwg] Issues with Web Sockets API
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#64010">[ date ]</a>
+              <a href="thread.html#64010">[ thread ]</a>
+              <a href="subject.html#64010">[ subject ]</a>
+              <a href="author.html#64010">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

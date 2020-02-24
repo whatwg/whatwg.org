@@ -1,0 +1,184 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Low-level conformance issues
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Low-level%20conformance%20issues&In-Reply-To=%3C0453a57800a49c183a819e173006bab6%40iki.fi%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="046807.html">
+   <LINK REL="Next"  HREF="046934.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Low-level conformance issues</H1>
+<!--htdig_noindex-->
+    <B>Henri Sivonen</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Low-level%20conformance%20issues&In-Reply-To=%3C0453a57800a49c183a819e173006bab6%40iki.fi%3E"
+       TITLE="[whatwg] Low-level conformance issues">hsivonen at iki.fi
+       </A><BR>
+    <I>Sun Aug 14 02:50:49 PDT 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="046807.html">[whatwg] [html5] window.print() undefined
+</A></li>
+        <LI>Next message: <A HREF="046934.html">[whatwg] Web Forms 2.0 - Suggestion/Request
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#46809">[ date ]</a>
+              <a href="thread.html#46809">[ thread ]</a>
+              <a href="subject.html#46809">[ subject ]</a>
+              <a href="author.html#46809">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Jul 30, 2005, at 00:17, Ian Hickson wrote:
+
+&gt;<i> On Fri, 29 Jul 2005, Henri Sivonen wrote:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> I would like to add HTML (both 4 and 5) support to
+</I>&gt;&gt;<i> <A HREF="http://hsivonen.iki.fi/validator/">http://hsivonen.iki.fi/validator/</A> .
+</I>&gt;<i>
+</I>&gt;<i> Great!
+</I>
+I have now have an initial version of a (mostly) Draconian HTML5 
+parser. It does not do tag inference, yet, so the documents have to be 
+fully-tagged.
+
+The parser does not attempt to convert BASE into xml:base.
+
+.class and .java available: 
+<A HREF="http://hsivonen.iki.fi/validator-about/htmlparser.jar">http://hsivonen.iki.fi/validator-about/htmlparser.jar</A>
+The class with main() is 
+fi.iki.hsivonen.htmlparser.test.HtmlParserTestDriver. The test driver 
+requires stuff from GNU JAXP in the classpath. The parser itself does 
+not depend on GNU JAXP. The test driver takes files whose name ends 
+with &quot;.html&quot; as arguments and *overwrites* corresponding &quot;.xhtml&quot; files 
+with the conversion result.
+
+
+And to the spec-related point: I made the following decisions while 
+implementing. Hopefully the document conformance requirements will 
+agree. :-)
+
+&amp; must start an NCR or an entity reference as in XML. (Rationale: Lone 
+&amp; likely a mistake anyway.)
+
+&apos; is not considered conforming. (Rationale: Did not exist in HTML4 
+and is not supported by IE)
+
+Entity references and NCRs have to be terminated explicitly with a 
+semicolon. (Rationale: Implicit termination is likely a mistake unless 
+the person who wrote the reference is an SGML pedant. Requiring the 
+semicolon makes things unambiguous for sure. Also, having an explicit 
+delimiter helps in avoiding lookahead/pushback in the parser.)
+
+Astral non-characters are not banned. (They are not banned in XML 1.0, 
+either.)
+
+Unescaped &lt; and &gt; in attributes are allowed without warning despite 
+folklore that warns about this breaking unspecified legacy UAs.
+
+Unquoted attribute values must be of the form [a-zA-Z][a-zA-Z0-9-]*, 
+which is slightly restrictive in a semi-arbitrary way for 
+implementation convenience.
+
+The elements script and style are treated as CDATA. The string &quot;&lt;/&quot; may 
+only occur as part of the end tag. (Rationale: This approach is both 
+compatible with SGML and the way browsers work. Also, this avoids 
+lookahead/lookback.)
+
+PIs are banned. As are marked sections.
+
+Doctypes with the SYSTEM id only are banned.
+
+The internal subset is banned.
+
+The HTML5 doctype passes silently.
+
+The HTML 4.01 Strict and Transitional doctypes cause a warning about 
+the HTML5-centric nature of the parser.
+
+Doctypes whose public id starts with &quot;-//W3C//DTD XHTML &quot; are banned 
+with a special message.
+
+Other doctypes are treated as errors as is the lack of a doctype.
+
+The lack of a system id in the HTML 4.01 Transitional doctype is 
+treated as an error.
+
+The lack of a system id in the HTML 4.01 Strict doctype causes a 
+warning even though the spec says &quot;must&quot; and gives a doctype with a 
+system id.
+
+Failure to use the canonical system ids cause warnings even though the 
+&quot;must&quot; in HTML 4.01 could be interpreted as banning these.
+
+The internal character encoding information is not passed to the 
+application as content for consistency with the XML declaration, which 
+is not exposed through the SAX2 ContentHandler.
+
+The BOM is sniffed.
+
+The lack of character encoding information (including the BOM) is 
+treated as a fatal error.
+
+&gt;&gt;<i> Assuming that the supported syntax for HTML4 is constrained to exclude
+</I>&gt;&gt;<i> minimizations that don't work in browsers, the biggest issue with
+</I>&gt;&gt;<i> decoupling the parser from the HTML version seems to be the doctype.
+</I>&gt;<i>
+</I>&gt;<i> Makes sense. I would recommend treating the following syntax,
+</I>&gt;<i> case-insensitive, as being conformant:
+</I>&gt;<i>
+</I>&gt;<i>    doctype ::= &quot;&lt;!&quot; &quot;doctype&quot; whitespace+ &quot;html&quot; whitespace* &quot;&gt;&quot;
+</I>
+Thanks.
+
+&gt;<i> But I haven't thought much about this yet. The way parsing is to be
+</I>&gt;<i> defined I expect to just say &quot;parsers should do this, and if they hit 
+</I>&gt;<i> this
+</I>&gt;<i> they should do this, and if they hit this it's an error and they 
+</I>&gt;<i> should do
+</I>&gt;<i> this&quot;, with confomance checkers having to do the same but reporting the
+</I>&gt;<i> errors. If that makes sense.
+</I>
+My parser is (almost) Draconian, so I don't intend to implement the 
+elaborate error recovery that is needed for browsers. (I have no 
+interest in competing with John Cowan's TagSoup.)
+
+-- 
+Henri Sivonen
+<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">hsivonen at iki.fi</A>
+<A HREF="http://hsivonen.iki.fi/">http://hsivonen.iki.fi/</A>
+
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="046807.html">[whatwg] [html5] window.print() undefined
+</A></li>
+	<LI>Next message: <A HREF="046934.html">[whatwg] Web Forms 2.0 - Suggestion/Request
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#46809">[ date ]</a>
+              <a href="thread.html#46809">[ thread ]</a>
+              <a href="subject.html#46809">[ subject ]</a>
+              <a href="author.html#46809">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

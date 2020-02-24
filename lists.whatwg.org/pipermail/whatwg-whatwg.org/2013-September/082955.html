@@ -1,0 +1,226 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Script preloading
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Script%20preloading&In-Reply-To=%3CCAA4WUYgXuL0Qcw0%2B3K53mm64i%3Do_qfVCMtvXMEyao5O83z7vsw%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="082954.html">
+   <LINK REL="Next"  HREF="082957.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Script preloading</H1>
+<!--htdig_noindex-->
+    <B>William Chan (&#38472;&#26234;&#26124;)</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Script%20preloading&In-Reply-To=%3CCAA4WUYgXuL0Qcw0%2B3K53mm64i%3Do_qfVCMtvXMEyao5O83z7vsw%40mail.gmail.com%3E"
+       TITLE="[whatwg] Script preloading">willchan at chromium.org
+       </A><BR>
+    <I>Tue Sep  3 17:01:11 PDT 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="082954.html">[whatwg] Script preloading
+</A></li>
+        <LI>Next message: <A HREF="082957.html">[whatwg] Prioritizing subresources (Was Script preloading)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#82955">[ date ]</a>
+              <a href="thread.html#82955">[ thread ]</a>
+              <a href="subject.html#82955">[ subject ]</a>
+              <a href="author.html#82955">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Hello folks. Sorry for the late response to several comments in this
+mega-thread, I've mostly been traveling/vacationing for the past 2 months.
+A teammate asked me to look at this in case I had comments. I don't know
+web dev issues very well, so I'm going to restrain myself from offering
+many opinions about the new proposals other than wow, all this dependency
+stuff looks complicated, but maybe it's worth it? I'll keep to some
+observations from a networking performance perspective, in case it's
+relevant to the discussion:
+
+* Any advantages the preloader currently gives is probably only going to be
+magnified with HTTP/2. Browsers today will in key situations hold back
+lower priority resource loads, even after the resource has been discovered
+by the parser/preloader, in order to reduce network contention and
+prioritize resources. But with HTTP/2, the browser almost never has to do
+this since it can express the request priority in the HTTP/2 protocol
+itself, and let the server order responses appropriately.
+* &lt;link rel=subresource&gt; is great for resource discovery. Given the above
+observation, note that it has some deficiencies. Most obviously, it does
+not indicate the resource type. Browsers today can heuristically assign a
+priority based on the resource type (script/image/stylesheet/etc).
+Arguably, browsers could just use the filename extension as a hint to the
+resource type, and that'd get us most of the way there. In any case,
+Chromium, when it encounters &lt;link rel=subresource&gt; is going to assign the
+resource load the lowest priority level, and only when the parser
+encounters the actual resource via a &lt;script&gt; tag or something, will
+another resource load be issued with the &quot;appropriate&quot; priority. Almost all
+modern browsers will hold back low priority resource loads before first
+paint in order to get critical scripts and stylesheets in &lt;head&gt; ASAP
+without contention. Anything marked with &lt;link rel=subresource&gt; will be
+considered low priority and in all likelihood not requested early. Note
+that HTTP/2 currently does not support re-prioritization (and that feature
+is being debated), so that means that when the resource load for &lt;link
+rel=subresource&gt; gets issued over an HTTP/2 connection, it will have the
+lowest priority, which is probably undesirable. FWIW, I think &lt;link
+rel=subresource&gt; was a good initial start, but suffers from key weaknesses
+and should be thrown out and replaced.
+* Given current browser heuristics for resource prioritization based on
+resource type, all &lt;script&gt; resources will have the same priority. Within
+HTTP/1.X, that means you'll get some amount of parallelization based on the
+connection per host limit and what origins the script resources are hosted,
+and then get FIFO. New additions like lazyload attributes (and perhaps
+leveraging the defer attribute) may affect this. With HTTP/2, there is a
+very high (effectively infinite) parallelization limit. With
+prioritization, there's no contention across priority levels. But since
+script resources today generally all have the same priority, they will all
+contend and most naive servers are going to round robin the response bytes,
+which is the worst thing you could do with script resources, since current
+JS VMs do not incrementally process script resources, but process them as a
+whole. So round-robining all the response bytes will just push out start
+time of JS processing for all scripts, which is rather terrible.
+* Obviously, given what I've said above, some level of hinting of
+prioritization/dependency amongst scripts/resources within the web platform
+would be useful to the networking layer since the networking layer can much
+more effectively prioritize resources and thus mitigate network contention.
+If finer grained priority/dependency information isn't provided in the web
+platform, my browser's networking stack is likely going to have to, even
+with HTTP/2, do HTTP/1.X style contention mitigation by restricting
+parallelization within a priority level. Which is a shame since web
+developers probably think that with HTTP/2, they can have as many fine
+grained resources as they want.
+
+Cheers.
+
+
+On Wed, Jul 10, 2013 at 3:39 AM, Ian Hickson &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">ian at hixie.ch</A>&gt; wrote:
+
+&gt;<i>
+</I>&gt;<i> A topic that regularly comes up is script loading.
+</I>&gt;<i>
+</I>&gt;<i> I sent an e-mail responding to related feedback last year, though it
+</I>&gt;<i> didn't get any replies to the script loading parts of it:
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> <A HREF="http://lists.w3.org/Archives/Public/public-whatwg-archive/2012Dec/0221.html">http://lists.w3.org/Archives/Public/public-whatwg-archive/2012Dec/0221.html</A>
+</I>&gt;<i>
+</I>&gt;<i> It seems that people want something that:
+</I>&gt;<i>
+</I>&gt;<i>  - Lets them download scripts but not execute them until needed.
+</I>&gt;<i>  - Lets them have multiple interdependent scripts and have the browser
+</I>&gt;<i>    manage their ordering.
+</I>&gt;<i>  - Do all this without having to modify existing scripts.
+</I>&gt;<i>
+</I>&gt;<i> I must admit to not really understanding these requirements (script
+</I>&gt;<i> execution can be made more or less free if they are designed to just
+</I>&gt;<i> expose some functions, for example, and it's trivial to set up a script
+</I>&gt;<i> dependency mechanism for scripts to run each other in order, and there's
+</I>&gt;<i> no reason browsers can't parse scripts off the main thread, etc). But
+</I>&gt;<i> since everyone else seems to think these are issues, let's ignore that.
+</I>&gt;<i>
+</I>&gt;<i> The proposals I've seen so far for extending the spec's script preloading
+</I>&gt;<i> mechanisms fall into two categories:
+</I>&gt;<i>
+</I>&gt;<i>  - provide some more control over the mechanisms already there, e.g.
+</I>&gt;<i>    firing events at various times, adding attributes to make the script
+</I>&gt;<i>    loading algorithm work differently, or adding methods to trigger
+</I>&gt;<i>    particular parts of the algorithm under author control.
+</I>&gt;<i>
+</I>&gt;<i>  - provide a layer above the current algorithm that provides strong
+</I>&gt;<i>    semantics, but that doesn't have much impact on the loading algorithm
+</I>&gt;<i>    itself.
+</I>&gt;<i>
+</I>&gt;<i> I'm very hesitant to do the first of these, because the algorithm is _so_
+</I>&gt;<i> complicated that adding anything else to it is just going to result in
+</I>&gt;<i> bugs in browsers. There comes a point where an algorithm just becomes so
+</I>&gt;<i> hard to accurately test that it's a lost cause.
+</I>&gt;<i>
+</I>&gt;<i> The second seems more feasible, though.
+</I>&gt;<i>
+</I>&gt;<i> Would something like this, based on proposals from a variety of people in
+</I>&gt;<i> the past, work for your needs?
+</I>&gt;<i>
+</I>&gt;<i> 1. Add a &quot;dependencies&quot; attribute to &lt;script&gt; that can point to other
+</I>&gt;<i>    scripts to indicate that execution of this script should be delayed
+</I>&gt;<i>    until all other scripts that are (a) earlier in the tree order and (b)
+</I>&gt;<i>    identified by this attribute have executed.
+</I>&gt;<i>
+</I>&gt;<i>      &lt;script id=&quot;jquery&quot; src=&quot;jquery.js&quot; async&gt;&lt;/script&gt;
+</I>&gt;<i>      &lt;script id=&quot;shims&quot; src=&quot;shims.js&quot; async&gt;&lt;/script&gt;
+</I>&gt;<i>      &lt;script dependencies=&quot;shims jquery&quot; src=&quot;myscript.js&quot; async&gt;&lt;/script&gt;
+</I>&gt;<i>
+</I>&gt;<i>    This would download jquery.js, shims.js, and myscript.js ASAP, without
+</I>&gt;<i>    blocking anything else, and would then run jquery.js and shims.js ASAP,
+</I>&gt;<i>    in any order, and then once both have executed, it would execute
+</I>&gt;<i>    myscript.js.
+</I>&gt;<i>
+</I>&gt;<i> 2. Add an &quot;whenneeded&quot; boolean content attribute, a &quot;markNeeded()&quot; method,
+</I>&gt;<i>    and an internal &quot;is-needed flag&quot; (initially false) to the &lt;script&gt;
+</I>&gt;<i>    element. When a script is about to execute, if its whenneeded=&quot;&quot;
+</I>&gt;<i>    attribute is set, but its &quot;is-needed&quot; flag is not, then delay
+</I>&gt;<i>    execution. Calling markNeeded() on a script that has a whenneeded
+</I>&gt;<i>    boolean but that has not executed yet first causes the markNeeded()
+</I>&gt;<i>    method on all the script's dependencies to be called, and then causes
+</I>&gt;<i>    this script to become ready to execute.
+</I>&gt;<i>
+</I>&gt;<i>      &lt;script id=&quot;jquery&quot; src=&quot;jquery.js&quot; async whenneeded&gt;&lt;/script&gt;
+</I>&gt;<i>      &lt;script id=&quot;shims&quot; src=&quot;shims.js&quot; async whenneeded&gt;&lt;/script&gt;
+</I>&gt;<i>      &lt;script id=&quot;myscript&quot; dependencies=&quot;shims jquery&quot; src=&quot;myscript.js&quot;
+</I>&gt;<i>              async whenneeded&gt;&lt;/script&gt;
+</I>&gt;<i>
+</I>&gt;<i>    This would download jquery.js, shims.js, and myscript.js ASAP, and then
+</I>&gt;<i>    wait for further instructions.
+</I>&gt;<i>
+</I>&gt;<i>      document.getElementById('myscript').markNeeded();
+</I>&gt;<i>
+</I>&gt;<i>    This would then cause the scripts to execute, first jquery.js and
+</I>&gt;<i>    shims.js (in any order), and then myscript.js. If any hadn't finished
+</I>&gt;<i>    downloading yet, it would first wait for that to finish.
+</I>&gt;<i>
+</I>&gt;<i>    (We could make markNeeded() return a promise, too.)
+</I>&gt;<i>
+</I>&gt;<i> Is there a need for delaying the download of a script as well? (If so, we
+</I>&gt;<i> could change whenneeded=&quot;&quot; to have values, like whenneeded=&quot;execute&quot; vs
+</I>&gt;<i> whenneeded=&quot;download&quot; or something.)
+</I>&gt;<i>
+</I>&gt;<i> Is there something this doesn't handle which it would need to handle?
+</I>&gt;<i>
+</I>&gt;<i> --
+</I>&gt;<i> Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+</I>&gt;<i> <A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+</I>&gt;<i> Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</I>&gt;<i>
+</I>
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="082954.html">[whatwg] Script preloading
+</A></li>
+	<LI>Next message: <A HREF="082957.html">[whatwg] Prioritizing subresources (Was Script preloading)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#82955">[ date ]</a>
+              <a href="thread.html#82955">[ thread ]</a>
+              <a href="subject.html#82955">[ subject ]</a>
+              <a href="author.html#82955">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

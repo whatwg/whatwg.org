@@ -1,0 +1,124 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Should events be paused on detached iframes?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Should%20events%20be%20paused%20on%20detached%20iframes%3F&In-Reply-To=%3C4C772AF5.7020502%40mit.edu%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="070494.html">
+   <LINK REL="Next"  HREF="070503.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Should events be paused on detached iframes?</H1>
+<!--htdig_noindex-->
+    <B>Boris Zbarsky</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Should%20events%20be%20paused%20on%20detached%20iframes%3F&In-Reply-To=%3C4C772AF5.7020502%40mit.edu%3E"
+       TITLE="[whatwg] Should events be paused on detached iframes?">bzbarsky at MIT.EDU
+       </A><BR>
+    <I>Thu Aug 26 20:03:17 PDT 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="070494.html">[whatwg] Should events be paused on detached iframes?
+</A></li>
+        <LI>Next message: <A HREF="070503.html">[whatwg] Should events be paused on detached iframes?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#70496">[ date ]</a>
+              <a href="thread.html#70496">[ thread ]</a>
+              <a href="subject.html#70496">[ subject ]</a>
+              <a href="author.html#70496">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On 8/26/10 10:33 PM, James May wrote:
+&gt;<i> Could the iframe be hoisted to the top level of its parent browsing context?
+</I>
+Not sure what you mean.
+
+&gt;<i> When no references remain in either the DOM or script?
+</I>&gt;<i>
+</I>&gt;<i>     if an |iframe
+</I>&gt;<i>     &lt;<A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/the-iframe-element.html#the-iframe-element">http://www.whatwg.org/specs/web-apps/current-work/multipage/the-iframe-element.html#the-iframe-element</A>&gt;|
+</I>&gt;<i>     is removed
+</I>&gt;<i>     &lt;<A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/infrastructure.html#remove-an-element-from-a-document">http://www.whatwg.org/specs/web-apps/current-work/multipage/infrastructure.html#remove-an-element-from-a-document</A>&gt;
+</I>&gt;<i>     from a |Document
+</I>&gt;<i>     &lt;<A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/infrastructure.html#document">http://www.whatwg.org/specs/web-apps/current-work/multipage/infrastructure.html#document</A>&gt;|
+</I>&gt;<i>     and is then subsequently garbage collected
+</I>
+It can't become garbage collected while the window inside it isn't, 
+since the window inside it references the iframe (via frameElement).
+
+&gt;<i>     this will likely mean
+</I>&gt;<i>     (in the absence of other references) that the child browsing context
+</I>&gt;<i>     &lt;<A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/browsers.html#child-browsing-context">http://www.whatwg.org/specs/web-apps/current-work/multipage/browsers.html#child-browsing-context</A>&gt;'s
+</I>&gt;<i>     |WindowProxy
+</I>&gt;<i>     &lt;<A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/browsers.html#windowproxy">http://www.whatwg.org/specs/web-apps/current-work/multipage/browsers.html#windowproxy</A>&gt;|
+</I>&gt;<i>     object will become eligble for garbage collection
+</I>
+I don't think it's reasonable to gc the &lt;iframe&gt; element while leaving 
+the window inside alive due to it being referenced.  That introduces 
+races where frameElement could suddenly become null at some point 
+(possibly between two lines of the same script, or even partway through 
+some operation; for example GC can happen, even multiple times, during a 
+property get or set).  That would be pretty broken behavior.
+
+&gt;<i> Although I'm not sure why this is different from the regular steps.
+</I>
+Presumably the only different thing is the lack of an unload event.
+
+&gt;<i>     Can they, with your proposal?  It seems that with your proposal if
+</I>&gt;<i>     you remove an iframe from the DOM and then forget about it then as
+</I>&gt;<i>     long as there's any network activity in that iframe or anything else
+</I>&gt;<i>     which might potentially trigger script it cannot be gced.  This
+</I>&gt;<i>     seems like it would make it very easy to leak document after document...
+</I>&gt;<i>
+</I>&gt;<i> So running scripts and network activity are GC roots?
+</I>
+Not running scripts.  Anything that might potentially run a script in 
+the future.
+
+You can think of it as gc roots, sure, and you can also claim that gc'ed 
+systems never leak memory.  But is either necessarily useful?  The 
+upshot is that random things that the web developer knows nothing about 
+and doesn't care about can prevent the memory from being deallocated 
+effectively forever from the web developer's point of view.  And worse 
+yet, there's no obvious recourse (as in, no way to make sure the thing 
+is garbage collected).  Any reasonable person would call that a memory 
+leak in the browser, not in the site.  Just like a JS impl that never 
+GCes until you navigate away from the page should be considered to have 
+a memory leak.
+
+-Boris
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="070494.html">[whatwg] Should events be paused on detached iframes?
+</A></li>
+	<LI>Next message: <A HREF="070503.html">[whatwg] Should events be paused on detached iframes?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#70496">[ date ]</a>
+              <a href="thread.html#70496">[ thread ]</a>
+              <a href="subject.html#70496">[ subject ]</a>
+              <a href="author.html#70496">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

@@ -1,0 +1,300 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [html5] r5686 - [giow] (2) Change pushState() and replaceState() so	that they update the pending [...]
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commit-watchers%40lists.whatwg.org?Subject=Re%3A%20%5Bhtml5%5D%20r5686%20-%20%5Bgiow%5D%20%282%29%20Change%20pushState%28%29%20and%20replaceState%28%29%20so%0A%09that%20they%20update%20the%20pending%20%5B...%5D&In-Reply-To=%3C20101130020743.04A582C7C001%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="012552.html">
+   <LINK REL="Next"  HREF="012554.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[html5] r5686 - [giow] (2) Change pushState() and replaceState() so	that they update the pending [...]</H1>
+<!--htdig_noindex-->
+    <B>whatwg at whatwg.org</B> 
+    <A HREF="mailto:commit-watchers%40lists.whatwg.org?Subject=Re%3A%20%5Bhtml5%5D%20r5686%20-%20%5Bgiow%5D%20%282%29%20Change%20pushState%28%29%20and%20replaceState%28%29%20so%0A%09that%20they%20update%20the%20pending%20%5B...%5D&In-Reply-To=%3C20101130020743.04A582C7C001%40ps20323.dreamhostps.com%3E"
+       TITLE="[html5] r5686 - [giow] (2) Change pushState() and replaceState() so	that they update the pending [...]">whatwg at whatwg.org
+       </A><BR>
+    <I>Mon Nov 29 18:07:42 PST 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="012552.html">[html5] r5685 - [giow] (2) Make form submission via .submit(),	and page navigation via location. [...]
+</A></li>
+        <LI>Next message: <A HREF="012554.html">[html5] r5687 - [a] (0) This requirement was technically wrong for	some edge cases like &lt;table&gt;&lt; [...]
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#12553">[ date ]</a>
+              <a href="thread.html#12553">[ thread ]</a>
+              <a href="subject.html#12553">[ subject ]</a>
+              <a href="author.html#12553">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Author: ianh
+Date: 2010-11-29 18:07:41 -0800 (Mon, 29 Nov 2010)
+New Revision: 5686
+
+Modified:
+   complete.html
+   index
+   source
+Log:
+[giow] (2) Change pushState() and replaceState() so that they update the pending state object as well (otherwise, pushState vs pushState;back;forward would result in different state objects in the initial popostate which is just silly).
+
+Modified: complete.html
+===================================================================
+--- complete.html	2010-11-30 01:22:34 UTC (rev 5685)
++++ complete.html	2010-11-30 02:07:41 UTC (rev 5686)
+@@ -58682,6 +58682,21 @@
+ 
+    &lt;/li&gt;
+ 
++   &lt;li&gt;
++
++     &lt;p&gt;If the &lt;a href=#current-document-readiness&gt;current document readiness&lt;/a&gt; is not yet set
++     to the string &quot;complete&quot;, let the &lt;code&gt;&lt;a href=#document&gt;Document&lt;/a&gt;&lt;/code&gt;'s
++     &lt;a href=#pending-state-object&gt;pending state object&lt;/a&gt; be another &lt;a href=#structured-clone&gt;structured
++     clone&lt;/a&gt; of the specified &lt;var title=&quot;&quot;&gt;data&lt;/var&gt;. (If there
++     was already a &lt;a href=#pending-state-object&gt;pending state object&lt;/a&gt;, the previous one
++     is discarded.)&lt;/p&gt;
++
++     &lt;p class=note&gt;This ensures that the &lt;code title=event-popstate&gt;&lt;a href=#event-popstate&gt;popstate&lt;/a&gt;&lt;/code&gt; event that will be fired
++     when the document finally loads will accurately reflect the
++     pushed or replaced state object.&lt;/p&gt;
++
++   &lt;/li&gt;
++
+   &lt;/ol&gt;&lt;p class=note&gt;The &lt;var title=&quot;&quot;&gt;title&lt;/var&gt; is purely
+   advisory. User agents might use the title in the user interface.&lt;/p&gt;
+ 
+@@ -60014,6 +60029,12 @@
+      attribute set to true. This event must not bubble, must not be
+      cancelable, and has no default action.&lt;/li&gt;
+ 
++     &lt;!-- an interesting thing to test would be to traverse back
++     during onload, before the first pageshow has fired, and then to
++     traverse forward again, and see if we get _two_ pageshows. If so,
++     it indicates that the history traversal task source has a higher
++     priority than the DOM manipulation task source. --&gt;
++
+     &lt;/ol&gt;&lt;/li&gt;
+ 
+    &lt;li&gt;&lt;p&gt;Set &lt;a href=&quot;#the-document's-current-address&quot;&gt;the document's current address&lt;/a&gt; to the URL
+@@ -60059,8 +60080,8 @@
+ 
+      &lt;dt&gt;Otherwise&lt;/dt&gt;
+ 
+-     &lt;dd&gt;&lt;p&gt;Let the &lt;code&gt;&lt;a href=#document&gt;Document&lt;/a&gt;&lt;/code&gt;'s &lt;dfn id=pending-state-object&gt;pending state
+-     object&lt;/dfn&gt; be &lt;var title=&quot;&quot;&gt;state&lt;/var&gt;. (If there was already
++     &lt;dd&gt;&lt;p&gt;Let the &lt;code&gt;&lt;a href=#document&gt;Document&lt;/a&gt;&lt;/code&gt;'s &lt;a href=#pending-state-object&gt;pending state
++     object&lt;/a&gt; be &lt;var title=&quot;&quot;&gt;state&lt;/var&gt;. (If there was already
+      a &lt;a href=#pending-state-object&gt;pending state object&lt;/a&gt;, the previous one is
+      discarded.)&lt;/p&gt;
+ 
+@@ -60079,7 +60100,10 @@
+    &lt;li&gt;&lt;p&gt;The &lt;a href=#current-entry&gt;current entry&lt;/a&gt; is now the &lt;i&gt;specified
+    entry&lt;/i&gt;.&lt;/li&gt;
+ 
+-  &lt;/ol&gt;&lt;p&gt;The &lt;a href=#pending-state-object&gt;pending state object&lt;/a&gt; must be initially null.&lt;/p&gt;
++  &lt;/ol&gt;&lt;p&gt;The &lt;dfn id=pending-state-object&gt;pending state object&lt;/dfn&gt; is used to keep track of what
++  state object to use in the inital &lt;code title=event-popstate&gt;&lt;a href=#event-popstate&gt;popstate&lt;/a&gt;&lt;/code&gt; event fired by the parser
++  once it &lt;a href=#stop-parsing title=&quot;stop parsing&quot;&gt;stops parsing&lt;/a&gt;. The
++  &lt;a href=#pending-state-object&gt;pending state object&lt;/a&gt; must be initially null.&lt;/p&gt;
+ 
+   &lt;p&gt;The &lt;a href=#task-source&gt;task source&lt;/a&gt; for the tasks mentioned above is the
+   &lt;a href=#dom-manipulation-task-source&gt;DOM manipulation task source&lt;/a&gt;.&lt;/p&gt;
+@@ -82502,8 +82526,8 @@
+    attribute set to false. This event must not bubble, must not be
+    cancelable, and has no default action.&lt;/li&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;If the &lt;code&gt;&lt;a href=#document&gt;Document&lt;/a&gt;&lt;/code&gt; has a &lt;a href=#pending-state-object&gt;pending state
+-   object&lt;/a&gt;, then &lt;a href=#queue-a-task&gt;queue a task&lt;/a&gt; to fire a &lt;code title=event-popstate&gt;&lt;a href=#event-popstate&gt;popstate&lt;/a&gt;&lt;/code&gt; event at the
++   &lt;li&gt;&lt;p&gt;If the &lt;code&gt;&lt;a href=#document&gt;Document&lt;/a&gt;&lt;/code&gt; is in a &lt;a href=#browsing-context&gt;browsing
++   context&lt;/a&gt;, then &lt;a href=#queue-a-task&gt;queue a task&lt;/a&gt; to fire a &lt;code title=event-popstate&gt;&lt;a href=#event-popstate&gt;popstate&lt;/a&gt;&lt;/code&gt; event at the
+    &lt;code&gt;&lt;a href=#document&gt;Document&lt;/a&gt;&lt;/code&gt;'s &lt;code&gt;&lt;a href=#window&gt;Window&lt;/a&gt;&lt;/code&gt; object using the
+    &lt;code&gt;&lt;a href=#popstateevent&gt;PopStateEvent&lt;/a&gt;&lt;/code&gt; interface, with the &lt;code title=dom-PopStateEvent-state&gt;&lt;a href=#dom-popstateevent-state&gt;state&lt;/a&gt;&lt;/code&gt; attribute set to the
+    current value of the &lt;a href=#pending-state-object&gt;pending state object&lt;/a&gt;. This event
+
+Modified: index
+===================================================================
+--- index	2010-11-30 01:22:34 UTC (rev 5685)
++++ index	2010-11-30 02:07:41 UTC (rev 5686)
+@@ -58662,6 +58662,21 @@
+ 
+    &lt;/li&gt;
+ 
++   &lt;li&gt;
++
++     &lt;p&gt;If the &lt;a href=#current-document-readiness&gt;current document readiness&lt;/a&gt; is not yet set
++     to the string &quot;complete&quot;, let the &lt;code&gt;&lt;a href=#document&gt;Document&lt;/a&gt;&lt;/code&gt;'s
++     &lt;a href=#pending-state-object&gt;pending state object&lt;/a&gt; be another &lt;a href=#structured-clone&gt;structured
++     clone&lt;/a&gt; of the specified &lt;var title=&quot;&quot;&gt;data&lt;/var&gt;. (If there
++     was already a &lt;a href=#pending-state-object&gt;pending state object&lt;/a&gt;, the previous one
++     is discarded.)&lt;/p&gt;
++
++     &lt;p class=note&gt;This ensures that the &lt;code title=event-popstate&gt;&lt;a href=#event-popstate&gt;popstate&lt;/a&gt;&lt;/code&gt; event that will be fired
++     when the document finally loads will accurately reflect the
++     pushed or replaced state object.&lt;/p&gt;
++
++   &lt;/li&gt;
++
+   &lt;/ol&gt;&lt;p class=note&gt;The &lt;var title=&quot;&quot;&gt;title&lt;/var&gt; is purely
+   advisory. User agents might use the title in the user interface.&lt;/p&gt;
+ 
+@@ -59994,6 +60009,12 @@
+      attribute set to true. This event must not bubble, must not be
+      cancelable, and has no default action.&lt;/li&gt;
+ 
++     &lt;!-- an interesting thing to test would be to traverse back
++     during onload, before the first pageshow has fired, and then to
++     traverse forward again, and see if we get _two_ pageshows. If so,
++     it indicates that the history traversal task source has a higher
++     priority than the DOM manipulation task source. --&gt;
++
+     &lt;/ol&gt;&lt;/li&gt;
+ 
+    &lt;li&gt;&lt;p&gt;Set &lt;a href=&quot;#the-document's-current-address&quot;&gt;the document's current address&lt;/a&gt; to the URL
+@@ -60039,8 +60060,8 @@
+ 
+      &lt;dt&gt;Otherwise&lt;/dt&gt;
+ 
+-     &lt;dd&gt;&lt;p&gt;Let the &lt;code&gt;&lt;a href=#document&gt;Document&lt;/a&gt;&lt;/code&gt;'s &lt;dfn id=pending-state-object&gt;pending state
+-     object&lt;/dfn&gt; be &lt;var title=&quot;&quot;&gt;state&lt;/var&gt;. (If there was already
++     &lt;dd&gt;&lt;p&gt;Let the &lt;code&gt;&lt;a href=#document&gt;Document&lt;/a&gt;&lt;/code&gt;'s &lt;a href=#pending-state-object&gt;pending state
++     object&lt;/a&gt; be &lt;var title=&quot;&quot;&gt;state&lt;/var&gt;. (If there was already
+      a &lt;a href=#pending-state-object&gt;pending state object&lt;/a&gt;, the previous one is
+      discarded.)&lt;/p&gt;
+ 
+@@ -60059,7 +60080,10 @@
+    &lt;li&gt;&lt;p&gt;The &lt;a href=#current-entry&gt;current entry&lt;/a&gt; is now the &lt;i&gt;specified
+    entry&lt;/i&gt;.&lt;/li&gt;
+ 
+-  &lt;/ol&gt;&lt;p&gt;The &lt;a href=#pending-state-object&gt;pending state object&lt;/a&gt; must be initially null.&lt;/p&gt;
++  &lt;/ol&gt;&lt;p&gt;The &lt;dfn id=pending-state-object&gt;pending state object&lt;/dfn&gt; is used to keep track of what
++  state object to use in the inital &lt;code title=event-popstate&gt;&lt;a href=#event-popstate&gt;popstate&lt;/a&gt;&lt;/code&gt; event fired by the parser
++  once it &lt;a href=#stop-parsing title=&quot;stop parsing&quot;&gt;stops parsing&lt;/a&gt;. The
++  &lt;a href=#pending-state-object&gt;pending state object&lt;/a&gt; must be initially null.&lt;/p&gt;
+ 
+   &lt;p&gt;The &lt;a href=#task-source&gt;task source&lt;/a&gt; for the tasks mentioned above is the
+   &lt;a href=#dom-manipulation-task-source&gt;DOM manipulation task source&lt;/a&gt;.&lt;/p&gt;
+@@ -78416,8 +78440,8 @@
+    attribute set to false. This event must not bubble, must not be
+    cancelable, and has no default action.&lt;/li&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;If the &lt;code&gt;&lt;a href=#document&gt;Document&lt;/a&gt;&lt;/code&gt; has a &lt;a href=#pending-state-object&gt;pending state
+-   object&lt;/a&gt;, then &lt;a href=#queue-a-task&gt;queue a task&lt;/a&gt; to fire a &lt;code title=event-popstate&gt;&lt;a href=#event-popstate&gt;popstate&lt;/a&gt;&lt;/code&gt; event at the
++   &lt;li&gt;&lt;p&gt;If the &lt;code&gt;&lt;a href=#document&gt;Document&lt;/a&gt;&lt;/code&gt; is in a &lt;a href=#browsing-context&gt;browsing
++   context&lt;/a&gt;, then &lt;a href=#queue-a-task&gt;queue a task&lt;/a&gt; to fire a &lt;code title=event-popstate&gt;&lt;a href=#event-popstate&gt;popstate&lt;/a&gt;&lt;/code&gt; event at the
+    &lt;code&gt;&lt;a href=#document&gt;Document&lt;/a&gt;&lt;/code&gt;'s &lt;code&gt;&lt;a href=#window&gt;Window&lt;/a&gt;&lt;/code&gt; object using the
+    &lt;code&gt;&lt;a href=#popstateevent&gt;PopStateEvent&lt;/a&gt;&lt;/code&gt; interface, with the &lt;code title=dom-PopStateEvent-state&gt;&lt;a href=#dom-popstateevent-state&gt;state&lt;/a&gt;&lt;/code&gt; attribute set to the
+    current value of the &lt;a href=#pending-state-object&gt;pending state object&lt;/a&gt;. This event
+
+Modified: source
+===================================================================
+--- source	2010-11-30 01:22:34 UTC (rev 5685)
++++ source	2010-11-30 02:07:41 UTC (rev 5686)
+@@ -66687,6 +66687,22 @@
+ 
+    &lt;/li&gt;
+ 
++   &lt;li&gt;
++
++     &lt;p&gt;If the &lt;span&gt;current document readiness&lt;/span&gt; is not yet set
++     to the string &quot;complete&quot;, let the &lt;code&gt;Document&lt;/code&gt;'s
++     &lt;span&gt;pending state object&lt;/span&gt; be another &lt;span&gt;structured
++     clone&lt;/span&gt; of the specified &lt;var title=&quot;&quot;&gt;data&lt;/var&gt;. (If there
++     was already a &lt;span&gt;pending state object&lt;/span&gt;, the previous one
++     is discarded.)&lt;/p&gt;
++
++     &lt;p class=&quot;note&quot;&gt;This ensures that the &lt;code
++     title=&quot;event-popstate&quot;&gt;popstate&lt;/code&gt; event that will be fired
++     when the document finally loads will accurately reflect the
++     pushed or replaced state object.&lt;/p&gt;
++
++   &lt;/li&gt;
++
+   &lt;/ol&gt;
+ 
+   &lt;p class=&quot;note&quot;&gt;The &lt;var title=&quot;&quot;&gt;title&lt;/var&gt; is purely
+@@ -68187,6 +68203,12 @@
+      attribute set to true. This event must not bubble, must not be
+      cancelable, and has no default action.&lt;/p&gt;&lt;/li&gt;
+ 
++     &lt;!-- an interesting thing to test would be to traverse back
++     during onload, before the first pageshow has fired, and then to
++     traverse forward again, and see if we get _two_ pageshows. If so,
++     it indicates that the history traversal task source has a higher
++     priority than the DOM manipulation task source. --&gt;
++
+     &lt;/ol&gt;
+ 
+    &lt;/li&gt;
+@@ -68241,8 +68263,8 @@
+ 
+      &lt;dt&gt;Otherwise&lt;/dt&gt;
+ 
+-     &lt;dd&gt;&lt;p&gt;Let the &lt;code&gt;Document&lt;/code&gt;'s &lt;dfn&gt;pending state
+-     object&lt;/dfn&gt; be &lt;var title=&quot;&quot;&gt;state&lt;/var&gt;. (If there was already
++     &lt;dd&gt;&lt;p&gt;Let the &lt;code&gt;Document&lt;/code&gt;'s &lt;span&gt;pending state
++     object&lt;/span&gt; be &lt;var title=&quot;&quot;&gt;state&lt;/var&gt;. (If there was already
+      a &lt;span&gt;pending state object&lt;/span&gt;, the previous one is
+      discarded.)&lt;/p&gt;
+ 
+@@ -68269,7 +68291,11 @@
+ 
+   &lt;/ol&gt;
+ 
+-  &lt;p&gt;The &lt;span&gt;pending state object&lt;/span&gt; must be initially null.&lt;/p&gt;
++  &lt;p&gt;The &lt;dfn&gt;pending state object&lt;/dfn&gt; is used to keep track of what
++  state object to use in the inital &lt;code
++  title=&quot;event-popstate&quot;&gt;popstate&lt;/code&gt; event fired by the parser
++  once it &lt;span title=&quot;stop parsing&quot;&gt;stops parsing&lt;/span&gt;. The
++  &lt;span&gt;pending state object&lt;/span&gt; must be initially null.&lt;/p&gt;
+ 
+   &lt;p&gt;The &lt;span&gt;task source&lt;/span&gt; for the tasks mentioned above is the
+   &lt;span&gt;DOM manipulation task source&lt;/span&gt;.&lt;/p&gt;
+@@ -94541,8 +94567,8 @@
+    attribute set to false. This event must not bubble, must not be
+    cancelable, and has no default action.&lt;/p&gt;&lt;/li&gt;
+ 
+-   &lt;li&gt;&lt;p&gt;If the &lt;code&gt;Document&lt;/code&gt; has a &lt;span&gt;pending state
+-   object&lt;/span&gt;, then &lt;span&gt;queue a task&lt;/span&gt; to fire a &lt;code
++   &lt;li&gt;&lt;p&gt;If the &lt;code&gt;Document&lt;/code&gt; is in a &lt;span&gt;browsing
++   context&lt;/span&gt;, then &lt;span&gt;queue a task&lt;/span&gt; to fire a &lt;code
+    title=&quot;event-popstate&quot;&gt;popstate&lt;/code&gt; event at the
+    &lt;code&gt;Document&lt;/code&gt;'s &lt;code&gt;Window&lt;/code&gt; object using the
+    &lt;code&gt;PopStateEvent&lt;/code&gt; interface, with the &lt;code
+
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="012552.html">[html5] r5685 - [giow] (2) Make form submission via .submit(),	and page navigation via location. [...]
+</A></li>
+	<LI>Next message: <A HREF="012554.html">[html5] r5687 - [a] (0) This requirement was technically wrong for	some edge cases like &lt;table&gt;&lt; [...]
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#12553">[ date ]</a>
+              <a href="thread.html#12553">[ thread ]</a>
+              <a href="subject.html#12553">[ subject ]</a>
+              <a href="author.html#12553">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/commit-watchers-whatwg.org">More information about the Commit-Watchers
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

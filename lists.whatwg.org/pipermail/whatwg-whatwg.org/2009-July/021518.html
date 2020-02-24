@@ -1,0 +1,159 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Issues with Web Sockets API
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Issues%20with%20Web%20Sockets%20API&In-Reply-To=%3CB742C03D-B7DC-4CD4-98D8-930783316AC4%40webkit.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="021505.html">
+   <LINK REL="Next"  HREF="021527.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Issues with Web Sockets API</H1>
+<!--htdig_noindex-->
+    <B>Alexey Proskuryakov</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Issues%20with%20Web%20Sockets%20API&In-Reply-To=%3CB742C03D-B7DC-4CD4-98D8-930783316AC4%40webkit.org%3E"
+       TITLE="[whatwg] Issues with Web Sockets API">ap at webkit.org
+       </A><BR>
+    <I>Tue Jul 28 20:57:13 PDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="021505.html">[whatwg] Issues with Web Sockets API
+</A></li>
+        <LI>Next message: <A HREF="021527.html">[whatwg] Issues with Web Sockets API
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21518">[ date ]</a>
+              <a href="thread.html#21518">[ thread ]</a>
+              <a href="subject.html#21518">[ subject ]</a>
+              <a href="author.html#21518">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>
+28.07.2009, &#1074; 16:40, Ian Hickson &#1085;&#1072;&#1087;&#1080;&#1089;&#1072;&#1083;(&#1072;):
+
+&gt;&gt;<i> 3) A Web Sockets server cannot respond with a redirect to another  
+</I>&gt;&gt;<i> URL.
+</I>&gt;&gt;<i> I'm not sure if the intention is to leave this to implementations,  
+</I>&gt;&gt;<i> or to
+</I>&gt;&gt;<i> add in Web Sockets v2, but it definitely looks like an important  
+</I>&gt;&gt;<i> feature
+</I>&gt;&gt;<i> to me, maybe something that needs to be in v1.
+</I>&gt;<i>
+</I>&gt;<i> What's the use case? Why does this need to be at the connection layer
+</I>&gt;<i> rather than the application layer? (Why would we need this, when TCP
+</I>&gt;<i> doesn't have it? Would you also need &quot;redirect&quot;-like functonality in  
+</I>&gt;<i> IRC,
+</I>&gt;<i> IMAP, SSH, and other such protocols?)
+</I>
+Just like with HTTP, redirects will make it possible to move services  
+to a different location. I guess the use cases are exactly the same  
+that tell us that we should allow redirects with cross-site  
+XMLHttpRequest (but I can't enumerate those).
+
+Other protocols do not get accessed from Web pages, so transparent  
+redirect support is not needed to keep web apps working after services  
+they use move. The Web has redirects all over the place, and WebSocket  
+has &quot;Web&quot; in its name :)
+
+Finally, since it's likely that WebSocket servers will share ports  
+with HTTP ones, one can expect that returning a 307 for all requests  
+(including those with Upgrade: WebSocket) will be enough to preserve  
+application functionality.
+
+Redirects surely add a lot of complexity though.
+
+&gt;&gt;<i> 10) Web Socket handshake uses CRLF line endings strictly. Does this  
+</I>&gt;&gt;<i> add
+</I>&gt;&gt;<i> much to security? It prevents using telnet/netcat for debugging,  
+</I>&gt;&gt;<i> which
+</I>&gt;&gt;<i> is something I personally use often when working on networking  
+</I>&gt;&gt;<i> issues.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> If there is no practical reason for this, I'd suggest relaxing this
+</I>&gt;&gt;<i> aspect of parsing.
+</I>&gt;<i>
+</I>&gt;<i> Do you mean client-&gt;server or server-&gt;client?
+</I>
+Originally, I meant both, but now I've been told that telnet on Mac OS  
+X translates line breaks to CRLF by default (even though it's not  
+telnet's own default, according to man page). Netcat doesn't perform  
+such translation, so simulating a server with netcat won't work unless  
+plain CR is allowed.
+
+Other platforms and tools commonly used for HTTP debugging may have  
+different defaults and limitations. This is not a huge deal, of course.
+
+&gt;&gt;<i> 11) There is no way for the client to know that the connection has  
+</I>&gt;&gt;<i> been
+</I>&gt;&gt;<i> closed. For example:
+</I>&gt;&gt;<i> - socket.close() is called from JavaScript;
+</I>&gt;&gt;<i> - onclose handler is invoked;
+</I>&gt;&gt;<i> - more data arrives from the server, and onmessage is dispatched  
+</I>&gt;&gt;<i> (which I
+</I>&gt;&gt;<i> think is correct, and it matches what TCP does);
+</I>&gt;&gt;<i> - finally, a TCP FIN arrives, indicating that there will be no more  
+</I>&gt;&gt;<i> data from
+</I>&gt;&gt;<i> the server (the underlying TCP connection is in TIME_WAIT state  
+</I>&gt;&gt;<i> after that);
+</I>&gt;&gt;<i> - the client never learns that the server is done sending data.
+</I>&gt;<i>
+</I>&gt;<i> The onclose only fires once the connection has closed, which is  
+</I>&gt;<i> after the
+</I>&gt;<i> TCP FIN, so it happens after the last 'message' event.
+</I>
+Maybe this could be clarified in the spec. The current text is:
+
+&quot;The close() method must close the Web Socket connection or connection  
+attempt, if any. If the connection is already closed, it must do  
+nothing. Closing the connection causes a close event to be fired and  
+the readyState attribute's value to change, as described below.&quot;
+
+I was reading it as a requirement to immediately change readyState to  
+CLOSED, and to fire a close event. If all this happens asynchronously  
+after the server agrees to close the connection, then my example will  
+work fine, of course.
+
+- WBR, Alexey Proskuryakov
+
+
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="021505.html">[whatwg] Issues with Web Sockets API
+</A></li>
+	<LI>Next message: <A HREF="021527.html">[whatwg] Issues with Web Sockets API
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#21518">[ date ]</a>
+              <a href="thread.html#21518">[ thread ]</a>
+              <a href="subject.html#21518">[ subject ]</a>
+              <a href="author.html#21518">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

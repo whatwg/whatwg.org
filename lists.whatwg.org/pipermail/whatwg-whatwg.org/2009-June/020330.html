@@ -1,0 +1,213 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Limit on number of parallel Workers.
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Limit%20on%20number%20of%20parallel%20Workers.&In-Reply-To=%3Cfa2eab050906101411p694945fercba14316f96812da%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="020329.html">
+   <LINK REL="Next"  HREF="020293.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Limit on number of parallel Workers.</H1>
+<!--htdig_noindex-->
+    <B>Michael Nordman</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Limit%20on%20number%20of%20parallel%20Workers.&In-Reply-To=%3Cfa2eab050906101411p694945fercba14316f96812da%40mail.gmail.com%3E"
+       TITLE="[whatwg] Limit on number of parallel Workers.">michaeln at google.com
+       </A><BR>
+    <I>Wed Jun 10 14:11:20 PDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="020329.html">[whatwg] Limit on number of parallel Workers.
+</A></li>
+        <LI>Next message: <A HREF="020293.html">[whatwg] File package protocol and manifest support?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20330">[ date ]</a>
+              <a href="thread.html#20330">[ thread ]</a>
+              <a href="subject.html#20330">[ subject ]</a>
+              <a href="author.html#20330">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Wed, Jun 10, 2009 at 1:46 PM, Jonas Sicking &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">jonas at sicking.cc</A>&gt; wrote:
+
+&gt;<i> On Tue, Jun 9, 2009 at 7:07 PM, Michael Nordman&lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">michaeln at google.com</A>&gt;
+</I>&gt;<i> wrote:
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; This is the solution that Firefox 3.5 uses. We use a pool of
+</I>&gt;<i> &gt;&gt; relatively few OS threads (5 or so iirc). This pool is then scheduled
+</I>&gt;<i> &gt;&gt; to run worker tasks as they are scheduled. So for example if you
+</I>&gt;<i> &gt;&gt; create 1000 worker objects, those 5 threads will take turns to execute
+</I>&gt;<i> &gt;&gt; the initial scripts one at a time. If you then send a message using
+</I>&gt;<i> &gt;&gt; postMessage to 500 of those workers, and the other 500 calls
+</I>&gt;<i> &gt;&gt; setTimeout in their initial script, the same threads will take turns
+</I>&gt;<i> &gt;&gt; to run those 1000 tasks (500 message events, and 500 timer callbacks).
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; This is somewhat simplified, and things are a little more complicated
+</I>&gt;<i> &gt;&gt; due to how we handle synchronous network loads (during which we freeze
+</I>&gt;<i> &gt;&gt; and OS thread and remove it from the pool), but the above is the basic
+</I>&gt;<i> &gt;&gt; idea.
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; / Jonas
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Thats a really good model. Scalable and degrades nicely. The only problem
+</I>&gt;<i> is
+</I>&gt;<i> &gt; with very long running operations where a worker script doesn't return in
+</I>&gt;<i> a
+</I>&gt;<i> &gt; timely fashion. If enough of them do that, all others starve. What does
+</I>&gt;<i> FF
+</I>&gt;<i> &gt; do about that, or in practice do you anticipate that not being an issue?
+</I>&gt;<i> &gt; Webkit dedicates an OS thread per worker. Chrome goes even further (for
+</I>&gt;<i> now
+</I>&gt;<i> &gt; at least) with a process per worker. The 1:1 mapping is probably overkill
+</I>&gt;<i> as
+</I>&gt;<i> &gt; most workers will probably spend most of their life asleep just waiting
+</I>&gt;<i> for
+</I>&gt;<i> &gt; a message.
+</I>&gt;<i>
+</I>&gt;<i> We do see it as a problem, but not big enough of a problem that we
+</I>&gt;<i> needed to solve it in the initial version.
+</I>&gt;<i>
+</I>&gt;<i> It's not really a problem for most types of calculations, as long as
+</I>&gt;<i> the number of threads is larger than the number of cores we'll still
+</I>&gt;<i> finish all tasks as quickly as the CPU is able to. Even for long
+</I>&gt;<i> running operations, if it's operations that the user wants anyway, it
+</I>&gt;<i> doesn't really matter if the jobs are running all in parallel, or
+</I>&gt;<i> staggered after each other. As long as you're keeping all CPU cores
+</I>&gt;<i> busy.
+</I>&gt;<i>
+</I>&gt;<i> There are some scenarios which it doesn't work so well for. For
+</I>&gt;<i> example a worker that works more or less infinitely and produces more
+</I>&gt;<i> and more accurate results the longer it runs. Or something like a
+</I>&gt;<i> <A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">folding at home</A> website which performs calculations as long as the user
+</I>&gt;<i> is on a website and submits them to the server.
+</I>&gt;<i>
+</I>&gt;<i> If enough of those workers are scheduled it will block everything else.
+</I>&gt;<i>
+</I>&gt;<i> This is all solveable of course, there's a lot of tweaking we can do.
+</I>&gt;<i> But we figured we wanted to get some data on how people use workers
+</I>&gt;<i> before spending too much time developing a perfect scheduling
+</I>&gt;<i> solution.
+</I>
+
+I never did like the Gears model (1:1 mapping with a thread). We were stuck
+with a strong thread affinity due to other constraints (script engines,
+COM/XPCOM).
+But we could have allowed multiple workers to reside in a single thread.
+A thread pool (perhaps per origin) sort of arrangement, where once a worker
+was put on a particular thread it stayed there until end-of-life.
+
+Your FF model has more flexibility. Give a worker a slice
+(well where slice == run-to-completion) on any thread in the
+pool, no thread affinity whatsoever (if i understand correctly).
+
+
+
+&gt;<i>
+</I>
+
+&gt;<i>
+</I>&gt;<i> / Jonas
+</I>&gt;<i>
+</I>-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: &lt;<A HREF="http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20090610/00a2e197/attachment.htm">http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20090610/00a2e197/attachment.htm</A>&gt;
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="020329.html">[whatwg] Limit on number of parallel Workers.
+</A></li>
+	<LI>Next message: <A HREF="020293.html">[whatwg] File package protocol and manifest support?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#20330">[ date ]</a>
+              <a href="thread.html#20330">[ thread ]</a>
+              <a href="subject.html#20330">[ subject ]</a>
+              <a href="author.html#20330">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

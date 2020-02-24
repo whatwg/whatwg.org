@@ -1,0 +1,170 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Workers: What can be done in a worker after call to	close()?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Workers%3A%20What%20can%20be%20done%20in%20a%20worker%20after%20call%20to%0A%09close%28%29%3F&In-Reply-To=%3Cj2k28040fc61004011657z4f1ee7abk3ea704e6c95cf5ca%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="025766.html">
+   <LINK REL="Next"  HREF="025768.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Workers: What can be done in a worker after call to	close()?</H1>
+<!--htdig_noindex-->
+    <B>Dmitry Titov</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Workers%3A%20What%20can%20be%20done%20in%20a%20worker%20after%20call%20to%0A%09close%28%29%3F&In-Reply-To=%3Cj2k28040fc61004011657z4f1ee7abk3ea704e6c95cf5ca%40mail.gmail.com%3E"
+       TITLE="[whatwg] Workers: What can be done in a worker after call to	close()?">dimich at google.com
+       </A><BR>
+    <I>Thu Apr  1 16:57:06 PDT 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="025766.html">[whatwg] Workers: What can be done in a worker after call to	close()?
+</A></li>
+        <LI>Next message: <A HREF="025768.html">[whatwg] Workers: What can be done in a worker after call to close()?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#25767">[ date ]</a>
+              <a href="thread.html#25767">[ thread ]</a>
+              <a href="subject.html#25767">[ subject ]</a>
+              <a href="author.html#25767">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Thanks Jonas!
+
+So there is somewhat of a consensus on close() to effectively let a worker
+run normally until the exit from the current JS fragment. It makes sense for
+us as well.
+
+I think the only change to the spec here would be the removal of the 3rd
+line in the description of what close() does, so the ports are still
+functional, at least for posting from the worker:
+
+When a script invokes the close() method on a WorkerGlobalScope object, the
+&gt;<i> user agent must run the following steps (atomically):
+</I>
+
+&gt;<i> Discard any tasks that have been added to the event loop's task queues.
+</I>
+Set the worker's WorkerGlobalScope object's closing flag to true. (This
+&gt;<i> prevents any further tasks from being queued.)
+</I>
+Disentangle all the ports in the list of the worker's ports.
+
+
+.. which probably is not a big deal (hope Ian will chime in on this).
+
+Not sure about onclose indeed...  Perhaps we can use some time to see if
+developers will request something like this more explicitly, then we could
+think about it more.
+
+Dmitry
+
+On Thu, Apr 1, 2010 at 3:31 PM, Jonas Sicking &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">jonas at sicking.cc</A>&gt; wrote:
+
+&gt;<i> On Wed, Mar 31, 2010 at 10:03 AM, ben turner &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">bent.mozilla at gmail.com</A>&gt;
+</I>&gt;<i> wrote:
+</I>&gt;<i> &gt; Hi,
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; When implementing the close() function for Firefox we chose to set the
+</I>&gt;<i> &gt; closing flag and clear pending events only. As the worker script is
+</I>&gt;<i> &gt; calling close() on itself we figured that the worker should retain
+</I>&gt;<i> &gt; maximum functionality until it has finished execution (otherwise it
+</I>&gt;<i> &gt; could just not call close() and rely on some kind of postMessage() and
+</I>&gt;<i> &gt; terminate() combo). Therefore we do not enforce any timeout for the
+</I>&gt;<i> &gt; currently executing script and we continue to allow postMessage()
+</I>&gt;<i> &gt; calls and synchronous XHR to proceed. Since the closing flag is set in
+</I>&gt;<i> &gt; response to close() the worker is guaranteed to finish as soon as the
+</I>&gt;<i> &gt; currently running script finishes. We always enforce a timeout for any
+</I>&gt;<i> &gt; code that runs in response to the close event that gets fired after
+</I>&gt;<i> &gt; the current script finishes, though.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; If the code that calls close() never returns (like the while(1) { }
+</I>&gt;<i> &gt; example above) then the worker will never finish, as pointed out
+</I>&gt;<i> &gt; above, but that's no different than having a worker script that
+</I>&gt;<i> &gt; consists only of a while(1) { } loop and we don't think it's important
+</I>&gt;<i> &gt; to prevent. If a worker script is written in this way then a
+</I>&gt;<i> &gt; terminate() call is still a valid solution.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Also, since we try to retain maximum functionality after close() we
+</I>&gt;<i> &gt; also allow errors to propagate as shown above.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; If anyone is curious the basic strategy we use in response to close
+</I>&gt;<i> &gt; functions (like close(), terminate(), and for UA-generated events like
+</I>&gt;<i> &gt; when the main worker object is GC'd) can be found in the following
+</I>&gt;<i> &gt; table:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;
+</I>&gt;<i> <A HREF="http://mxr.mozilla.org/mozilla-central/source/dom/src/threads/nsDOMWorker.h#202">http://mxr.mozilla.org/mozilla-central/source/dom/src/threads/nsDOMWorker.h#202</A>
+</I>&gt;<i>
+</I>&gt;<i> For what it's worth, I think the behavior that firefox has makes a lot
+</I>&gt;<i> of sense and I think it should be mandated by the spec. (I know, big
+</I>&gt;<i> shocker :) )
+</I>&gt;<i>
+</I>&gt;<i> The one thing that we do and that is somewhat iffy is the close event.
+</I>&gt;<i> Ben actually gets it a bit wrong in the description above. This is how
+</I>&gt;<i> it works:
+</I>&gt;<i>
+</I>&gt;<i> We fire the close event handler in four situations:
+</I>&gt;<i>
+</I>&gt;<i> * After close() is called by the worker, once it finishes its current
+</I>&gt;<i> execution.
+</I>&gt;<i> * After terminate() is called from outside the worker and any code
+</I>&gt;<i> running has been aborted.
+</I>&gt;<i> * If the worker is garbage collected.
+</I>&gt;<i> * Once the user leaves the page (or specifically, once the page falls
+</I>&gt;<i> out of the bfcache).
+</I>&gt;<i>
+</I>&gt;<i> Only in the last case do we give the close handler a time limit, after
+</I>&gt;<i> which any currently running close handler is aborted and no more close
+</I>&gt;<i> handlers are run.
+</I>&gt;<i>
+</I>&gt;<i> Though of course the user can leave the page *while* the close event
+</I>&gt;<i> is getting fired. If so, we start the time limit at that point.
+</I>&gt;<i>
+</I>&gt;<i> The iffy part is the third bullet above, since it exposes GC behavior.
+</I>&gt;<i> This is very unfortunate indeed and because of it I feel that our
+</I>&gt;<i> implementation is somewhat experimental.
+</I>&gt;<i>
+</I>&gt;<i> We could simply not fire the close event in that case, however this
+</I>&gt;<i> would seem to reduce the usefulness of the close event quite a bit.
+</I>&gt;<i>
+</I>&gt;<i> So I think for now I don't care if the close event is put in the spec
+</I>&gt;<i> or not. But I wanted to let you know what we're doing. We don't
+</I>&gt;<i> currently have any plans to remove it.
+</I>&gt;<i>
+</I>&gt;<i> / Jonas
+</I>&gt;<i>
+</I>-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: &lt;<A HREF="http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20100401/f1e41d1f/attachment-0001.htm">http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20100401/f1e41d1f/attachment-0001.htm</A>&gt;
+</PRE>
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="025766.html">[whatwg] Workers: What can be done in a worker after call to	close()?
+</A></li>
+	<LI>Next message: <A HREF="025768.html">[whatwg] Workers: What can be done in a worker after call to close()?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#25767">[ date ]</a>
+              <a href="thread.html#25767">[ thread ]</a>
+              <a href="subject.html#25767">[ subject ]</a>
+              <a href="author.html#25767">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

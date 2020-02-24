@@ -1,0 +1,156 @@
+=== Intro ===
+When you want a really strong security on the web, it's a good idea to use SSL.
+SSL can be used to encrypt your end to end connection to the web server, but
+you will need a client certificate for the possibility to verify you as who you
+are. The right way to get a certificate like this is for your browser to
+generate it! The private key should NEVER get out of the client machine. It should
+be generated and stored within the browser certificate store.
+
+
+=== Background info ===
+Netscape made an html attribute called keygen, <keygen>, many years ago.
+There seems to be almost zero documentation around about this attribute.
+Lots of the info you can find is old, and is missing vital info.
+I have looked around, and I have seen eg. netbanks using this attribute.
+Sites that wants this functionality without using this tag I've seen
+using ActiveX/JavaScript hacks, which is really not what we want from
+a tag that depends on security.
+
+
+== Why do we need this? ==
+I'm sure that if more people knew about this attribute and how to use it, it
+would be used in a lot more areas. It can be used within big companies that relies
+on strong security for their employees when they want to access company data from
+the outside, example mail or administrative web tools. Internet banks can also use
+this. They would/should only use standarized tested technology, and currently, this
+attribute is not fairly standarized, nor documented.
+
+There is tools (enterprise, expensive) that can do this now; you generate your
+certificate inside the network, and you can access the network from the outside.
+However, to get this very usefull future of ssl on more places, it need to be
+standarized, IE needs to support it, and it needs to be more documented!
+
+
+=== Support ===
+Currently, all the major browser support this attribute, all of Opera,
+Firefox and Safari.
+Internet Explorer however, does not, see http://support.microsoft.com/kb/190282.
+
+
+=== Technical info ===
+When using the keygen attribute inside an <form> like this;
+ <form>
+   <keygen name="pubkey" challenge="randomchars">
+   <input type="submit" name="createcert" value="Generate">
+ </form>
+
+
+You will get a dropdown list with the browsers supported keylength and
+an "Generate" submit box on the right.
+When you, in this case, click generate the browser will generate a keypair,
+sends the public key back to the browser in the $_POST['pubkey'] or $_GET['pubkey']
+variables.
+Example output of the data sent to the server:
+MIICSzCCATMwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQDOomefX5gP
+Enl5le8Upm9C2g1quWXR2hdyoaC9GErvScfOERJY2qbI57y4/pxvctwuL7KPA12d
+ClMlGZ6b2jPPrm3iN0dY8z1NPDhRDuaTh0MziscyUNc6XycpIEIfJJLk4nV2oS2u
+olFhRH5SjIAslSS8rhEELcoXCCHADIlwLi1Pg7fx5Ay7rTbaErn4xqQSFZqSVjD1
+pGwim0E4Eplj6Ly46I5516MEM1dWnMvlz/UdIXpxN41snbysHvznbXH4JtA7YgHj
+TAnYBx2Oi3MsOL39k5L+rjaoqleQgtp16b4mlC7z7Cv2mZ3RK+QovZ1PF7jM0wF+
+oT7GWOjYhRFdAgMBAAEWC3JhbmRvbWNoYXJzMA0GCSqGSIb3DQEBBAUAA4IBAQB4
+9HDCQzEzH05XZizs9tVjdOIgdcKQO5PjEAS53+1pnw8lP1xZBSKCgaCGn6PYolaU
+a+A3ra1cDojRKAkJmf1wXlbyDLU9XpaAVa8Q2WVMeA0a0NK9bFfDIzNl5fmfl+1Q
+he9kPnfoUpKowt1RuPXMYOEKWFhceOZqG/5cuDELYetfIvQ3Ev/EtDfi42Qdjc4c
+4h97e2peYUzVXkfkQ4oiY4kIxumozsY8/Oivaeh7Lo+XfneAeShwK2toNLnio8b/
+SphlZelWs7J2792sohglxe3+sJHDX6AP9ezuRdOzM1i007GKqKRibkMvhcSpOMIa
+HSnuMF+hE2PycyEMX2wq
+
+This is the public key in SPKAC format, see http://www.openssl.org/docs/apps/spkac.html.
+The server now needs to sign this key with its own certificate. But first you need to
+put it in one file in this format (PHP code) (the pubkey must be in one line) in the spkac
+file, so you need to replace the newlines first. Here is the phpcode for making the file
+that you later need to sign;
+  $key = $_REQUEST['pubkey'];
+  $keyreq = "SPKAC=".str_replace(str_split(" \t\n\r\0\x0B"), '', $key);
+  $keyreq .= "\nCN=".$username;
+  $keyreq .= "\nemailAddress=".$CAmail;
+  $keyreq .= "\n0.OU=".$CAorg." client certificate";
+  $keyreq .= "\norganizationName=".$CAorg;
+  $keyreq .= "\ncountryName=".$CAcountry;
+  $keyreq .= "\nstateOrProvinceName=".$CAcity;
+  $keyreq .= "\nlocalityName=".$CAcity;
+  write_cert($keyreq);
+
+
+The write_cert function job is to write $keyreq out to a file (let us say it writes it to /tmp/4k9Bal.spkac)
+Now we have a file which may look something like this:
+  SPKAC=MIICYTCCAUkwggEiMA0GCSqGSIb3DQEBAQUAA4I...(LONG LINE)
+  CN=Your Name
+  emailAddress=your.name@mail.com
+  0.OU=Company client certificate
+  organizationName=Company
+  countryName=NO
+  stateOrProvinceName=Oslo
+  localityName=Oslo
+
+
+You can have more than one OU field. Name them like 1.OU=IT, 2.OU=Customer service and so on.
+
+Now you need to sign the file and send it back to the browser. This is the part you should consern
+about the security. You should never have the webuser sign certificates with your CA. I will not
+comment on this here anyway, so here is how it can be done. In php:
+  $command = "/usr/bin/openssl ca -config ".$opensslconf." -days ".$days." -notext \
+  -batch -spkac ".$certfolder.$uniq.".spkac -out ".$certfolder.$uniq." -passin pass:'".$capw."' 2>&1";
+  $output = shell_exec($command);
+
+
+The final command without the variables whould be something like
+  openssl ca -config /etc/CA/openssl.conf -days 180 -notext -batch \
+  -spkac /tmp/4k9Bal.spkac -out /tmp/4k9Bal -passin pass:'y01_|s5Up3RseCr37CApW'
+
+
+You will now have a file called /tmp/4k9Bal which is the public key signed by your CA.
+Here is some more php code for doing this:
+  $length = filesize($certfolder.$uniq);	// $cerfolder.$uniq = /tmp/4k9Bal
+  header('Last-Modified: '.date('r+b'));
+  header('Accept-Ranges: bytes');
+  header('Content-Length: '.$length);
+  header('Content-Type: application/x-x509-user-cert');
+  readfile($certfolder.$uniq);
+  exit;
+
+
+Note; you must have the exit; after sending the content of the file, or else it won't work.
+
+You will now get a message from your browser saying that your personal certificate has been installed.
+
+You can now configure apache to only let you in if you have a valid certificate. Example:
+  SSLEngine on
+  SSLCipherSuite HIGH:MEDIUM
+  SSLCertificateFile /etc/CA/certs-pub/domain.der
+  SSLCertificateKeyFile /etc/CA/certs-priv/domain.pem
+  SSLCACertificateFile /etc/CA/certs-pub/ca.pem
+  SSLCARevocationFile /etc/CA/crl/cacrl.pem
+  <Location /secure_area/>
+    SSLVerifyClient require
+    SSLVerifyDepth 1
+  </Location>
+
+
+The area under /secure_area/ will now be secure, and you will now need a client certificate
+signed by your CA for access.
+
+You can also get the client cert CN and other info like this;
+  echo $_SERVER['SSL_CLIENT_S_DN_CN'];
+
+
+
+=== Links for more info ===
+http://wp.netscape.com/eng/security/comm4-keygen.html
+http://wp.netscape.com/eng/security/ca-interface.html
+http://webdesign.about.com/od/htmltags/p/bltags_keygen.htm
+http://eskimonorth.com/~bloo/indexdot/html/tagpages/k/keygen.htm
+http://web.archive.org/web/20040710102131/devedge.netscape.com/library/manuals/1998/htmlguide/
+http://64.233.183.104/search?q=cache:TExfCslqOcwJ:www.html4newbies.com/Keygen.php
+http://www.di.unito.it/~rabser/ssleay/x509_netscape.html
+http://msdn.microsoft.com/en-us/library/cc214558.aspx - Something that may look like the MS version of the keygen attribute

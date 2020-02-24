@@ -1,0 +1,214 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Browsers delay window.print() action until page load finishes
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Browsers%20delay%20window.print%28%29%20action%20until%20page%20load%0A%20finishes&In-Reply-To=%3CPine.LNX.4.64.1108022302050.1701%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="075078.html">
+   <LINK REL="Next"  HREF="032784.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Browsers delay window.print() action until page load finishes</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Browsers%20delay%20window.print%28%29%20action%20until%20page%20load%0A%20finishes&In-Reply-To=%3CPine.LNX.4.64.1108022302050.1701%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg] Browsers delay window.print() action until page load finishes">ian at hixie.ch
+       </A><BR>
+    <I>Tue Aug  2 16:14:34 PDT 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="075078.html">[whatwg] Small consistency issue with HTML5 nav element examples
+</A></li>
+        <LI>Next message: <A HREF="032784.html">[whatwg] undoScope IDL attribute
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#32775">[ date ]</a>
+              <a href="thread.html#32775">[ thread ]</a>
+              <a href="subject.html#32775">[ subject ]</a>
+              <a href="author.html#32775">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Wed, 4 May 2011, Alexey Proskuryakov wrote:
+&gt;<i> 04.05.2011, &#1074; 15:38, Ian Hickson &#1085;&#1072;&#1087;&#1080;&#1089;&#1072;&#1083;(&#1072;):
+</I>&gt;<i> &gt;&gt; 
+</I>&gt;<i> &gt;&gt; There seems to be no provision in the spec for a behavior Firefox and 
+</I>&gt;<i> &gt;&gt; IE (and now WebKit-based browsers, too) have. If window.print() is 
+</I>&gt;<i> &gt;&gt; called during page load, then its action is delayed until loading is 
+</I>&gt;<i> &gt;&gt; finished.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; I haven't been able to reproduce this. I can reproduce cases where the 
+</I>&gt;<i> &gt; browser entirely ignores a window.print() call (as allowed by the 
+</I>&gt;<i> &gt; spec), but none where the call is delayed until later.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; Do you have a test case demonstrating this?
+</I>&gt;<i> 
+</I>&gt;<i> Yes - for example, &lt;<A HREF="http://leiz.org/chromium/25027.htm">http://leiz.org/chromium/25027.htm</A>&gt;. Basically, 
+</I>&gt;<i> it's:
+</I>&gt;<i> 
+</I>&gt;<i> &lt;script&gt;
+</I>&gt;<i> window.print();
+</I>&gt;<i> &lt;/script&gt;
+</I>&gt;<i> &lt;p&gt;Print me&lt;/p&gt;
+</I>&gt;<i> 
+</I>&gt;<i> Safari 5 prints a blank page, while other IE and Firefox print &quot;Print 
+</I>&gt;<i> me&quot;. WebKit nightly builds print &quot;Print me&quot;, too.
+</I>&gt;<i> 
+</I>&gt;<i> Notably, we've seen different results in Firefox when printing file: vs. 
+</I>&gt;<i> http: documents.
+</I>&gt;<i> 
+</I>&gt;<i> &gt; I'd be happy to spec this, I'm just trying to work out what it means 
+</I>&gt;<i> &gt; with respect to event firing, etc (the rest of the algorithm). 
+</I>&gt;<i> &gt; Presumably, in many cases we want it to be synchronous as now, since 
+</I>&gt;<i> &gt; pages presumably depend on being able to edit the DOM before and 
+</I>&gt;<i> &gt; after.
+</I>&gt;<i> 
+</I>&gt;<i> There is a number of subtleties, some of which we know about from a 
+</I>&gt;<i> discussion in &lt;<A HREF="https://bugs.webkit.org/show_bug.cgi?id=43658">https://bugs.webkit.org/show_bug.cgi?id=43658</A>&gt;. E.g. what 
+</I>&gt;<i> happens if window.print() is called multiple times during loading, or if 
+</I>&gt;<i> window.close() is called immediately afterwards (which happens on live 
+</I>&gt;<i> sites in window.open()/write()/print()/close() scenario).
+</I>&gt;<i> 
+</I>&gt;<i> And yes, we only defer window.print() if the document is still &quot;loading&quot; 
+</I>&gt;<i> at the time of the call. There are obviously multiple definitions of 
+</I>&gt;<i> &quot;loading&quot; possible for this feature.
+</I>
+On Wed, 4 May 2011, Boris Zbarsky wrote:
+&gt;<i> 
+</I>&gt;<i> In Gecko's case if a print operation is pending then further calls to 
+</I>&gt;<i> print() are effectively ignored.
+</I>&gt;<i> 
+</I>&gt;<i> In Gecko, if window.close() is called while a print operation is pending 
+</I>&gt;<i> or while printing is in progress (printing is async), the close is 
+</I>&gt;<i> deferred until the printing stuff is done.  Note that the tab/window the 
+</I>&gt;<i> user sees may still appear to go away in the meantime, but the internal 
+</I>&gt;<i> data structures are kept alive until the print operation completes.  Or 
+</I>&gt;<i> at least that's what the code is trying to do; I haven't tested how it 
+</I>&gt;<i> works in practice.
+</I>&gt;<i> 
+</I>&gt;<i> I _think_ Gecko's current code just aims for &quot;has onload started 
+</I>&gt;<i> firing?&quot;
+</I>
+I've tried to spec this.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="075078.html">[whatwg] Small consistency issue with HTML5 nav element examples
+</A></li>
+	<LI>Next message: <A HREF="032784.html">[whatwg] undoScope IDL attribute
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#32775">[ date ]</a>
+              <a href="thread.html#32775">[ thread ]</a>
+              <a href="subject.html#32775">[ subject ]</a>
+              <a href="author.html#32775">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

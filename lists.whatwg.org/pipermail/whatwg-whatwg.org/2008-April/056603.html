@@ -1,0 +1,193 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Request: window.postMessage should be async
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Request%3A%20window.postMessage%20should%20be%20async&In-Reply-To=%3Cd62cf1d10804050038y282dbd37sca9aabddb542e1a3%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="056600.html">
+   <LINK REL="Next"  HREF="056604.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Request: window.postMessage should be async</H1>
+<!--htdig_noindex-->
+    <B>Peter Kasting</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Request%3A%20window.postMessage%20should%20be%20async&In-Reply-To=%3Cd62cf1d10804050038y282dbd37sca9aabddb542e1a3%40mail.gmail.com%3E"
+       TITLE="[whatwg] Request: window.postMessage should be async">pkasting at google.com
+       </A><BR>
+    <I>Sat Apr  5 00:38:43 PDT 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="056600.html">[whatwg] Request: window.postMessage should be async
+</A></li>
+        <LI>Next message: <A HREF="056604.html">[whatwg] Request: window.postMessage should be async
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#56603">[ date ]</a>
+              <a href="thread.html#56603">[ thread ]</a>
+              <a href="subject.html#56603">[ subject ]</a>
+              <a href="author.html#56603">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>(Apologies if the threading on this gets messed up.  I was not subscribed to
+the list when the original message was sent.)
+
+I want to paint Eric's scenario more strongly, because it seems like people
+think if it would rarely blow up then it doesn't matter.
+
+If you want to handle _any_ request sent by a synchronous postMessage, and
+you aren't a cowboy programmer, you _must_ either call no functions, or use
+a setTimeout() continuation.  You CANNOT know how deep your caller's stack
+is, so you CANNOT safely do anything that could add to the stack depth.  It
+doesn't matter if the stack will not _commonly_ be too deep, or if it isn't
+too deep for the callers that you know about right now -- it might be too
+deep at some point (after someone else changes the caller code, for
+example), and your sync handler will blow up.  And the very sorts of things
+you'd want postMessage for are frequently cases where others will write
+mashups and use your code in ways you hadn't planned.  For this reason, I
+think talking about &quot;the common case&quot; misses the point -- a sync API is
+completely useless to anyone trying to write _any_ serious code defensively,
+large app or small, because it cannot be made safe except by using
+setTimeout to make it async, at which point synchronicity has bought you
+nothing.  On the contrary, it has added great risk, because any coder who
+fails to understand the threat posed here and fails to transform all
+postMessage handlers into async ones risks his code blowing up.  I prefer
+not to have APIs that force you to take action if you don't want to shoot
+yourself in the head.
+
+If you're still not convinced that coders would care, remember that stack
+depths vary by interpreter, too.  I believe in pocket IE you have a
+ridiculously small stack depth [12?].  On this kind of platform, the
+recursion limits get hit in the common case rather than the uncommon, even
+in today's code without postMessage().  While other mobile devices may be a
+little more forgiving, smaller recursion limits are always going to be more
+likely on embedded devices, and embedded devices are just going to get more
+popular.
+
+And as Eric mentioned, even on desktop browsers, apps of any reasonable size
+(like gmail) already jump through hoops TODAY to avoid getting near any
+stack limits.  This isn't some vague theoretical concern.  It's very real
+and already impacts web apps.  So if we're trying to write APIs to enable
+even more powerful, more robust web applications, sync postMessage
+completely fails to accomplish that.
+
+Below I have some less important replies to various points in Jeff's post.
+
+Jeff Walden wrote:
+
+&gt;<i> Eric Seidel wrote:
+</I>&gt;<i> &gt; 1. JS content authors will want an async API.
+</I>&gt;<i>
+</I>&gt;<i> Sometimes, for the large applications; small apps won't care.
+</I>
+
+Besides the comments I wrote above that amount to &quot;all the time, for all
+large apps, and most small ones too, you will want async for safety&quot;:
+
+I admit to spending more time in the C++ space than the JS space, but it
+seems like in most cases where you'd actually want to call postMessage, you
+don't really know how long the target may take to act on your request, and
+you don't necessarily want to block.  The async use case seems more common
+to me.
+
+(Incidentally, I also find the name bizarre.  If it's a sync API, why not
+&quot;callFunction&quot; or at the very least &quot;sendMessage&quot;, which [in Windows land]
+doesn't imply asynchronicity the way &quot;postMessage&quot; does [in both the Windows
+and common-english-usage senses of &quot;post&quot;].)
+
+As you note, the workaround of immediately packaging up a setTimeout
+&gt;<i> continuation isn't difficult. I tend to think worrying about the N-1 case is
+</I>&gt;<i> designing a bit too much for the special cases, personally. Special cases
+</I>&gt;<i> aren't special enough to break the rules.[0]
+</I>
+
+Again, ignoring my &quot;this isn't a special case&quot; comments:
+
+Given the number of websites relying on this feature right now (0?), how do
+you know what the special cases are?  I'm skeptical that async usage is so
+exceptional as you seem to think.  Besides my own intuition above, the JS
+developers at Google I've spoken to have all been surprised postMessage is
+currently specified to be synchronous -- they were all expecting async.
+
+setTimeout may not be terribly difficult, but if it's the common case, it
+also forces the JS engine to jump through hoops that it doesn't need to for
+no benefit, forces programmers to contort their app in ways that don't
+express their intent as well, and is less obvious to someone newly
+approaching the API.
+
+Further, nothing says browser implementations must or will continue to
+&gt;<i> enforce hard limits on recursion.
+</I>&gt;<i>
+</I>
+Nothing says they won't, either.  And when the status quo is that they do, I
+will believe this restriction will disappear when I see it.
+
+Even if, say, SpiderMonkey stops enforcing a recursion limit, so what?  If I
+want my app to actually run everywhere, I need to assume the limit is
+present until _every_ UA gets rid of it.  Surely you agree the chances of
+that happening are small.  See my comments at top about mobile devices,
+where these limits make lots of sense.
+
+Making the API async basically requires the optional origin argument always
+&gt;<i> be provided to postMessage, adding API complexity.
+</I>&gt;<i>
+</I>
+I don't really see how making an optional argument be a non-optional
+argument would result in a more complex API.  It doesn't raise the maximum
+number of arguments to provide, and it reduces the number of forms the
+function takes by one.  Furthermore, if a recipient needs to handle the
+message asynchronously via setTimeout, they'll need this anyway.  Forcing
+callers to provide it is a security win at that point, not a loss.
+
+Or, if you like, take the position that the argument should stay optional,
+and if someone for some reason doesn't have to care about security (?!),
+they can avoid passing it.  Although I'm not sure this is a particularly
+great idea :)
+
+If some piece of JS is in flight, every client-side change it can detect
+&gt;<i> *must* be one it has caused.
+</I>
+
+Are you sure?  I'm reading the docs in section 4.1.4, and it seems to say
+that this is only true for changes within the unit of related browsing
+contexts.  If it is possible to get a reference to a Window outside this
+group, then your statement is untrue.  But I'm not sure whether that's
+possible.
+
+PK
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: &lt;<A HREF="http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20080405/f6a4ae8c/attachment-0001.htm">http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20080405/f6a4ae8c/attachment-0001.htm</A>&gt;
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="056600.html">[whatwg] Request: window.postMessage should be async
+</A></li>
+	<LI>Next message: <A HREF="056604.html">[whatwg] Request: window.postMessage should be async
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#56603">[ date ]</a>
+              <a href="thread.html#56603">[ thread ]</a>
+              <a href="subject.html#56603">[ subject ]</a>
+              <a href="author.html#56603">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

@@ -1,0 +1,159 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Fixing undo on the Web - UndoManager and Transaction
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Fixing%20undo%20on%20the%20Web%20-%20UndoManager%20and%20Transaction&In-Reply-To=%3CCABNRm63Pi9t4GfYotKU4RaBsVOX2uaU-m7ypXNT0t71ZS9hNbg%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="075503.html">
+   <LINK REL="Next"  HREF="075538.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Fixing undo on the Web - UndoManager and Transaction</H1>
+<!--htdig_noindex-->
+    <B>Ryosuke Niwa</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Fixing%20undo%20on%20the%20Web%20-%20UndoManager%20and%20Transaction&In-Reply-To=%3CCABNRm63Pi9t4GfYotKU4RaBsVOX2uaU-m7ypXNT0t71ZS9hNbg%40mail.gmail.com%3E"
+       TITLE="[whatwg] Fixing undo on the Web - UndoManager and Transaction">rniwa at webkit.org
+       </A><BR>
+    <I>Tue Sep 20 19:13:43 PDT 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="075503.html">[whatwg] Fixing undo on the Web - UndoManager and Transaction
+</A></li>
+        <LI>Next message: <A HREF="075538.html">[whatwg] Fixing undo on the Web - UndoManager and Transaction
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#75528">[ date ]</a>
+              <a href="thread.html#75528">[ thread ]</a>
+              <a href="subject.html#75528">[ subject ]</a>
+              <a href="author.html#75528">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>I had a discussion with Jonas on IRC and we've come to a conclusion that we
+should have both boolean argument and reapply.
+
+The rationale is that if apply/reapply share most code and only requires
+some work before/after the shared code, then reapply can simply call apply
+inside. On the other hand if reapply needs to do extra work at multiple
+points, then apply/reapply should be a single function and take a boolean.
+ Thus, we'll have
+void apply(in boolean isReapply)
+void unapply()
+void reapply()
+as the interface for manual transactions. And we'll fallback to apply when
+reapply is not supplied with isReapply=true.
+
+Now, having automaticTransact and manualTransact will require callers of
+those two functions to know the type of transaction and prevent use cases
+such as:
+var transaction = createMyTransaction(...); // Can return automatic or
+manual transaction
+undoManager.transact(transaction);
+
+There are couple of alternatives here.
+
+   1. Introduce new createAutomaticTransaction function or new
+   AutomaticTransaction, which would create a new transaction object with
+   unapply &amp; reapply method given a function or an object with apply method.
+   2. Introduce automatic/auto boolean attribute on the Transaction
+   interface, and let it determine whether a given transaction is automatic or
+   not.
+   3. Rename apply to execute (or something else) in automatic transaction
+   so that automatic and manual transactions can be differentiated by the
+   function name for apply/execute.
+
+Of the above 3 options, I like the 3rd one best since it also conveys
+semantic difference between applying an automatic transaction and a manual
+transaction. Any thoughts / opinions?
+
+Best,
+Ryosuke Niwa
+Software Engineer
+Google Inc.
+
+On Thu, Sep 15, 2011 at 11:17 AM, Jonas Sicking &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">jonas at sicking.cc</A>&gt; wrote:
+
+&gt;<i> On Mon, Sep 12, 2011 at 6:06 PM, Ryosuke Niwa &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">rniwa at webkit.org</A>&gt; wrote:
+</I>&gt;<i> &gt; On Mon, Sep 12, 2011 at 5:19 PM, Jonas Sicking &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">jonas at sicking.cc</A>&gt; wrote:
+</I>&gt;<i> &gt;&gt;
+</I>&gt;<i> &gt;&gt; Could you please supply an example where the apply/reapply split leads
+</I>&gt;<i> &gt;&gt; to cleaner or otherwise better code than using a boolean argument?
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; apply: function() {
+</I>&gt;<i> &gt;   // modify dom
+</I>&gt;<i> &gt;   // send data back to server
+</I>&gt;<i> &gt; },
+</I>&gt;<i> &gt; unapply: function() {
+</I>&gt;<i> &gt;   // ask server what I should do for undo
+</I>&gt;<i> &gt;   // modify dom
+</I>&gt;<i> &gt; },
+</I>&gt;<i> &gt; reapply: function() {
+</I>&gt;<i> &gt;   // ask sever what I should do for redo
+</I>&gt;<i> &gt;   // modify dom
+</I>&gt;<i> &gt; }
+</I>&gt;<i> &gt; I can't give you a code from existing apps because such apps do not use
+</I>&gt;<i> &gt; undoManager API.
+</I>&gt;<i>
+</I>&gt;<i> In what situations would you ask the server what to do for
+</I>&gt;<i> undo/reapply? I was under the impression that for collaborative
+</I>&gt;<i> editing the client still held the full list of modifications, but that
+</I>&gt;<i> you mutated that list as you got events regarding other peoples edits.
+</I>&gt;<i>
+</I>&gt;<i> This example does bring up an interesting question though. Is it ok
+</I>&gt;<i> that the undo interface is synchronous? If you have to ask the server
+</I>&gt;<i> how to do the undo/reapply, then you might be forced to use
+</I>&gt;<i> synchronous XHR which produces bad UI (since the page locks up for the
+</I>&gt;<i> duration of the request).
+</I>&gt;<i>
+</I>&gt;<i> &gt;&gt; Having slightly different signatures for the apply function on both
+</I>&gt;<i> &gt;&gt; transaction feels like a much smaller problem. Either we can rename
+</I>&gt;<i> &gt;&gt; 'apply' on automatic transactions, or we can give it a boolean
+</I>&gt;<i> &gt;&gt; argument too which is passed 'false'. It's easy enough to ignore
+</I>&gt;<i> &gt;&gt; arguments in JS, simply don't put them in your function signature.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; I'm fine with adding a boolean argument if we're splitting the interface
+</I>&gt;<i> for
+</I>&gt;<i> &gt; automatic and manual transactions because then we don't need to have
+</I>&gt;<i> boolean
+</I>&gt;<i> &gt; argument in automatic transaction's apply.
+</I>&gt;<i>
+</I>&gt;<i> Then I think we should go this route.
+</I>&gt;<i>
+</I>&gt;<i> Maybe rename the property to &quot;execute&quot; or &quot;do&quot; for automatic transactions?
+</I>&gt;<i>
+</I>&gt;<i> / Jonas
+</I>&gt;<i>
+</I>
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="075503.html">[whatwg] Fixing undo on the Web - UndoManager and Transaction
+</A></li>
+	<LI>Next message: <A HREF="075538.html">[whatwg] Fixing undo on the Web - UndoManager and Transaction
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#75528">[ date ]</a>
+              <a href="thread.html#75528">[ thread ]</a>
+              <a href="subject.html#75528">[ subject ]</a>
+              <a href="author.html#75528">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

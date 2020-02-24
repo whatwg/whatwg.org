@@ -1,0 +1,151 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Fixing two security vulnerabilities in	registerProtocolHandler
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Fixing%20two%20security%20vulnerabilities%20in%0A%09registerProtocolHandler&In-Reply-To=%3CPine.LNX.4.64.1204092335580.22654%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="077675.html">
+   <LINK REL="Next"  HREF="077678.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Fixing two security vulnerabilities in	registerProtocolHandler</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Fixing%20two%20security%20vulnerabilities%20in%0A%09registerProtocolHandler&In-Reply-To=%3CPine.LNX.4.64.1204092335580.22654%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg] Fixing two security vulnerabilities in	registerProtocolHandler">ian at hixie.ch
+       </A><BR>
+    <I>Mon Apr  9 16:48:27 PDT 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="077675.html">[whatwg] Fixing two security vulnerabilities in	registerProtocolHandler
+</A></li>
+        <LI>Next message: <A HREF="077678.html">[whatwg] Fixing two security vulnerabilities in	registerProtocolHandler
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#77677">[ date ]</a>
+              <a href="thread.html#77677">[ thread ]</a>
+              <a href="subject.html#77677">[ subject ]</a>
+              <a href="author.html#77677">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Mon, 9 Apr 2012, Jonas Sicking wrote:
+&gt;<i> 
+</I>&gt;<i> It seems clear to me that there is a use-case for sending a message to 
+</I>&gt;<i> your parent frame, but only wanting to do so when your parent frame is 
+</I>&gt;<i> from the same origin as you.
+</I>
+That use case is already behind handled by ancestorOrigins, see the recent 
+thread with Adam. WebKit is working on an experimental implementation. 
+We're also going to expose the page's own origin; currently that's specced 
+in Adam's URL spec but I expect that to be added to the HTML spec in due 
+course. (I believe Adam posted about that recently too.)
+
+
+On Mon, 9 Apr 2012, Tyler Close wrote:
+&gt;<i>
+</I>&gt;<i> The RPH handler doesn't need to know which is the legit site. The RPH 
+</I>&gt;<i> handler just needs to know that it's getting the RPH data from the site 
+</I>&gt;<i> that the user was interacting with, not some other unseen site running 
+</I>&gt;<i> in the browser.
+</I>
+Nothing we have discussed so far would provide such a guarantee.
+
+Indeed, I don't see how we _could_ provide such a guarantee. In the case 
+you describe, the &quot;legit&quot; site framing the handler could just as easily 
+spawn the handler via a scripted navigation as it could do so by waiting 
+for the user to click the mailto: link.
+
+
+&gt;<i> Putting the %s data in the window.location lets an attacker overwrite 
+</I>&gt;<i> it.
+</I>
+Only if it is in the fragment identifier. I whole-heartedly agree that it 
+shouldn't be in the fragment identifier (it doesn't have to be -- if your 
+mail client works offline using long-lasting cache headers, it's even 
+easier to make it work using appcache). Assuming we merge the logic for 
+the various register*Handler()s with Web Intents as I recently proposed, 
+we also provide a way for the information to be accessible to a scripted 
+handler, regardless of where the information is placed in the URLs.
+
+
+&gt;<i> &gt;&gt; The important thing to understand here is that a communication 
+</I>&gt;<i> &gt;&gt; channel that is vulnerable to tampering can be abused in unexpected 
+</I>&gt;<i> &gt;&gt; ways.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; You don't need to tamper with the communications channel as far as I 
+</I>&gt;<i> &gt; can tell. If you can navigate an &lt;iframe&gt; as you describe, then even 
+</I>&gt;<i> &gt; if the mailto: information is put in the path or query component it 
+</I>&gt;<i> &gt; would still be possible to do the attack you describe. Just wait for 
+</I>&gt;<i> &gt; the iframe to appear and then navigate it to the mailto: handler with 
+</I>&gt;<i> &gt; the parameters you want.
+</I>&gt;<i> 
+</I>&gt;<i> That's exactly right! The whole window.location communication path is 
+</I>&gt;<i> vulnerable to tampering, so we need some other way to communicate the 
+</I>&gt;<i> RPH %s data, such as a DOM field.
+</I>
+Honestly, I'm not really sure why you would use an iframe at all here. I 
+certainly wouldn't trust a site that framed GMail and expected me to send 
+e-mail that way. If they want me to send an e-mail, then let my mail 
+client open in the top-level browsing context (ideally the current one, 
+but failing that a new tab).
+
+
+&gt;<i> With appcache fallback, it's not necessary to use only the URL fragment 
+</I>&gt;<i> for an offline scenario to work, which makes talking about the URL 
+</I>&gt;<i> fragment in this scenario extraneous. Assuming the mailto RPH handler is 
+</I>&gt;<i> using appcache with a fallback, this whole scenario works if the %s data 
+</I>&gt;<i> is in the path or query. The problem is that the whole window.location 
+</I>&gt;<i> is a communication channel that is vulnerable to tampering within the 
+</I>&gt;<i> browser.
+</I>
+As far as I can tell, this is false. (The HTML spec is not especially good 
+about describing the reality here, unfortunately.)
+
+
+&gt;<i> The vulnerability is that window.location can be overwritten by other 
+</I>&gt;<i> code running in the browser.
+</I>
+Then we should fix _that_. This has nothing to do with register*Handler(). 
+If window.location can be overritten cross-origin, then half the Web is 
+broken -- e.g. GMail is full of iframes. If you could overwrite them with 
+custom iframes at will, then spoofing would be trivial.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="077675.html">[whatwg] Fixing two security vulnerabilities in	registerProtocolHandler
+</A></li>
+	<LI>Next message: <A HREF="077678.html">[whatwg] Fixing two security vulnerabilities in	registerProtocolHandler
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#77677">[ date ]</a>
+              <a href="thread.html#77677">[ thread ]</a>
+              <a href="subject.html#77677">[ subject ]</a>
+              <a href="author.html#77677">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

@@ -1,0 +1,108 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Load events fired during onload handlers
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Load%20events%20fired%20during%20onload%20handlers&In-Reply-To=%3C50183786.3010106%40mit.edu%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="079024.html">
+   <LINK REL="Next"  HREF="036765.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Load events fired during onload handlers</H1>
+<!--htdig_noindex-->
+    <B>Boris Zbarsky</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Load%20events%20fired%20during%20onload%20handlers&In-Reply-To=%3C50183786.3010106%40mit.edu%3E"
+       TITLE="[whatwg] Load events fired during onload handlers">bzbarsky at MIT.EDU
+       </A><BR>
+    <I>Tue Jul 31 12:52:38 PDT 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="079024.html">[whatwg] Load events fired during onload handlers
+</A></li>
+        <LI>Next message: <A HREF="036765.html">[whatwg] allowfullscreen vs sandbox=&quot;allow-fullscreen&quot;, and mimicking for pointer lock
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#79037">[ date ]</a>
+              <a href="thread.html#79037">[ thread ]</a>
+              <a href="subject.html#79037">[ subject ]</a>
+              <a href="author.html#79037">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On 7/30/12 12:02 PM, James Graham wrote:
+&gt;&gt;<i> If desired, I can try to figure out exactly why there's only one load
+</I>&gt;&gt;<i> event on the first iframe there.  Let me know.
+</I>&gt;<i>
+</I>&gt;<i> That would be really helpful.
+</I>
+OK, I looked into this.  There are two things going on:
+
+1)  Gecko fires the load event on the &lt;iframe&gt; as part of the default 
+action of the load event on the window inside that iframe.  I think the 
+spec might actually call for it to fire async instead, though I haven't 
+tested what other UAs do there.
+
+2)  The code for firing the load event looks somewhat like this:
+
+     if (!mEODForCurrentDocument) {
+         mIsExecutingOnLoadHandler = true;
+         // Fire onload here
+         mIsExecutingOnLoadHandler = false;
+         mEODForCurrentDocument = true;
+     }
+
+and the handling for document.open() sets mEODForCurrentDocument to 
+false.  Now what happens is we enter the above code for the normal load. 
+  We fire the onload handler, which does the open()/write()/close() 
+thing.  That tries to set mEODForCurrentDocument to false, but of course 
+it's already false.  When close() happens, onload does NOT fire sync 
+from the close() call, because there are still outstanding async tasks 
+on the new document that block onload.  So we unwind the stack to the 
+code above, and set mEODForCurrentDocument to true, and block any 
+further firing of onload for this document until another open() call 
+happens.
+
+Fundamentally, that looks like a bug in the handling of 
+mEODForCurrentDocument, really.
+
+So if either that bug were fixed or item #1 above were changed, I think 
+you'd get two load events here in Gecko right now.
+
+-Boris
+
+
+
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="079024.html">[whatwg] Load events fired during onload handlers
+</A></li>
+	<LI>Next message: <A HREF="036765.html">[whatwg] allowfullscreen vs sandbox=&quot;allow-fullscreen&quot;, and mimicking for pointer lock
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#79037">[ date ]</a>
+              <a href="thread.html#79037">[ thread ]</a>
+              <a href="subject.html#79037">[ subject ]</a>
+              <a href="author.html#79037">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

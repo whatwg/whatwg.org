@@ -1,0 +1,204 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] PeerConnection feedback: RTP SSRC and data over RTP
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20PeerConnection%20feedback%3A%20RTP%20SSRC%20and%20data%20over%20RTP&In-Reply-To=%3C4DBA7168.7060503%40ericsson.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="031375.html">
+   <LINK REL="Next"  HREF="031233.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] PeerConnection feedback: RTP SSRC and data over RTP</H1>
+<!--htdig_noindex-->
+    <B>Magnus Westerlund</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20PeerConnection%20feedback%3A%20RTP%20SSRC%20and%20data%20over%20RTP&In-Reply-To=%3C4DBA7168.7060503%40ericsson.com%3E"
+       TITLE="[whatwg] PeerConnection feedback: RTP SSRC and data over RTP">magnus.westerlund at ericsson.com
+       </A><BR>
+    <I>Fri Apr 29 01:06:00 PDT 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="031375.html">[whatwg] MTU Size PeerConnection send method (was RE: PeerConnection feedback)
+</A></li>
+        <LI>Next message: <A HREF="031233.html">[whatwg] PeerConnection constructor: Init string format
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#31376">[ date ]</a>
+              <a href="thread.html#31376">[ thread ]</a>
+              <a href="subject.html#31376">[ subject ]</a>
+              <a href="author.html#31376">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Ian Hickson skrev 2011-04-22 00:27:
+
+&gt;<i> On Mon, 11 Apr 2011, Justin Uberti wrote:
+</I>&gt;&gt;&gt;<i> On Tue, 29 Mar 2011, Harald Alvestrand wrote:
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> multiplexing of multiple data streams on the same channel using
+</I>&gt;&gt;&gt;&gt;<i> SSRC,
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> I don't follow. What benefit would that have?
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> If you are in a conference that has 10 participants, you don't want to
+</I>&gt;&gt;<i> have to set up a new transport for each participant. Instead, SSRC
+</I>&gt;&gt;<i> provides an excellent way to multiplex multiple media streams over a
+</I>&gt;&gt;<i> single RTP session (and network transport).
+</I>&gt;<i> 
+</I>&gt;<i> Could you elaborate on this? I have tried finding information on how SSRC
+</I>&gt;<i> works but cannot find anything useful. Can you point to the relevant parts
+</I>&gt;<i> of the RFCs that describe this mechanism maybe? I'm having trouble
+</I>&gt;<i> understanding how it works even for audio/video streams, let alone whether
+</I>&gt;<i> it would actually be appropriate for data.
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>
+Lets first disregard the question of data over RTP which I will comet to
+below.
+
+I am sorry that RTP on a general level is not more easily understood
+without some in depth reading. I have an Internet draft which is
+targeted towards people intended to write RTP payload formats it
+contains an RTP overview initially, I would read from start until end of
+section 3, one can skip 3.1.1.
+
+<A HREF="https://datatracker.ietf.org/doc/draft-ietf-payload-rtp-howto/?include_text=1">https://datatracker.ietf.org/doc/draft-ietf-payload-rtp-howto/?include_text=1</A>
+
+RFC 3550 is designed with the following layers of multiplexing:
+
+Different purposes of the media streams, like audio or video are
+supposed to be multiplexed using different RTP sessions.
+
+Within an RTP session each media source, i.e. a camera or mixed audio
+stream, or microphone is its own media stream thus have its own SSRC.
+The RTP sequence number and timestamp space are scoped by the SSRC. The
+SSRC is also used by receivers only end-points so that they have an
+identity when providing feedback.
+
+In the below examples it becomes relevant to take the topologies the RTP
+can be used into account as discussed in RFC 5117.
+
+Some examples:
+
+1. Peer to peer with multiple sources at one end.
+
+A connects directly with B. A has two video cameras which he both wants
+to have active at the same time. Because one is showing him and the
+other is showing something he wants to show to B.
+
+This would look like:
+
+A: SSRC1, SSRC2 &lt;-- Video RTP session -----&gt; B:SSRC3
+
+2. Audio Conference using transport relaying bridge.
+So in this session you have 4 participants A, B, C ,D each having one
+audio stream. There is also a transport relay (R) which will forward
+what it receives from one participant to all the others.
+
+
+A:SSRC1 ------         -------- B:SSRC2
+             |         |
+             |         |
+          +--------------+
+          |     Relay    |
+          +--------------+
+             |         |
+             |         |
+C:SSRC3 ------         -------- D:SSRC4
+
+So in this case C will receive RTP flows from A with SSRC1, B with SSRC2
+and D with SSRC4 all over the unicast UDP flow that it has with the
+relay. C will send its RTP flow and RTCP feedback on all of the received
+flows. Each of A to D decides locally if they send their audio stream or
+not.
+
+If one wants to transport optimize this one can change the relay into an
+RTP mixer that then needs to actively mix the audio content. Whats is
+more efficient and possible depends both on the number of session
+participants and the availability of mixers.
+
+3. RTP retransmission using SSRC multi-plexing
+RTP retransmission is defined in RFC 4588 and is an RTP robustification
+mechanism that allows the receiver to request retransmission and the
+sender to retransmit the most important packets and only the ones that
+will be received within some boundaries of time that make them still
+useful. It really intended for semi-reliability in sessions with not
+super strict delay requirements.
+
+In this case any RTP packet that needs to be retransmitted needs to be
+sent over a new SSRC as transmitting the same packet twice with the same
+SSRC and sequence number destroys the transport feedback in RTCP one
+uses a encapsulating RTP payload format and a new SSRC either in second
+RTP session or in this case in the same RTP session. There are good
+arguments why both models makes sense for different applications.
+
+I hope this gives some insight into how SSRCs are used and I think
+reading the chapter 2 in RFC 3550 gives some insight in the design
+choices. Having a clear mind on that RTP is multi-party protocol and
+review the topologies that might occur in RFC 5117 gives understanding
+of that angle.
+
+
+Data over RTP
+-------------
+When it comes to data over RTP I am hesitant to it. RTP has a model of
+real-time constraints are much more important that reliability. It is
+also designed around Application Level Framing, where the higher layer
+creating RTP payloads is capable of creating data fragments that to as
+high degree as possible is usable on its own. As currently discussed on
+the <A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">RTCWEB at ietf.org</A> mailing list there is clearly things beyond audio
+and video that makes sense to define RTP payload formats for. We already
+have some mouse pointer format, and real-time text chat formats for
+showing characters as you type them. There is clearly more things that
+has the properties that match RTP, for example some gaming updates where
+the previous data is completely replaced by the next such as in
+Real-time Shooters.
+
+However, data formats that wants higher reliability or has less time
+constrained requirements gets certain amount of baggage from RTP and
+still needs extensions that likely are more suitable to another
+protocol. Which protocol(s) are the question.
+
+Cheers
+
+Magnus Westerlund
+
+----------------------------------------------------------------------
+Multimedia Technologies, Ericsson Research EAB/TVM
+----------------------------------------------------------------------
+Ericsson AB                | Phone  +46 10 7148287
+F&#228;r&#246;gatan 6                | Mobile +46 73 0949079
+SE-164 80 Stockholm, Sweden| mailto: <A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">magnus.westerlund at ericsson.com</A>
+----------------------------------------------------------------------
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="031375.html">[whatwg] MTU Size PeerConnection send method (was RE: PeerConnection feedback)
+</A></li>
+	<LI>Next message: <A HREF="031233.html">[whatwg] PeerConnection constructor: Init string format
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#31376">[ date ]</a>
+              <a href="thread.html#31376">[ thread ]</a>
+              <a href="subject.html#31376">[ subject ]</a>
+              <a href="author.html#31376">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

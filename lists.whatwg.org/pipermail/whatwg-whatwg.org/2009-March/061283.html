@@ -1,0 +1,265 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Link.onload; defer on style, depends
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Link.onload%3B%20defer%20on%20style%2C%20depends&In-Reply-To=%3CPine.LNX.4.62.0903250037070.25082%40hixie.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="061119.html">
+   <LINK REL="Next"  HREF="061286.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Link.onload; defer on style, depends</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Link.onload%3B%20defer%20on%20style%2C%20depends&In-Reply-To=%3CPine.LNX.4.62.0903250037070.25082%40hixie.dreamhostps.com%3E"
+       TITLE="[whatwg] Link.onload; defer on style, depends">ian at hixie.ch
+       </A><BR>
+    <I>Tue Mar 24 19:24:46 PDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="061119.html">[whatwg] Link.onload
+</A></li>
+        <LI>Next message: <A HREF="061286.html">[whatwg] Link.onload; defer on style, depends
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#61283">[ date ]</a>
+              <a href="thread.html#61283">[ thread ]</a>
+              <a href="subject.html#61283">[ subject ]</a>
+              <a href="author.html#61283">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Fri, 13 Feb 2009, Boris Zbarsky wrote:
+&gt;<i> Ian Hickson wrote:
+</I>&gt;<i> &gt; By the way, the spec doesn't yet require the blocking behavior. I 
+</I>&gt;<i> &gt; couldn't work out how to do it. Could you elaborate on when exactly in 
+</I>&gt;<i> &gt; the process the style sheet is waited on? Does it happen for all 
+</I>&gt;<i> &gt; scripts? For example, if a script inserts a style sheet and then a 
+</I>&gt;<i> &gt; script, does that script wait for the style sheet to load?
+</I>&gt;<i> 
+</I>&gt;<i> The current Gecko behavior is that any stylesheet load started by 
+</I>&gt;<i> parsing a &lt;style&gt; or &lt;link&gt; tag will increment a counter on the document 
+</I>&gt;<i> (well, on a per-document script loader object, to be more precise). 
+</I>&gt;<i> Completion of the load will decrement the counter.  While the counter is 
+</I>&gt;<i> nonzero, &lt;script&gt; execution is blocked.  When it goes back to 0, the 
+</I>&gt;<i> first pending script (if any) is run. If this increments the counter 
+</I>&gt;<i> again, no more scripts are run until the count goes to 0 again.
+</I>&gt;<i> 
+</I>&gt;<i> So it doesn't matter how the script is created/inserted, but the only 
+</I>&gt;<i> stylesheets that block scripts are ones that the parser knows about.  
+</I>&gt;<i> So only the ones present in the original source or added via 
+</I>&gt;<i> document.write.  If you createElement a &lt;link&gt; and insert it into the 
+</I>&gt;<i> DOM, it won't block script execution.  Also, &lt;link&gt; elements pointing to 
+</I>&gt;<i> alternate style sheets don't block script execution.
+</I>
+So testing this:
+
+   <A HREF="http://software.hixie.ch/utilities/js/live-dom-viewer/saved/44">http://software.hixie.ch/utilities/js/live-dom-viewer/saved/44</A>
+   <A HREF="http://software.hixie.ch/utilities/js/live-dom-viewer/saved/45">http://software.hixie.ch/utilities/js/live-dom-viewer/saved/45</A>
+
+(44 uses currentStyle, for IE/Opera, 45 uses getComputedStyle, for Opera/ 
+Firefox/Safari)
+
+It seems Gecko is the only engine that blocks here.
+
+It would be interesting to hear from other browser vendors about their 
+opinions on this issue.
+
+
+On Sun, 15 Feb 2009, Boris Zbarsky wrote:
+&gt;<i> &gt; 
+</I>&gt;<i> &gt; So in this:
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt;    &lt;!DOCTYPE html&gt;
+</I>&gt;<i> &gt;    ...
+</I>&gt;<i> &gt;    &lt;script&gt;
+</I>&gt;<i> &gt;     document.write('&lt;link rel=stylesheet href=style&gt;');
+</I>&gt;<i> &gt;     document.write('&lt;script&gt;a();&lt;\/script&gt;');
+</I>&gt;<i> &gt;     b();
+</I>&gt;<i> &gt;    &lt;/script&gt;
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; ...is the script paused after the second document.write() call, before a()
+</I>&gt;<i> &gt; and b() execute?
+</I>&gt;<i> 
+</I>&gt;<i> No.  What's paused is execution of new scripts, not of existing ones. So in
+</I>&gt;<i> this case, b() executes immediately, while a() executes after the stylesheet
+</I>&gt;<i> loads.
+</I>
+Woah, so this can affect the order of script execution?
+
+That seems very dangerous. What if b() depends on a()? I would be 
+surprised if this didn't cause compatibility problems.
+
+
+On Sat, 14 Feb 2009, Garrett Smith wrote:
+&gt;<i> Boris:
+</I>&gt;<i> &gt; Garrett:
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; What would make it easier? I'd really like to know how to design my 
+</I>&gt;<i> &gt; &gt; pages so that they are faster and more responsive.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Well, one option is to stop worrying about micromanaging the load 
+</I>&gt;<i> &gt; order and assume that speculative parsing will solve your problems.... 
+</I>&gt;<i> &gt; will it?
+</I>&gt;<i> 
+</I>&gt;<i> Possibly. If the author could declare what a script depends on and let 
+</I>&gt;<i> the implementation determine what to load and when, would that be too 
+</I>&gt;<i> complicated?
+</I>
+It seems like this is in general an issue that would be best left up to 
+the browsers to optimise for, instead of having authors be able to 
+micromange this (as Boris put it).
+
+In general, scripts shouldn't depend on style sheets anyway; if you are 
+writing code where you want things to be fast, just avoid breaking that 
+rule of thumb and then it will never matter.
+
+
+On Sun, 15 Feb 2009, Garrett Smith wrote:
+&gt;<i> Ian wrote:
+</I>&gt;<i> &gt; On Mon, 9 Feb 2009, Garrett Smith wrote:
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; There are two/three issues.
+</I>&gt;<i> &gt; &gt; 1) want to load stylesheets without having scripts block
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Put the scripts first.
+</I>&gt;<i> 
+</I>&gt;<i> Then the scripts block. I explained this and showed this in examples.
+</I>&gt;<i> 
+</I>&gt;<i> If the script is deferred, it will wait for the stylesheet.
+</I>
+For the case where you just want scripts to load whenever they are ready 
+to load, you can use async=&quot;&quot;.
+
+
+&gt;<i> &gt;&gt; 2) want to load stylesheets later, (infoPanel example)
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Put the styles later.
+</I>&gt;<i>
+</I>&gt;<i> The script blocks the stylesheet.
+</I>
+The alternative is to just let the browser manage this and load the style 
+sheets whenever they want.
+
+ 
+&gt;<i> &gt;&gt; 3) (2), but want to make sure the stylesheet is loaded before the 
+</I>&gt;<i> &gt;&gt; script runs.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Put the styles first.
+</I>&gt;<i>
+</I>&gt;<i> The stylesheet can be placed right before the script which depends on 
+</I>&gt;<i> it, right before closing body tag:
+</I>&gt;<i> 
+</I>&gt;<i> <A HREF="http://dhtmlkitchen.com/jstest/block/link-script-bottom.html">http://dhtmlkitchen.com/jstest/block/link-script-bottom.html</A>
+</I>&gt;<i> 
+</I>&gt;<i> and the result will &quot;work&quot; in Firefox. However, that does not works 
+</I>&gt;<i> consistently in a wide enough range of current browsers. Particularly, 
+</I>&gt;<i> Webkit and Opera will alert('loaded') before getting the stylesheet.
+</I>
+Make the script not depend on the style sheet then.
+
+
+In general, I don't think that this feature request is something that 
+really is necessary on the Web. The best way forward is really to just 
+design your scripts such that they don't depend on the style sheets (you 
+have no guarantee that the user will get the CSS anyway), and then to just 
+rely on the browser vendors to make the right decisions about when to 
+fetch each file.
+
+
+
+On Sat, 14 Mar 2009, Greg Houston wrote:
+&gt;<i>
+</I>&gt;<i> This is a request for the link element to be given an onload attribute.
+</I>&gt;<i> 
+</I>&gt;<i> Often when lazy loading a plugin into an web app it is necessary for the 
+</I>&gt;<i> plugin's stylesheets to be applied before the plugin's JavaScript is 
+</I>&gt;<i> downloaded. Without the link element having an onload event there is not 
+</I>&gt;<i> really a straightforward way of doing this.
+</I>
+In general I would recommend against having scripts that depend on 
+particular styles.
+
+
+On Sat, 14 Mar 2009, Greg Houston wrote:
+&gt;<i> 
+</I>&gt;<i> On a side note, I can actually attach a functioning onload event to a
+</I>&gt;<i> link element in Internet Explorer. Firefox, Safari, and Chrome ignore
+</I>&gt;<i> my attempt, and Opera will fire the onload event but not update the
+</I>&gt;<i> style of the page.
+</I>
+Since there are already implementations of this I've gone ahead and 
+defined it.
+
+
+On Sun, 15 Mar 2009, Jonas Sicking wrote:
+&gt;<i> 
+</I>&gt;<i> A web application, such as GMail, wanting to show a dialog box to the 
+</I>&gt;<i> user asking the user to enter some information. In order to do this it 
+</I>&gt;<i> needs to first load a stylesheet to properly style the dialog box. The 
+</I>&gt;<i> application would do this by inserting a &lt;link rel=&quot;stylesheet&quot; 
+</I>&gt;<i> href=&quot;dialog.css&quot;&gt; into the head of the document. It would then want to 
+</I>&gt;<i> know when the stylesheet has loaded so that it can display the dialog 
+</I>&gt;<i> box.
+</I>
+I think long-term our best course of action for this use case is actually 
+to have an explicit element that can be used to display dialog boxes, for 
+what it's worth.
+
+
+On Sun, 15 Mar 2009, Boris Zbarsky wrote:
+&gt;<i> Sean Hogan wrote:
+</I>&gt;<i> &gt; &gt; This is a request for the link element to be given an onload 
+</I>&gt;<i> &gt; &gt; attribute.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; And presumably a readyState property.
+</I>&gt;<i> 
+</I>&gt;<i> At least in Gecko, you can already detect whether the sheet is done 
+</I>&gt;<i> loading: if you try to get its cssRules and that throws 
+</I>&gt;<i> INVALID_ACCESS_ERR, then it's still loading.  (If it throws 
+</I>&gt;<i> DOM_SECURITY_ERR then you're not allowed to read the style data; that's 
+</I>&gt;<i> why you have to check for the exact type of exception thrown.  Though 
+</I>&gt;<i> really, if you're loading style sheets cross-site you're in for a world 
+</I>&gt;<i> of hurt unless you control both sites.)
+</I>
+I haven't added readyState at this time. I am concerned about feature 
+creep here.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="061119.html">[whatwg] Link.onload
+</A></li>
+	<LI>Next message: <A HREF="061286.html">[whatwg] Link.onload; defer on style, depends
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#61283">[ date ]</a>
+              <a href="thread.html#61283">[ thread ]</a>
+              <a href="subject.html#61283">[ subject ]</a>
+              <a href="author.html#61283">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

@@ -1,0 +1,860 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Caching offline Web applications
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Caching%20offline%20Web%20applications&In-Reply-To=%3CPine.LNX.4.62.0810152123480.1237%40hixie.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="016720.html">
+   <LINK REL="Next"  HREF="016757.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Caching offline Web applications</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Caching%20offline%20Web%20applications&In-Reply-To=%3CPine.LNX.4.62.0810152123480.1237%40hixie.dreamhostps.com%3E"
+       TITLE="[whatwg] Caching offline Web applications">ian at hixie.ch
+       </A><BR>
+    <I>Fri Oct 17 18:36:31 PDT 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="016720.html">[whatwg] Can AUDIO/VIDEO element have a &quot;balance&quot; attribute
+</A></li>
+        <LI>Next message: <A HREF="016757.html">[whatwg] Caching offline Web applications
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16723">[ date ]</a>
+              <a href="thread.html#16723">[ thread ]</a>
+              <a href="subject.html#16723">[ subject ]</a>
+              <a href="author.html#16723">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>
+This e-mail is an attempt to respond to all the outstanding feedback on 
+the offline cache features in HTML5.
+
+Summary of changes:
+
+ * Made the online whitelist be prefix-based instead of exact match.
+
+ * Removed opportunistic caching, leaving only the fallback behavior part.
+
+ * Made fallback URLs be prefix-based instead of only path-prefix based 
+   (we no longer ignore the query component).
+
+ * Made application caches scoped to their browsing context, and allowed 
+   iframes to start new scopes. By default the contents of an iframe are 
+   part of the appcache of the parent, but if you declare a manifest, you 
+   get your own cache.
+
+ * Made fallback pages have to be same-origin (security fix).
+
+ * Made the whole model treat redirects as errors to be more resilient in 
+   the face of captive portals when offline (it's unclear what else would 
+   actually be useful and safe behavior anyway).
+
+ * Fixed a bunch of race conditions by redefining how application caches 
+   are created in the first place.
+
+ * Made 404 and 410 responses for application caches blow away the 
+   application cache.
+
+ * Made checking and downloading events fire on ApplicationCache objects 
+   that join an update process midway.
+
+ * Made the update algorithm check the manifest at the start and at the 
+   end and fail if the manifest changed in any way.
+
+ * Made errors on master and dynamic entries in the cache get handled in a 
+   non-fatal manner (and made 404 and 410 remove the entry).
+
+ * Changed the API from .length and .item() to .items and .hasItem().
+
+
+On Wed, 28 May 2008, Anders Carlsson wrote:
+&gt;<i> 
+</I>&gt;<i> one problem with the online whitelist in cache manifest files is that it 
+</I>&gt;<i> matches on whole URLs only.
+</I>
+Fixed.
+
+I also changed the order in which the lists are examined, so that this:
+
+   <A HREF="HTTP://EXAMPLE.COM:80/c">HTTP://EXAMPLE.COM:80/c</A>
+
+...in the online whitelist doesn't mean that this:
+
+   <A HREF="http://example.com/contact.html">http://example.com/contact.html</A>
+
+...wouldn't ever get served from the cache. That is, if the resource is in 
+the cache, it's used from the cache, and the online whitelist isn't 
+examined. Also, fallback namespaces now override the online whitelist 
+namespaces.
+
+
+On Fri, 13 Jun 2008, Honza Bambas wrote:
+&gt;<i> 
+</I>&gt;<i> I was talking with my colleague about it and we both agree it would be 
+</I>&gt;<i> useful (and more easy to implement) for ANY resource being fetched 
+</I>&gt;<i> inside of browsing context associated with an application cache to 
+</I>&gt;<i> opportunistically cache it and not just do it for results of navigation, 
+</I>&gt;<i> i.e. top-level document, iframe source and frame source. A set o 
+</I>&gt;<i> pictures/icons/css styles could be easily cached this way w/o explicitly 
+</I>&gt;<i> listing them in the manifest.
+</I>&gt;<i> 
+</I>&gt;<i> At this point it would be good to say what really is 
+</I>&gt;<i> intention/motivation of opportunistic caching itself. Maybe I am missing 
+</I>&gt;<i> the purpose and potentially open a security hole or a kind of attack 
+</I>&gt;<i> this way.
+</I>
+The main goal of opportunistic caching was to allow Flickr or Bugzilla to 
+continue using URLs on a per-entry basis, so that while offline, if you 
+try to go to a page that hasn't yet been seen before, the application can 
+catch the navigation attempt and display fallback content (such as an 
+error message) instead of the UA saying &quot;file not found&quot;.
+
+In particular, there is no feature intended to automatically capture 
+resources that aren't in the manifest -- experience has shown that such 
+features lead to difficult-to-debug mistakes (resources that aren't used 
+every time end up missing in the cache only when they haven't been 
+tested). I've changed the spec to make opportunistic caching never cache 
+without a manifest.
+
+
+On Wed, 16 Jul 2008, Honza Bambas wrote:
+&gt;<i>
+</I>&gt;<i> When application cache update is invoked by document load that is 
+</I>&gt;<i> completely fetched from offline application cache while the browser is 
+</I>&gt;<i> in offline mode what exactly should happen?
+</I>&gt;<i> 
+</I>&gt;<i> Let's say we always want to have one of the onxxx events on 
+</I>&gt;<i> applicationCache object get called. In case the browser is in offline 
+</I>&gt;<i> mode (including user switch to offline mode manually) the only 
+</I>&gt;<i> reasonable event seems to be onerror call because the server could not 
+</I>&gt;<i> actually be reached. The spec says nothing in particular about behavior 
+</I>&gt;<i> of the update process while browser is offline.
+</I>
+I'm not really sure I follow. There are all kinds of events fired during 
+the cache update process. While offline, you get &quot;checking&quot; followed by 
+&quot;error&quot;. What's the problem?
+
+
+On Tue, 5 Aug 2008, Aaron Boodman wrote:
+&gt;<i>
+</I>&gt;<i> Some quick notes/questions...
+</I>&gt;<i> 
+</I>&gt;<i> - I think the manifest should be some structured, extensible format such 
+</I>&gt;<i> as XML or JSON. The current text-based format is going to quickly turn 
+</I>&gt;<i> into a mess as we add additional fields and rows.
+</I>
+The problem with XML is that it _dramatically_ increases the complexity of 
+the code that has to deal with the manifest. You have to check namespaces, 
+tag names, node types, etc, just to handle the many bazillion kinds of 
+errors that XML enables (and I'm only talking about well-formed XML). JSON 
+isn't quite as bad, but it still introduces a great level of complexity 
+and is missing a number of features (such as comments) that we might want.
+
+What we're trying to expose here is really just a list of URLs, for which 
+a simple text format with one URL per line seems like the least trouble.
+
+
+&gt;<i> - I like the fallback entry feature, but I don't understand why it is 
+</I>&gt;<i> coupled to opportunistic caching. On the Gears team, we frequently get 
+</I>&gt;<i> requests to add a feature where a certain pattern of URLs will try to go 
+</I>&gt;<i> the network first, and if that fails, will fall through to a certain 
+</I>&gt;<i> cached fallback URL. But nobody has asked for a way to lazily cache URLs 
+</I>&gt;<i> matching a certain pattern. Even if they had, I don't understand what 
+</I>&gt;<i> that has to do with the fallback behavior. Can we split these apart, and 
+</I>&gt;<i> maybe just remove the opportunistic caching thing entirely?
+</I>
+Done.
+
+
+&gt;<i> - It seems odd that you request a resource and the server returns 400
+</I>&gt;<i> (bad request) we fallback. Maybe it should just be up to the server to
+</I>&gt;<i> return an error message that directs the user to the fallback URL? I'm
+</I>&gt;<i> not sure about this one, looking for feedback.
+</I>
+The idea is that if the server isn't responding 200 OK, then it is likely 
+that you are not actually on the network (e.g. you are being caught by a 
+captive portal).
+
+
+&gt;<i> - Maybe this is obvious, but it's not specified what happens when the
+</I>&gt;<i> server returns a redirect for a resource that is being cached. Do we
+</I>&gt;<i> cache the redirect chain and replay it?
+</I>
+I've changed the spec to treat a redirect as an error. I couldn't see a 
+good way to handle it otherwise (especially consider cross-domain 
+redirects).
+
+
+&gt;<i> - In practice, I expect the number of URLs in the online whitelist is 
+</I>&gt;<i> going to be unbounded because of querystrings. I think if this is going 
+</I>&gt;<i> to exist, it has to be a pattern.
+</I>
+Done.
+
+
+&gt;<i> - I know you added the behavior of failing loads when a URL is not in 
+</I>&gt;<i> the manifest based on something I said, but now that I read it, it feels 
+</I>&gt;<i> a bit draconian. I wish that developers could somehow easily control the 
+</I>&gt;<i> space of URLs they expect to be online as well as the ones they expect 
+</I>&gt;<i> to be offline. But maybe we should just remove the whole thing about 
+</I>&gt;<i> failing loads of resources not in the manifest and online whitelist for 
+</I>&gt;<i> v1.
+</I>
+It seems like failing is what one wants from a debugging perspective.
+
+
+
+On Wed, 6 Aug 2008, Michael Nordman wrote:
+&gt;<i>
+</I>&gt;<i> Extensibility would accommodate the addition of experimental sections 
+</I>&gt;<i> and entry attributes while retaining compatibility with what has been 
+</I>&gt;<i> formally adopted into the spec.
+</I>
+The spec does now support extending the format (unsupported sections are 
+ignored, extra tokens after URLs are ignored).
+
+
+
+&gt;<i> Seems like there are a few different use cases to accommodate. Spitting 
+</I>&gt;<i> this up would add clarity and allow us to make indpendent decisions 
+</I>&gt;<i> about which should be in or out of the spec.
+</I>&gt;<i> 
+</I>&gt;<i> 1) Being lazy about listing images and css located in well known 
+</I>&gt;<i> directories, automatically caching as the app runs.
+</I>
+This is now not supported at all.
+
+
+&gt;<i> 2) Hijacking parameterized requests and returning a local resource 
+</I>&gt;<i> without incurring any network traffic.
+</I>
+This isn't supported; the network is always consulted. But if the network 
+request fails, then a fallback resource is used, though it cannot be 
+generated on the fly.
+
+
+&gt;<i> 3) Falling back on a local resource iff server/network error.
+</I>
+This is supported.
+
+
+&gt;<i> What if... the server is running a newer version of the app than is 
+</I>&gt;<i> currently in use... depending on type of resource it is, i think there 
+</I>&gt;<i> could be some unexpected consequences, especially when you consider 
+</I>&gt;<i> local SQL data with an expected schema.
+</I>
+The database APIs support versioning natively, which might help here, but 
+you are right that there's no good support for this.
+
+
+&gt;<i> Not sure the &quot;fail if not represented in manifest&quot; is a good idea 
+</I>&gt;<i> either... are there unintended consequences lurking here... what does 
+</I>&gt;<i> this do in the face of mashups?
+</I>
+I'm not sure I understand; can you elaborate?
+
+
+On Wed, 6 Aug 2008, Aaron Boodman wrote:
+&gt;<i> 
+</I>&gt;<i> I think that the unnamed columns make it difficult to use, because you 
+</I>&gt;<i> have to remember which column does what. I've used a similar text-based 
+</I>&gt;<i> format, the Firefox chrome.manifest format, and I found it difficult for 
+</I>&gt;<i> the same reason.
+</I>
+The only unlabeled columns are for fallback namespace -&gt; fallback resource 
+mapping. We could make it explicit by requiring punctuation, so instead 
+of:
+
+   FALLBACK:
+   <A HREF="http://example.com/photos/">http://example.com/photos/</A> <A HREF="http://example.com/photos/fallback.html">http://example.com/photos/fallback.html</A>
+
+...we could have:
+
+   FALLBACK:
+   <A HREF="http://example.com/photos/">http://example.com/photos/</A> -&gt; <A HREF="http://example.com/photos/fallback.html">http://example.com/photos/fallback.html</A>
+
+Would that help?
+
+
+&gt;<i> If we ever needed to have columns that were optional for a given 
+</I>&gt;<i> section, it would become difficult to see if they were specified because 
+</I>&gt;<i> of the lack of names.
+</I>
+It's always possible to come up with things that a syntax doesn't handle 
+well. For example, XML doesn't handle graphs well (where some nodes can 
+have multiple children and multiple parents). JSON doesn't handle booleans 
+and ratios well. I don't know that we can do much about that.
+
+
+&gt;<i> If rows ever get long with more than a few columns, there is no ability 
+</I>&gt;<i> to wrap them with the given format. This would come for free with many 
+</I>&gt;<i> other formats.
+</I>
+Sure. Also free with XML is support for other character encodings. But 
+these features come at a high cost.
+
+
+&gt;<i> If we ever needed to add any kind of hierarchy, we would have to 
+</I>&gt;<i> reinvent something like XML, JSON, or YAML.
+</I>
+If we used XML and ever needed to add overlapping ranges, we would have 
+similar problems. There are limitations to any format.
+
+
+&gt;<i> To me, the idea of inventing a custom one-off format for this is ugly. I 
+</I>&gt;<i> realize this is somewhat a matter of taste (unix uses lots of line-based 
+</I>&gt;<i> format and hey, it works fine for them), so I will drop this and just 
+</I>&gt;<i> leave it as a vote for XML.
+</I>
+Fair enough. :-)
+
+
+On Mon, 25 Aug 2008, Michael Nordman wrote:
+&gt;<i>
+</I>&gt;<i> 5.7.2 Application caches
+</I>&gt;<i> I found the terminology used to describe the contents of the cache sometimes
+</I>&gt;<i> contradictory and confusing, and it doesn't correspond directly with the
+</I>&gt;<i> terminology used in the manifest file syntax. FWIW, some word smithing and
+</I>&gt;<i> reconciling the differences could add clarity to the spec.
+</I>&gt;<i> 
+</I>&gt;<i> * cached resource** categories*
+</I>&gt;<i> 
+</I>&gt;<i> * implicit category
+</I>&gt;<i> This categorization applies to html docs which explicitly contain a
+</I>&gt;<i> reference to the manifest file via the 'manifest' attribute of their &lt;html&gt;
+</I>&gt;<i> tag. I understand they are not necessarily explicitly listed in the manifest
+</I>&gt;<i> file, but they may also be explicitly listed. The end result is that a
+</I>&gt;<i> resource can be categorized as both 'implicit' and 'explicit'. This is
+</I>&gt;<i> confusing. I'd vote to have a different name for clarity sake... some
+</I>&gt;<i> ideas... 'toplevel', 'manifest referencing', 'native' (an awkward play on
+</I>&gt;<i> foreign).
+</I>
+Hmm, good point. Renamed them &quot;master entries&quot;.
+
+
+&gt;<i> * manifest category
+</I>&gt;<i> Perfect.
+</I>&gt;<i> 
+</I>&gt;<i> * explicit category
+</I>&gt;<i> Ok provided 'implicit' is renamed.
+</I>&gt;<i> 
+</I>&gt;<i> * fallback category
+</I>&gt;<i> The term 'fallback' refers to the prescribed use of these resources for the
+</I>&gt;<i> opportunistic-caching namespace in particular. As part of pulling apart
+</I>&gt;<i> namespaces vs how to handle hits within a namespace, I'd vote to change the
+</I>&gt;<i> name for this category... some ideas... 'namespace-handler'.  I'll say more
+</I>&gt;<i> more to say about different types of 'namespaces' below.
+</I>
+I'm not really sure what's wrong with &quot;fallback&quot;; do the recent changes 
+make this better?
+
+
+&gt;<i> * opportunistcally cached category
+</I>&gt;<i> A mouthful, but ok. Another possibility is 'auto-cached' which would work
+</I>&gt;<i> well with the 'manually-cached' terminology below.
+</I>
+This is gone now.
+
+
+&gt;<i> * dynamic category
+</I>&gt;<i> I'd like to reserve the term 'dynamic' for a different use of that term
+</I>&gt;<i> (more on that in a moment).  Some name possibilites for this category...
+</I>&gt;<i> 'manually-cached' or 'script-added' or 'programatically-added'.
+</I>
+I've left this as dynamic for now, but I'll consider changing this as the 
+situation develops.
+
+
+&gt;<i> * flavors of namespaces*
+</I>&gt;<i> 
+</I>&gt;<i>  * online whitelist
+</I>&gt;<i> As mentioned in previous messages, this would need to be some form of
+</I>&gt;<i> namespacing or filtering to be useful. A better term for this might be
+</I>&gt;<i> 'bypass' since with respect to the appcache, hits here bypass the cache. Its
+</I>&gt;<i> not clear if path prefix matching is the best option for filtering out
+</I>&gt;<i> request that should bypass the cache. In working with app developers using
+</I>&gt;<i> Gears, the idea of specifying a particular query argument to filter on in
+</I>&gt;<i> addition to a path prefix has come up. <A HREF="http://server/pathprefix">http://server/pathprefix</A>   +
+</I>&gt;<i> &amp;bypassAppCache
+</I>
+I've changed it to just a prefix. Doing things at the query level seems a 
+bit odd. The query parameters should be for the server, not the UA.
+
+I haven't changed the name. Bypass seems ok, but then so does &quot;online&quot;. 
+The only place this gets exposed today, in the manifest, the name is 
+&quot;NETWORK:&quot;, which seems pretty clear (next to &quot;CACHE:&quot; and &quot;FALLBACK:&quot;).
+
+
+&gt;<i> * opportunistic caching namespaces
+</I>&gt;<i> A mouthful but ok. Whatever terminology used for the category of resulting
+</I>&gt;<i> entries should be used here... perhaps 'auto-caching namespace'.
+</I>
+This is gone now.
+
+
+&gt;<i>  * fallback namespace [factored out of opportunistic-caching]
+</I>&gt;<i> This form of namespace is addressed by the spec at present, but is
+</I>&gt;<i> co-mingled with the auto-caching feature. This is a proposal to detangle
+</I>&gt;<i> them from one another. The basic idea is to load the resource as usual, and
+</I>&gt;<i> only upon failure fallback to a cached 'namespace-handler'... no
+</I>&gt;<i> auto-caching involved.
+</I>
+This is renamed &quot;fallback namespace&quot; now.
+
+
+&gt;<i> * intercept namespaces [new]
+</I>&gt;<i> This form of namespace is not in the spec at present. This is a proposal to
+</I>&gt;<i> add it. It is a heavily used feature of the Gears LocalServer. The basic
+</I>&gt;<i> idea is to intercept requests into this namespace and satisfy them with a
+</I>&gt;<i> cached 'namespace-handler'  without consulting the server.
+</I>&gt;<i> 
+</I>&gt;<i> *Scriptlets - or dynamic namespace-handlers [new idea]*
+</I>&gt;<i> 
+</I>&gt;<i> Something we wrestled with in the process of putting together the Gears
+</I>&gt;<i> LocalServer was the distinction between intercepting requests for urls and
+</I>&gt;<i> identifying the appropiate cached resource for that request. We ended up
+</I>&gt;<i> with a declarative manifest file, similar to but different from what is
+</I>&gt;<i> contained in this spec. This wasn't an altogether satisfying answer. The
+</I>&gt;<i> expressiveness of the language to match/filter requested urls is limited in
+</I>&gt;<i> Gears and this spec shares that same characterization.
+</I>&gt;<i> 
+</I>&gt;<i> Something else we've wrestled with in Gears was having to do awkward
+</I>&gt;<i> redesigns in corners of a web application in order to 'take it offline',
+</I>&gt;<i> single-sign-on for example. In general, anywhere an application relies on
+</I>&gt;<i> HTTP features more than HTML to influence navigation or conditional resource
+</I>&gt;<i> loading, it's difficult to address with a static cache.
+</I>&gt;<i> 
+</I>&gt;<i> So I'd like to propose extending this spec to incorporate 'dynamically
+</I>&gt;<i> generated responses'. I think this capability fits into this corner of the
+</I>&gt;<i> HTML5 spec because this is most directly useful in the &quot;Offline Web
+</I>&gt;<i> Application&quot; scenario. The basic idea is to execute application code
+</I>&gt;<i> (script) to produce responses to intercepted resource loads. The application
+</I>&gt;<i> code is executed in the background and can formulate a response
+</I>&gt;<i> asynchronously.
+</I>&gt;<i> 
+</I>&gt;<i> Some handwaving where this could hang off of this spec
+</I>&gt;<i> * Modify namespace-handlers entries to have an attitional attribute to
+</I>&gt;<i> indicate that they are to be executed rather than returned
+</I>&gt;<i> 
+</I>&gt;<i> And some handwaving at what a scriptlet can do...
+</I>&gt;<i> * Can read the request headers and POST body
+</I>&gt;<i> * Can set response status code and headers (redirects)
+</I>&gt;<i> * Can generate a textual response body
+</I>&gt;<i> * Can designate a non-executable cached resource to be returned in response
+</I>&gt;<i> * Can decide to 'bypass' handling of a request and defer to the usual
+</I>&gt;<i> resource loading
+</I>&gt;<i> * Can decide to perform the usual resource loading, but to have the response
+</I>&gt;<i> added to the appCache
+</I>&gt;<i> * Can access HTML5Database APIs
+</I>&gt;<i> * Can utlize XmlHttpRequest to communicate with a server
+</I>&gt;<i> 
+</I>&gt;<i> This would obviously be significant addition to the spec, but i do think
+</I>&gt;<i> this is worth consideration in the context of 'offline applications'. Based
+</I>&gt;<i> on observations of app developers wrestling with Gears, there have been
+</I>&gt;<i> several pain points. The HTML5ApplicationCache addresses one of them
+</I>&gt;<i> with per-application caches. This addition would address the second of
+</I>&gt;<i> them.  (Another pain point has been application deployment).
+</I>
+On Fri, 3 Oct 2008, Philip Tucker wrote:
+&gt;<i>
+</I>&gt;<i> We've spent the last year or so modifying an existing online application 
+</I>&gt;<i> to make it work offline. A secondary motivation was application speed. 
+</I>&gt;<i> We used Google Gears to enable this. Although we had some success, we 
+</I>&gt;<i> also had challenges. Here are some of the big ones:
+</I>&gt;<i> 
+</I>&gt;<i>    1. *Significant architecture change*. Our web pages are built on the
+</I>&gt;<i>    server without much concern for separation of application logic and user
+</I>&gt;<i>    data. User data is usually just &quot;baked in&quot; to the page. In captured/offline
+</I>&gt;<i>    mode, we have to serve a generic page that can fill in user data via
+</I>&gt;<i>    javascript. This required changing the online application in significant
+</I>&gt;<i>    ways just to support offline functionality. And, it required forking the
+</I>&gt;<i>    code in many places, leading to maintenance difficulties.
+</I>&gt;<i>
+</I>&gt;<i>    2. *All-or-nothing captured mode*; i.e., once a URL is captured, it is
+</I>&gt;<i>    always served from offline cache. This means if we encounter a bug in the
+</I>&gt;<i>    offline app, it's not easy to fall back to the online app. We could serve
+</I>&gt;<i>    the offline app off a different URL space, but that makes for harsh
+</I>&gt;<i>    transitions between online and offline mode; e.g., on a flaky connection.
+</I>&gt;<i>
+</I>&gt;<i>    3. *Single sign-on was hard*.
+</I>&gt;<i> 
+</I>&gt;<i> How I think Michael's proposal addresses these:
+</I>&gt;<i> 
+</I>&gt;<i>    1. Some applications have cleaner separation of app and user data than
+</I>&gt;<i>    others, but one consistent point of clean separation common to all web apps
+</I>&gt;<i>    is the HTTP layer, between client and server. Michael's proposal would allow
+</I>&gt;<i>    applications a hook at precisely this point. Most client javascript could
+</I>&gt;<i>    remain unchanged. XHR servlets would be replaced with client side
+</I>&gt;<i>    scriptlets. Server-side templates could be fairly easily migrated to
+</I>&gt;<i>    client-side counterparts that populate the template from a local data store.
+</I>&gt;<i>
+</I>&gt;<i>    2. These scriptlets could also offer a failure mode that would fall
+</I>&gt;<i>    through to the online app.
+</I>&gt;<i>
+</I>&gt;<i>    3. We had to jump through all kinds of hoops to get single sign-on to
+</I>&gt;<i>    work. We have to have 2 separate manifests containing all our app URLs, one
+</I>&gt;<i>    protected by a cookie and one not. This proposal wouldn't completely ease
+</I>&gt;<i>    this problem, but if we're executing a script before the page is loaded we
+</I>&gt;<i>    have more options for redirecting to another page when not authenticated,
+</I>&gt;<i>    more similar to the way most online authentication schemes work.
+</I>&gt;<i> 
+</I>&gt;<i> Also, there are some cases where Javascript simply is not powerful enough.
+</I>&gt;<i> An example we hit recently is dynamic data in the header (e.g., meta tags,
+</I>&gt;<i> styles). We have many cases where these change dynamically. There are ways
+</I>&gt;<i> to get around this (put the dynamic page in an iframe, construct HTML in
+</I>&gt;<i> javascript, and writer it into the iframe), but I think it's clear that this
+</I>&gt;<i> is not a great solution. This is processing that should happen before the
+</I>&gt;<i> page is handed to the browser.
+</I>
+I haven't added this in this version.
+
+I think this would be an interesting idea. I don't think there has been a 
+critical mass of vocal support for this, and it's not clear to me that it 
+really resolves enough problems to be worth the significant added 
+complexity. I'm also not sure it's a good idea for us to be co-opting the 
+network layer to the point of allowing authors to replace it with a &quot;fake&quot; 
+server client-side.
+
+I don't really see why login requires network-layer hacks. It seems like 
+this is an issue only for migration of existing large-scale apps, of which 
+there are relatively few compared to the number of apps we can expect to 
+be written on top of this API from scratch on the long term. It doesn't 
+make sense to add huge complexity just to support migration of a small set 
+of applications for a transition period.
+
+In particular, it seems like a better solution for login is to not protect 
+the _app_ behind a cookie, but only protect the _data_, and to then fetch 
+the data for the user and store just that client-side. This implies not 
+baking the data into the app, which I understand has performance 
+implications, but I think we should try to solve those problems separately 
+(e.g. supporting multipart documents, or allowing two resources to be 
+served mixed together at the HTTP layer, so that the data is available as 
+soon as the app is ready for it).
+
+
+On Mon, 25 Aug 2008, Michael Nordman wrote:
+&gt;<i>
+</I>&gt;<i> Manifest file section headers:
+</I>&gt;<i> * BYPASS: list of url [namespaces/filters]
+</I>&gt;<i> * CACHE: list of exact [urls]
+</I>&gt;<i> * INTERCEPT: list of [urlnamespaces, namespace-handler url]
+</I>&gt;<i> * AUTOCACHE: list of [urlnamespaces, namespace-handler url]
+</I>&gt;<i> * FALLBACK: : list of [urlnamespaces, namespace-handler url]
+</I>
+I haven't changed the manifest syntax; the current terms seem fine.
+
+
+On Fri, 29 Aug 2008, Michael Nordman wrote:
+&gt;<i> 
+</I>&gt;<i> *When is anything ever deleted?*
+</I>&gt;<i> 
+</I>&gt;<i> Maybe i missed it, but where does appCache deletion happen?
+</I>
+It didn't. It now does, in response to 404 or 410 statuses for manifests 
+when doing an update.
+
+
+&gt;<i> Something that Gears user's have done is to serve an empty manifest 
+</I>&gt;<i> file. The results are a close approximation to having deleted the 
+</I>&gt;<i> resource store. I would vote to have some syntax for expressing 'delete 
+</I>&gt;<i> me' in the manifest file for an appCache.
+</I>
+It seems like it would be better to make the absence of a manifest do 
+this, since otherwise if someone temporarily puts up a site-wide manifest 
+without the site owner knowing, some users (who happened to visit the site 
+during the attack window) would never get a successful update and would 
+thus never see updates to the site again.
+
+
+&gt;<i> A new type of event may be warranted for completion of such an update, 
+</I>&gt;<i> and when swapCache() is called there would no longer an appCache 
+</I>&gt;<i> associated with the context.
+</I>
+Done.
+
+
+&gt;<i> *Should we revisit the caching semantics for any resource not explicitly 
+</I>&gt;<i> listed in the manifest?
+</I>&gt;<i> 
+</I>&gt;<i> *Unless i missed something, I think the appCache update/validation logic 
+</I>&gt;<i> is fundamentally flawed with regard to resources that are not explicitly 
+</I>&gt;<i> listed. As presently spec'd, a failure to update/validate any of these 
+</I>&gt;<i> resources causes the entire update to fail, and the old version will 
+</I>&gt;<i> remain pinned in the cache. Now suppose the app changes it's url space 
+</I>&gt;<i> such that some of the resources that got picked up by one of the 
+</I>&gt;<i> mechanisms to add new resources (autocaching namespace or manually 
+</I>&gt;<i> .add()ed or &lt;html manifest=x&gt;) no longer make sense... i think this 
+</I>&gt;<i> means the appCache is stuck in time.
+</I>
+Hm, interesting point.
+
+
+&gt;<i> One idea is to rephrase this feature in terms closer to std http caching 
+</I>&gt;<i> for all entries that do not explicily appear in the manifest file. In 
+</I>&gt;<i> effect, closer to telling the http cache to not purge the resource.
+</I>&gt;<i> 
+</I>&gt;<i> * at initial cache time
+</I>&gt;<i>   - cache the resource
+</I>&gt;<i> 
+</I>&gt;<i> * at appCache update time
+</I>&gt;<i>   - validate all non-explicit entries per usual http caching semantics
+</I>&gt;<i>      (so 404s  will remove these entries at update time)
+</I>&gt;<i>   - network/server errors do not fail the larger update
+</I>&gt;<i>   - beyond that, not sure what todo on network/server errors... remove or
+</I>&gt;<i> retain the resources?
+</I>&gt;<i>   - perhaps maintain a list of 'failed to update' items that the webapp can
+</I>&gt;<i> access via script
+</I>&gt;<i> 
+</I>&gt;<i> * at resource load time
+</I>&gt;<i>    - validate per usual http caching rules going forward
+</I>&gt;<i>     (so 404s will remove these entries)
+</I>&gt;<i>   - with the following exceptions
+</I>&gt;<i>      - use the cached resource as a fallback for network or server(5xx)
+</I>&gt;<i> errors
+</I>&gt;<i>      - do not purge the resource upon expiration
+</I>
+I'm not a big fan of making these resources act differently than manifest 
+resources, but I do agree that they should have different error handling.
+
+I've changed the spec so that 404 and 410 errors cause the resource to be 
+removed, and other errors (and redirects) cause the resource to be copied 
+from the previous cache, without the whole caching process being canceled.
+
+
+On Mon, 15 Sep 2008, Dave Camp wrote:
+&gt;<i> &gt;
+</I>&gt;<i> &gt; * at resource load time
+</I>&gt;<i> &gt;   - validate per usual http caching rules going forward
+</I>&gt;<i> &gt;     (so 404s will remove these entries)
+</I>&gt;<i> &gt;   - with the following exceptions
+</I>&gt;<i> &gt;      - use the cached resource as a fallback for network or server(5xx)
+</I>&gt;<i> &gt; errors
+</I>&gt;<i> &gt;      - do not purge the resource upon expiration
+</I>&gt;<i> 
+</I>&gt;<i> This seems reasonable, but it seems a bit strange that 
+</I>&gt;<i> applicationCache.add() resources will behave differently than 
+</I>&gt;<i> explicitly-listed manifest entries (on a particularly slow/flaky 
+</I>&gt;<i> wireless network, parts of the application will be quick and others 
+</I>&gt;<i> won't).
+</I>
+Agreed.
+
+
+&gt;<i> On the subject of fallbacks, I don't think the spec is quite clear on 
+</I>&gt;<i> how the fallbacks are meant to be loaded.  There seem to be two possible 
+</I>&gt;<i> interpretations:
+</I>&gt;<i> 
+</I>&gt;<i> 1) The fallback resource is loaded by the client as though it were 
+</I>&gt;<i> loaded from the original URI - security decisions are made with the 
+</I>&gt;<i> original URI, and window.location, bookmarks, history, etc. all reflect 
+</I>&gt;<i> the original URI.  This is somewhat analogous to the real server 
+</I>&gt;<i> returning fallback content at the original URI.
+</I>&gt;<i> 
+</I>&gt;<i> 2) The fallback resource is loaded by the client as though it were 
+</I>&gt;<i> loaded from the fallback URI for purposes of security decisions, 
+</I>&gt;<i> window.location, etc.  But bookmarks, history, etc all reflect the 
+</I>&gt;<i> original URI.  This is somewhat analogous to a server redirect (with 
+</I>&gt;<i> bookmark/history changes to reflect the original URI), or to a frame at 
+</I>&gt;<i> the original URI including the fallback URI (but without the 
+</I>&gt;<i> intermediate window object).
+</I>&gt;<i>
+</I>&gt;<i> We need to decide which of these behaviors makes the most sense. The 
+</I>&gt;<i> first seems the most straightforward [...[
+</I>
+Agreed. That is the intent of the current text. Where is it ambiguous?
+
+
+&gt;<i> I think we'd want a few changes:
+</I>&gt;<i> 
+</I>&gt;<i> a) The fallback URI should be required to have the same origin as the 
+</I>&gt;<i> namespace.
+</I>
+Done.
+
+
+&gt;<i> b) Maybe there should be some way for the page to know that it was 
+</I>&gt;<i> loaded as a fallback.
+</I>
+I could add something to Location, would that work?
+
+   window.location.fallbackHref
+
+...or something? It would return the empty string unless it was a fallback 
+case?
+
+
+On Tue, 7 Oct 2008, Michael Nordman wrote:
+&gt;<i> 
+</I>&gt;<i> 1) Foreign entry detection
+</I>&gt;<i> 
+</I>&gt;<i> The spec points out an optimization when a foreign entry is discovered 
+</I>&gt;<i> at cache-selection time, involving marking the entry as foreign at that 
+</I>&gt;<i> time so it will get filtered out of future searches during top-level 
+</I>&gt;<i> navigation. Another optimization that could be pointed out is to detect 
+</I>&gt;<i> foreign'ness upon insertion into the cache.
+</I>&gt;<i> 
+</I>&gt;<i> Really, it may be more clear if the spec were simply spec'd that way 
+</I>&gt;<i> rather. The behavior exhibitted by the algorithms described corresponds 
+</I>&gt;<i> with 'detect on insert', but accomplishes that in a less direct fashion.
+</I>
+Done.
+
+
+&gt;<i> 2) Silent manifest parsing errors
+</I>&gt;<i> 
+</I>&gt;<i> The spec goes out of its way to indicate that most errors while parsing the
+</I>&gt;<i> manifest file should be silently eaten. That can't be an accident. What
+</I>&gt;<i> badness is being averted by that behavior? What is trying to be accomplished
+</I>&gt;<i> by that behavior?
+</I>
+We want a format that is forward-compatible and convenient to use.
+
+I'm open to other syntaxes; what would you suggest?
+
+
+&gt;<i> 3) Update algorithm
+</I>&gt;<i> 
+</I>&gt;<i> The intent is to grab a coherent set of resources that make up a 
+</I>&gt;<i> 'version' of the app. No provisions are made to ensure that is what you 
+</I>&gt;<i> actually end up with. Say the system starts an update, grabs the 
+</I>&gt;<i> manifest file and starts fetching/validating resources. Half way thru, a 
+</I>&gt;<i> new manifest file and set of resources lands on the server (or a new 
+</I>&gt;<i> server is deployed). You end up with a mixed set of resources on the 
+</I>&gt;<i> client.
+</I>
+I've changed the spec to refetch the manifest at the end and verify that 
+it's equal to the first one still.
+
+
+&gt;<i> 4) Why require text/cache-manifest mimetype?
+</I>&gt;<i> 
+</I>&gt;<i> Presents a small hurdle to get over. What is being accomplished with 
+</I>&gt;<i> this requirement?
+</I>
+This is actually just a restatement of HTTP's requirements. If you want 
+the Content-Type to be ignored, please contact the HTTP working group and 
+have them change the requirements for handling HTTP Content-Type headers. :-)
+
+
+&gt;<i> I was trading mail with somebody using Gears and this came up. The 
+</I>&gt;<i> developer was interested in purging based on LRU when a threshold was 
+</I>&gt;<i> exceeded. The app works with a unbounded (for all practical purposes) 
+</I>&gt;<i> set of resources that could be cached.
+</I>&gt;<i> 
+</I>&gt;<i> If the 'contract' for these non-explicit entries required them be purged 
+</I>&gt;<i> as quotas are bumped into, that would be ideal for this particular use 
+</I>&gt;<i> case. These type of semantics could make a lot of sense for a class of 
+</I>&gt;<i> apps like Flickr or PicassaWeg or YouTube.
+</I>&gt;<i> 
+</I>&gt;<i> So they don't expire according to normal http caching rules, and they 
+</I>&gt;<i> are used as a fallback in the event of errors, but they are not 
+</I>&gt;<i> guaranteed to be there forever unless you stay within a quota.
+</I>
+I've added an allowance for expiring resources. It's pretty open-ended, 
+left up to the UA.
+
+
+On Tue, 7 Oct 2008, Michael Nordman wrote:
+&gt;<i>
+</I>&gt;<i> Another one...
+</I>&gt;<i> 
+</I>&gt;<i> 6) The DOMApplicationCache .length and .item(indx) members.
+</I>&gt;<i> 
+</I>&gt;<i> These two are troublesome in a multi-threaded / multi-process browser. 
+</I>&gt;<i> Can we come up with an interface that's more ammenable to implementation 
+</I>&gt;<i> non-single threaded browsers?
+</I>
+The API, as written, actually is thread-safe, but only because there are 
+some pretty draconian requirements.
+
+I'm not really sure what to do about this. What kind of API did you have 
+in mind?
+
+
+On Tue, 7 Oct 2008, Maciej Stachowiak wrote:
+&gt;<i>
+</I>&gt;<i> Don't you need to have some particular version of the application cache 
+</I>&gt;<i> loaded in the thread or process that is processing the particular web 
+</I>&gt;<i> page using these APIs? It seems to me that the application cache's 
+</I>&gt;<i> atomic update semantics effectively require that, since loading needs to 
+</I>&gt;<i> keep a consistent view of the application cache regardless of changes 
+</I>&gt;<i> caused by other pages, so length and item are not an obstacle.
+</I>
+I think Michael is talking about the add() and remove() API.
+
+
+On Wed, 8 Oct 2008, Michael Nordman wrote:
+&gt;<i>
+</I>&gt;<i> Here's the thing i'm trying to avoid in section 5.7.6 where it
+</I>&gt;<i> discusses the add(url) method.
+</I>&gt;<i> ...
+</I>&gt;<i> 8. &quot;Wait for there to be no running scripts, or at least no running
+</I>&gt;<i> scripts that can reach an ApplicationCache object associated with the
+</I>&gt;<i> application cache with which this ApplicationCache object is
+</I>&gt;<i> associated.&quot;
+</I>&gt;<i> ...
+</I>&gt;<i> The same system-wide synchronization has to be applied for the
+</I>&gt;<i> remove(url) method.
+</I>&gt;<i> 
+</I>&gt;<i> The utility of the .length and .item(indx) method could be provided in 
+</I>&gt;<i> such a way that this awkwardness could be avoided.
+</I>&gt;<i> 
+</I>&gt;<i> Some ideas...
+</I>&gt;<i> bool contains(url);
+</I>&gt;<i> string[] getItems();
+</I>
+On Wed, 8 Oct 2008, Michael Nordman wrote:
+&gt;<i> 
+</I>&gt;<i> Another idea, getItems() wouldn't work well with very large collections
+</I>&gt;<i> 
+</I>&gt;<i> void forEachItem(callback);  // iteration terminates if the callback
+</I>&gt;<i> returns false or throws
+</I>
+On Tue, 14 Oct 2008, Michael Nordman wrote:
+&gt;<i>
+</I>&gt;<i> Another way to address this would be to redefine the semantics of 
+</I>&gt;<i> .length and .item(indx) such that the underlying collection was not 
+</I>&gt;<i> required to appear immutable till scripts ran to completion. Embrace the 
+</I>&gt;<i> fact that the collection is shared across many pages and that it can 
+</I>&gt;<i> change at any time. A .lastModifiedDate property could be exposed which 
+</I>&gt;<i> would allow pages to detect when a change had occurred.
+</I>
+I went with the first of these proposals.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="016720.html">[whatwg] Can AUDIO/VIDEO element have a &quot;balance&quot; attribute
+</A></li>
+	<LI>Next message: <A HREF="016757.html">[whatwg] Caching offline Web applications
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16723">[ date ]</a>
+              <a href="thread.html#16723">[ thread ]</a>
+              <a href="subject.html#16723">[ subject ]</a>
+              <a href="author.html#16723">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

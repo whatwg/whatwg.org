@@ -1,0 +1,139 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Race condition in media load algorithm
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Race%20condition%20in%20media%20load%20algorithm&In-Reply-To=%3Cop.vgyjyhrasr6mfa%40philip-pc.gothenburg.osa%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="069882.html">
+   <LINK REL="Next"  HREF="069922.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Race condition in media load algorithm</H1>
+<!--htdig_noindex-->
+    <B>Philip J&#228;genstedt</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Race%20condition%20in%20media%20load%20algorithm&In-Reply-To=%3Cop.vgyjyhrasr6mfa%40philip-pc.gothenburg.osa%3E"
+       TITLE="[whatwg] Race condition in media load algorithm">philipj at opera.com
+       </A><BR>
+    <I>Thu Aug  5 02:14:31 PDT 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="069882.html">[whatwg] Race condition in media load algorithm
+</A></li>
+        <LI>Next message: <A HREF="069922.html">[whatwg] Race condition in media load algorithm
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#69917">[ date ]</a>
+              <a href="thread.html#69917">[ thread ]</a>
+              <a href="subject.html#69917">[ subject ]</a>
+              <a href="author.html#69917">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Wed, 04 Aug 2010 19:19:35 +0200, Boris Zbarsky &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">bzbarsky at mit.edu</A>&gt; wrote:
+
+&gt;<i> On 8/4/10 6:56 AM, Philip J&#228;genstedt wrote:
+</I>&gt;&gt;<i> On Wed, 04 Aug 2010 11:32:51 +0200, Boris Zbarsky &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">bzbarsky at mit.edu</A>&gt;  
+</I>&gt;&gt;<i> wrote:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> On 8/4/10 4:29 AM, Philip J&#228;genstedt wrote:
+</I>&gt;&gt;&gt;&gt;<i> That could be, but is this behavior actually useful for anything? It's
+</I>&gt;&gt;&gt;&gt;<i> certainly simpler to implement and more predictable for authors to
+</I>&gt;&gt;&gt;&gt;<i> always wait until the current script has finished executing.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> 1) That requires defining &quot;current script&quot;.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> OK, but that's just a spec problem. It's trivial in implementation
+</I>&gt;&gt;<i> because when the resource selection algorithm was is triggered by a
+</I>&gt;&gt;<i> script, you can just pass along a reference to that very script.
+</I>&gt;<i>
+</I>&gt;<i> It's not, in fact, trivial in implementation.  You're making assumptions  
+</I>&gt;<i> about how implementations work that don't seem warranted (e.g. the  
+</I>&gt;<i> concept of &quot;reference to that very script&quot; is not well-defined in some  
+</I>&gt;<i> implementations).  In particular, what you're proposing is not at all  
+</I>&gt;<i> trivial in Gecko.
+</I>
+ From &lt;<A HREF="https://bugzilla.mozilla.org/show_bug.cgi?id=485288#c7">https://bugzilla.mozilla.org/show_bug.cgi?id=485288#c7</A>&gt; it sounds  
+like Gecko actually has pretty much the same tools to work with as Opera:  
+a nsIThreadObserver that allows you to wait until you've &quot;finished the  
+task in which some JS called load()&quot;. This is exactly what Opera does.
+
+(It's difficult for Opera to rely on the message loop to resume the  
+synchronous section, because our script engine can suspend and continue  
+executing on a later message. Therefore, waiting for a script to finish  
+executing is the best solution.)
+
+&gt;&gt;&gt;<i> 2) Who said it will ever finish executing?
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> If it doesn't, just don't ever continue with the synchronous section.
+</I>&gt;<i>
+</I>&gt;<i> I don't think that's reasonable.
+</I>
+A script that's stuck in an infinite loop is broken and video then not  
+working would be fine as long as all browsers break in the same way. If a  
+script is showing a modal dialog, not loading a video in the background  
+seems fine. Other than possible implementation difficulties, why would it  
+matter?
+
+&gt;&gt;<i> Is there any valid case for a script never finishing?
+</I>&gt;<i>
+</I>&gt;<i> Yes, it could showModalDialog and the user could spend several hours  
+</I>&gt;<i> interacting with it.
+</I>&gt;<i>
+</I>&gt;&gt;<i> It would block all event handlers from running too
+</I>&gt;<i>
+</I>&gt;<i> I believe this is false in the case of showModalDialog.
+</I>
+It sounds like we're going to end up with slightly incompatible  
+implementations. Is there anything that sites actually use that could make  
+the difference in implementation visible? I truly doubt we'll see any  
+serious compat issues because of showModalDialog...
+
+A far more important issue is still what to do while the parser is running  
+and we should &quot;await a stable state&quot;. It can't possibly mean waiting until  
+the parser has completely finished running, because that would slow down  
+the time to load &lt;video&gt; considerably. If it just means letting the parser  
+finish its current batch of input, I can't see how black-box testing could  
+tell the difference between this and always ignoring the &quot;await a stable  
+state&quot; step, as the parser could just happen to run for exactly that long.  
+Always triggering the steps of the resource selection algorithm  
+immediately is certainly more predictable, and the spec as written works  
+well when doing so.
+
+-- 
+Philip J&#228;genstedt
+Core Developer
+Opera Software
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="069882.html">[whatwg] Race condition in media load algorithm
+</A></li>
+	<LI>Next message: <A HREF="069922.html">[whatwg] Race condition in media load algorithm
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#69917">[ date ]</a>
+              <a href="thread.html#69917">[ thread ]</a>
+              <a href="subject.html#69917">[ subject ]</a>
+              <a href="author.html#69917">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

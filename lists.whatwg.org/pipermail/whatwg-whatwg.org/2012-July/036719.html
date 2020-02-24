@@ -1,0 +1,391 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] register*Handler and Web Intents
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20register%2AHandler%20and%20Web%20Intents&In-Reply-To=%3CPine.LNX.4.64.1207251925330.30734%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="078985.html">
+   <LINK REL="Next"  HREF="036739.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] register*Handler and Web Intents</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20register%2AHandler%20and%20Web%20Intents&In-Reply-To=%3CPine.LNX.4.64.1207251925330.30734%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg] register*Handler and Web Intents">ian at hixie.ch
+       </A><BR>
+    <I>Wed Jul 25 19:20:20 PDT 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="078985.html">[whatwg] Table fixed header
+</A></li>
+        <LI>Next message: <A HREF="036739.html">[whatwg] Encoding sniffing algorithm - update proposal
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#36719">[ date ]</a>
+              <a href="thread.html#36719">[ thread ]</a>
+              <a href="subject.html#36719">[ subject ]</a>
+              <a href="author.html#36719">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>
+Having carefully studied the Mozilla Web Activities proposal, the Web 
+Intents draft, the register*Handler APIs, and to a lesser extent the 
+dispatch mechanisms in existing operating systems (desktop and mobile) and 
+the piles of advocacy on teh subject on the Web, I've tried to come up 
+with a concrete proposal for merging all of them into a coherent whole 
+that addresses the limited use cases that are of most interest.
+
+Overall, this proposal mainly draws from the following sources:
+
+ - For the handling mechanimsm, it's basically directly based on the 
+   Mozilla &quot;System Message Handler&quot; mechanism.
+
+ - For the dispatch mechanism, it is based mainly on the Web Intents 
+   draft.
+
+ - For the registration mechanism, it's based on extending the 
+   register*Handler APIs consistently.
+
+However, I have attempted to simplify the proposal from its sources of 
+inspiration, where that seemed possibly without sacrificing key use cases.
+
+The overall design is that there are URLs that can handle particular 
+messages, herein called intents (mostly because that's what Web developers 
+seem to have adopted as the term already).
+
+These &quot;intents&quot; are indications that the user, or the system on behalf of 
+the user, wants the application to do something or other.
+
+   For example: &quot;please open this PDF&quot;, &quot;please share these four images&quot;,
+   &quot;please be aware that it is now the time you asked to be awoken at&quot;, 
+   &quot;please allow the user to compose an e-mail to this address&quot;.
+
+We want pages to be able to handle intents promptly upon being opened. 
+This puts certain constraints on the design that are explained in detail 
+in the Mozilla &quot;System Intents&quot; thread:
+
+   <A HREF="https://groups.google.com/forum/?fromgroups#!topic/mozilla.dev.webapi/o8bkwx0EtmM">https://groups.google.com/forum/?fromgroups#!topic/mozilla.dev.webapi/o8bkwx0EtmM</A>
+
+This leads therefore to the first part of the concrete proposal:
+
+  partial interface Window {
+    void setIntentHandler(DOMString action, IntentCallback callback);
+    boolean hasPendingIntent(DOMString action);
+  }
+
+  callback IntentCallback = void (Intent intent);
+
+When a page is loaded, it registers its intent handler callback using 
+setIntentHandler(), and as soon as that happens, the UA asynchronously 
+calls the handler.
+
+The Intent object itself &quot;just&quot; needs to describe what the page is being 
+asked to do. For this, I borrowed freely from all the proposals mentioned 
+above, and ended up with:
+
+  interface Intent {
+    readonly attribute DOMString action,
+    readonly attribute DOMString type,
+    readonly attribute any data,
+    void success(any data, optional sequence&lt;Transferable&gt; transfer);
+    void failure(DOMString message);
+  }
+
+This is basically the data that needs to be sent from the application that 
+wants to initiate an intent, too:
+
+  dictionary IntentSettings {
+    DOMString action,
+    DOMString type,
+    any data, // structured-cloned
+    sequence&lt;Transferable&gt; transfer,
+  };
+
+So how do we start an intent? Well, for intent handlers that are just 
+registered to handle URLs being loaded using certain schemes or that have 
+certain MIME types, you just use a link:
+
+  &lt;a href=&quot;web+customscheme:foo&quot;&gt;...&lt;/a&gt;
+  &lt;a href=&quot;file.customtype&quot;&gt;...&lt;/a&gt;
+
+But more interestingly, to start one programmatically you would use a 
+startIntent() method:
+
+  partial interface Window {
+    void startIntent(IntentSettings intent,
+                     optional AnyCallback success,
+                     optional DOMStringCallback failure);
+  }
+
+  callback AnyCallback = void (any data);
+  callback DOMStringCallback = void (DOMString message);
+
+The callbacks given in the method, if provided, are invoked asynchronously 
+in reaction to the handler calling success() or failure() on the Intent 
+object. We would just allow one success or failure message per Intent, 
+for sanity's sake.
+
+There is another way of starting an intent that I alluded to earlier: the 
+system can decide to dispatch one to a specific application. For example, 
+say an application has told the system (using some other API) that it 
+wants to be woken up at 07:00 to start playing a song (the user's alarm). 
+The system could dispatch an intent to the application using the mechanism 
+described above -- a system intent. To distinguish these from intents sent 
+by applications like &quot;airplay media&quot;, &quot;share picture&quot;, or &quot;open mailto:&quot;, 
+one would use intent names prefixed by the string &quot;system-&quot;, for example, 
+&quot;system-alarm&quot; or &quot;system-nfc&quot;. The startIntent() method described above 
+therefore would, in this proposal, fail if the intent name started with 
+the substring &quot;system-&quot;.
+
+All of this leads to the final piece of the puzzle, namely how to offer to 
+the user the ability to use a page as an intent handler. This is where the 
+existing register*Handler() methods come in. Taking a cue from Mozilla's 
+Web Activities proposal, I propose that we just use introduce methods for 
+the more generic &quot;intents&quot; system:
+
+  partial interface Navigator {
+    void registerProtocolHandler(DOMString scheme,
+      DOMString url, DOMString title, optional HandlerDisposition disposition);
+    void registerContentHandler(DOMString mimeType,
+      DOMString url, DOMString title, optional HandlerDisposition disposition);
+    void registerIntentHandler(DOMString action, DOMString? mimeType,
+      DOMString url, DOMString title, optional HandlerDisposition disposition);
+    DOMString isProtocolHandlerRegistered(DOMString scheme, DOMString url);
+    DOMString isContentHandlerRegistered(DOMString mimeType, DOMString url);
+    DOMString isIntentHandlerRegistered(DOMString action, DOMString? mimeType, DOMString url);
+    void unregisterProtocolHandler(DOMString scheme, DOMString url);
+    void unregisterContentHandler(DOMString mimeType, DOMString url);
+    void unregisterIntentHandler(DOMString action, DOMString? mimeType, DOMString url);
+  }
+
+  enum HandlerDisposition {
+     &quot;replace&quot;, // means that you use the browsing context of the page 
+     // that invoked the intent, just like clicking a link normally
+     &quot;new&quot;, // means you must open a new top-level browsing context 
+     // (window, tab) to handle the intent
+     &quot;overlay&quot;, // means you must open an auxiliary browsing context 
+     // (popup dialog, sidebar) to handle the intent;
+     &quot;reuse&quot;, // means the same as &quot;new&quot; unless the page is already open, 
+     // in which case it just switches focus to that one and sends a new message
+  };
+
+A strong argument has been made, however, that we should offer a 
+declarative way of registering these: it would dramatically help with 
+discovery (e.g. by allowing Web applications to be indexed by search 
+engines). Thus, I propose a parallel mechanism in the form of an empty 
+element that goes in the &lt;head&gt;:
+
+  &lt;intent
+    action=&quot;edit&quot;     intent action, e.g. open or edit, default &quot;share&quot;
+    type=&quot;image/png&quot;  MIME type filter, default omitted, required if scheme omitted
+    scheme=&quot;mailto&quot;   Scheme filter, default omitted, required if type omitted
+    href=&quot;&quot;           Handler URL, default &quot;&quot; (current page)
+    title=&quot;Foo&quot;       Handler user-visible name, required attribute
+    disposition=&quot;&quot;    HandlerDisposition values, default &quot;overlay&quot;
+  &gt;
+
+I welcome feedback on this concrete, though only briefly described, 
+proposal. 
+
+
+On Tue, 17 Apr 2012, Mounir Lamouri wrote:
+&gt;<i> &gt; 
+</I>&gt;<i> &gt; Trying to fit the registration components listed above into &lt;meta&gt; 
+</I>&gt;<i> &gt; really doesn't work all that well, IMHO.
+</I>&gt;<i> 
+</I>&gt;<i> &lt;meta name=&quot;viewport&quot;&gt; does that and is widely used AFAICT.
+</I>
+Oh I agree that it's widely used, but I don't think &lt;meta name=viewport&gt; 
+is counter-evidence to the claim that it &quot;really doesn't work all that 
+well&quot;. :-)
+
+
+&gt;<i> &gt; I don't think wildcard matching really makes sense. In particular, I'm 
+</I>&gt;<i> &gt; not aware of any service that can honestly say it supports image/*, or 
+</I>&gt;<i> &gt; indeed any other topleveltype/*.
+</I>&gt;<i> 
+</I>&gt;<i> Doesn't @accept on &lt;input&gt; allows &quot;image/*&quot;, &quot;video/*&quot;, &quot;audio/*&quot;? We 
+</I>&gt;<i> should at least accept those values. But maybe it would be safe to allow 
+</I>&gt;<i> foo/* if a service and client would be connected only if they both 
+</I>&gt;<i> marked they &quot;foo/*&quot; as a type?
+</I>
+See discussion below.
+
+
+&gt;<i> Given that Web Intents would deprecate/supersede RPH and RCH, I wonder 
+</I>&gt;<i> why we should bother incorporating them.
+</I>
+I don't think this mechanism supersedes either. We still need a way, for 
+example, to implement Web-based mailto: handlers.
+
+
+On Fri, 20 Apr 2012, Greg Billock wrote:
+&gt;<i> 
+</I>&gt;<i> For RPH, agreed that passing the URL is pretty much the only possible 
+</I>&gt;<i> approach. For RCH, web intents allows us to do better than this: we can 
+</I>&gt;<i> pass the content directly, in a Blob, rather than passing the URL, thus 
+</I>&gt;<i> decoupling the service from the (possibly sensitive) URL from which the 
+</I>&gt;<i> intent was triggered. That isn't always the right plan -- for feed URLs, 
+</I>&gt;<i> passing the URL is an important feature enabler for a feed reader to 
+</I>&gt;<i> deal with the content. Anyway, mostly pointing out that considering 
+</I>&gt;<i> these together is a vehicle for more fine-grained control of the 
+</I>&gt;<i> coupling. If anything, this intertwines them more closely.
+</I>
+Providing the data does seem to make sense, yes.
+
+
+&gt;<i> Our remaining discomfort here is with isIntentHandlerRegistered(), and 
+</I>&gt;<i> for similar reasons to the fingerprinting qualities of 
+</I>&gt;<i> isProtocolHandlerRegistered(). That is, we'd prefer that web content 
+</I>&gt;<i> simply call registerProtocolHandler blindly, similar to what a 
+</I>&gt;<i> declarative registration would do, and let the UA sort out whether the 
+</I>&gt;<i> user ought to be shown any kind of registration UI.
+</I>
+These is*Registered() methods don't expose anything that isn't already 
+possible with cookies, so I propose that we just disable them if cookies 
+are disabled, and say that clearing cookies should recommend clearing the 
+registrations too.
+
+
+&gt;<i> This does, however, impose some burden on clients to these systems. 
+</I>&gt;<i> They'd prefer to know that at least something is on the other side of a 
+</I>&gt;<i> content load or protocol link or web intents invocation. For web 
+</I>&gt;<i> intents, we're proposing that a set of suggested services could be 
+</I>&gt;<i> attached to the intent invocation, so if developers are worried about 
+</I>&gt;<i> this, they can attach suggestions which the UA may then regard as hints 
+</I>&gt;<i> if no qualifying filter matches the intent invocation.
+</I>
+I haven't added this to the proposal, but it does seem like a good idea. 
+What do people think? Is it worth it? Traditionally, browsers and 
+operating systems have handled the lack of a handler by offering known 
+handlers, rather than relying on the caller to provide some. Given the 
+ideal of declarative &lt;intent&gt; registration, one can imagine the browser 
+redirecting to a search engine's list of handlers, for example.
+
+
+&gt;<i> Putting this in the HTML spec sounds like a great plan to us.
+</I>
+Roger.
+
+
+&gt;<i> [wildcard handlers]
+</I>&gt;<i> One exception would be for &quot;save&quot; type intents, where pretty much any 
+</I>&gt;<i> type can be dealt with. Another is where the handler is using say &lt;img&gt; 
+</I>&gt;<i> or &lt;canvas&gt;, and would like to specify accepted types in an open-ended 
+</I>&gt;<i> way.
+</I>
+Interesting.
+
+For a &quot;save&quot;-type intent, which is really oblivious to the type, I guess 
+we'd just allow the type to be null, meaning &quot;any type&quot;.
+
+For features that are entirely dependent on client-side technologies, we 
+could by convention say that a registration for image/* means &quot;all the 
+image types supported in &lt;img&gt;, drawImage(), background-image, etc&quot;, and 
+that video/* means &quot;all the types supported in &lt;video&gt;&quot; and audio/* means 
+&quot;all the types supported in audio/*&quot;. (We should probably say that that's 
+what the keywords mean for type=file, too.)
+
+
+&gt;<i> At the DAP meeting, we agreed to extend this system to include 
+</I>&gt;<i> string-literal types, which provides a way to do good integration with 
+</I>&gt;<i> microdata types. There we expect to do exact string matching, and it is 
+</I>&gt;<i> true the eliminating wildcard types would bring these two type 
+</I>&gt;<i> namespaces a bit closer. MIME is complex enough that it would still have 
+</I>&gt;<i> to be treated separately, however. (Parameters and all that.)
+</I>
+I'm not really sure I follow here. Could you elaborate?
+
+
+On Thu, 24 May 2012, Greg Billock wrote:
+&gt;<i> 
+</I>&gt;<i> Some more concordance moves to make them more like different aspects of 
+</I>&gt;<i> the same feature:
+</I>&gt;<i> 
+</I>&gt;<i> * In registerContentHandler, &quot;t&quot; can be a space-separated list of MIME 
+</I>&gt;<i> types for registerContentHandler.
+</I>
+Do we need to support a space-separated list at all? When will the list be 
+so long that it really makes sense to add that feature rather than just 
+having three registrations back-to-back?
+
+
+(I have omittd a number of e-mails from this reply that gave suggestions 
+that seemed reasonable and that have therefore been incorporated into the 
+proposal above.)
+
+
+If nobody finds any egregious problems with the proposal above, I'll start 
+speccing it as part of a rewrite of the register*Handler() section. (That 
+section needs a rewrite into more imperative language anyway.)
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="078985.html">[whatwg] Table fixed header
+</A></li>
+	<LI>Next message: <A HREF="036739.html">[whatwg] Encoding sniffing algorithm - update proposal
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#36719">[ date ]</a>
+              <a href="thread.html#36719">[ thread ]</a>
+              <a href="subject.html#36719">[ subject ]</a>
+              <a href="author.html#36719">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

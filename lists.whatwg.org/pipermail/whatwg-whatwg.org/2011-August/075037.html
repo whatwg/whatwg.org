@@ -1,0 +1,166 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Fixing undo on the Web - UndoManager and Transaction
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Fixing%20undo%20on%20the%20Web%20-%20UndoManager%20and%20Transaction&In-Reply-To=%3CCABNRm61_n9HF4s77k7n_P3UUY927m%3DhYBL6a0kRu%3DCLzRhpHHw%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="032763.html">
+   <LINK REL="Next"  HREF="075043.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Fixing undo on the Web - UndoManager and Transaction</H1>
+<!--htdig_noindex-->
+    <B>Ryosuke Niwa</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Fixing%20undo%20on%20the%20Web%20-%20UndoManager%20and%20Transaction&In-Reply-To=%3CCABNRm61_n9HF4s77k7n_P3UUY927m%3DhYBL6a0kRu%3DCLzRhpHHw%40mail.gmail.com%3E"
+       TITLE="[whatwg] Fixing undo on the Web - UndoManager and Transaction">rniwa at webkit.org
+       </A><BR>
+    <I>Tue Aug  2 12:10:55 PDT 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="032763.html">[whatwg] Fixing undo on the Web - UndoManager and Transaction
+</A></li>
+        <LI>Next message: <A HREF="075043.html">[whatwg] Fixing undo on the Web - UndoManager and Transaction
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#75037">[ date ]</a>
+              <a href="thread.html#75037">[ thread ]</a>
+              <a href="subject.html#75037">[ subject ]</a>
+              <a href="author.html#75037">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Tue, Aug 2, 2011 at 11:30 AM, Ehsan Akhgari &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">ehsan at mozilla.com</A>&gt; wrote:
+
+&gt;<i> This is a very nice proposal; thanks for working on this, Ryosuke!  I have
+</I>&gt;<i> a number of questions and concerns on it, and I would appreciate if you can
+</I>&gt;<i> comment on these:
+</I>&gt;<i>
+</I>
+Nope!  I just REALLY want to fix this.
+
+1. The definition of @undoscope seems to not address the question of whether
+&gt;<i> the document element should be an Undo Scope or not.
+</I>&gt;<i>
+</I>
+Each document has its own undo scope:
+<A HREF="http://rniwa.com/editing/undomanager.html#undo-scope">http://rniwa.com/editing/undomanager.html#undo-scope</A>
+
+2. @undoscope seems to make it very hard to support the usecase of moving
+&gt;<i> the undo scope from an element to another.  (I'm not sure if that is a
+</I>&gt;<i> concern that we need to address at all, though).
+</I>&gt;<i>
+</I>
+Right, I don't support that use case.  But I couldn't think of a case where
+this is useful.  Also, I was concerned that this will make browser's undo
+management much harder since I don't know how Opera and IE manage undo
+transaction history.
+
+3. In regard to &quot;Should apply return a boolean value indicating whether it
+&gt;<i> successfully applied or not?&quot;, answering yes means that we should make sure
+</I>&gt;<i> that we're going to be able to cleanly revert a transaction when it fails,
+</I>&gt;<i> right?  Also, saying yes here means that we should decide what happens if
+</I>&gt;<i> that transaction is in a transaction group.  ... all of which makes me want
+</I>&gt;<i> to say no.  :-)
+</I>&gt;<i>
+</I>
+Not necessary.  I think saying &quot;yes&quot; means that apply function returned
+&quot;true&quot;, and we've successfully added new entry to the undoManager. i.e.
+apply nor DOM mutation handlers did something insane like removing
+undoManager or interfering with DOM mutation, etc...  Also, if we add
+editAction/transaction event, we may want to make it cancelable so that the
+entire transaction may be prevented (not individual mutations).
+
+So returning boolean will let websites figure out whether a transaction was
+really added to the list or not.
+
+4. In regard to &quot;Need to restore selection as well&quot;, is that something which
+&gt;<i> we want all the time?  Imagine an &quot;indent&quot; transaction which indents a
+</I>&gt;<i> paragraph by increasing its start margin, should it change the selection
+</I>&gt;<i> when it's undone?
+</I>&gt;<i>
+</I>
+Oh, so what I mean is that selection needs to be restored to the state
+before the transaction was applied.  e.g. when I select then delete &quot;hello
+world&quot; and undo, I should be selecting &quot;hello world&quot;.
+
+5. I have serious doubts about the current specification of manual
+&gt;<i> transactions.  I don't know why we need to exclude them from group
+</I>&gt;<i> transactions, but honestly, I'm not sure why we need to have them at all.
+</I>&gt;<i>  What use cases are we trying to address by manual transactions that would
+</I>&gt;<i> otherwise be impossible to address with managed transactions?
+</I>&gt;<i>
+</I>
+In collaborative editing apps, it's infeasible for the UA to manage undo
+transaction history because their undo history will be a tree, or an
+arbitrary graph.  Also if you wanted to make an app that modifies both
+contenteditable region and canvas, you'll almost certainly need to modify
+canvas by script manually and yet you may want to let UA manage the undo
+transaction history of text fields.
+
+And the reason scripts want to use manual transaction as supposed to just
+modifying document, is to update UA's native UI.  Without manual transaction
+or a comparable mechanism, UA won't be able to enable undo/redo menu items
+or show a list of undoable items in their menu.
+
+6. I think if we want to address selection saving/restoring, that part
+&gt;<i> belongs to the &quot;Mutation of DOM&quot; section.  We might also need to address
+</I>&gt;<i> some other editing related stuff in the DOM state, such as the keyboard
+</I>&gt;<i> layout language, selection, etc.
+</I>&gt;<i>
+</I>
+That's a good point.  I'd have to look into what each UA does and what needs
+to be preserved.  Aryeh, do you have any idea as to what UAs do for native
+editing actions?
+
+ 7. I'm not sure if we should leave the interaction of @contenteditable and
+&gt;<i> @undoscope unaddressed.  At the very least, we need to specify whether by
+</I>&gt;<i> default all contenteditable elements on a web page share the same undo
+</I>&gt;<i> manager or not.  If I were to pick the default, I would suggest that by
+</I>&gt;<i> default they should all share the document's undo manager.
+</I>&gt;<i>
+</I>
+Yes, they do share the document's undo manger.  I'll make sure to explicitly
+say that in the document.
+
+8. As a last comment, I think a better name for UndoManager is
+&gt;<i> TransactionManager, since, well, that's what it really is!  :-)
+</I>
+
+Alternatively, we can change the name &quot;transaction&quot; to something else
+because &quot;transaction&quot; sounds too general.
+
+- Ryosuke
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="032763.html">[whatwg] Fixing undo on the Web - UndoManager and Transaction
+</A></li>
+	<LI>Next message: <A HREF="075043.html">[whatwg] Fixing undo on the Web - UndoManager and Transaction
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#75037">[ date ]</a>
+              <a href="thread.html#75037">[ thread ]</a>
+              <a href="subject.html#75037">[ subject ]</a>
+              <a href="author.html#75037">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

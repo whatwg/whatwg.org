@@ -1,0 +1,148 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] SQL API error handling
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20SQL%20API%20error%20handling&In-Reply-To=%3C696e4b7c0710160705k3288b0a1o2fc80bc5ddddfebe%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="012783.html">
+   <LINK REL="Next"  HREF="012789.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] SQL API error handling</H1>
+<!--htdig_noindex-->
+    <B>Scott Hess</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20SQL%20API%20error%20handling&In-Reply-To=%3C696e4b7c0710160705k3288b0a1o2fc80bc5ddddfebe%40mail.gmail.com%3E"
+       TITLE="[whatwg] SQL API error handling">shess at google.com
+       </A><BR>
+    <I>Tue Oct 16 07:05:32 PDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="012783.html">[whatwg] SQL API error handling
+</A></li>
+        <LI>Next message: <A HREF="012789.html">[whatwg] SQL API error handling
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#12745">[ date ]</a>
+              <a href="thread.html#12745">[ thread ]</a>
+              <a href="subject.html#12745">[ subject ]</a>
+              <a href="author.html#12745">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On 10/15/07, Ian Hickson &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">ian at hixie.ch</A>&gt; wrote:
+&gt;<i> On Mon, 15 Oct 2007, Scott Hess wrote:
+</I>&gt;<i> &gt; Whoa!  I just realized that there's another group, constraint failures.
+</I>&gt;<i> &gt; These are statements which will sometimes succeed, sometimes fail.  As
+</I>&gt;<i> &gt; currently spec'ed, it looks like a constraint failure will cause
+</I>&gt;<i> &gt; rollback.  This is probably not appropriate, constraint failures are
+</I>&gt;<i> &gt; generally expected to be benign and detectable.  Arguing against myself,
+</I>&gt;<i> &gt; I've seen plenty of code which just treats any errors from something
+</I>&gt;<i> &gt; which allows for a constraint failure as a constraint failure, so maybe
+</I>&gt;<i> &gt; this also can be lumped under a single big error code.
+</I>&gt;<i>
+</I>&gt;<i> Could you elaborate on this? What would code running into this situation
+</I>&gt;<i> look like? How should we expose it?
+</I>
+A common case is wanting to update a row, if present, or insert it, if
+not.  You can handle this in three ways.  You can use a transaction to
+keep things consistent:
+
+  BEGIN;
+    SELECT COUNT(*) FROM t WHERE id = ?;
+    -- if == 0
+      INSERT INTO t VALUES (?, ...);
+    -- if == 1
+      UPDATE t SET c = ?, ... WHERE id = ?;
+  END;
+
+[Note that the above gets you the &quot;read lock upgraded to write lock&quot; case.]
+
+This style is generally avoided, because in a server environment, you
+have four round trips from when the transaction is opened to when it's
+closed, plus whatever contention for CPU is present at both ends, so
+it is not great for concurrency.  Instead, you can just try the insert
+and rely on a unique or primary key to cause a constraint violation:
+
+  INSERT INTO t VALUES (?, ...);
+  -- if constraint violation on id
+    UPDATE t SET c = ?, ... WHERE id = ?;
+
+That variant is best if you expect to usually succeed, and sometimes
+fall through to the update (for instance when inserting a new user
+record).  Otherwise, you could do:
+
+  UPDATE t SET c = ?, ... WHERE id = ?;
+  -- if no rows affected
+    INSERT INTO t VALUES (?, ...);
+
+That might be more appropriate for updating a user record where the
+user is known to exist but the record is not known to exist (say a
+record of the last time the user performed a particular operation).
+
+The first and third cases should work fine within the spec.
+
+---
+
+Another example would be a table like:
+
+  CREATE TABLE UniqueName (
+    id INTEGER PRIMARY KEY,
+    name TEXT UNIQUE
+  );
+
+You might run:
+
+  INSERT INTO UniqueName (id, name) VALUES (null, ?);
+
+If it succeeds, the id is in insertId.  If there's a constraint
+failure, the programmer knows that it's because the value provided for
+name was already take.  You can of course rewrite this like:
+
+  BEGIN;
+    SELECT count(*) FROM UniqueName WHERE name = ?;
+    -- If != 0, fail.
+    INSERT INTO UniqueName (id, name) VALUES (null, ?);
+  END;
+
+Using the INSERT directly is the standard idiom for this type of thing, though.
+
+---
+
+Unfortunately, offhand I'm not coming up with any cases which aren't
+fundamentally server-side.  Part of the justification for using SQL in
+the spec was so that developers could use similar/identical code
+server-side and client-side, but I'll admit that the kinds of cases
+above are probably no more or less annoying to work around than the
+differences between any chosen server-side database and SQLite would
+be.
+
+-scott
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="012783.html">[whatwg] SQL API error handling
+</A></li>
+	<LI>Next message: <A HREF="012789.html">[whatwg] SQL API error handling
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#12745">[ date ]</a>
+              <a href="thread.html#12745">[ thread ]</a>
+              <a href="subject.html#12745">[ subject ]</a>
+              <a href="author.html#12745">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

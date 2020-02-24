@@ -1,0 +1,194 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Combining the DedicatedWorker and	SharedWorker	interfaces
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Combining%20the%20DedicatedWorker%20and%0A%09SharedWorker%09interfaces&In-Reply-To=%3C6F54FC25-35BD-4D56-AA33-FE81136D01A5%40webkit.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="059426.html">
+   <LINK REL="Next"  HREF="059432.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Combining the DedicatedWorker and	SharedWorker	interfaces</H1>
+<!--htdig_noindex-->
+    <B>Alexey Proskuryakov</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Combining%20the%20DedicatedWorker%20and%0A%09SharedWorker%09interfaces&In-Reply-To=%3C6F54FC25-35BD-4D56-AA33-FE81136D01A5%40webkit.org%3E"
+       TITLE="[whatwg] Combining the DedicatedWorker and	SharedWorker	interfaces">ap at webkit.org
+       </A><BR>
+    <I>Fri Nov 14 01:43:10 PST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="059426.html">[whatwg] Combining the DedicatedWorker and	SharedWorker	interfaces
+</A></li>
+        <LI>Next message: <A HREF="059432.html">[whatwg] Combining the DedicatedWorker and SharedWorker	interfaces
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#59453">[ date ]</a>
+              <a href="thread.html#59453">[ thread ]</a>
+              <a href="subject.html#59453">[ subject ]</a>
+              <a href="author.html#59453">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>
+Nov 14, 2008, &#1074; 3:59 AM, Ian Hickson &#1085;&#1072;&#1087;&#1080;&#1089;&#1072;&#1083;(&#1072;):
+
+&gt;&gt;<i> For the sake of completeness, a connect/startConversation method on a
+</I>&gt;&gt;<i> worker really should automatically open the receiving port - this is
+</I>&gt;&gt;<i> what examples posted so far implied, and it would cause a lot of
+</I>&gt;&gt;<i> aggravation if it didn't. I know I'm often forgetting to open the  
+</I>&gt;&gt;<i> port
+</I>&gt;&gt;<i> when writing my tests, and it's not a very easy mistake to spot.
+</I>&gt;<i>
+</I>&gt;<i> What do you mean by &quot;open the port&quot;? Do you mean calling start()? If  
+</I>&gt;<i> so,
+</I>&gt;<i> that should happen automatically when you set onmessage the first  
+</I>&gt;<i> time,
+</I>&gt;<i> per spec.
+</I>
+
+Oh, that's my mistake - I totally didn't expect that it could have  
+such side effect. It seems weird that addEventListener(&quot;message&quot;, ...)  
+does not have such effect, does it?
+
+&gt;&gt;<i> In an async processing model, there is simply no way for the  
+</I>&gt;&gt;<i> receiver to
+</I>&gt;&gt;<i> have a list of all objects that were posted to it - it's exactly the
+</I>&gt;&gt;<i> reason for the existence of the queue that events are delivered
+</I>&gt;&gt;<i> asynchronously and cannot be peeked before being delivered. For  
+</I>&gt;&gt;<i> example,
+</I>&gt;&gt;<i> in a multi-process implementation, these events may still be across
+</I>&gt;&gt;<i> process boundary.
+</I>&gt;<i>
+</I>&gt;<i> It actually doesn't really matter if there is something that has been
+</I>&gt;<i> posted but not yet received, because that is indistinguishable (as  
+</I>&gt;<i> far as
+</I>&gt;<i> I can tell) from the case of the worker having shut down a split  
+</I>&gt;<i> second
+</I>&gt;<i> before that object was posted.
+</I>
+I'm not sure what state you mean by &quot;shut down&quot; here - the spec does  
+not define this, and shutting down a side of an async communication  
+channel is complicated (see e.g. a TCP/IP state diagram). Anyway, the  
+contents of &quot;the worker's ports&quot; is used for defining &quot;active needed  
+worker&quot; and &quot;suspendable worker&quot; further on, which are concepts that  
+are very important for worker lifetime definition. If the ports in  
+event queue are not important, then the spec should not say that they  
+are included in &quot;the worker's ports&quot;. This would resolve the  
+concurrency problem, but I don't think that the resulting behavior  
+would be desirable.
+
+&gt;&gt;<i> It is not possible to have a symmetric relationship in an  
+</I>&gt;&gt;<i> asynchronous
+</I>&gt;&gt;<i> messaging model - we need a multi-step entagling/unentangling  
+</I>&gt;&gt;<i> protocol,
+</I>&gt;&gt;<i> so the relationship is necessarily asymmetric. One can't freeze  
+</I>&gt;&gt;<i> another
+</I>&gt;&gt;<i> process (or really, even another thread) to change something in it
+</I>&gt;&gt;<i> synchronously.
+</I>&gt;<i>
+</I>&gt;<i> The above is not a requirement, it's just a description of the  
+</I>&gt;<i> concept. I
+</I>&gt;<i> don't think anything actually depends on it being symmetric; all the  
+</I>&gt;<i> parts
+</I>&gt;<i> that actually entangle ports have (or, are intended to have, maybe I
+</I>&gt;<i> missed some) pretty well-defined synchronisation points.
+</I>
+OK, say there is a pair of entangled ports in different threads/ 
+processes, portA and portB. We concurrently post both with  
+postMessage, which causes the ports to be cloned. From the point of  
+view of first thread, PortA is now unentangled, and portA' is  
+entangled with portB. From the point of view of second thread, PortB  
+is unentangled, and portB' is entangled with portA.
+
+Next, threads send asynchronous notifications to each other, asking to  
+update entangling information. First thread's notification asks portB  
+to become entangled with portA'. So, portB will need to forward this  
+notification to portB' (and possibly further, because portB' may have  
+been posted and cloned again). This already is unduly complicated.
+
+Now consider that all these ports need to have destroyed sooner or  
+later, but not too soon. This basically means that we now have a many- 
+to-many distributed GC system. It was bad enough when we had to  
+garbage protect ports between threads, because this required  
+modification of the JavaScript interpreter to support a certain case  
+of distributed GC. But this example basically shows that we need a  
+full-blown distributed GC system in order to implement port cloning.
+
+&gt;<i> For example, any method that entangles two ports blocks until both  
+</I>&gt;<i> threads are synchronised
+</I>&gt;<i> and entangled.
+</I>
+This will cause deadlocks - if portB' is sent to the first thread as  
+portB'' in the above scheme, the lock will not let synchronization  
+ever finish.
+
+&gt;<i> (The spec is somewhat implicit about this, but the intent is that  
+</I>&gt;<i> workers
+</I>&gt;<i> really be implemented either as two system threads, one doing
+</I>&gt;<i> communication and one running the JS, or by one system thread that  
+</I>&gt;<i> runs
+</I>&gt;<i> the JS in an interruptible fashion. In particular, doing something  
+</I>&gt;<i> that
+</I>&gt;<i> synchronises with a worker isn't expected to have to wait for that  
+</I>&gt;<i> worker
+</I>&gt;<i> to finish running its current JS.)
+</I>
+The JS thread will need to be interrupted in any case - we certainly  
+don't want it to read a half-written pointer from memory or something.  
+Adding memory barriers around access to data that can be modified  
+externally is not sufficient, because MessagePort algorithms are not  
+designed in a lock-free fashion (lock-free algorithms that only rely  
+on read/write atomicity do exist, but these aren't such). Locking  
+around all MessagePort functions will cause deadlocks, as demonstrated  
+above, and is generally against best practices. A middle ground may  
+exist, but it may not, and it's definitely hard to find.
+
+I don't think that pursuing a design that relies on locking is  
+particularly promising - for the same reason that workers do not  
+expose shared data to JS programmers, it is highly desirable to not  
+rely on shared data in implementations, too (except for a few well  
+understood constructs, such as an event queue). So, I think that the  
+specs (Web Workers and HTML5 channel messaging) should be cleaned up  
+from anything that mentions synchronous access to entangled port's  
+data structures to really be verified for correctness. This is not  
+straightforward, and may seriously affect the API - e.g., I doubt that  
+passing MessagePorts around is implementable with reasonable  
+complexity, and there is not a lot of use in MessagePorts if they  
+cannot be passed around.
+
+- WBR, Alexey Proskuryakov
+
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="059426.html">[whatwg] Combining the DedicatedWorker and	SharedWorker	interfaces
+</A></li>
+	<LI>Next message: <A HREF="059432.html">[whatwg] Combining the DedicatedWorker and SharedWorker	interfaces
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#59453">[ date ]</a>
+              <a href="thread.html#59453">[ thread ]</a>
+              <a href="subject.html#59453">[ subject ]</a>
+              <a href="author.html#59453">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

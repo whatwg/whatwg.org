@@ -1,0 +1,170 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] &lt;video&gt; &quot;await a stable state&quot; in resource selection (Was: Race condition in media load algorithm)
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20%3Cvideo%3E%20%22await%20a%20stable%20state%22%20in%20resource%20selection%0A%20%28Was%3A%20Race%20condition%20in%20media%20load%20algorithm%29&In-Reply-To=%3C4C6180A8.7070401%40mit.edu%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="070074.html">
+   <LINK REL="Next"  HREF="070131.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] &lt;video&gt; &quot;await a stable state&quot; in resource selection (Was: Race condition in media load algorithm)</H1>
+<!--htdig_noindex-->
+    <B>Boris Zbarsky</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20%3Cvideo%3E%20%22await%20a%20stable%20state%22%20in%20resource%20selection%0A%20%28Was%3A%20Race%20condition%20in%20media%20load%20algorithm%29&In-Reply-To=%3C4C6180A8.7070401%40mit.edu%3E"
+       TITLE="[whatwg] &lt;video&gt; &quot;await a stable state&quot; in resource selection (Was: Race condition in media load algorithm)">bzbarsky at MIT.EDU
+       </A><BR>
+    <I>Tue Aug 10 09:39:04 PDT 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="070074.html">[whatwg] &lt;video&gt; &quot;await a stable state&quot; in resource selection (Was: Race condition in media load algorithm)
+</A></li>
+        <LI>Next message: <A HREF="070131.html">[whatwg] &lt;video&gt; &quot;await a stable state&quot; in resource selection (Was: Race condition in media load algorithm)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#70081">[ date ]</a>
+              <a href="thread.html#70081">[ thread ]</a>
+              <a href="subject.html#70081">[ subject ]</a>
+              <a href="author.html#70081">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On 8/10/10 4:40 AM, Philip J&#228;genstedt wrote:
+&gt;<i> Because the parser can't create a state which the algorithm doesn't
+</I>&gt;<i> handle. It always first inserts the video element, then the source
+</I>&gt;<i> elements in the order they should be evaluated. The algorithm is written
+</I>&gt;<i> in such a way that the overall result is the same regardless of whether
+</I>&gt;<i> it is invoked/continued on each inserted source element or after the
+</I>&gt;<i> video element is closed.
+</I>
+Ah, the waiting state, etc?
+
+Why does the algorithm not just reevaluate any sources after the 
+newly-inserted source instead?
+
+&gt;<i> However, scripts can see the state at any point, which is why it needs to be the same in all browsers.
+</I>
+I'm not sure which &quot;the state&quot; you mean here.
+
+&gt;&gt;<i> Because changes to the set of &lt;source&gt; elements do not restart the
+</I>&gt;&gt;<i> resource selection algorithm, right? Why don't they, exactly? That
+</I>&gt;&gt;<i> seems broken to me, from the POV of how the rest of the DOM generally
+</I>&gt;&gt;<i> works (except as required by backward compatibility considerations)...
+</I>&gt;<i>
+</I>&gt;<i> The resource selection is only started once, typically when the src
+</I>&gt;<i> attribute is set (by parser or script) or when the first source element
+</I>&gt;<i> is inserted. If it ends up in step 21 waiting, inserting another source
+</I>&gt;<i> element may cause it to continue at step 22.
+</I>
+Right, ok.
+
+&gt;<i> Restarting the algorithm on any modification of source elements would
+</I>&gt;<i> mean retrying sources that have previously failed due to network errors
+</I>&gt;<i> or incorrect MIME type again and again, wasting network resources.
+</I>&gt;<i> Instead, the algorithm just keeps it state and waits for more source
+</I>&gt;<i> elements to try.
+</I>
+Well, the problem is that it introduces hysteresis into the DOM.  Why is 
+this a smaller consideration than the other, in the edge case when 
+someone inserts sources in reverse order and &quot;slowly&quot; (off the event loop)?
+
+That is, why do we only consider sources inserted after the |pointer| 
+instead of all newly inserted sources?
+
+&gt;<i> I'm not sure what you mean by hysteresis
+</I>
+<A HREF="http://en.wikipedia.org/wiki/Hysteresis">http://en.wikipedia.org/wiki/Hysteresis</A>
+
+Specifically, that the state of the page depends not only on the current 
+state of the DOM but also on the path in state space that the page took 
+to get there.
+
+Or in other words, that inserting two &lt;source&gt; elements does different 
+things depending on whether you do &quot;appendChild(a); appendChild(b)&quot; or 
+&quot;appendChild(b); insertBefore(a, b)&quot;, even though the resulting DOM is 
+exactly the same.
+
+Or in your case, the fact that the ordering of the setAttribute and 
+insertChild calls matters, say.
+
+Such situations, which introduce order-dependency on DOM operations, are 
+wonderful sources of frustration for web developers, especially if 
+libraries that abstract away the DOM manipulation are involved (so the 
+web developer can't even change the operation order).
+
+&gt;&gt;<i> I have a really hard time believing that you trigger resource
+</I>&gt;&gt;<i> selection when the &lt;video&gt; is inserted into the document and don't
+</I>&gt;&gt;<i> retrigger it afterward, given that... do you?
+</I>&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> 2. Instead of calling the resource fetch algorithm in step 5/9
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> There doesn't seem to be such a step...
+</I>&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> 3. In step 21, instead of waiting forever, just return and let inserting
+</I>&gt;&gt;&gt;<i> a source element cause it to continue at step 22.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Again, the numbering seems to be off.
+</I>&gt;<i>
+</I>&gt;<i> These are steps in the resource selection algorithm, not in the resource
+</I>&gt;<i> fetch algorithm.
+</I>
+Yes.  Step 5 in the resource selection algorithm I see is:
+
+   5. Queue a task to fire a simple event named loadstart at the media
+      element.
+
+It has no substeps.
+
+&gt;<i> Mozilla is implementing this now. How are you interpreting &quot;await a
+</I>&gt;<i> stable state&quot; when the resource selection algorithm is triggered by the
+</I>&gt;<i> parser?
+</I>
+At the moment, given that we don't differentiate betwen &quot;pause&quot; and 
+&quot;spin the event loop&quot; internally, it sounds like we plan to treat tis as 
+&quot;wait until the next event runs from the event loop&quot;.  This means we 
+will treat an alert being up as being in a stable state; same for sync 
+XHR, showModalDialog, etc.  From the parser we will basically treat it 
+as &quot;run asynchronously&quot;.
+
+&gt;<i> Will the result be 100% predictable or depend on &quot;random&quot; things
+</I>&gt;<i> like how much data the parser already has available from the network?
+</I>
+I don't know about &quot;result&quot;.  When the algorithm runs, exactly, will 
+depend on the amount of data the parser parses before returning to the 
+event loop.  Does that affect &quot;result&quot;?
+
+-Boris
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="070074.html">[whatwg] &lt;video&gt; &quot;await a stable state&quot; in resource selection (Was: Race condition in media load algorithm)
+</A></li>
+	<LI>Next message: <A HREF="070131.html">[whatwg] &lt;video&gt; &quot;await a stable state&quot; in resource selection (Was: Race condition in media load algorithm)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#70081">[ date ]</a>
+              <a href="thread.html#70081">[ thread ]</a>
+              <a href="subject.html#70081">[ subject ]</a>
+              <a href="author.html#70081">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

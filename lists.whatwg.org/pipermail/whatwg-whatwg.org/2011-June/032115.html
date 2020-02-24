@@ -1,0 +1,368 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Hashing Passwords Client-side
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Hashing%20Passwords%20Client-side&In-Reply-To=%3CBANLkTi%3DuMOH8M9BctmvzKVjKk%2Bcuewifwg%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="032219.html">
+   <LINK REL="Next"  HREF="032120.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Hashing Passwords Client-side</H1>
+<!--htdig_noindex-->
+    <B>Aryeh Gregor</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Hashing%20Passwords%20Client-side&In-Reply-To=%3CBANLkTi%3DuMOH8M9BctmvzKVjKk%2Bcuewifwg%40mail.gmail.com%3E"
+       TITLE="[whatwg] Hashing Passwords Client-side">Simetrical+w3c at gmail.com
+       </A><BR>
+    <I>Thu Jun 16 14:38:09 PDT 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="032219.html">[whatwg] Hashing Passwords Client-side
+</A></li>
+        <LI>Next message: <A HREF="032120.html">[whatwg] EventSource - Handling a charset in the content-type header
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#32115">[ date ]</a>
+              <a href="thread.html#32115">[ thread ]</a>
+              <a href="subject.html#32115">[ subject ]</a>
+              <a href="author.html#32115">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Thu, Jun 16, 2011 at 3:59 PM, Sean Connelly &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">sean at pbwhere.com</A>&gt; wrote:
+&gt;<i> ## Proposed Solution:
+</I>&gt;<i>
+</I>&gt;<i> Add an attribute to &lt;input type=&quot;password&quot;&gt; called &quot;hash&quot;. &#160;For example:
+</I>&gt;<i> &lt;input type=&quot;password&quot; hash=&quot;sha1&quot; salt=&quot;something&quot;&gt;
+</I>
+How does this solve the problem?  Do you expect it to help because
+users will be able to see which sites are using unhashed passwords,
+and complain so that the site admins fix it?
+
+&gt;<i> This will indicate to the browser that it needs to hash the value locally
+</I>&gt;<i> before sending it to the server. &#160;This hash should include a site-specific
+</I>&gt;<i> salt, so that the same password typed on two different sites will hash to
+</I>&gt;<i> different values. &#160;I propose the default salt to be the origin as an ASCII
+</I>&gt;<i> string (protocol + host + port, ex: &quot;<A HREF="http://example.com:80">http://example.com:80</A>&quot;), and the
+</I>&gt;<i> default hash to be &quot;none&quot; (in order for backward compatibility).
+</I>
+Salting with something that's not included in the database is not a
+good idea.  It means that if the site author isn't extremely careful
+to provide the same salt every time, login will fail.  If the author
+can provide a salt, it should default to the empty string, and it
+should also be included in the submitted hash.  E.g., instead of
+submitting &quot;0123456789abcdef&quot;, submit &quot;0123456789abcdef:salt&quot; or
+something as the password.  That way, if anything is stored with the
+wrong salt, it will be easily detectable on the server side.
+
+Also, the site should really be using a per-user salt.  Otherwise,
+someone with database access can immediately tell which users have the
+same passwords.  For large databases, this would allow recovering a
+lot of the passwords very cheaply by frequency analysis.  However,
+it's probably not practical to do a client-side per-user salt.
+
+One thing salting would be good for is some kind of nonce scheme,
+where you compute the hash, salt it, and then hash it again with a
+one-time salt.  If the server discards the salt after using it once,
+the password hash sniffed off the wire will be useless to the
+attacker.  (Of course, this only works for login, not registration.)
+However, you need fairly complicated server-side logic to support
+this, and it's not trivial for users to notice whether the nonce is
+reusable, so I don't know if it's useful to support this.
+
+So I think salting can just be omitted here, at least for a first
+draft.  Site-wide salts don't buy you very much, and clients can't
+easily do any other kind of salt.  The salt attribute as you proposed
+it won't significantly increase security, but it will make people
+think they're doing proper salting when they aren't.
+
+Not supporting salts does leave us open to rainbow tables,
+unfortunately, but I don't see a good way to fix that from the client
+side.
+
+&gt;<i> In order to deal with migration correctly, the browser will also need to
+</I>&gt;<i> communicate to the server that it correctly performed the hash.
+</I>
+Why?  The server can first try comparing the submitted password to the
+stored hash, then if that fails, hash the submitted password and
+compare that to the stored hash.  That way, you don't need to submit
+out-of-band information.
+
+&gt;<i> I propose a
+</I>&gt;<i> new header for the browser to send:
+</I>&gt;<i>
+</I>&gt;<i> X-Password-Hash: 1
+</I>
+If we did want a new header, it shouldn't start with &quot;X-&quot;.  We'd be
+standardizing it, after all.  We'd probably want to submit it as extra
+magic form fields, too, not an HTTP header.
+
+
+I'd suggest a way to allow authors to iterate the hashing.  For
+password hashes, you shouldn't use a hash applied only once.  Instead,
+you should hash the same value thousands of times.  That way, an
+attacker who gets the database will have to spend thousands of times
+the CPU effort to crack the hashes.  I suggest again that the number
+of iterations be adjoined to the password in some fashion, so that
+it's easy to migrate passwords if you increase the number of
+iterations.  I'd also suggest a high number of iterations by default,
+so that a low-end client would take 10-100 ms to execute the hashes.
+There should be a minimum number of iterations too, to help avert
+authoring errors.
+
+&gt;<i> 1. Host never has access to actual password (as long as user has a modern
+</I>&gt;<i> browser)
+</I>&gt;<i> 2. If the host is compromised, hackers may be able to takeover the account
+</I>&gt;<i> on the server, but will not be able to take over accounts on different
+</I>&gt;<i> servers even if the user uses the same password (because the hackers will
+</I>&gt;<i> only have access to the hashed password with site-specific salts)
+</I>
+These are not benefits relative to doing it on the server side.
+
+&gt;<i> 3. Plain-text passwords cannot be sniffed over HTTP
+</I>
+This is a definite benefit.  Barring one-time salts, the attacker
+could still authenticate as the user by just submitting the same hash,
+but it's still good if they can't retrieve the plaintext password.  If
+they don't know the original password, they can't attack other sites
+where the user has an account.
+
+&gt;<i> 4. Easy for webmasters to upgrade for additional security benefit
+</I>
+It wouldn't be any easier than with server-side hashing.  In fact it
+might be mildly harder.  But it would be *detectable*, which I think
+is a possible advantage.  Security-conscious users could complain if
+an application isn't hashing client-side.  I'm not sure how
+significant this advantage is, but it might be significant.
+
+&gt;<i> 1. Host cannot validate password requirements (ex: 2 upper case, 2 lower
+</I>&gt;<i> case, 2 special characters, password length, etc)
+</I>
+These could be validated client-side, possibly even using the pattern
+attribute.  Of course, then it wouldn't be totally reliable; but if
+the user is going to the effort of disabling that JavaScript, they
+could just as well go to the effort of having it auto-mangle their
+password to meet requirements.
+
+Alternatively, authors could just omit the hash attribute when the
+user is creating a new account or changing their password, and hash
+server-side before storing the new password.
+
+&gt;<i> 2. Server-side code might be complicated for dealing with legacy,
+</I>&gt;<i> non-hashing browsers
+</I>
+This is already the case if you do server-side hashing, if you've ever
+changed your hashing method in the history of your application.
+
+&gt;<i> 1. How to deal with the character encoding of the page correctly? &#160;Should
+</I>&gt;<i> everything be converted to UTF-8 before the hash is calculated?
+</I>
+Something like that sounds like a good idea, yes.  What happens now if
+you submit a password in a different character encoding than you used
+to set it, does it just fail to work?
+
+&gt;<i> 2. What level of access should JavaScript have? &#160;Should it have access to
+</I>&gt;<i> read the plain password, or should it only be able to read the hashed value?
+</I>
+Restricting its access is pointless from a security perspective, since
+it could just remove the hash attribute and the user wouldn't know the
+difference.  Or set onkeypress handlers, etc.
+
+On Thu, Jun 16, 2011 at 5:08 PM, Tab Atkins Jr. &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">jackalmage at gmail.com</A>&gt; wrote:
+&gt;<i> Personally, I'd prefer the information be transmitted via another
+</I>&gt;<i> (browser-synthesized) form input, as it's usually much easier to read
+</I>&gt;<i> form inputs than header values.
+</I>
+It doesn't need to be transmitted at all.
+
+&gt;<i> I like your idea for the default salt. &#160;We might be able to hook off
+</I>&gt;<i> of slightly better concepts (use the origin directly?) but the idea is
+</I>&gt;<i> sound.
+</I>
+Only until the site changes origins and all logins break for no
+apparent reason.  Or if the site is accessible from multiple origins.
+Having a default salt that's anything other than a fixed string is a
+really bad idea.  Plus, it's not a replacement for per-user salts, and
+authors will think it is.
+
+&gt;<i> This is a benefit, actually. &#160;Password requirements are, nearly
+</I>&gt;<i> uniformly, absolutely horrendous for security in practice.
+</I>
+Imposing a fairly high minimum password length and banning dictionary
+words or simple combinations thereof will make it nearly impossible to
+brute-force the hashes, which is a huge security benefit.  It's
+uniformly a plus against network attacks or server compromises.  It
+might make it more likely that users will have their browser remember
+their password, which will worsen client compromise.  But that's
+insignificant if you impose only mild restrictions (e.g., at least
+four characters), while the added protection against server or network
+compromise in that case is very large in that case if you use a slow
+hash.
+
+I mean, do you really think it's bad for security for sites to ban
+zero- and one-character passwords?
+
+&gt;<i> Only for the transition period. &#160;Afterwards, you can just ignore
+</I>&gt;<i> legacy browsers and store the passwords directly. &#160;Those older
+</I>&gt;<i> browsers will just have security vulnerabilities.
+</I>
+No, they'll fail to work.  If the user creates an account with an old
+browser and then tries to log in in a new browser, or vice versa, the
+login will fail.  That will only be tolerable in the far future, when
+the old browsers are really insignificant.
+
+&gt;<i> The .value property and the value actually submitted should be
+</I>&gt;<i> identical. &#160;This indicates that, unless we add something extra, JS
+</I>&gt;<i> would only get the hashed value.
+</I>
+I think it's better for script to get the unhashed value.  Otherwise,
+the client would have to synchronously compute the hash every time the
+value property is accessed, which would be a bad idea if it takes 50ms
+or something.  Also, with the unhashed value you can do things like
+check length and so on.  Validation attributes like pattern should
+also apply to the unhashed value.
+
+&gt;<i> Overall, I like the idea. &#160;It seems like a pretty clueful addressing
+</I>&gt;<i> of the topic, and it directly addresses the problem that servers
+</I>&gt;<i> shouldn't ever remember passwords, but a lot of them do. &#160;Finally, it
+</I>&gt;<i> puts the processor cost of good crypto-hashing on the client rather
+</I>&gt;<i> than the server, which is nice. &#160;We can do a nice, expensive hash on
+</I>&gt;<i> the client without burdening the user, while an expensive hash *can*
+</I>&gt;<i> be a minor issue for busy servers.
+</I>
+I also like the fact that it can give users warning or assurance about
+security problems.  It would be nice if we could have password fields
+with a hash attribute display slightly differently, so clueful users
+could be sure our passwords are being handled at least somewhat
+securely.  It only takes a small minority of users to complain to
+encourage the site author to fix it.
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="032219.html">[whatwg] Hashing Passwords Client-side
+</A></li>
+	<LI>Next message: <A HREF="032120.html">[whatwg] EventSource - Handling a charset in the content-type header
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#32115">[ date ]</a>
+              <a href="thread.html#32115">[ thread ]</a>
+              <a href="subject.html#32115">[ subject ]</a>
+              <a href="author.html#32115">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

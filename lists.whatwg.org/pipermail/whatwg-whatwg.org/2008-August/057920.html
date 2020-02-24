@@ -1,0 +1,167 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Workers feedback
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Workers%20feedback&In-Reply-To=%3C489B481E.4060203%40sicking.cc%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="057916.html">
+   <LINK REL="Next"  HREF="057926.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Workers feedback</H1>
+<!--htdig_noindex-->
+    <B>Jonas Sicking</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Workers%20feedback&In-Reply-To=%3C489B481E.4060203%40sicking.cc%3E"
+       TITLE="[whatwg] Workers feedback">jonas at sicking.cc
+       </A><BR>
+    <I>Thu Aug  7 12:08:14 PDT 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="057916.html">[whatwg] Workers feedback
+</A></li>
+        <LI>Next message: <A HREF="057926.html">[whatwg] Workers feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#57920">[ date ]</a>
+              <a href="thread.html#57920">[ thread ]</a>
+              <a href="subject.html#57920">[ subject ]</a>
+              <a href="author.html#57920">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Ian Hickson wrote:
+&gt;<i> On Wed, 6 Aug 2008, Aaron Boodman wrote:
+</I>&gt;&gt;<i> I am opposed to the utils object. I don't see any precedent for this 
+</I>&gt;&gt;<i> anywhere, and it just feels ugly to me. I liked it the way you had it 
+</I>&gt;&gt;<i> before, with these APIs in a shared base interface.
+</I>&gt;<i> 
+</I>&gt;<i> Ok. I don't have an opinion on this. Jonas?
+</I>&gt;<i> 
+</I>&gt;<i> In the absence of any arguments either way, my default would be put it all 
+</I>&gt;<i> on the global object; clashes are manageable, the Window object does it 
+</I>&gt;<i> that way, and there are enough things that we kinda want to put on the 
+</I>&gt;<i> global scope anyway (the core worker stuff) that it's not a clear that the 
+</I>&gt;<i> gain is huge.
+</I>
+I don't feel very strongly about this right now. It's something we 
+started debating at mozilla and I think we'll debate it a bit more 
+before coming to a conclusion. I'm fine with putting it in the global 
+scope for now. Sorry, i didn't mean to ask for an immediate action on 
+this yet.
+
+&gt;&gt;<i> That's also one reason why I like having a separate Worker object and 
+</I>&gt;&gt;<i> having the two-step process of creating the worker, then sending it a 
+</I>&gt;&gt;<i> message. It means that creating a new channel to a worker is always the 
+</I>&gt;&gt;<i> same.
+</I>&gt;<i> 
+</I>&gt;<i> It seems that designing the API to add extra steps is a bad thing 
+</I>&gt;<i> generally speaking. :-)
+</I>
+Though in the vast majority of cases only the first step is needed. A 
+second step is only needed in the very complex use cases of:
+
+* Having sibling workers talk directly to each other.
+* Having a worker talk directly to a frame from a different origin.
+* Having a worker shared across different instances of the app.
+
+&gt;&gt;<i> I think that 'load', 'error', and 'unload' could go on the worker. As 
+</I>&gt;&gt;<i> far as I can tell, the only thing 'load' and 'error' are used for is 
+</I>&gt;&gt;<i> telling the creator of a worker that the worker loaded or failed to 
+</I>&gt;&gt;<i> load. In that case, it seems wrong to throw them on MessagePort, since 
+</I>&gt;&gt;<i> MessagePorts are also used for many other things.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> I also still think that Workers could have their own sendMessage. The 
+</I>&gt;&gt;<i> messages sent to this would be delivered to the worker as 'message' 
+</I>&gt;&gt;<i> events targeted at WorkerGlobalObject (eliminating the need for 
+</I>&gt;&gt;<i> onconnect?). This would make Workers and postMessage very similar to 
+</I>&gt;&gt;<i> Window and postMessage, which seems nice to me.
+</I>&gt;<i> 
+</I>&gt;<i> How's this for a compromise:
+</I>&gt;<i> 
+</I>&gt;<i> We make the createWorker() methods return a Worker object, but the Worker 
+</I>&gt;<i> object _inherits_ from MessagePort. So effectively it is a port, but we 
+</I>&gt;<i> can move the onload and onerror stuff to the Worker object instead of 
+</I>&gt;<i> having them on all MessagePorts.
+</I>&gt;<i> 
+</I>&gt;<i> Would that work for you?
+</I>
+I thought about that, but what happens if you pass such an object to 
+postMessage? Throws an exception? Only the parts of the API that is a 
+MessagePort dies?
+
+One solution I thought about is to have a base interface such as:
+
+interface MessagePort {
+   void postMessage(...);
+   attribute EventListener onmessage;
+   ...
+}
+
+Then have
+
+interface Worker : MessagePort {
+    bool isShared();
+    &lt;worker specific stuff&gt;
+}
+
+interface PipePort : MessagePort {
+    attribute Window ownerWindow;
+    &lt;Pipe specific stuff&gt;
+}
+
+
+And then make the APIs that we want to allow passing around pipe-ends 
+take a PipePort object.
+
+The result is basically that workers are separate objects from what's 
+returned for (new MessagePipe()).port1, but they share some API.
+
+&gt;&gt;&gt;&gt;<i> - Should import() accept an array of URLs, so that the UA can fetch 
+</I>&gt;&gt;&gt;&gt;<i> them in parallel if it has the ability to do that?
+</I>&gt;&gt;&gt;<i> We could do that if you like. Is it needed?
+</I>&gt;&gt;<i> With the connection limits being upped in all the browsers, I think this 
+</I>&gt;&gt;<i> would be a good thing to have from the beginning.
+</I>&gt;<i> 
+</I>&gt;<i> Fair enough. Should they be run in whatever order they load in or should 
+</I>&gt;<i> they be run in the order given on the aguments?
+</I>
+Yes. Another thing is that this function should probably return void and 
+always throw if something goes wrong. I doubt that having the server 
+return a 404 is expected enough that just returning 'false' will keep 
+the program executing fine.
+
+/ Jonas
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="057916.html">[whatwg] Workers feedback
+</A></li>
+	<LI>Next message: <A HREF="057926.html">[whatwg] Workers feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#57920">[ date ]</a>
+              <a href="thread.html#57920">[ thread ]</a>
+              <a href="subject.html#57920">[ subject ]</a>
+              <a href="author.html#57920">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

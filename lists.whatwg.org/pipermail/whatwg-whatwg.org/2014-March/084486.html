@@ -1,0 +1,766 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Canvas and Paths
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Canvas%20and%20Paths&In-Reply-To=%3Calpine.DEB.2.00.1403121825200.32463%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="084452.html">
+   <LINK REL="Next"  HREF="084487.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Canvas and Paths</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Canvas%20and%20Paths&In-Reply-To=%3Calpine.DEB.2.00.1403121825200.32463%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg] Canvas and Paths">ian at hixie.ch
+       </A><BR>
+    <I>Wed Mar 12 15:44:00 PDT 2014</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="084452.html">[whatwg] new constructor method for Path2D
+</A></li>
+        <LI>Next message: <A HREF="084487.html">[whatwg] Canvas and Paths
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#84486">[ date ]</a>
+              <a href="thread.html#84486">[ thread ]</a>
+              <a href="subject.html#84486">[ subject ]</a>
+              <a href="author.html#84486">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>
+On Thu, 28 Nov 2013, Rik Cabanier wrote:
+&gt;<i> On Thu, Nov 28, 2013 at 8:30 AM, J&#252;rg Lehni &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">lists at scratchdisk.com</A>&gt; 
+</I>&gt;<i> wrote:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; I meant to say that it I think it would make more sense if the path 
+</I>&gt;<i> &gt; was in the current transformation matrix, so it would represent the 
+</I>&gt;<i> &gt; same coordinate values in which it was drawn, and could be used in the 
+</I>&gt;<i> &gt; same 'context' of transformations applied to the drawing context later 
+</I>&gt;<i> &gt; on.
+</I>&gt;<i> 
+</I>&gt;<i> No worries, it *is* confusing. For instance, if you emit coordinates and 
+</I>&gt;<i> then scale the matrix by 2, those coordinates from getCurrentPath will 
+</I>&gt;<i> have a scale of .5 applied.
+</I>
+That's rather confusing, and a pretty good reason not to have a way to go 
+from the current default path to an explicit Path, IMHO.
+
+Transformations affect the building of the current default path at each 
+step of the way, which is really a very confusing API. The Path API on the 
+other hand doesn't have this problem -- it has no transformation matrix. 
+It's only when you use Path objects that they get transformed.
+
+
+&gt;<i> &gt; So this is not how most implementations currently have it defined.
+</I>&gt;<i> 
+</I>&gt;<i> I'm unsure what you mean. Browser implementations? If so, they 
+</I>&gt;<i> definitely do store the path in user coordinates. The spec currently 
+</I>&gt;<i> says otherwise [1] though.
+</I>
+I'm not sure what you're referring to here.
+
+
+&gt;<i> It would be a very fast way to set a cached path in the graphics state
+</I>
+What would the purpose of this be? You can just pass the path to the 
+relevant functions instead, no?
+
+
+&gt;<i> Another use case is to allow authors to quickly migrate to hit regions.
+</I>&gt;<i> 
+</I>&gt;<i> ctx.beginPath(); ctx.lineTo(...); ...; ctx.fill();
+</I>&gt;<i> ... // lots of complex drawing operation for a control
+</I>&gt;<i> ctx.beginPath(); ctx.lineTo(...); ...; ctx.stroke();
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> To migrate that to a region (with my proposed shape interface [1]):
+</I>&gt;<i> 
+</I>&gt;<i> var s = new Shape();
+</I>&gt;<i> 
+</I>&gt;<i> ctx.beginPath(); ctx.lineTo(...); ...; ctx.fill(); s.add(new
+</I>&gt;<i> Shape(ctx.currentPath));
+</I>&gt;<i> ...
+</I>&gt;<i> ctx.beginPath(); ctx.lineTo(...); ...; ctx.stroke(); s.add(new
+</I>&gt;<i> Shape(ctx.currentPath, ctx.currentDrawingStyle));
+</I>&gt;<i> 
+</I>&gt;<i> ctx.addHitRegion({shape: s, id: &quot;control&quot;});
+</I>
+Why not just add ctx.addHitRegion() calls after the fill and stroke calls?
+
+
+On Fri, 6 Dec 2013, J&#252;rg Lehni wrote:
+&gt;<i> 
+</I>&gt;<i> Instead of using getCurrentPath and setCurrentPath methods as a 
+</I>&gt;<i> solution, this could perhaps be solved by returning the internal path 
+</I>&gt;<i> instead of a copy, but with a flag that would prevent further 
+</I>&gt;<i> alterations on it.
+</I>&gt;<i> 
+</I>&gt;<i> The setter of the currentPath accessor / data member could then make the 
+</I>&gt;<i> copy instead when a new path is to be set.
+</I>&gt;<i> 
+</I>&gt;<i> This would also make sense from a a caching point of view, where storing 
+</I>&gt;<i> the currentPath for caching might not actually mean that it will be used 
+</I>&gt;<i> again in the future (e.g. because the path's geometry changes completely 
+</I>&gt;<i> on each frame of an animation), so copying only when setting would 
+</I>&gt;<i> postpone the actual work of having to make the copy, and would help 
+</I>&gt;<i> memory consummation and performance.
+</I>
+I don't really understand the use case here.
+
+
+On Fri, 29 Nov 2013, Rik Cabanier wrote:
+&gt;<i> On Mon, Nov 25, 2013 at 3:55 PM, Ian Hickson &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">ian at hixie.ch</A>&gt; wrote:
+</I>&gt;<i> &gt; On Sat, 28 Sep 2013, Rik Cabanier wrote:
+</I>&gt;<i> &gt; &gt; On Fri, Sep 27, 2013 at 2:08 PM, Ian Hickson &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">ian at hixie.ch</A>&gt; wrote:
+</I>&gt;<i> &gt; &gt; &gt; On Thu, 5 Sep 2013, Rik Cabanier wrote:
+</I>&gt;<i> &gt; &gt; &gt; &gt; On Thu, Sep 5, 2013 at 3:22 PM, Ian Hickson &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">ian at hixie.ch</A>&gt; wrote:
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; On Sat, 10 Aug 2013, Rik Cabanier wrote:
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; &gt; I was wondering if this is something that happens in Flash 
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; &gt; as well. It turns out that there's an option called 
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; &gt; &quot;hinting: Keep stroke anchors on full pixels to prevent 
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; &gt; blurry lines.&quot; [...]
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; &gt; I think canvas should have a similar feature...
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; Can you elaborate on how exactly you would want this to work? 
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; How would you avoid the alignment and distortion problems when 
+</I>&gt;<i> &gt; &gt; &gt; &gt; &gt; applying this to anything less trivial than a rectangle?
+</I>&gt;<i> &gt; &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; &gt; Basically, this would *just* move the control points and the 
+</I>&gt;<i> &gt; &gt; &gt; &gt; width of paths so the strokes are always aligned to the pixel 
+</I>&gt;<i> &gt; &gt; &gt; &gt; grid (This would take pixel density and transformations into 
+</I>&gt;<i> &gt; &gt; &gt; &gt; account). After this, you would draw as usual.
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; Can you define &quot;aligned to the pixel grid&quot;?
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; If I have a line from x1,y to x2,y, followed by an arc from x2,y 
+</I>&gt;<i> &gt; &gt; &gt; back to x1,y with radius r, what should happen and why?
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; Align the anchor points of all the segments. Don't change any of the 
+</I>&gt;<i> &gt; &gt; anti-aliasing behavior.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; How does this differ from simply always using integers for 
+</I>&gt;<i> &gt; coordinates?
+</I>&gt;<i> 
+</I>&gt;<i> It would simplify the process for the developer as it might be difficult 
+</I>&gt;<i> to determine what an &quot;integer&quot; coordinate is, especially if there is a 
+</I>&gt;<i> complex CTM in effect. For instance, if the scale is .5, you'd have to 
+</I>&gt;<i> round to a multiple of 2.
+</I>
+I don't really understand when the snapping happens in this proposal. 
+Consider a rotation transformation matrix. How exactly does the snapping 
+work? In a space that's transformed by 45 degress, how would lines drawn 
+at 44, 45, and 46 degrees to the horizontal, all starting at the same 
+point, end up being rendered?
+
+
+&gt;<i> &gt; &gt; What if they're draw as separate paths?
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; I'm unsure if I follow. That shouldn't make a different. What might 
+</I>&gt;<i> &gt; &gt; be different however, is if you draw a diagonal line in 1 segment or 
+</I>&gt;<i> &gt; &gt; 2 since the middle point will be aligned to the grid in the latter 
+</I>&gt;<i> &gt; &gt; case.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Consider a case like this:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;    <A HREF="http://goo.gl/VFsLqj">http://goo.gl/VFsLqj</A>
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; How do you keep the diagonal line exactly touching the arc?
+</I>&gt;<i> 
+</I>&gt;<i> You would not :-) If the pixel that would cover over 50%, it would be 
+</I>&gt;<i> filled.
+</I>&gt;<i> 
+</I>&gt;<i> If the developer is interested in geometric precision, he shouldn't 
+</I>&gt;<i> request sharp lines.
+</I>
+I think there's a difference between being &quot;interested in geometric 
+precision&quot; and interested in things not being ugly. In fact, I don't 
+really see when you would want sharp lines, but _not_ want them to 
+necessarily line up in a tight-fitting manner.
+
+
+&gt;<i> &gt; You can do unions and so forth with just paths, no need for regions.
+</I>&gt;<i> 
+</I>&gt;<i> How would you do a union with paths?
+</I>&gt;<i> If you mean that you can just aggregate the segments, sure but that doesn't
+</I>&gt;<i> seem very useful.
+</I>
+You say, here are some paths, here are some fill rules, here are some 
+operations you should perform, now give me back a path that describes the 
+result given a particular fill rule.
+
+A shape is just a path with a fill rule, essentially. Anything you can do 
+with one you can do with the other.
+
+
+&gt;<i> &gt; &gt; The path object should represent the path in the graphics state. You 
+</I>&gt;<i> &gt; &gt; can't add a stroked path or text outline to the graphics state and 
+</I>&gt;<i> &gt; &gt; then fill/stroke it.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Why not?
+</I>&gt;<i> 
+</I>&gt;<i> As designed today, you could fill it, as long as you use non-zero 
+</I>&gt;<i> winding. If you use even-odd, the results will be very wrong. (ie where 
+</I>&gt;<i> joins and line segments meet, there will be white regions)
+</I>
+I think &quot;wrong&quot; here implies a value judgement that's unwarranted.
+
+
+&gt;<i> Stroking will be completely wrong too, because joins and end caps are 
+</I>&gt;<i> drawn separately, so they would be stroked as separate paths. This will 
+</I>&gt;<i> not give you the effect of a double-stroked path.
+</I>
+I don't understand why you think joins and end caps are drawn separately. 
+That is not what the spec requires.
+
+
+&gt;<i> &gt; We seem to be going around in circles. We're in agreement that 
+</I>&gt;<i> &gt; eventually we should add APIs for combining paths such that we get the 
+</I>&gt;<i> &gt; equivalent of the union of their fill regions. I agree that converting 
+</I>&gt;<i> &gt; text into paths is non-trivial (lots of stuff browsers do is 
+</I>&gt;<i> &gt; non-trivial, that's kind of the point -- if it was trivial, we could 
+</I>&gt;<i> &gt; leave it for authors). But I don't see how we get from there to you 
+</I>&gt;<i> &gt; wanting the existing APIs removed.
+</I>&gt;<i> 
+</I>&gt;<i> I want them removed because they will most likely not behave in the way 
+</I>&gt;<i> that an author expects. When he &quot;adds&quot; 2 paths, he wouldn't expect that 
+</I>&gt;<i> there is 'interference' between them.
+</I>
+I don't see why not. It's exactly what happens today if you were to just 
+add the same path creation statements together into the current default 
+path and fill or stroke that.
+
+
+&gt;<i> &gt; The only methods for which the spec currently requires user agents to 
+</I>&gt;<i> &gt; ensure that they create only paths that wind clockwise, and for which 
+</I>&gt;<i> &gt; this has any practical impact as far as I can tell, are the Path 
+</I>&gt;<i> &gt; methods addText(), addPathByStrokingText(), and 
+</I>&gt;<i> &gt; addPathByStrokingPath().
+</I>&gt;<i> 
+</I>&gt;<i> don't forget tracing a path.
+</I>
+That's addPathByStrokingPath(). (stroke() is essentially just 
+addPathByStrokingText() followed by a fill().)
+
+
+&gt;<i> &gt; On Mon, 4 Nov 2013, Rik Cabanier wrote:
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; In light of this, does anyone have objections to these 2 new 
+</I>&gt;<i> &gt; &gt; methods:
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; Path getCurrentPath();
+</I>&gt;<i> &gt; &gt; void setCurrentPath(Path);
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; (The right question is &quot;does anyone want these methods&quot;. The bar is 
+</I>&gt;<i> &gt; higher than just no objections.)
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; What's the use case for setCurrentPath()?
+</I>&gt;<i> 
+</I>&gt;<i> It would negate the need for a 'fill(path)', 'stroke(path)' and
+</I>&gt;<i> 'clip(path)'.
+</I>
+That's not a use case, it's just a different way of implementing the same 
+use case. Why is it better? It seems distinctly more awkward and less 
+idiomatic to have to set an implicit property and then call a method, than 
+just call the method with the path.
+
+Analogously, we don't say:
+
+   Math.angle = Math.PI * 3;
+   var x = Math.sin();
+
+...we say:
+
+   var x = Math.sin(Math.PI * 3);
+
+
+&gt;<i> It also make it more intuitive since you can call: 
+</I>&gt;<i> ctx.setCurrentPath(ctx2.getCurrentPath());
+</I>
+I don't understand how that is intuitive. Why would you do this?
+
+Without compelling use cases, I don't think we should add these features.
+
+
+&gt;<i> &gt; On Mon, 4 Nov 2013, Robert O'Callahan wrote:
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; If you return a path in user-space, what do you get if you call
+</I>&gt;<i> &gt; &gt; getCurrentPath with a singular transform?
+</I>&gt;<i> &gt; &gt;   ctx.moveTo(0,0);
+</I>&gt;<i> &gt; &gt;   ctx.lineTo(1,1);
+</I>&gt;<i> &gt; &gt;   ctx.scale(0,0);
+</I>&gt;<i> &gt; &gt;   var p = ctx.getCurrentPath();
+</I>&gt;<i> &gt; &gt; ?
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; The scale() call here has no effect. The default path is affected by
+</I>&gt;<i> &gt; transforms when you add the path segments, not when you paint. It would be
+</I>&gt;<i> &gt; consistent to do the same when converting it to a Path object.
+</I>&gt;<i> 
+</I>&gt;<i> No, the CTM definitely affects what you paint. Stroke width and 
+</I>&gt;<i> gradients for instance.
+</I>
+That's not the path, but sure.
+
+
+&gt;<i> On Sat, 2 Nov 2013, Rik Cabanier wrote:
+</I>&gt;<i> &gt; On Mon, 4 Nov 2013, J&#252;rg Lehni wrote:
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; I like this feature a lot. One advantage to not underestimate is the 
+</I>&gt;<i> &gt; &gt; amount of effort it takes to change existing code to make use of the 
+</I>&gt;<i> &gt; &gt; new Path feature, while staying backward compatible with older 
+</I>&gt;<i> &gt; &gt; browsers that don't implement this spec. For example, in Paper.js it 
+</I>&gt;<i> &gt; &gt; took only three added lines of code to use cached paths if they 
+</I>&gt;<i> &gt; &gt; exist rather than redrawing them each time.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Being able to get a Path from the context if it exists seems 
+</I>&gt;<i> &gt; reasonable, though it's non-trivial to define what that is given the 
+</I>&gt;<i> &gt; way that transforms affect the context implied path.
+</I>&gt;<i> 
+</I>&gt;<i> Why is it non-trivial? UA have to calculate this path (wrt the current 
+</I>&gt;<i> CTM anyway).
+</I>&gt;<i>
+</I>&gt;<i> &gt; This would, of course, mean that this wouldn't have the expected 
+</I>&gt;<i> &gt; effect with transforms, since they'd be amplified:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;    c.beginPath();
+</I>&gt;<i> &gt;    c.scale(2,2);
+</I>&gt;<i> &gt;    c.moveTo(0,0);
+</I>&gt;<i> &gt;    c.lineTo(1,1);
+</I>&gt;<i> &gt;    var p = new Path(c);
+</I>&gt;<i> &gt;    c.stroke(); // strokes the current default path from 0,0 to 2,2
+</I>&gt;<i> &gt;    c.stroke(p); // strokes p from 0,0 to 4,4 !
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;    c.resetTransform();
+</I>&gt;<i> &gt;    c.stroke(p); // strokes the current default path from 0,0 to 2,2
+</I>&gt;<i> 
+</I>&gt;<i> No, these will look the same. 'new Path(c)' establishes the same path in 
+</I>&gt;<i> the same user coordinate space.
+</I>
+That's... highly unintuitive and very confusing.
+
+Consider these. Which is wrong?
+
+    c.beginPath();
+    c.scale(2,2);
+    c.moveTo(0,0);
+    c.lineTo(1,0);
+    c.resetTransform();
+    c.lineTo(0,1);
+    var p = new Path(c);
+    c.stroke(); // strokes the current default path from 0,0 to 2,0 to 0,1
+    c.stroke(p); // strokes p from 0,0 to 2,0 to 0,1
+
+    c.beginPath();
+    c.scale(2,2);
+    c.moveTo(0,0);
+    c.lineTo(1,0);
+    c.lineTo(0,0.5);
+    c.resetTransform();
+    var p = new Path(c);
+    c.stroke(); // strokes the current default path from 0,0 to 2,0 to 0,1
+    c.stroke(p); // strokes p from 0,0 to 2,0 to 0,1?
+
+    c.beginPath();
+    c.scale(2,2);
+    c.moveTo(0,0);
+    c.lineTo(1,0);
+    c.lineTo(0,0.5);
+    var p = new Path(c);
+    c.resetTransform();
+    c.stroke(); // strokes the current default path from 0,0 to 2,0 to 0,1
+    c.stroke(p); // strokes p from 0,0 to 2,0 to 0,1?
+
+    c.beginPath();
+    c.scale(2,2);
+    c.moveTo(0,0);
+    c.lineTo(1,0);
+    c.lineTo(0,0.5);
+    var p = new Path(c);
+    c.stroke(); // strokes the current default path from 0,0 to 2,0 to 0,1
+    c.resetTransform();
+    c.stroke(p); // strokes p from 0,0 to 2,0 to 0,1?
+
+    c.beginPath();
+    c.scale(2,2);
+    c.moveTo(0,0);
+    c.lineTo(1,0);
+    c.lineTo(0,0.5);
+    var p = new Path(c);
+    c.stroke(); // strokes the current default path from 0,0 to 2,0 to 0,1
+    c.stroke(p); // strokes p from 0,0 to 2,0 to 0,1?
+    c.resetTransform();
+
+This is why it's non-trivial.
+
+
+&gt;<i> &gt; On Mon, 4 Nov 2013, Rik Cabanier wrote:
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; However, for your example, I'm unsure what the right solution is. 
+</I>&gt;<i> &gt; &gt; The canvas specification is silent on what the behavior is for 
+</I>&gt;<i> &gt; &gt; non-invertible matrices.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; What question do you think the spec doesn't answer?
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; &gt; I think setting scale(0,0) or another matrix operation that is not 
+</I>&gt;<i> &gt; &gt; reversible, should remove drawing operations from the state because: 
+</I>&gt;<i> &gt; &gt; - how would you stroke with such a matrix?
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; You'd get a point.
+</I>&gt;<i> 
+</I>&gt;<i> How would you get a point? the width is scaled to 0.
+</I>
+That's how you get a point -- scale(0,0) essentially reverts everything to 
+a zero dimensional point.
+
+
+&gt;<i> &gt; &gt; - how do patterns operate? the same for gradient fills.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; This is defined:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; &quot;If a radial gradient or repeated pattern is used when the 
+</I>&gt;<i> &gt; transformation matrix is singular, the resulting style must be 
+</I>&gt;<i> &gt; transparent black (otherwise the gradient or pattern would be 
+</I>&gt;<i> &gt; collapsed to a point or line, leaving the other pixels undefined). 
+</I>&gt;<i> &gt; Linear gradients and solid colors always define all points even with 
+</I>&gt;<i> &gt; singular tranformation matrices.&quot;
+</I>&gt;<i> 
+</I>&gt;<i> How is this better than not drawing?
+</I>
+I'm not arguing that it's better, just that's it's defined. We went 
+through a lot of effort to make sure all these things were defined, taking 
+into account author feedback, implementor feedback, etc.
+
+
+On Wed, 8 Jan 2014, Rik Cabanier wrote:
+&gt;<i> 
+</I>&gt;<i> I'll reiterate my proposal:
+</I>&gt;<i> 1. remove all the addxxx methods from the Path2D object [3]
+</I>&gt;<i> Path object are just containers for segments. Aggregating segments will
+</I>&gt;<i> generally not give the desired results since the segments will interact
+</I>&gt;<i> (see [1]).
+</I>&gt;<i> AddPath *could* be kept if people see a strong use case.
+</I>&gt;<i> 
+</I>&gt;<i> 2. introduce a new class 'Shape2D'
+</I>
+When making proposals, it's better to start from use cases and then 
+explore those, rather than starting from APIs and then defending them. 
+Without knowing what the use cases are, it's hard to evaluate the 
+proposals. It's especially hard to evaluate proposals against each other.
+
+
+On Mon, 13 Jan 2014, Rik Cabanier wrote:
+&gt;<i> On Mon, Jan 13, 2014 at 12:31 PM, Justin Novosad &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">junov at google.com</A>&gt; 
+</I>&gt;<i> wrote:
+</I>&gt;<i> 
+</I>&gt;<i> &gt; Maybe I am missing something, but I think this API could be 
+</I>&gt;<i> &gt; implemented entirely in JS without any new canvas APIs.
+</I>&gt;<i> 
+</I>&gt;<i> That is true. Note that this is also true for the current Path proposal
+</I>
+Not really. The Path object has many features that need browser support:
+
+ - filling or stroking a path doesn't blow away the current default path
+ - paths can be stroked then further manipulated
+ - text can be added to a Path and then manipulated
+ - text can be added to a Path in a way that follows a Path
+
+None of these features can be done with the non-Path API in JS.
+
+
+&gt;<i> The Path APIs are simply containers of path segments with no drawing 
+</I>&gt;<i> intent. This means that stroking and filling has to be resolved at 
+</I>&gt;<i> drawing time and since those are expensive to resolve, they might impact 
+</I>&gt;<i> performance.
+</I>
+UAs can certainly pre-compute anything, or cache anything, that would be 
+expensive. In particular, I would expect a browser to cache the expensive 
+aspects of filling a Path, since that Path will most likely be filled 
+again in the future. That's kind of the point of Path.
+
+If there's specific optimisations that can't be done with Path, do bring 
+them up, though. That's the kind of use case information that is useful.
+
+
+On Tue, 14 Jan 2014, Rik Cabanier wrote:
+&gt;<i> 
+</I>&gt;<i> Another use-case for the shape object would be WebGL.
+</I>&gt;<i> Today, users have to draw shapes and text on a 2d canvas and send over the
+</I>&gt;<i> bitmap to WebGL as a texture. If we could teach WebGL to take Shape2D
+</I>&gt;<i> object, it would have access to scalable graphics which would lower memory
+</I>&gt;<i> use and have better quality.
+</I>&gt;<i> The engineers at NVidia have a paper [1] that describes how this could work.
+</I>
+Couldn't the same be done with Path object? e.g. WebGL could have some 
+object that you construct from a path and fill rule, which you can then 
+reuse in a WebGL context.
+
+
+On Fri, 24 Jan 2014, Joe Gregorio wrote:
+&gt;<i> 
+</I>&gt;<i> In general we would like to see a layered approach to drawing objects, 
+</I>&gt;<i> starting with something primitive like Path, and at the most general a 
+</I>&gt;<i> Display List[1] that contains the full set of capabilities of 
+</I>&gt;<i> CanvasRenderingContext2D.  That layering could be done in two or three 
+</I>&gt;<i> objects, either [Path, DisplayList] or [Path, Shape2D, DisplayList]. In 
+</I>&gt;<i> all cases you can use the lower level objects to construct higher level 
+</I>&gt;<i> objects, i.e. use one or more Paths to build a Shape2D, and use Paths 
+</I>&gt;<i> and Shape2Ds to define a DisplayList.
+</I>
+Can you elaborate on the DisplatList part of this? Would this need to be 
+explicit in the JavaScript API, or is this something you see as implicit 
+in the implementation?
+
+
+&gt;<i> The add* methods could be simplified to:
+</I>&gt;<i> 
+</I>&gt;<i>   void addPath(Path path, SVGMatrix? transformation);
+</I>&gt;<i>   void addPathByStrokingPath(Path path, CanvasDrawingStyles styles,
+</I>&gt;<i> SVGMatrix? transformation);
+</I>&gt;<i>   void addText(DOMString text, CanvasDrawingStyles styles, SVGMatrix?
+</I>&gt;<i> transformation, unrestricted double x, unrestricted double y, optional
+</I>&gt;<i> unrestricted double maxWidth);
+</I>&gt;<i>   void addTextAlongPath(DOMString text, CanvasDrawingStyles styles,
+</I>&gt;<i> SVGMatrix? transformation, Path path, optional unrestricted double
+</I>&gt;<i> maxWidth);
+</I>
+This really is just removing the addPathByStrokingText() method and 
+splitting the overloaded addText() method into addText() and 
+addTextAlongPath(), right?
+
+Since people have started implementing this now, I've also now added a 
+constructor that builds a path from a bunch of other paths and a fill 
+rule, and creates a new (fill-rule-agnostic) path that is the &quot;union&quot;, 
+shape-wise, of the input paths.
+
+
+&gt;<i> The functionality of the addPathByStrokingText methods below can be done by
+</I>&gt;<i> applying the above methods.
+</I>
+Yeah, the addPathByStrokingText() method is just intended to allow you to 
+render text outlines without having to go through two Paths. It's purely a 
+convenience method. Happy to drop it if implementors don't think it's 
+worth it.
+
+
+On Mon, 27 Jan 2014, Rik Cabanier wrote:
+&gt;<i> 
+</I>&gt;<i> My issue with this add* methods is that they likely will not do what an
+</I>&gt;<i> author expects since the path segments will interact in unexpected ways.
+</I>
+They interact in exactly the ways that they do with the current default 
+path. It's just like concatenating the path creation method calls.
+
+I agree that once that is deployed we should add a method to create a path 
+from other paths in a way that causes the new path to describe the union 
+of the fill regions of the original paths (given some fill rule).
+
+
+&gt;<i> In addition, I think no browser follows the spec for &quot;tracing a path&quot; [1].
+</I>
+The solution to that is to fix the browsers.
+
+
+On Mon, 27 Jan 2014, Joe Gregorio wrote:
+&gt;<i>
+</I>&gt;<i> How about simplifying to just these two add* methods:
+</I>&gt;<i> 
+</I>&gt;<i>   void addPath(Path path, SVGMatrix? transformation);
+</I>&gt;<i>   void addText(DOMString text, SVGMatrix? transformation, unrestricted
+</I>&gt;<i> double x, unrestricted double y, optional unrestricted double maxWidth);
+</I>&gt;<i> 
+</I>&gt;<i> Note the removal of the CanvasDrawingStyles from addText.
+</I>
+This drops the ability to stroke a path, which seems like a major loss, as 
+well as the ability to draw text along a path, which would be rather 
+disappointing (and is one of the things authors kept asking for).
+
+We can't drop the CanvasDrawingStyles argument since that's what specifies 
+the font.
+
+
+On Mon, 27 Jan 2014, Rik Cabanier wrote:
+&gt;<i>
+</I>&gt;<i> For instance, let's say you request the path for the letter 'o'. It's
+</I>&gt;<i> represented by 2 closed paths.
+</I>&gt;<i> What winding rule should you use when you fill that path? Should the paths
+</I>&gt;<i> be oriented so you have to use a NZO fill or so you can use any winding
+</I>&gt;<i> rule?
+</I>&gt;<i> 
+</I>&gt;<i> What happens if the path for a letter intersect with another path (or
+</I>&gt;<i> another letter)?
+</I>
+Good point. I've changed the algorithm a bit so that the resulting path 
+that is added has no ambiguous overlap like this.
+
+
+On Tue, 18 Feb 2014, Rik Cabanier wrote:
+&gt;<i>
+</I>&gt;<i> Some people were unhappy with the SVGMatrix in the argument list but 
+</I>&gt;<i> unless we have something better soon, it's fine to implement. (We can 
+</I>&gt;<i> always use a union later)
+</I>&gt;<i> 
+</I>&gt;<i> Ian, could you remove the other APIs from the spec:
+</I>
+I don't think the arguments for removing these are compelling. The 
+problems with the APIs have been addressed (e.g. there's no ambiguity in 
+the case of overlapping text), the use cases are clear (e.g. drawing text 
+around an arc or drawing a label along a line graph's line), and the API 
+now supports the constructs to do unions of fill regions.
+
+
+&gt;<i> No one has implemented them and they are confusing the browser vendors.
+</I>
+I don't think they're confusing anyone.
+
+
+&gt;<i> Until we have support for shapes, the output of these methods won't be 
+</I>&gt;<i> stable.
+</I>
+These methods have been very stable. They have barely changed since they 
+were added, except for some minor tweaks to fix bugs.
+
+
+On Sun, 9 Mar 2014, Rik Cabanier wrote:
+&gt;<i> On Wed, Mar 5, 2014 at 1:46 PM, Rik Cabanier &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">cabanier at gmail.com</A>&gt; wrote:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; The mozilla implementation uses different &quot;backends&quot; for the canvas 2D 
+</I>&gt;<i> &gt; context. Even within the same document, different canvas objects can 
+</I>&gt;<i> &gt; be on top of different graphics libraries. For best performance, the 
+</I>&gt;<i> &gt; Path2D object should use the same graphics interface as the canvas 
+</I>&gt;<i> &gt; context you're applying it to. If this is not the case, the path 
+</I>&gt;<i> &gt; segments have to be walked and converted which is a costly operation.
+</I>&gt;<i> 
+</I>&gt;<i> I was thinking about this a bit more and an alternate solution would be 
+</I>&gt;<i> to pass an optional 2D context to the Path2D constructors. A UA could 
+</I>&gt;<i> ignore that context, or it could see it as a hint that the path is going 
+</I>&gt;<i> to be used with that context.
+</I>
+I don't understand why this needs to be done ahead of time. Just cache the 
+calls until you're used against a backend, and then convert them to the 
+optimal form at that time.
+
+
+On Mon, 10 Mar 2014, Rik Cabanier wrote:
+&gt;<i> 
+</I>&gt;<i> The current Path2D interface might be unacceptably slow under certain 
+</I>&gt;<i> circumstances and there's currently no way for authors to work around 
+</I>&gt;<i> this. There has to be a hint. If not, I don't see a way that firefox 
+</I>&gt;<i> will ship this.
+</I>
+I don't understand why it's slow.
+
+
+On Mon, 10 Mar 2014, Joe Gregorio wrote:
+&gt;<i> 
+</I>&gt;<i> I thought the speed of Path2D came from the reuse, that is, that the 
+</I>&gt;<i> build cost wasn't a big concern because the speed came from reusing that 
+</I>&gt;<i> same object over and over at up to 60fps?
+</I>
+That's certainly the idea, yes.
+
+
+On Mon, 10 Mar 2014, Rik Cabanier wrote:
+&gt;<i> 
+</I>&gt;<i> It's decoding/re-encoding of an already constructed path.
+</I>
+I don't understand why you need to decode/re-encode. Just &quot;compile&quot; the 
+path to optimal form when you use it the first time, and cache the result.
+
+
+&gt;<i> Yes. The concern is that the re-encoding will happen every time you use 
+</I>&gt;<i> the path.
+</I>
+Why would you re-encode? If you've already used the path with a backend, 
+you'll already have it in encoded form.
+
+
+&gt;<i> We could code it in such a way that the path is retargeted when it's 
+</I>&gt;<i> used. It's a bit strange since fill and stroke are not supposed to 
+</I>&gt;<i> &quot;change&quot; the path.
+</I>
+I don't understand what would change here.
+
+
+On Mon, 10 Mar 2014, Justin Novosad wrote:
+&gt;<i> 
+</I>&gt;<i> Can't the implementation just perform that work lazily the first time 
+</I>&gt;<i> the path is rasterized, and retain the cached result for subsequent use 
+</I>&gt;<i> of the path object?
+</I>
+On Mon, 10 Mar 2014, Tab Atkins Jr. wrote:
+&gt;<i> 
+</I>&gt;<i> This is also my question.  Given that generating a path for a particular 
+</I>&gt;<i> context isn't a magic bullet *anyway* (because the details of the 
+</I>&gt;<i> context can change), I don't understand why caching isn't the answer.
+</I>
+On Mon, 10 Mar 2014, Rik Cabanier wrote:
+&gt;<i> 
+</I>&gt;<i> At usage time, the path could be retargeted to a new backend.
+</I>
+If the backend changes, knowing the backend at creation time doesn't help.
+
+If it doesn't, then the cost seems to be the same either way.
+
+
+&gt;<i> I don't think that should be done as a cached copy since that would 
+</I>&gt;<i> require too many resources. I will see if this is an acceptable solution 
+</I>&gt;<i> for mozilla.
+</I>
+How many resources could a path possibly take?
+
+
+On Mon, 10 Mar 2014, Justin Novosad wrote:
+&gt;<i> 
+</I>&gt;<i> Isn't caching ideal for that situation? In the case of re-targeting, you 
+</I>&gt;<i> can either replace the cached encoding, or append the new encoding to a 
+</I>&gt;<i> collection of cached encodings.  Both of those options seem more 
+</I>&gt;<i> effective than to stick to an encoding type that was baked-in at 
+</I>&gt;<i> construction time. It may also be great to have a heuristic to chose 
+</I>&gt;<i> whether to discard the previously cached re-encoding. Something like: if 
+</I>&gt;<i> we are re-encoding because the destination backing type changed due to a 
+</I>&gt;<i> resize, then discard previous encodings; if re-encoding because the path 
+</I>&gt;<i> is drawn to multiple canvases, then retain multiple cached encodings.
+</I>
+That makes sense to me.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="084452.html">[whatwg] new constructor method for Path2D
+</A></li>
+	<LI>Next message: <A HREF="084487.html">[whatwg] Canvas and Paths
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#84486">[ date ]</a>
+              <a href="thread.html#84486">[ thread ]</a>
+              <a href="subject.html#84486">[ subject ]</a>
+              <a href="author.html#84486">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

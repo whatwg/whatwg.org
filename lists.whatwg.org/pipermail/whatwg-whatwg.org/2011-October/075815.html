@@ -1,0 +1,142 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Another bug in the HTML parsing spec?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Another%20bug%20in%20the%20HTML%20parsing%20spec%3F&In-Reply-To=%3C4E9DC53A.3010206%40mozilla.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="075809.html">
+   <LINK REL="Next"  HREF="033549.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Another bug in the HTML parsing spec?</H1>
+<!--htdig_noindex-->
+    <B>David Flanagan</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Another%20bug%20in%20the%20HTML%20parsing%20spec%3F&In-Reply-To=%3C4E9DC53A.3010206%40mozilla.com%3E"
+       TITLE="[whatwg] Another bug in the HTML parsing spec?">dflanagan at mozilla.com
+       </A><BR>
+    <I>Tue Oct 18 11:28:10 PDT 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="075809.html">[whatwg] Another bug in the HTML parsing spec?
+</A></li>
+        <LI>Next message: <A HREF="033549.html">[whatwg] Fullscreen Update
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#75815">[ date ]</a>
+              <a href="thread.html#75815">[ thread ]</a>
+              <a href="subject.html#75815">[ subject ]</a>
+              <a href="author.html#75815">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On 10/17/11 5:47 PM, Ian Hickson wrote:
+&gt;<i> On Mon, 17 Oct 2011, David Flanagan wrote:
+</I>&gt;&gt;<i> In the HTML spec, &quot;The rules for parsing tokens in foreign content&quot;
+</I>&gt;&gt;<i> include an algorithm for &quot;any other end tag&quot;.  This is the algorithm at
+</I>&gt;&gt;<i> the very end of
+</I>&gt;&gt;<i> <A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/tree-construction.html.">http://www.whatwg.org/specs/web-apps/current-work/multipage/tree-construction.html.</A>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> I think there are some problems with this algorithm and would appreciate
+</I>&gt;&gt;<i> any insight anyone has:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> 1) Step 3 includes an instruction to jump to the last step in the list
+</I>&gt;&gt;<i> of steps.  But the last step begins &quot;Otherwise&quot;, which sounds like it is
+</I>&gt;&gt;<i> an else clause.  Jumping into an else clause is confusing enough that I
+</I>&gt;&gt;<i> wonder if there is an error in the algorithm wording.
+</I>&gt;<i> Yeah, that's bogus. The &quot;last step&quot; it's referring to has been removed (it
+</I>&gt;<i> used to reset the insertion mode). I've fixed the spec.
+</I>Thanks.  With that change, my problem #3 below goes away, as you suspected.
+&gt;&gt;<i> 2) I can't get all of the parser tests from html5lib to pass with this
+</I>&gt;&gt;<i> algorithm as it is currently written.  In particular, there are 5 tests in
+</I>&gt;&gt;<i> testdata/tree-construction/tests9.dat of this basic form:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> &lt;!DOCTYPE html&gt;&lt;body&gt;&lt;table&gt;&lt;math&gt;&lt;mi&gt;foo&lt;/mi&gt;&lt;/math&gt;&lt;/table&gt;
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> As the spec is written, the&lt;mi&gt;  tag is a text integration point, so the &quot;foo&quot;
+</I>&gt;&gt;<i> text token is handled like regular content, not like foreign content.
+</I>&gt;<i> Oh, my, yeah, that's all kinds of wrong. The text node should be handled
+</I>&gt;<i> as if it was in the &quot;in body&quot; mode, not as if it was &quot;in table&quot;. I'll have
+</I>&gt;<i> to study this closer.
+</I>&gt;<i>
+</I>&gt;<i> I think this broke when we moved away from using an insertion mode for
+</I>&gt;<i> foreign content.
+</I>Here's my current workaround:
+
+In 13.2.5, in the rules for whether to use the current insertion mode or 
+to insert the token as foreign content, if the token is being inserted 
+because the current node is a math (or HTML, but I'm not sure about 
+that) integration point, then first set a text_integration_mode flag, 
+then invoke the current insertion mode, then clear the flag.
+
+And in the in table insertion mode, when a character token is inserted, 
+and the text_integration_mode flag is set, then just process the token 
+using in body mode, and otherwise follow the directions that are there now.
+
+I'm not sure that is the best way to fix the spec, but it works for me, 
+in the sense that my parser now passes the tests.
+
+     David
+
+&gt;<i> Henri, do you know how Gecko gets this right currently?
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;&gt;<i> The workaround I've found (I'm not confident that this is the correct
+</I>&gt;&gt;<i> workaround) is to change step 3 of the algorithm so that it only pops
+</I>&gt;&gt;<i> the stack if there is no pending table text.  Another potential
+</I>&gt;&gt;<i> workaround is to use the existence of pending table text as a condition
+</I>&gt;&gt;<i> for sending tokens to the regular insertion mode rather than treating
+</I>&gt;&gt;<i> them as foreign content.
+</I>&gt;<i> We shouldn't be ending up with pending table text here at all. It should
+</I>&gt;<i> go straight into the mi element.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;&gt;<i> 3) In this set of tests
+</I>&gt;&gt;<i> <A HREF="http://code.google.com/p/html5lib/source/browse/testdata/tree-construction/webkit01.dat">http://code.google.com/p/html5lib/source/browse/testdata/tree-construction/webkit01.dat</A>
+</I>&gt;&gt;<i> there is this test:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> &lt;math&gt;&lt;mrow&gt;&lt;mrow&gt;&lt;mn&gt;1&lt;/mn&gt;&lt;/mrow&gt;&lt;mi&gt;a&lt;/mi&gt;&lt;/mrow&gt;&lt;/math&gt;
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> When the first&lt;/mrow&gt;  tag is parsed, it is handled as foreign content,
+</I>&gt;&gt;<i> and gets popped off the stack in step 3. Then, the token is reprocessed
+</I>&gt;&gt;<i> in body mode.  It is treated in the &quot;any other end tag&quot; case.  Since the
+</I>&gt;&gt;<i> top of the stack happens to be another mrow tag, that one gets popped
+</I>&gt;&gt;<i> too.  (Other tests don't fail here because they don't happen to have two
+</I>&gt;&gt;<i> of the same tags on the stack).  This means that the&lt;mi&gt;  element ends
+</I>&gt;&gt;<i> up as a child of the&lt;math&gt;  element instead of the outer&lt;mrow&gt;  element.
+</I>&gt;<i> That should be fixed with the updated spec text now, right?
+</I>&gt;<i>
+</I>
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="075809.html">[whatwg] Another bug in the HTML parsing spec?
+</A></li>
+	<LI>Next message: <A HREF="033549.html">[whatwg] Fullscreen Update
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#75815">[ date ]</a>
+              <a href="thread.html#75815">[ thread ]</a>
+              <a href="subject.html#75815">[ subject ]</a>
+              <a href="author.html#75815">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

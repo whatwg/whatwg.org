@@ -1,0 +1,149 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] getImageData/putImageData comments
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20getImageData/putImageData%20comments&In-Reply-To=%3C4A234F54.1050800%40mit.edu%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="062291.html">
+   <LINK REL="Next"  HREF="062293.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] getImageData/putImageData comments</H1>
+<!--htdig_noindex-->
+    <B>Boris Zbarsky</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20getImageData/putImageData%20comments&In-Reply-To=%3C4A234F54.1050800%40mit.edu%3E"
+       TITLE="[whatwg] getImageData/putImageData comments">bzbarsky at MIT.EDU
+       </A><BR>
+    <I>Sun May 31 20:47:32 PDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="062291.html">[whatwg] getImageData/putImageData comments
+</A></li>
+        <LI>Next message: <A HREF="062293.html">[whatwg] getImageData/putImageData comments
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#62292">[ date ]</a>
+              <a href="thread.html#62292">[ thread ]</a>
+              <a href="subject.html#62292">[ subject ]</a>
+              <a href="author.html#62292">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Oliver Hunt wrote:
+&gt;&gt;<i>    Worse yet, the current setup means that a script that tries
+</I>&gt;&gt;<i>    createImageData, fill in the pixels, and then paint it to the
+</I>&gt;&gt;<i>    canvas, needs to fill different numbers of pixels depending on the
+</I>&gt;&gt;<i>    output device.  I fully expect script authors to get this very very
+</I>&gt;&gt;<i>    wrong, since it's such non-intuitive behavior.  It would make more
+</I>&gt;&gt;<i>    sense to just have the script work entirely in CSS pixels; if it
+</I>&gt;&gt;<i>    wishes to create a higher-resolution image it can create a canvas
+</I>&gt;&gt;<i>    with bigger dimensions (and scale its actual display via setting
+</I>&gt;&gt;<i>    its width and height CSS properties).
+</I>&gt;<i> This has been discussed heavily before.
+</I>
+Pointer, please.
+
+&gt;<i> It was always intended that canvas be resolution independent in a given environment.
+</I>
+That's fine; I have no problem with that.
+
+&gt;<i> Requiring a developer to do this is nonsensical as the developer has no way to know 
+</I>&gt;<i> what they should be doing.
+</I>
+Precisely my point above.
+
+&gt;<i> eg. why should drawing an arc in a canvas produce aliased output yet 
+</I>&gt;<i> drawing an arc in svg not when they're both being drawn at the same time 
+</I>&gt;<i> on the same device?
+</I>
+It shouldn't, if you're drawing the arc via the vector canvas API... 
+except for the little issue that canvas is fundamentally a bitmap and 
+you get to set up how big the bitmap is (via its width and height 
+properties).  That's more or less by design: canvas is meant to be an 
+editable bitmap image.  We can argue about whether such a thing is 
+desirable, of course.
+
+&gt;<i> or why should text drawn to the canvas look fuzzy 
+</I>&gt;<i> compared to the text drawn next to it outside of the canvas?  This is 
+</I>&gt;<i> basically what you are asking for.
+</I>
+Not at all.  What I am asking for is that if you getImageData you get 
+CSS pixels, so that you don't end up with device-dependent behavior of 
+getImageData.  Similarly, I'm asking that the pixels in putImageData be 
+treated as CSS pixels, so that you don't have to write device-dependent 
+code for filling in the imageData before putting it. This has no effect 
+on text drawing or arc drawing; those would happen at whatever 
+resolution the UA decides to use for the canvas' backing store (which 
+may well be significantly higher than the resolution of the device the 
+canvas is going to be painted to, precisely because the UA wants things 
+to remain non-fuzzy even if the canvas is scaled).
+
+Let's take a concrete example.  I'd like to use canvas to draw Julia 
+sets.  I specify a 500x500 size for the canvas (via width and height) 
+and plan to use it to represent a rectangle in the complex plane that 
+satisfies |Re(z)| &lt; 250 and |Im(z)| &lt; 250.  This 500x500 size is in CSS 
+pixels.  The UA allocates some sort of backing store for it (maybe it's 
+500x500, maybe it's 2000x2000; that's the UA's business and might depend 
+on the device).  So far everything is the same both in the spec as it 
+stands now and in what I think it should say.
+
+Now I start actually computing my pixel color values.  I iterate over my 
+values of Z, compute the color for each value... then what do I put in 
+the imageData?  With the spec as written it depends on the precise 
+backing store setup, because I am trying to actually color in the 
+logical pixels of the canvas.  If imageData used CSS pixels, I just put 
+each of my computed color values into one pixel of the imageData.  That 
+might be more than one pixel in the UA's backing store, but that's not a 
+problem: I'm doing raw bitmap access, and hence would expect the bitmap 
+to alias if zoomed in.
+
+-Boris
+
+P.S.  Either I totally misunderstood your reply, or you totally 
+misunderstood my original proposal.  I'd like to know which.
+
+P.P.S.  If the point is that one might want to draw some arcs+text, then 
+getImageData to get the backing store, then do some sort of processing 
+on it, then put it back and not lose quality, then it sounds like we 
+need two different image data APIs: one that works on backing store 
+pixels for such processing, and one that works on CSS pixels for 
+actually painting to the canvas.
+
+P.P.P.S.  Yes, I know it's possible to use fillRect() to get the effect 
+I want for Julia sets.  It's a lot slower (2-40x, depending on how hard 
+you try to work around the slowness and which browser you're using and 
+exactly what your pixels look like) than using imageData.
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="062291.html">[whatwg] getImageData/putImageData comments
+</A></li>
+	<LI>Next message: <A HREF="062293.html">[whatwg] getImageData/putImageData comments
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#62292">[ date ]</a>
+              <a href="thread.html#62292">[ thread ]</a>
+              <a href="subject.html#62292">[ subject ]</a>
+              <a href="author.html#62292">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

@@ -1,0 +1,350 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] asynchronous JSON.parse and sending large structured data between threads without compromising responsiveness
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20asynchronous%20JSON.parse%20and%20sending%20large%20structured%0A%20data%20between%20threads%20without%20compromising%20responsiveness&In-Reply-To=%3Calpine.DEB.2.00.1308062133290.9685%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="082845.html">
+   <LINK REL="Next"  HREF="082671.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] asynchronous JSON.parse and sending large structured data between threads without compromising responsiveness</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20asynchronous%20JSON.parse%20and%20sending%20large%20structured%0A%20data%20between%20threads%20without%20compromising%20responsiveness&In-Reply-To=%3Calpine.DEB.2.00.1308062133290.9685%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg] asynchronous JSON.parse and sending large structured data between threads without compromising responsiveness">ian at hixie.ch
+       </A><BR>
+    <I>Tue Aug  6 14:58:24 PDT 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="082845.html">[whatwg] Should &lt;video controls&gt; generate click events?
+</A></li>
+        <LI>Next message: <A HREF="082671.html">[whatwg] asynchronous JSON.parse and sending large structured data between threads without compromising responsiveness
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#40391">[ date ]</a>
+              <a href="thread.html#40391">[ thread ]</a>
+              <a href="subject.html#40391">[ subject ]</a>
+              <a href="author.html#40391">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Thu, 7 Mar 2013, <A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">j at mailb.org</A> wrote:
+&gt;<i>
+</I>&gt;<i> right now JSON.parse blocks the mainloop, this gets more and more of an 
+</I>&gt;<i> issue as JSON documents get bigger and are also used as serialization 
+</I>&gt;<i> format to communicate with web workers.
+</I>
+I think it would make sense to have a Promise-based API for JSON parsing. 
+This probably belongs either in the JS spec or the DOM spec; Anne, Ms2ger, 
+and any JS people, is anyone interested in taking this?
+
+
+On Thu, 7 Mar 2013, David Rajchenbach-Teller wrote:
+&gt;<i> 
+</I>&gt;<i> Actually, communicating large JSON objects between threads may cause 
+</I>&gt;<i> performance issues. I do not have the means to measure reception speed 
+</I>&gt;<i> simply (which would be used to implement asynchronous JSON.parse), but 
+</I>&gt;<i> it is easy to measure main thread blocks caused by sending (which would 
+</I>&gt;<i> be used to implement asynchronous JSON.stringify).
+</I>
+I don't understand why there'd be any difficulty in sending large objects 
+between workers or from a worker to the main thread. It's possible this is 
+not well-implemented today, but isn't that just an implementation detail?
+
+One could imagine an implementation strategy where the cloning is done on 
+the sending side, or even on a third thread altogether, and just passed 
+straight to the receiving side in one go.
+
+
+On Thu, 7 Mar 2013, Tobie Langel wrote:
+&gt;<i> 
+</I>&gt;<i> Even if an async API for JSON existed, wouldn't the perf bottleneck then 
+</I>&gt;<i> simply fall on whatever processing needs to be done afterwards?
+</I>
+That was my initial reaction as well, I must admit.
+
+
+On Fri, 8 Mar 2013, David Rajchenbach-Teller wrote:
+&gt;<i>
+</I>&gt;<i> For the moment, the main use case I see is for asynchronous
+</I>&gt;<i> serialization of JSON is that of snapshoting the world without stopping
+</I>&gt;<i> it, for backup purposes, e.g.:
+</I>&gt;<i> a. saving the state of the current region in an open world RPG;
+</I>&gt;<i> b. saving the state of an ongoing physics simulation;
+</I>&gt;<i> c. saving the state of the browser itself in case of crash/power loss
+</I>&gt;<i> (that's assuming a FirefoxOS-style browser implemented as a web
+</I>&gt;<i> application);
+</I>&gt;<i> d. backing up state and history of the browser itself to a server
+</I>&gt;<i> (again, assuming that the browser is a web application).
+</I>
+Serialising is hard to do async, since you fundamentally have to walk the 
+data structure, and the actual serialisation at that point is not 
+especially more expensive than a copy.
+
+
+&gt;<i> The natural course of action would be to do the following:
+</I>&gt;<i> 1. collect data to a JSON object (possibly a noop);
+</I>
+I'm not sure what you mean by JSON object. JSON is a string format. Do you 
+mean a JS object data structure?
+
+&gt;<i> 2. send the object to a worker;
+</I>&gt;<i> 3. apply some post-treatment to the object (possibly a noop);
+</I>&gt;<i> 4. write/upload the object.
+</I>&gt;<i> 
+</I>&gt;<i> Having an asynchronous JSON serialization to some Transferable form 
+</I>&gt;<i> would considerably the task of implement step 2. without janking if data 
+</I>&gt;<i> ends up very heavy.
+</I>
+I don't understand what JSON has to do with sending data to a worker. You 
+can just send the actual JS object; MessagePorts and postMessage() support 
+&quot;raw&quot; JS objects.
+
+
+&gt;<i> So far, I have discussed serializing JSON, not deserializing it, but I 
+</I>&gt;<i> believe that the symmetric scenarios also hold.
+</I>
+No, they are quite asymetric. Serialising requires stalling the code that 
+is interacting with the data structure, to guarantee integrity. Parsing is 
+easy to do on a separate worker, because it has no dependencies -- you can 
+do it all in isolation.
+
+
+On Fri, 8 Mar 2013, David Rajchenbach-Teller wrote:
+&gt;<i> 
+</I>&gt;<i> If I am correct, this means that we need some mechanism to provide 
+</I>&gt;<i> efficient serialization of non-Transferable data into something 
+</I>&gt;<i> Transferable.
+</I>
+I don't understand what this means. Transferable is about neutering 
+objects on one side and creating new versions on the other. It's the 
+equivalent of a &quot;move&quot;. Your use cases were about making copies, as far as 
+I can tell (saving and backing up).
+
+As a general rule, JSON has nothing to do with Transferable objects, as 
+far as I can tell.
+
+
+On Fri, 8 Mar 2013, David Rajchenbach-Teller wrote:
+&gt;<i> 
+</I>&gt;<i> Intuitively, this sounds like:
+</I>&gt;<i> 1. collect data to a JSON;
+</I>&gt;<i> 2. serialize JSON (hopefully asynchronously) to a Transferable (or
+</I>&gt;<i> several Transferables).
+</I>
+I really don't understand this. Are you asking for a way to move a JS 
+object from one thread to another, killing references to it in the first 
+thread? What's the use case? (What would this have to do with JSON?)
+
+
+On Fri, 8 Mar 2013, David Bruant wrote:
+&gt;<i>
+</I>&gt;<i> Why not collect the data in a Transferable like an ArrayBuffer directly? 
+</I>&gt;<i> It skips the additional serialization part. Writing a byte stream 
+</I>&gt;<i> directly is a bit hardcore I admit, but an object full of setters can 
+</I>&gt;<i> give the impression to create an object while actually filling an 
+</I>&gt;<i> ArrayBuffer as a backend. I feel that could work efficiently.
+</I>
+It's not clear to me what the use case is, but if the desire is to move a 
+batch of data from one thread to another, then this is certainly one way 
+to do it. Another would be to just copy the data in the first place, no 
+need to move it -- since you have to pay the cost of reading all the data 
+in the first place, why not do it as part of the postMessage(), rather 
+than first building a binary data representation that you'll have to 
+reparse on the other side?
+
+
+On Fri, 8 Mar 2013, David Rajchenbach-Teller wrote:
+&gt;<i>
+</I>&gt;<i> For instance, how would you serialize something as simple as the following?
+</I>&gt;<i> 
+</I>&gt;<i> {
+</I>&gt;<i>   name: &quot;The One&quot;,
+</I>&gt;<i>   hp: 1000,
+</I>&gt;<i>   achievements: [&quot;achiever&quot;, &quot;overachiever&quot;, &quot;extreme overachiever&quot;]
+</I>&gt;<i>    // Length of the list is unpredictable
+</I>&gt;<i> }
+</I>
+Why serialise it? If you want to post this across a MessagePort to a 
+worker, or back from a worker, why not just post it?
+
+   var a = { ... }; // from above
+   port.postMessage(a);
+
+
+&gt;<i> &gt; What are the data you want to collect? Is it all at once or are you 
+</I>&gt;<i> &gt; building the object little by little? For a backup and for FirefoxOS 
+</I>&gt;<i> &gt; specifically, could a FileHandle [3] work? It's an async API to write 
+</I>&gt;<i> &gt; in a file.
+</I>&gt;<i> 
+</I>&gt;<i> Thanks for the suggestion. I am effectively working on refactoring 
+</I>&gt;<i> storing browser session data. Not for FirefoxOS, but for Firefox 
+</I>&gt;<i> Desktop, which gives me more architectural constraints but frees my hand 
+</I>&gt;<i> to extend the platform with additional non-web libraries.
+</I>
+Assuming by &quot;Firefox Desktop&quot; you mean the browser for desktop OSes called 
+Firefox, then, why not just do this in C++? I don't understand why you 
+would constrain yourself to using Web APIs in JavaScript to write a browser.
+
+
+On Sat, 9 Mar 2013, David Bruant wrote:
+&gt;<i>
+</I>&gt;<i> I've once met someone who told me that JSON was bullshit. Since the guy had
+</I>&gt;<i> blown my mind during a presentation, I've decided to give him a chance after
+</I>&gt;<i> this sentence :-p He explained that in JSON, a lot of characters are double
+</I>&gt;<i> quotes and commas and brackets. Also, you have to name fields.
+</I>&gt;<i> He said that if you want to share 2 ints (like longitude and latitude), you
+</I>&gt;<i> probably have to send the following down the wire:
+</I>&gt;<i>     '{&quot;long&quot;:12.986,&quot;lat&quot;: -98.047}'
+</I>&gt;<i> which is about 30 bytes... for 2 numbers. He suggested that a client and
+</I>&gt;<i> server could send only 2 floats (4 bytes each, so 8 bytes total) and have a
+</I>&gt;<i> convention as to which number is first and you'd just be done with it.
+</I>&gt;<i> 30 bytes isn't fully fair because it could be gzipped, but that takes
+</I>&gt;<i> additional processing time in both ends.
+</I>
+Hear hear.
+
+
+&gt;<i> He talked about a technology he was working on that, based on a message 
+</I>&gt;<i> description would output both the client and server code (in different 
+</I>&gt;<i> languages if necessary) so that whatever message you send, you just 
+</I>&gt;<i> write your business code and play with well-abstracted objects and the 
+</I>&gt;<i> generated code takes care of the annoying &quot;send/receive a well- 
+</I>&gt;<i> compressed message&quot; part.
+</I>
+This isn't a particularly new idea, FWIW. See, for example, protocol 
+buffers, or ASN.1's BER. Those are even self-describing to some extent, 
+like JSON; protocols like IP, TCP, and UDP don't even do that, they just 
+encode their data in a well-defined order with no delimiters at all.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="082845.html">[whatwg] Should &lt;video controls&gt; generate click events?
+</A></li>
+	<LI>Next message: <A HREF="082671.html">[whatwg] asynchronous JSON.parse and sending large structured data between threads without compromising responsiveness
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#40391">[ date ]</a>
+              <a href="thread.html#40391">[ thread ]</a>
+              <a href="subject.html#40391">[ subject ]</a>
+              <a href="author.html#40391">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

@@ -1,0 +1,181 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Combining the DedicatedWorker and SharedWorker interfaces
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Combining%20the%20DedicatedWorker%20and%20SharedWorker%20interfaces&In-Reply-To=%3C278fd46c0811032308j628ed10au92a6f948389628fb%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="059268.html">
+   <LINK REL="Next"  HREF="059270.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Combining the DedicatedWorker and SharedWorker interfaces</H1>
+<!--htdig_noindex-->
+    <B>Aaron Boodman</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Combining%20the%20DedicatedWorker%20and%20SharedWorker%20interfaces&In-Reply-To=%3C278fd46c0811032308j628ed10au92a6f948389628fb%40mail.gmail.com%3E"
+       TITLE="[whatwg] Combining the DedicatedWorker and SharedWorker interfaces">aa at google.com
+       </A><BR>
+    <I>Mon Nov  3 23:08:58 PST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="059268.html">[whatwg] [WF2] backwards compatibility with values of custom required attributes
+</A></li>
+        <LI>Next message: <A HREF="059270.html">[whatwg] Combining the DedicatedWorker and SharedWorker	interfaces
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#59269">[ date ]</a>
+              <a href="thread.html#59269">[ thread ]</a>
+              <a href="subject.html#59269">[ subject ]</a>
+              <a href="author.html#59269">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Hello all,
+
+A few months ago, I suggested that we combine the DedicatedWorker and
+SharedWorker interfaces
+(<A HREF="http://lists.whatwg.org/pipermail/whatwg-whatwg.org/2008-September/016228.html">http://lists.whatwg.org/pipermail/whatwg-whatwg.org/2008-September/016228.html</A>),
+but we never reached consensus.
+
+Since Mozilla and Apple are both working on implementing this now, I'd
+like to revisit the issue before we end up with something non-ideal
+baked into implementations.
+
+My biggest issue with the proposal as currently drafted is that there
+are so many different ways to send and receive messages. I think this
+overcomplicates the proposal for both developers and implementors.
+
+For dedicated workers, you can either send single messages using the
+Worker object directly, like in Gears:
+
+var worker = new Worker(&quot;foo.js&quot;);
+worker.postMessage(&quot;ping&quot;);
+
+Or, you can use the more powerful startConversation() API to easily
+group related messages together:
+
+var port = worker.startConversation();
+port.postMessage(&quot;ping&quot;);
+
+Note that the worker has to know ahead of time which API the callers
+will use since the way that it replies is different depending on that.
+If the caller used Worker.sendMessage(), the worker should reply like
+this:
+
+onmessage = function() {
+  postMessage(&quot;pong&quot;);
+}
+
+... but if the caller used Worker.startConversation().sendMessage(),
+then the worker should reply like this:
+
+onmessage = function(e) {
+  e.port.postMesage(&quot;pong&quot;);
+}
+
+SharedWorkers require a third, completely different API to send messages:
+
+var w = new SharedWorker(&quot;foo.js&quot;, &quot;foo&quot;);
+w.port.postMessage(&quot;ping&quot;);
+w.port.onmessage = function(e) {};
+
+The interface to receive messages in a SharedWorker is also special:
+
+onconnect = function(e) {
+  e.port.onmessage = function(e) {
+    e.port.postMessage(&quot;pong&quot;);
+  }
+}
+
+This lack of generality bothers me on an aesthetic level, but I also
+think it has the following real problems:
+
+* Workers have to know what interface was used to send them messages.
+If the page using a worker decide to start using a more powerful send
+API, the worker must also be upgraded. You can already see examples of
+this problem in the samples at the beginning of the draft. They are
+marked with the comments &quot;// support being used as a shared worker as
+well as a dedicated worker&quot;.
+
+* Having different interfaces for each use case means that each new
+feature has to be added to each interface separately. We can already
+see this problem in the fact that the SharedWorker interface lacks
+startConversation() for no apparent reason.
+
+* Having multiple interfaces probably increases the chance of
+developers misunderstanding and using the wrong tool for the job. I
+can easily see developers accidentally reimplementing
+startConversation() on top of Worker.sendMessage().
+
+* More API for developers to learn and implementors to build.
+
+
+I think that these issues can all be addressed by simplifying and
+combining the various APIs. This will make the simplest examples of
+workers require slightly more code, but I think it is much simpler and
+more elegant.
+
+Here is how it would work:
+* Get rid of the DedicatedWorker interface.
+* Add startConversation() to SharedWorker, but rename it &quot;connect()&quot;
+and make the onconnect event fire inside the worker each time it is
+called.
+
+Here's an example in code:
+
+// dedicated workers (outside)
+var worker = new Worker(&quot;foo.js&quot;);
+var port = worker.connect();
+port.onmessage = function() { }
+port.postMessage(&quot;ping&quot;);
+
+// dedicated workers (inside)
+onconnect = function(e) {
+  e.port.onmessage = function(e) {
+    e.port.postMessage(&quot;pong&quot;);
+  }
+}
+
+Shared workers are exactly the same except the constructor is
+SharedWorker(&quot;foo.js&quot;, &quot;foo&quot;);
+
+Note that I do not think it is necessary to implement this all at
+once. For one, the SharedWorker constructor could easily be punted for
+future releases.
+
+Thoughts?
+
+- a
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="059268.html">[whatwg] [WF2] backwards compatibility with values of custom required attributes
+</A></li>
+	<LI>Next message: <A HREF="059270.html">[whatwg] Combining the DedicatedWorker and SharedWorker	interfaces
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#59269">[ date ]</a>
+              <a href="thread.html#59269">[ thread ]</a>
+              <a href="subject.html#59269">[ subject ]</a>
+              <a href="author.html#59269">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

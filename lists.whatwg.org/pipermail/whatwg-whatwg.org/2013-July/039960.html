@@ -1,0 +1,185 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Script preloading
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Script%20preloading&In-Reply-To=%3CPine.LNX.4.64.1307091607110.24681%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="082446.html">
+   <LINK REL="Next"  HREF="082234.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Script preloading</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Script%20preloading&In-Reply-To=%3CPine.LNX.4.64.1307091607110.24681%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg] Script preloading">ian at hixie.ch
+       </A><BR>
+    <I>Tue Jul  9 12:39:45 PDT 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="082446.html">[whatwg] Notifications: reviving Notification objects
+</A></li>
+        <LI>Next message: <A HREF="082234.html">[whatwg] Script preloading
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#39960">[ date ]</a>
+              <a href="thread.html#39960">[ thread ]</a>
+              <a href="subject.html#39960">[ subject ]</a>
+              <a href="author.html#39960">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>
+A topic that regularly comes up is script loading.
+
+I sent an e-mail responding to related feedback last year, though it 
+didn't get any replies to the script loading parts of it:
+
+   <A HREF="http://lists.w3.org/Archives/Public/public-whatwg-archive/2012Dec/0221.html">http://lists.w3.org/Archives/Public/public-whatwg-archive/2012Dec/0221.html</A>
+
+It seems that people want something that:
+
+ - Lets them download scripts but not execute them until needed.
+ - Lets them have multiple interdependent scripts and have the browser
+   manage their ordering.
+ - Do all this without having to modify existing scripts.
+
+I must admit to not really understanding these requirements (script 
+execution can be made more or less free if they are designed to just 
+expose some functions, for example, and it's trivial to set up a script 
+dependency mechanism for scripts to run each other in order, and there's 
+no reason browsers can't parse scripts off the main thread, etc). But 
+since everyone else seems to think these are issues, let's ignore that.
+
+The proposals I've seen so far for extending the spec's script preloading 
+mechanisms fall into two categories:
+
+ - provide some more control over the mechanisms already there, e.g. 
+   firing events at various times, adding attributes to make the script 
+   loading algorithm work differently, or adding methods to trigger 
+   particular parts of the algorithm under author control.
+
+ - provide a layer above the current algorithm that provides strong 
+   semantics, but that doesn't have much impact on the loading algorithm 
+   itself.
+
+I'm very hesitant to do the first of these, because the algorithm is _so_ 
+complicated that adding anything else to it is just going to result in 
+bugs in browsers. There comes a point where an algorithm just becomes so 
+hard to accurately test that it's a lost cause.
+
+The second seems more feasible, though.
+
+Would something like this, based on proposals from a variety of people in 
+the past, work for your needs?
+
+1. Add a &quot;dependencies&quot; attribute to &lt;script&gt; that can point to other 
+   scripts to indicate that execution of this script should be delayed
+   until all other scripts that are (a) earlier in the tree order and (b) 
+   identified by this attribute have executed.
+
+     &lt;script id=&quot;jquery&quot; src=&quot;jquery.js&quot; async&gt;&lt;/script&gt;
+     &lt;script id=&quot;shims&quot; src=&quot;shims.js&quot; async&gt;&lt;/script&gt;
+     &lt;script dependencies=&quot;shims jquery&quot; src=&quot;myscript.js&quot; async&gt;&lt;/script&gt;
+
+   This would download jquery.js, shims.js, and myscript.js ASAP, without 
+   blocking anything else, and would then run jquery.js and shims.js ASAP, 
+   in any order, and then once both have executed, it would execute 
+   myscript.js.
+
+2. Add an &quot;whenneeded&quot; boolean content attribute, a &quot;markNeeded()&quot; method,
+   and an internal &quot;is-needed flag&quot; (initially false) to the &lt;script&gt; 
+   element. When a script is about to execute, if its whenneeded=&quot;&quot; 
+   attribute is set, but its &quot;is-needed&quot; flag is not, then delay 
+   execution. Calling markNeeded() on a script that has a whenneeded 
+   boolean but that has not executed yet first causes the markNeeded() 
+   method on all the script's dependencies to be called, and then causes
+   this script to become ready to execute.
+
+     &lt;script id=&quot;jquery&quot; src=&quot;jquery.js&quot; async whenneeded&gt;&lt;/script&gt;
+     &lt;script id=&quot;shims&quot; src=&quot;shims.js&quot; async whenneeded&gt;&lt;/script&gt;
+     &lt;script id=&quot;myscript&quot; dependencies=&quot;shims jquery&quot; src=&quot;myscript.js&quot; 
+             async whenneeded&gt;&lt;/script&gt;
+
+   This would download jquery.js, shims.js, and myscript.js ASAP, and then 
+   wait for further instructions.
+
+     document.getElementById('myscript').markNeeded();
+
+   This would then cause the scripts to execute, first jquery.js and 
+   shims.js (in any order), and then myscript.js. If any hadn't finished 
+   downloading yet, it would first wait for that to finish.
+
+   (We could make markNeeded() return a promise, too.)
+
+Is there a need for delaying the download of a script as well? (If so, we 
+could change whenneeded=&quot;&quot; to have values, like whenneeded=&quot;execute&quot; vs 
+whenneeded=&quot;download&quot; or something.)
+
+Is there something this doesn't handle which it would need to handle?
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="082446.html">[whatwg] Notifications: reviving Notification objects
+</A></li>
+	<LI>Next message: <A HREF="082234.html">[whatwg] Script preloading
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#39960">[ date ]</a>
+              <a href="thread.html#39960">[ thread ]</a>
+              <a href="subject.html#39960">[ subject ]</a>
+              <a href="author.html#39960">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

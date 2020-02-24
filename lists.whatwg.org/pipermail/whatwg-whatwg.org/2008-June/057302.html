@@ -1,0 +1,399 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] ImageData feedback
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20ImageData%20feedback&In-Reply-To=%3CPine.LNX.4.62.0806102218140.8559%40hixie.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="057276.html">
+   <LINK REL="Next"  HREF="057337.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] ImageData feedback</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20ImageData%20feedback&In-Reply-To=%3CPine.LNX.4.62.0806102218140.8559%40hixie.dreamhostps.com%3E"
+       TITLE="[whatwg] ImageData feedback">ian at hixie.ch
+       </A><BR>
+    <I>Wed Jun 11 03:13:34 PDT 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="057276.html">[whatwg] createImageData
+</A></li>
+        <LI>Next message: <A HREF="057337.html">[whatwg] createImageData
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#57302">[ date ]</a>
+              <a href="thread.html#57302">[ thread ]</a>
+              <a href="subject.html#57302">[ subject ]</a>
+              <a href="author.html#57302">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Tue, 19 Feb 2008, Oliver Hunt wrote:
+&gt;<i> 
+</I>&gt;<i> The first is relatively simple, 3.14.11.1.10 states
+</I>&gt;<i> &quot;If any of the arguments to createImageData() or getImageData() are infinite
+</I>&gt;<i> or NaN, or if either the sw or sh arguments are zero, the method must instead
+</I>&gt;<i> raise an INDEX_SIZE_ERR exception.&quot;
+</I>&gt;<i> 
+</I>&gt;<i> I feel this should probably be extended to throw on negative sw and sh.
+</I>
+This is intended to support negative arguments, hence the mention of 
+&quot;absolute magnitude&quot; in the definition of what the method does. This is 
+for consistency with the other methods, which work fine with negative 
+dimensions.
+
+
+&gt;<i> Additionally sw and sh are both floats and can therefore have a fractional
+</I>&gt;<i> component, so this needs to be handled.  I think we should specify the finite
+</I>&gt;<i> value clamps in device pixels, eg.
+</I>&gt;<i>
+</I>&gt;<i> &quot;If any of the arguments to createImageData() or getImageData() are infinite
+</I>&gt;<i> or NaN, or if either the sw or sh arguments are less than one when scaled to
+</I>&gt;<i> the device pixel space, the method must instead raise an INDEX_SIZE_ERR
+</I>&gt;<i> exception.&quot;
+</I>
+I don't think we want to make exception raising be dependent on the 
+resolution of the backing store, since that's a UA decision. I think it 
+makes more sense to make the height and width be always at least 1. Right 
+now UAs are required to do this, though it's not explicitly stated in 
+terms of rounding. I can add a note if you like.
+
+(I've added createImageData() to the paragraph that talks about device 
+rounding, by the way. This was an unintentional omission.)
+
+
+&gt;<i> The other issues relate to the data member of ImageData.  Currently this 
+</I>&gt;<i> is referred to as an int array, however the DOM does not define such an 
+</I>&gt;<i> array, and certainly doesn't specify any kind of clamping (let alone 
+</I>&gt;<i> clamping to a smaller range than that supported by the type).  I think 
+</I>&gt;<i> the behaviour of this &quot;array&quot; needs to be defined, and givevn that only 
+</I>&gt;<i> Opera currently implements an actual ImageData type i've been looking at 
+</I>&gt;<i> their implementation.
+</I>&gt;<i>
+</I>&gt;<i> Assuming we have an ImageData object with width, w and height, h then Opera
+</I>&gt;<i> provides a data member of &quot;CanvasPixelArray&quot;, with the following behaviour:
+</I>&gt;<i> * A readonly length property is provided return the value w*h*4
+</I>&gt;<i> * Assignment to elements [0..w*h*4) (approximately) follows the behaviour
+</I>&gt;<i> defined in section 3.14.11.1.10 (assignment never throws NaN is stored a zero
+</I>&gt;<i> which i believe is preferable)
+</I>&gt;<i> * Assignment to elements outside [0..w*h*4) results in no clamping and does
+</I>&gt;<i> not alter the length property, this includes non-numeric properties
+</I>&gt;<i> * Iteration returns only the length property and those properties that have
+</I>&gt;<i> been added programmatically -- iteration does *not* include [0..w*h*4)
+</I>&gt;<i> 
+</I>&gt;<i> By and large I am fine with this behaviour, although i would prefer that 
+</I>&gt;<i> it were not possible to add arbitrary properties to the data array -- 
+</I>&gt;<i> but i can't come up with a real justification for such a restriction :D
+</I>
+I've added a CanvasPixelArray interface and used that. (The setter and 
+getter are temporarily named XXX5 and XXX6 while we wait for WebIDL to 
+have a way to hide members from objects.)
+
+
+On Thu, 21 Feb 2008, Oliver Hunt wrote:
+&gt;<i>
+</I>&gt;<i> At the moment the spec merely states that 
+</I>&gt;<i> putImageData(getImageData(sx,sy,..),sx,sy) should not result in any 
+</I>&gt;<i> visible change to the canvas, however for those implementations that use 
+</I>&gt;<i> a premultiplied buffer there is a necessary premultiplication stage 
+</I>&gt;<i> during blitting that results in a loss of precision in some 
+</I>&gt;<i> circumstances -- the most obvious being the case of alpha == 0, but many 
+</I>&gt;<i> other cases exist, eg. (254, 254, 254, alpha &lt; 255).  This loss of 
+</I>&gt;<i> precision has no actual effect on the visible output, but does mean that 
+</I>&gt;<i> in the following case:
+</I>&gt;<i>
+</I>&gt;<i> imageData = context.getImageData(0,0,...);
+</I>&gt;<i> imageData.data[0]=254;
+</I>&gt;<i> imageData.data[1]=254;
+</I>&gt;<i> imageData.data[2]=254;
+</I>&gt;<i> imageData.data[3]=1;
+</I>&gt;<i> context.putImageData(imageData,0,0);
+</I>&gt;<i> imageData2.data = context.getImageData(0,0,...);
+</I>&gt;<i> 
+</I>&gt;<i> At this point implementations that use premultiplied buffers can't 
+</I>&gt;<i> guarantee imageData.data[0] == imageData2.data[0]
+</I>
+They don't have to. As Philip says:
+
+On Wed, 30 Apr 2008, Philip Taylor wrote:
+&gt;<i> 
+</I>&gt;<i> The spec does not state that getImageData(putImageData(data)) == data,
+</I>&gt;<i> which is where the problem would occur. It only states that
+</I>&gt;<i> putImageData(getImageData) == identity function, which is not a
+</I>&gt;<i> problem for premultiplied implementations (since the conversion from
+</I>&gt;<i> premultiplied to non-premultiplied is lossless and reversible). So I
+</I>&gt;<i> don't think the spec needs to change at all (except that it could have
+</I>&gt;<i> a note mentioning the issue).
+</I>&gt;<i> 
+</I>&gt;<i> (getImageData can convert internal premultiplied (pr,pg,pb,a) into
+</I>&gt;<i> ImageData's (r,g,b,a):
+</I>&gt;<i> 
+</I>&gt;<i>     if (a == 0) {
+</I>&gt;<i>         r = g = b = 0;
+</I>&gt;<i>     } else {
+</I>&gt;<i>         r = (pr * 255) / a;
+</I>&gt;<i>         g = (pg * 255) / a;
+</I>&gt;<i>         b = (pb * 255) / a;
+</I>&gt;<i>     }
+</I>&gt;<i> 
+</I>&gt;<i> (using round-to-zero integer division). putImageData can convert the other way:
+</I>&gt;<i> 
+</I>&gt;<i>     pr = (r*a + 254) / 255;
+</I>&gt;<i>     pg = (g*a + 254) / 255;
+</I>&gt;<i>     pb = (b*a + 254) / 255;
+</I>&gt;<i> 
+</I>&gt;<i> Then put(get()) has no effect on the values in the premultiplied buffer.)
+</I>
+
+On Thu, 21 Feb 2008, Oliver Hunt wrote:
+&gt;<i>
+</I>&gt;<i> Currently no UA can guarantee a roundtrip so i would suggest the spec be
+</I>&gt;<i> updated to state that implementations do not have to guarantee a roundtrip for
+</I>&gt;<i> any pixel where alpha &lt; 255.
+</I>
+The spec doesn't require roundtrip, so I'm not sure what the note would 
+say.
+
+
+&gt;<i> The other issue is the behaviour of NaN in ImageData.  Currently the 
+</I>&gt;<i> spec states that attempting to assign NaN (or any value for which 
+</I>&gt;<i> toNumber produces NaN) into the ImageData object should throw.  I feel 
+</I>&gt;<i> that this is another place where NaN should be simply ignored, which is 
+</I>&gt;<i> the behaviour given by Opera, which is the only UA that implements the 
+</I>&gt;<i> ImageData API (that i'm aware of).
+</I>&gt;<i> 
+</I>&gt;<i> In Opera's implementation all non-finite numbers are stored as zero, which is
+</I>&gt;<i> (to my mind) much better than throwing an exception, however i would expect
+</I>&gt;<i> NaN =&gt; 0
+</I>&gt;<i> -Infinity =&gt; 0
+</I>&gt;<i> Infinity =&gt; 255
+</I>&gt;<i> 
+</I>&gt;<i> So +/-Infinity would treated in line with standard clamping rules.
+</I>
+I believe the spec now requires this.
+
+
+
+On Sat, 10 May 2008, Vladimir Vukicevic wrote:
+&gt;<i> &gt; 
+</I>&gt;<i> &gt; This restriction was made because it allows for dramatic (many orders 
+</I>&gt;<i> &gt; of magnitude) optimisations. With createImageData(), the use cases for 
+</I>&gt;<i> &gt; custom imageData objects should be catered for -- what are the cases 
+</I>&gt;<i> &gt; where you would need another solution? (Note that hand-rolling 
+</I>&gt;<i> &gt; imageData objects is dangerous since you don't know what resolution 
+</I>&gt;<i> &gt; the backing store is using, necessarily, which is something else that 
+</I>&gt;<i> &gt; createImageData() solves.)
+</I>&gt;<i> 
+</I>&gt;<i> Well, I don't agree that it's &quot;dangerous&quot;; canvas resolution 
+</I>&gt;<i> independence has always been hard to pin down, and I still maintain that 
+</I>&gt;<i> it shouldn't be treated any differently than an image is treated.  
+</I>
+&quot;dangerous&quot; may be the wrong term. The real problem is that there's no 
+real way to find out what the dimensions should be without calling 
+createID() or getID(), and once you've done that you might as well just 
+reuse the object you were handed.
+
+
+&gt;<i> However, regardless of that, I don't think there's a reason to disallow 
+</I>&gt;<i> custom-created data objects, perhaps with a caveat that there may be 
+</I>&gt;<i> issues.. get/putImageData in Firefox 2, so adding that restriction may 
+</I>&gt;<i> unnecessarily break existing code that uses putImageData with a hand- 
+</I>&gt;<i> constructed ImageData object.
+</I>
+The restriction was put in because of a request from the WebKit guys to 
+enable them to do order-of-magnitude performance improvements. On the long 
+term, I think we're better of enabling those performance improvements than 
+supporting the earliest users of the API, especially given that those uses 
+only ever worked in one UA.
+
+
+&gt;<i> I would amend the spec to state that if an object is passed to 
+</I>&gt;<i> putImageData with the necessary properties, but without having been 
+</I>&gt;<i> created by create/getImageData beforehand, that its dimensions are aways 
+</I>&gt;<i> in device pixels.
+</I>
+We could support a conversion from custom (JS) objects to native ImageData 
+objects when the method is passed a non-native object, but that seems like 
+a lot of complications for little gain. After all, calling 
+createImageData() isn't an onerous requirement.
+
+
+&gt;<i> One problem with the desired goal of resolution independence is that it 
+</I>&gt;<i> only really makes sense if the target resolution is an integer multiple 
+</I>&gt;<i> of a CSS pixel.  For example, with a 144dpi output device, that's 
+</I>&gt;<i> exactly 1.5 times CSS resolution.  If I call createImageData with 
+</I>&gt;<i> dimensions 10,10, I would get an ImageData object with width 15 and 
+</I>&gt;<i> height 15.  What do I get if I call it with 11,11 though?  That's 16.5 
+</I>&gt;<i> device pixels, and you're going to lose data either way you go, because 
+</I>&gt;<i> at putImageData time you're going to get seams no matter what direction 
+</I>&gt;<i> you round.  This can maybe be solved with language in the spec that 
+</I>&gt;<i> specifies that a canvas should use a different ratio of CSS pixels to 
+</I>&gt;<i> device pixels only if one is an integer multiple of the other, but that 
+</I>&gt;<i> seems like an odd limitation (and it still requires the implementation 
+</I>&gt;<i> to decide what to do if a clean ratio isn't possible).
+</I>
+I don't understand what use cases you are expecting where this would be a 
+problem. Typically the idea here is doing filters or generating patterns 
+like clouds or fractals, in which case, so long as the UA follows the 
+spec's rules on rounding behaviour, the seams shouldn't be a big problem. 
+Could you illustrate the case you are concerned about with an example?
+
+
+&gt;<i> Another approach would be to not try to solve this in canvas at all, and
+</I>&gt;<i> instead specify that by default, all canvas elements are 96dpi, and provide
+</I>&gt;<i> authors a way to explicitly override this -- then using a combination of CSS
+</I>&gt;<i> Media Queries and other CSS, the exact dpi desired could be specified.  (You
+</I>&gt;<i> can sort of do this today, given that the canvas width/height attributes are
+</I>&gt;<i> in CSS pixels, and that if CSS dimensions are present a canvas is scaled like
+</I>&gt;<i> an image... so canvas { width: 100px; height: 100px; } ... &lt;canvas width=&quot;200&quot;
+</I>&gt;<i> height=&quot;200&quot;/&gt; would give a 192dpi canvas today, no?)
+</I>
+A UA would be quite within its rights today to make that a canvas with a 
+native backing store dimension of 100x100. It could also make it 
+4000x4000. There's really no reason for the user to know.
+
+
+On Sat, 10 May 2008, Vladimir Vukicevic wrote:
+&gt;<i> 
+</I>&gt;<i> Eh?  The resolution used should be whatever the appropriate resolution 
+</I>&gt;<i> should be;  I'm certainly not suggesting that everyone unilaterally 
+</I>&gt;<i> create canvases with 2x pixel resolution, I'm saying that the features 
+</I>&gt;<i> exist to allow authors to (dynamically) create a canvas at whatever the 
+</I>&gt;<i> appropriate resolution is relative to CSS resolution.  Canvas was 
+</I>&gt;<i> designed to allow for programmatic 2D rendering for web content; 
+</I>&gt;<i> resolution independence would certainly be nice, but it was never a goal 
+</I>&gt;<i> of the canvas spec.  In fact, the spec explicitly states that the 
+</I>&gt;<i> &quot;canvas element represents a resolution-dependent bitmap canvas&quot;.
+</I>
+Right, the resolution in &quot;resolution-dependent&quot; being the display's native 
+resolution. It was always intended (at least from my point of view, and as 
+I understand it from the original Apple proposal) that &lt;canvas&gt; provide a 
+way to render bitmap graphics that will always be the &quot;best&quot; resolution 
+for the display. Resolution-independent from the author's point of view.
+
+
+[snipped a discussion about whether to change some of the current 
+validation rules, since it concluded that the current spec was fine]
+
+On Tue, 13 May 2008, Vladimir Vukicevic wrote:
+&gt;<i> 
+</I>&gt;<i> Some suggested language in section 3.12.11.1.11(!):
+</I>&gt;<i> 
+</I>&gt;<i> Instead of:
+</I>&gt;<i> 
+</I>&gt;<i> &gt; If the first argment to the method is null or not an ImageData object 
+</I>&gt;<i> &gt; that was returned by createImageData() or getImageData() then the 
+</I>&gt;<i> &gt; putImageData() method must raise a TYPE_MISMATCH_ERR exception.
+</I>&gt;<i> 
+</I>&gt;<i> I would suggest:
+</I>&gt;<i> 
+</I>&gt;<i> The first argument to the method must be an ImageData object returned by 
+</I>&gt;<i> createImageData(), getImageData(), or an object constructed with the 
+</I>&gt;<i> necessary properties by the user.  If the object was constructed by the 
+</I>&gt;<i> user, its width and height dimensions are specified in device pixels 
+</I>&gt;<i> (which may not map directly to CSS pixels).  If null or any other object 
+</I>&gt;<i> is given that does not present the ImageData interface, then the 
+</I>&gt;<i> putImageData() method must raise a TYPE_MISMATCH_ERR exception.
+</I>
+On Tue, 13 May 2008, Oliver Hunt wrote:
+&gt;<i> 
+</I>&gt;<i> If we were to add that we should include a note to indicate that using a 
+</I>&gt;<i> custom object is not recommended -- Any code that uses a custom created 
+</I>&gt;<i> object will never benefit from improvements in ImageData performance 
+</I>&gt;<i> made by the UA. That said I still don't believe custom objects should be 
+</I>&gt;<i> allowed, aside from the resolution (which may or may not be relevant) 
+</I>&gt;<i> and performance issues, a custom object with a generic JS array, rather 
+</I>&gt;<i> than an ImageData object will have different behaviour -- a proper 
+</I>&gt;<i> ImageData will clamp on assignment, and throw in cases that a custom 
+</I>&gt;<i> object won't.
+</I>
+On Tue, 13 May 2008, Vladimir Vukicevic wrote:
+&gt;<i> 
+</I>&gt;<i> I'm fine with adding that language (the first part, anyway); something 
+</I>&gt;<i> like &quot;Using a custom object is not recommended as the UA may be able to 
+</I>&gt;<i> optimize operations using ImageData if they were created via 
+</I>&gt;<i> createImageData() or getImageData().&quot;
+</I>
+On Mon, 2 Jun 2008, Vladimir Vukicevic wrote:
+&gt;<i> 
+</I>&gt;<i> [...] based on the discussion, I'd suggest:
+</I>&gt;<i> 
+</I>&gt;<i> - user-created ImageData-like objects should be supported, e.g. with 
+</I>&gt;<i> language such as:
+</I>&gt;<i> 
+</I>&gt;<i> The first argument to the method must be an ImageData object returned by 
+</I>&gt;<i> createImageData(), getImageData(), or an object constructed with the 
+</I>&gt;<i> necessary properties by the user.  If the object was constructed by the 
+</I>&gt;<i> user, its width and height dimensions are specified in device pixels 
+</I>&gt;<i> (which may not map directly to CSS pixels).  If null or any other object 
+</I>&gt;<i> is given that does not present the ImageData interface, then the 
+</I>&gt;<i> putImageData() method must raise a TYPE_MISMATCH_ERR exception.
+</I>
+On Mon, 9 Jun 2008, Jonas Sicking wrote:
+&gt;<i> 
+</I>&gt;<i> Do note that dealing with user-created objects isn't trivial. You have 
+</I>&gt;<i> to be prepared for dealing with the user-created object changing the 
+</I>&gt;<i> whole world under you during a callback, this includes things like doing 
+</I>&gt;<i> any modification to the canvas object itself, but also things like 
+</I>&gt;<i> script navigating away and then causing a GC to tear down the world 
+</I>&gt;<i> around you.
+</I>&gt;<i> 
+</I>&gt;<i> This is usually not very hard to deal with, as long as you are not deep 
+</I>&gt;<i> inside a long callstack when calling out to content. This is because you 
+</I>&gt;<i> have to ensure that the whole callstack is ok with the world changing 
+</I>&gt;<i> around it.
+</I>
+The request seems to be aimed at addressing the small number of existing 
+sites already deployed that rely on the Firefox 2 implementation. There 
+doesn't seem to be an actual use case for the feature other than that.
+
+Given this, and given that other UAs have already made changes that are 
+incompatible with these very, very early pages in order to line up with 
+the needs of implementations such as Mozilla, I don't think it really 
+makes sense to add this to the spec. It isn't at all clear that other UAs 
+actually want to support this anyway; indeed even Mozilla implementors 
+seem reluctant to continue to support it (q.v. Jonas' comment above).
+
+Vlad: I realise that this basically consists of rejecting your feedback on 
+this, but I'm not sure how else to proceed given the clear statement from 
+at least one other vendor that they don't want this feature. Sorry.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="057276.html">[whatwg] createImageData
+</A></li>
+	<LI>Next message: <A HREF="057337.html">[whatwg] createImageData
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#57302">[ date ]</a>
+              <a href="thread.html#57302">[ thread ]</a>
+              <a href="subject.html#57302">[ subject ]</a>
+              <a href="author.html#57302">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

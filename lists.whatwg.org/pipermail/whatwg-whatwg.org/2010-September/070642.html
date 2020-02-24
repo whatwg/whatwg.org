@@ -1,0 +1,304 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] BINID (Was: Video with MIME type	application/octet-stream)
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20BINID%20%28Was%3A%20Video%20with%20MIME%20type%0A%09application/octet-stream%29&In-Reply-To=%3C4C81E3A1.7090506%40emsai.net%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="070640.html">
+   <LINK REL="Next"  HREF="070643.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] BINID (Was: Video with MIME type	application/octet-stream)</H1>
+<!--htdig_noindex-->
+    <B>Roger H&#229;gensen</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20BINID%20%28Was%3A%20Video%20with%20MIME%20type%0A%09application/octet-stream%29&In-Reply-To=%3C4C81E3A1.7090506%40emsai.net%3E"
+       TITLE="[whatwg] BINID (Was: Video with MIME type	application/octet-stream)">rescator at emsai.net
+       </A><BR>
+    <I>Fri Sep  3 23:13:53 PDT 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="070640.html">[whatwg] Video with MIME type application/octet-stream
+</A></li>
+        <LI>Next message: <A HREF="070643.html">[whatwg] Video with MIME type application/octet-stream
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#70642">[ date ]</a>
+              <a href="thread.html#70642">[ thread ]</a>
+              <a href="subject.html#70642">[ subject ]</a>
+              <a href="author.html#70642">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>  On 2010-09-04 05:48, Boris Zbarsky wrote:
+&gt;<i> On 9/3/10 3:48 PM, Aryeh Gregor wrote:
+</I>&gt;&gt;&gt;<i> Why are you assuming that?
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Because blocking an entire MIME type seems like it would be massive
+</I>&gt;&gt;<i> overkill . . . but if that's a real use-case, well, okay.  It still
+</I>&gt;&gt;<i> can't be *too* hard to check the first few bytes of the contents.
+</I>&gt;&gt;<i> They must do it anyway if they implement this for images, right?
+</I>&gt;<i>
+</I>&gt;<i> Yes.
+</I>&gt;<i>
+</I>&gt;<i> But note that for some video formats checking the first few bytes is 
+</I>&gt;<i> not sufficient.  In fact, some video container formats can have 
+</I>&gt;<i> arbitrary length prefixes before the actual video data starts.  Of 
+</I>&gt;<i> course if sniffers are just restricted to the first few bytes that 
+</I>&gt;<i> might be ok.
+</I>
+I may be going slightly off topic with this, but in relation to sniffing 
+and the issue around that,
+there actually is a long term solution that could be used.
+Any program would only need to sniff the first 265 bytes of any file to 
+know what format it is.
+I created a rough draft of an idea I had that I called BINID:
+
+***********************************************************
+
+Default TLA extension = .bin
+Default Mimetype = application/octet-stream
+
+Binary Header/Octet-Stream Header/Binary ID Wrapper:
+
+The header is almost identical to the PNG one.
+
+The first eight bytes of a BIN file always contain the following values:
+
+    (decimal)              137  66  73  78  13  10  26  10
+    (hexadecimal)           89  42  49  4e  0d  0a  1a  0a
+    (ASCII C notation)    \211   B   I   N  \r  \n \032 \n
+
+This signature both identifies the file as a BIN file and provides for 
+immediate detection
+of common file-transfer problems. The first two bytes distinguish BIN 
+files on systems that
+expect the first two bytes to identify the file type uniquely. The first 
+byte is chosen as
+a non-ASCII value to reduce the probability that a text file may be 
+miss-recognized as a BIN file;
+also, it catches bad file transfers that clear bit 7. Bytes two through 
+four name the format.
+The CR-LF sequence catches bad file transfers that alter newline 
+sequences. The control-Z
+character stops file display under MS-DOS. The final line feed checks 
+for the inverse of the
+CR-LF translation problem.
+
+After the 8 byte BINID header the following/next 1 byte indicate the 
+length (0-255) of the text string that follows.
+The text string is always zero terminated. (so it is actually length+1)
+So please note that if the byte states 255 as length that it is actually
+a textual length of 255 chars + zero terminator.
+The string is UTF-8.
+
+To clarify some more:
+\211 B I N \r \n \032 \n \008 F i l e t y p e \000
+BINID header (8bytes), stringlength (1 byte), filetype (8 bytes in this 
+example), zeroterminator/null (1 byte).
+
+The text string is the name of the actual format contents.
+This was chosen instead of using 4byte/32bit binary file id,
+or relying on file extensions etc. or equally silly methods.
+At least this way one probably won't run out of ids etc.
+And it's also humanly readable. (the text string)
+So any program can just simply show the text string to the user
+and state it's unsupported instead of screaming it's an unknown format.
+
+After the zero termination, the actual data starts.
+What this data is can be anything, the byte order could be 
+Network/Motorola order or Intel order.
+it could have it's own sub header indicating file size and checksum etc. 
+or it could be raw data.
+In fact it could also be another fileformat dumped right in, otherwise 
+unchanged.
+
+IMPORTANT! Since the binid is plain text, it's obvious that
+&quot;MPEG-1 Layer-3 Audio (MP3)&quot; and &quot;mpeg-1 layer-3 audio (mp3)&quot; are the 
+same humanly speaking,
+however... To avoid ANY issues or confusions,
+when creating and checking/verifying a id string,
+ALWAYS treat it as a binary id. i.e basic binary compare.
+In other words, typos are NOT acceptable.
+
+The only reason it IS a text string is to avoid using up a limited 32bit 
+id field.
+To avoid motorola/intel byte order issues with id numbers.
+To have something to inform (show) the user in those situations where 
+the software
+don't support the fileformat. This way it's so easy to inform the user
+and they will be able to search on the net or ask the company about the 
+file format.
+So remember.  &quot;MPEG&quot; and &quot;mpeg&quot; are the exact same, but only ONE of them 
+is acceptable.
+
+It is also strongly advised against using version numbers in the id.
+Instead try to keep such stuff to the content/data area itself (or the 
+wrapped format).
+
+Another interesting thing is that the .bin is not really needed.
+You can call it .dat or whatever you want.
+If it's a mp3 file you might wanna use this nifty binary header but call 
+it .mp3 instead
+which might be useful on a human and filesystem sorting level.
+Although a modern OS or software should read the
+textual binid field and show that instead.
+
+The Binary header is basically a filetype/id header,
+stating that this is a binary file. (first 8 bytes header)
+and then the filetype/content data id in the form of a nullterminated 
+string.
+(string length indicated by a single byte right before the string itself)
+
+So if the filetype is &quot;Cool Test File&quot; and is obviously a non existing 
+filetype/format.
+The filetype name length is 14 bytes.
+The string is 0 terminated. so the string is actually 15 bytes in this case.
+And thus the entire file format header is 25 bytes in this example.
+(BINID header, byte indicating ID length, the UTF-8 filetype name, null 
+terminator.)
+
+A mp3 file which itself don't really have a easily identifiable header 
+could be just like this example.
+Except as filetype it would say &quot;MPEG-1 Layer-3 Audio (MP3)&quot;
+and the text length byte would be the value 26 naturally.
+And after the 0 termination byte, you would have a typical mp3 file.
+So the full BINID header would be 8+1+26+1 for a total of 36 bytes 
+before the MP3 begins.
+
+Features/Why You should use it/cool points:
+The cool thing with the binary header, is that it truly is fully 
+platform independent.
+The header is darn short, 8 bytes and then a byte for the binid text 
+string size,
+so the issue with Motorola and Intel 16bit and 32bit byte orders etc are 
+avoided.
+The text string binid allow as you saw in the mp3 example above,
+a very accurate and descriptive binid. The binid is easily displayed to 
+the user
+in the case the filetype is unsupported. No more issues hunting down 
+obscure formats.
+With upto 255 char long binid string, we wont be running out of 
+&quot;binid&quot;'s anytime soon (statement that will haunt me?!).
+It is named rather neutrally. it's simply BIN actually as you saw earlier.
+So your customers won't wonder why &quot;your&quot; fileformat is named after some 
+other company etc.
+The file extension is almost redundant. But it should at least be .bin
+or the actual filetype extension (i.e for a MP3 it would be .mp3) to 
+remain familiar to users/compatible.
+This fileformat is FREE to use, no licensing needed at all (zlib 
+license), there never will be, no patent issues or anything like that.
+This format is FROZEN/LOCKED. Meaning it will never change. Ever. It's 
+just a top layer binid.
+
+Why:
+I was tired of having to MAKE new fileformats myself all the time.
+Modifying current ones was not possible as that would break file standards.
+Just about all file extensions are used up or overused making things 
+confusing sometimes.
+(i.e thousands of apps using same extensions for different things))
+Unknown filetypes can be a true pain to identify. (&quot;what the heck is a 
+.ecf file?&quot; etc...)
+looking inside a file using a hex editor doesn't always make you any wiser.
+Usually there is either no fileheader/fileid or it's just 4 or 8 bytes 
+stating ECF1 or something.
+Again a pain to find out what it really is...
+The BIN fileid header is inspired by PNG's header, is so easy to 
+implement and support.
+I'll be using it for ALL my future binary file formats/filetypes,
+which includes a file compression/archiver, file encrypter, media 
+player, and much more.
+Because it's so simple, it's also super flexible. You can easily use 
+other container formats inside this one.
+An OS could easily support this, even use it for executables and much more.
+Actually. this is barely passable for a container format as it's 
+basically a tiny static fileid header.
+The binary data/file can easily be added/attached to the end of the 
+header, with no need to edit the header in any way.
+(i.e no crc checksum or size... all that is left to the actual 
+filetype/formats themselfs)
+
+just some examples:
+
+&quot;Core Dump (Intel Byte Order)&quot;
+&quot;MPEG-1 Layer-3 (MP3)&quot;
+&quot;Windows Media Video (WMV)&quot;
+&quot;JPEG Image&quot;
+ETC.
+
+Yeah! The &quot;description&quot; itself becomes the actual BINID.
+Hopefully web browsers will catch on quickly,
+as this would allow a fast and easy way to id files that don't have a 
+proper mime type.
+So in the future a mime type &quot;application/octet-stream&quot; won't be as 
+mysterious any longer.
+
+Another advantage I forgot to mention, is that since it's basically a 
+file ID &quot;slap on&quot; header,
+it is so easy to add it on the fly. I.e a webserver could even add it to 
+the start of a file/stream
+that is sent to the browsers in case the file don't originally have a 
+BIN header...
+
+(C) 2010 Roger H&#229;gensen.
+
+***********************************************************
+
+I really should re-write it all as it's kind of messy, an early draft as 
+I said,
+and was first scribbled down over half a decade ago, but the BINID 
+standard is solid enough,
+and I'm coding in support for it (and using it) in some upcoming 
+projects as well as all future ones.
+
+Some form of central registry would be needed though where new strings 
+could be registered, looked up/searched/listed etc.
+Software would not need to contact such a registry in any way, as I 
+mentioned above the BINID itself tells you what it is,
+so if you software does not support the filetype you can just show it to 
+the user or even send them to Google or Bing or Yahoo to query the format,
+or a official registry lookup if such is available for direct queries 
+like that.
+For now, &quot;I'm&quot; that registry, but ideally it should be some independent 
+non-profit organization of some sort that should maintain it.
+There is no online database to browse yet either, but one is planned and 
+will be available on EmSai.net but I'm also pondering the idea of 
+hosting elsewhere.
+
+-- 
+Roger &quot;Rescator&quot; H&#229;gensen.
+Freelancer - <A HREF="http://EmSai.net/">http://EmSai.net/</A>
+
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="070640.html">[whatwg] Video with MIME type application/octet-stream
+</A></li>
+	<LI>Next message: <A HREF="070643.html">[whatwg] Video with MIME type application/octet-stream
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#70642">[ date ]</a>
+              <a href="thread.html#70642">[ thread ]</a>
+              <a href="subject.html#70642">[ subject ]</a>
+              <a href="author.html#70642">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

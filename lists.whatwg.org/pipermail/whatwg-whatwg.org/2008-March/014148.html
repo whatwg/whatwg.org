@@ -1,0 +1,1174 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] several messages about the tree construction stage of HTML parsing
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20several%20messages%20about%20the%20tree%20construction%20stage%20of%0A%20HTML%20parsing&In-Reply-To=%3CPine.LNX.4.62.0803030005200.6407%40hixie.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="014154.html">
+   <LINK REL="Next"  HREF="014155.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] several messages about the tree construction stage of HTML parsing</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20several%20messages%20about%20the%20tree%20construction%20stage%20of%0A%20HTML%20parsing&In-Reply-To=%3CPine.LNX.4.62.0803030005200.6407%40hixie.dreamhostps.com%3E"
+       TITLE="[whatwg] several messages about the tree construction stage of HTML parsing">ian at hixie.ch
+       </A><BR>
+    <I>Tue Mar  4 23:45:57 PST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="014154.html">[whatwg] HTMLDocument hasFocus - should it be a function?
+</A></li>
+        <LI>Next message: <A HREF="014155.html">[whatwg] Geolocation API Proposal
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#14148">[ date ]</a>
+              <a href="thread.html#14148">[ thread ]</a>
+              <a href="subject.html#14148">[ subject ]</a>
+              <a href="author.html#14148">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>
+Executive summary:
+
+Hoo boy did these e-mails end up with a lot of complicated changes -- a 
+total of 38 different checkins. Some were editorial, but others were quite 
+invasive changes. Here are the main ones:
+
+ * Merged insertion modes and phases. Theoretically this didn't change 
+   anything but as I'm sure I broke many things, please let me know what I 
+   should fix. Note that I did the changes in steps, to make reviewing the 
+   changes easier. (r1308-r1313)
+
+ * Make a text node before an &lt;html&gt; start tag be a parse error. (r1314)
+
+ * Strip spaces between &lt;html&gt; and &lt;head&gt; tags. (r1332)
+
+ * Make &lt;title&gt; not get moved to &lt;head&gt;. (r1328)
+
+ * Fix the processing of &lt;/form&gt; to work like &lt;/div&gt;. (r1320)
+
+ * Make &lt;listing&gt; parse like &lt;pre&gt; in terms of leading newlines. (r1330)
+
+ * Make spaces in &lt;table&gt; get reparented if there's been other content 
+   that got reparented. (r1326)
+
+ * Make &lt;input type=&quot;hidden&quot;&gt; in &lt;table&gt; not get reparented unless 
+   something else has been reparented. (r1331)
+
+ * Make &lt;style&gt; and &lt;script&gt; in &lt;table&gt; not get reparented. (r1335)
+
+ * Make &lt;select&gt; inside &lt;table&gt; get handled compatibly. (r1342)
+
+ * Fix bugs with the AAA algorithm in tables. (r1343)
+
+For the full list see the diffs from r1308 to r1346.
+
+
+On Thu, 19 Jan 2006, Simon Pieters wrote:
+&gt;<i> 
+</I>&gt;<i> I did some more testing[1] on this. It seems that in Mozilla and Opera, 
+</I>&gt;<i> the DOM tree for...
+</I>&gt;<i> 
+</I>&gt;<i>   &lt;table&gt;&lt;tbody&gt;&lt;form&gt;&lt;tr&gt;&lt;td&gt;&lt;input&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/form&gt;&lt;/tbody&gt;&lt;/table&gt;
+</I>&gt;<i> 
+</I>&gt;<i> ...looks like this:
+</I>&gt;<i> 
+</I>&gt;<i> TABLE
+</I>&gt;<i> - TBODY
+</I>&gt;<i> - - FORM
+</I>&gt;<i> - - TR
+</I>&gt;<i> - - - TD
+</I>&gt;<i> - - - - INPUT
+</I>&gt;<i> 
+</I>&gt;<i> In IE6 the DOM tree looks like this:
+</I>&gt;<i> 
+</I>&gt;<i> TABLE
+</I>&gt;<i> - TBODY
+</I>&gt;<i> - - FORM
+</I>&gt;<i> - - - TR
+</I>&gt;<i> - - - - TD
+</I>&gt;<i> - - - - - INPUT
+</I>&gt;<i> 
+</I>&gt;<i> Even though the FORM is not an ancestor to the INPUT in the DOM tree in 
+</I>&gt;<i> Mozilla or Opera, the DOM2 HTML attributes .form and .elements work as 
+</I>&gt;<i> if it was. The same holds true when &lt;form&gt; is placed as a child of 
+</I>&gt;<i> TABLE, TBODY (presumably also THEAD and TFOOT), and TR.
+</I>&gt;<i> 
+</I>&gt;<i> [1] <A HREF="http://zcorpan.1go.dk/test/html/table-form/">http://zcorpan.1go.dk/test/html/table-form/</A>
+</I>
+The problem with IE's tree is that it is incompatible with the CSS tabel 
+model. The problem with the Mozilla and Opera tree is that the form is 
+still in the way, but since it's not an ancestor, it doesn't really have 
+to be there at all. Hence the HTML5 processing.
+
+
+On Fri, 29 Jun 2007, Henri Sivonen wrote:
+&gt;<i>
+</I>&gt;<i> If the spec dealt with the &quot;html&quot; start tag token directly in the root 
+</I>&gt;<i> element phase, the parse error in the main phase wouldn't need to be 
+</I>&gt;<i> conditional. (Implementations that experience a perf benefit from not 
+</I>&gt;<i> mutating the attributes of a node probably want to hoist the &quot;html&quot; node 
+</I>&gt;<i> creation to the root element phase for perf reasons, too.)
+</I>
+Done.
+
+
+On Mon, 11 Feb 2008, Philip Taylor wrote:
+&gt;<i> 
+</I>&gt;<i> There's also an issue with:
+</I>&gt;<i> 
+</I>&gt;<i>   &lt;!doctype html&gt;
+</I>&gt;<i>   foo
+</I>&gt;<i>   &lt;html&gt;
+</I>&gt;<i> 
+</I>&gt;<i> not producing any parse error, because the &lt;html&gt; is the first start tag 
+</I>&gt;<i> token (at least under my interpretation) and therefore is considered 
+</I>&gt;<i> valid. Handling &lt;html&gt; specially in the root element phase seems like a 
+</I>&gt;<i> reasonable way of fixing this.
+</I>
+Fixed.
+
+
+On Sat, 30 Jun 2007, Henri Sivonen wrote:
+&gt;<i>
+</I>&gt;<i> Under &quot;before head&quot; the case 'A start tag token whose tag name is one 
+</I>&gt;<i> of: &quot;base&quot;, &quot;link&quot;, &quot;meta&quot;, &quot;script&quot;, &quot;style&quot;, &quot;title&quot;' is the same as 
+</I>&gt;<i> any other start tag token.
+</I>
+Removed.
+
+
+On Sun, 1 Jul 2007, Henri Sivonen wrote:
+&gt;<i> 
+</I>&gt;<i> In the tree construction part of the parsing algorithm, void elements 
+</I>&gt;<i> that are generally supposed to be children of the &lt;head&gt; element never 
+</I>&gt;<i> get popped. (Void elements that are generally supposed to be descendants 
+</I>&gt;<i> of the &lt;body&gt; element are appropriately popped immediately.)
+</I>
+Fixed. (Assuming this only affected &quot;meta&quot;, &quot;base&quot;, and &quot;link&quot; while in 
+head, anyway.)
+
+
+On Sun, 1 Jul 2007, Henri Sivonen wrote:
+&gt;<i> 
+</I>&gt;<i> Please add a note that says that the &quot;context&quot; concept of the [R]CDATA 
+</I>&gt;<i> algorithm causes &lt;title&gt; to be moved to &lt;head&gt; here.
+</I>
+No longer applicable (&lt;title&gt; is no longer reparented).
+
+
+On Sun, 1 Jul 2007, Henri Sivonen wrote:
+&gt;<i> 
+</I>&gt;<i> In the tree construction part of the parsing algorithm, the rationale 
+</I>&gt;<i> for formulating the generic [R]CDATA parsing algorithm the way it is 
+</I>&gt;<i> formulated is not given. The formulation is unusual compared to the rest 
+</I>&gt;<i> of the chapter, so it is reasonable to expect that there's a specific 
+</I>&gt;<i> reason why it is written the way it is written.
+</I>
+It was written the way that my mind thought about it...
+
+
+&gt;<i> My practical concern is this:
+</I>&gt;<i>
+</I>&gt;<i> In my implementation the tokenizer owns the main processing loop. 
+</I>&gt;<i> Therefore, the tree builder can only change its state on a per-token 
+</I>&gt;<i> basis and cannot pull another token in response to processing one token. 
+</I>&gt;<i> (Instead, it can set its own flags, return control to the tokenizer and 
+</I>&gt;<i> wait for the tokenizer to call back into the tree builder again.)
+</I>&gt;<i>
+</I>&gt;<i> I have solved the problem as follows:
+</I>&gt;<i> 
+</I>&gt;<i> cdataOrRcdataTimesToPop is initialized to 0.
+</I>&gt;<i> 
+</I>&gt;<i> When the spec invokes the generic [R]CDATA parsing algorithm, instead of
+</I>&gt;<i> running it, do the following:
+</I>&gt;<i> 1. If the context node is the current node,
+</I>&gt;<i>  1a. Create an element for the token.
+</I>&gt;<i>  1b. Push the element.
+</I>&gt;<i>  1c. Set the content model flag of the tokenizer.
+</I>&gt;<i>  1d. Set cdataOrRcdataTimesToPop to 1.
+</I>&gt;<i> 2. Otherwise, if the context node is not the current node,
+</I>&gt;<i>  2a. Push the context node.
+</I>&gt;<i>  2b. Create an element for the token.
+</I>&gt;<i>  2c. Push the element.
+</I>&gt;<i>  2d. Set the content model flag of the tokenizer.
+</I>&gt;<i>  2e. Set cdataOrRcdataTimesToPop to 2.
+</I>&gt;<i> 
+</I>&gt;<i> Modify the processing of character tokens and end tag tokens as follows:
+</I>&gt;<i> 
+</I>&gt;<i> 3. If a character token is seen and cdataOrRcdataTimesToPop &gt; 0,
+</I>&gt;<i>  3a. Append the character token to the current node.
+</I>&gt;<i>  3b. Omit the normal processing of character tokens.
+</I>&gt;<i> 4. If an end tag token is seen and cdataOrRcdataTimesToPop &gt; 0,
+</I>&gt;<i>  (The token will always be the end tag for the [R]DATA element.)
+</I>&gt;<i>  4a. Pop cdataOrRcdataTimesToPop times.
+</I>&gt;<i>  4b. Set cdataOrRcdataTimesToPop to 0.
+</I>&gt;<i>  4c. Omit normal end tag token processing.
+</I>&gt;<i> 
+</I>&gt;<i> I'd like to know if this transformation breaks some important property 
+</I>&gt;<i> caused by the formulation of the spec.
+</I>
+As far as I can tell it is equivalent.
+
+
+&gt;<i> Specifically, the spec says:
+</I>&gt;<i> &gt; 7. If the next token is an end tag token with the same tag name as the start
+</I>&gt;<i> &gt; tag token, ignore it. Otherwise, this is a parse error.
+</I>&gt;<i> 
+</I>&gt;<i> How could you see any other token but an end tag token with the same tag 
+</I>&gt;<i> name as the start tag token, a character token or EOF?
+</I>
+The only way it can't be the end tag token is if it is an EOF token, I 
+believe. I've made the spec say that.
+
+
+On Sun, 1 Jul 2007, Henri Sivonen wrote:
+&gt;<i> 
+</I>&gt;<i> The cases
+</I>&gt;<i> &gt; A start tag whose tag name is one of: &quot;address&quot;, &quot;blockquote&quot;, &quot;center&quot;,
+</I>&gt;<i> &gt; &quot;dir&quot;, &quot;div&quot;, &quot;dl&quot;, &quot;fieldset&quot;, &quot;listing&quot;, &quot;menu&quot;, &quot;ol&quot;, &quot;p&quot;, &quot;ul&quot;
+</I>&gt;<i> and
+</I>&gt;<i> &gt; A start tag whose tag name is one of: &quot;h1&quot;, &quot;h2&quot;, &quot;h3&quot;, &quot;h4&quot;, &quot;h5&quot;, &quot;h6&quot;
+</I>&gt;<i> have the same action and can be unified.
+</I>
+Done.
+
+
+On Mon, 2 Jul 2007, Henri Sivonen wrote:
+&gt;<i> 
+</I>&gt;<i> The handling of &quot;select&quot; &quot;in body&quot; does not associate the node with the 
+</I>&gt;<i> current form pointer. Is this intentional?
+</I>
+Fixed.
+
+
+On Sat, 14 Jul 2007, Henri Sivonen wrote:
+&gt;<i> 
+</I>&gt;<i> The same goes for &quot;button&quot;.
+</I>
+Fixed.
+
+
+On Wed, 4 Jul 2007, Henri Sivonen wrote:
+&gt;<i> &gt; 
+</I>&gt;<i> &gt; A start tag whose tag name is &quot;frameset&quot;
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt;     Insert a frameset element for the token.
+</I>&gt;<i> 
+</I>&gt;<i> There seems to be nothing special about inserting a frameset element. I 
+</I>&gt;<i> suggest using the normal wording &quot;Insert an HTML element for the token.&quot;
+</I>
+Done.
+
+
+On Thu, 5 Jul 2007, Henri Sivonen wrote:
+&gt;<i> 
+</I>&gt;<i> For some elements the spec says:
+</I>&gt;<i> &gt; If the stack of open elements has an element in scope with the same 
+</I>&gt;<i> &gt; tag name as that of the token, then pop elements from this stack until 
+</I>&gt;<i> &gt; an element with that tag name has been popped from the stack.
+</I>&gt;<i> 
+</I>&gt;<i> But for (at least) the p element it says:
+</I>&gt;<i> &gt; If the stack of open elements has a p element in scope, then pop 
+</I>&gt;<i> &gt; elements from this stack until the stack no longer has a p element in 
+</I>&gt;<i> &gt; scope.
+</I>&gt;<i> 
+</I>&gt;<i> The different wording implies that the implementation needs to run a 
+</I>&gt;<i> different subalgorithm. However, this is not the case. Therefore, it 
+</I>&gt;<i> would be better to use the first wording in both cases.
+</I>
+When I use the second wording quoted above, it is sometimes the case that 
+the token is not the same as the element being sought.
+
+If there are specific cases where I could make the spec more consistent 
+without loss of precision, please let me know.
+
+
+On Thu, 5 Jul 2007, Henri Sivonen wrote:
+&gt;<i> 
+</I>&gt;<i> For some elements the spec says:
+</I>&gt;<i> &gt; If the stack of open elements has an element in scope with the same tag name
+</I>&gt;<i> &gt; as that of the token, then generate implied end tags.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; Now, if the current node is not an element with the same tag name as that of
+</I>&gt;<i> &gt; the token, then this is a parse error.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; If the stack of open elements has an element in scope with the same tag name
+</I>&gt;<i> &gt; as that of the token, then pop elements from this stack until an element
+</I>&gt;<i> &gt; with that tag name has been popped from the stack.
+</I>&gt;<i> 
+</I>&gt;<i> I can't figure out you one might get the stack in such a state that the 
+</I>&gt;<i> &quot;generate implied end tags&quot; step changed the situation so that the 
+</I>&gt;<i> second &quot;If the stack of open elements has an element in scope&quot; found a 
+</I>&gt;<i> different node than the first &quot;If the stack of open elements has an 
+</I>&gt;<i> element in scope&quot;.
+</I>&gt;<i> 
+</I>&gt;<i> Am I right? If yes, it would make sense to write this is a way that 
+</I>&gt;<i> doesn't suggest that implementors search the stack twice.
+</I>
+Done.
+
+
+On Thu, 5 Jul 2007, Henri Sivonen wrote:
+&gt;<i> 
+</I>&gt;<i> The spec says:
+</I>&gt;<i> &gt; When the steps below require the UA to generate implied end tags, then, if
+</I>&gt;<i> &gt; the current node is a dd element, a dt element, an li element, a p element,
+</I>&gt;<i> &gt; a tbody element, a td element, a tfoot element, a th element, a thead
+</I>&gt;<i> &gt; element, a tr element, the UA must act as if an end tag with the respective
+</I>&gt;<i> &gt; tag name had been seen and then generate implied end tags again.
+</I>&gt;<i> 
+</I>&gt;<i> As far as I and, judging from source comments and IRC remarks, the 
+</I>&gt;<i> authors of html5lib can tell, &quot;act as if an end tag with the respective 
+</I>&gt;<i> tag name had been seen&quot; simplifies to &quot;pop the current node off the 
+</I>&gt;<i> stack of open elements&quot;. If this is indeed the case, the spec should 
+</I>&gt;<i> just say so. If this is not the case, the difference appears to be too 
+</I>&gt;<i> subtle for implementors and should be called out explicitly.
+</I>
+Done.
+
+
+
+On Thu, 5 Jul 2007, Henri Sivonen wrote:
+&gt;<i> 
+</I>&gt;<i> The spec says:
+</I>&gt;<i> &gt; When the steps below require the UA to generate implied end tags, 
+</I>&gt;<i> &gt; then, if the current node is a dd element, a dt element, an li 
+</I>&gt;<i> &gt; element, a p element, a tbody element, a td element, a tfoot element, 
+</I>&gt;<i> &gt; a th element, a thead element, a tr element, the UA must act as if an 
+</I>&gt;<i> &gt; end tag with the respective tag name had been seen and then generate 
+</I>&gt;<i> &gt; implied end tags again.
+</I>&gt;<i> 
+</I>&gt;<i> The table-related elements got in there a while ago: 
+</I>&gt;<i> <A HREF="http://html5.org/tools/web-apps-tracker?from=964&amp;to=965">http://html5.org/tools/web-apps-tracker?from=964&amp;to=965</A>
+</I>&gt;<i> 
+</I>&gt;<i> As far as Anne and I can tell, the implied end tags of the table-related 
+</I>&gt;<i> elements are already handled regardless of &quot;generate implied end tags&quot;. 
+</I>&gt;<i> <A HREF="http://krijnhoetmer.nl/irc-logs/whatwg/20070705#l-106">http://krijnhoetmer.nl/irc-logs/whatwg/20070705#l-106</A>
+</I>&gt;<i> 
+</I>&gt;<i> If the table-related elements are indeed not needed on the list, they 
+</I>&gt;<i> should be taken out.
+</I>
+Done.
+
+
+On Fri, 6 Jul 2007, Henri Sivonen wrote:
+&gt;<i> 
+</I>&gt;<i> On Jul 5, 2007, at 10:57, Henri Sivonen wrote:
+</I>&gt;<i> 
+</I>&gt;<i> &gt; If the table-related elements are indeed not needed on the list, they should
+</I>&gt;<i> &gt; be taken out.
+</I>&gt;<i> 
+</I>&gt;<i> Doing this would simplify the implied end tag generation when a table 
+</I>&gt;<i> cell closes, because the exclusion of the table cell itself would be 
+</I>&gt;<i> unnecessary.
+</I>
+Removed.
+
+
+On Thu, 5 Jul 2007, Henri Sivonen wrote:
+&gt;<i> 
+</I>&gt;<i> The spec says:
+</I>&gt;<i> &gt; An end tag whose tag name is &quot;p&quot;
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt;     If the stack of open elements has a p element in scope, then generate
+</I>&gt;<i> &gt; implied end tags, except for p elements.
+</I>&gt;<i> 
+</I>&gt;<i> Anne pointed out (correctly, I think) that the &quot;generate implied end 
+</I>&gt;<i> tags, except for p elements&quot; is always a no-op. 
+</I>&gt;<i> <A HREF="http://krijnhoetmer.nl/irc-logs/whatwg/20070705#l-156">http://krijnhoetmer.nl/irc-logs/whatwg/20070705#l-156</A>
+</I>
+Removed.
+
+
+On Thu, 5 Jul 2007, Henri Sivonen wrote:
+&gt;<i> 
+</I>&gt;<i> The spec says:
+</I>&gt;<i> &gt; An end tag token not covered by the previous entries
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt;     Run the following algorithm:
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt;        1. Initialise node to be the current node (the bottommost node of the
+</I>&gt;<i> &gt;           stack).
+</I>&gt;<i> &gt;        2. If node has the same tag name as the end tag token, then:
+</I>&gt;<i> &gt;              1. Generate implied end tags.
+</I>&gt;<i> &gt;              2. If the tag name of the end tag token does not match the tag
+</I>&gt;<i> &gt;                 name of the current node, this is a parse error.
+</I>&gt;<i> &gt;              3. Pop all the nodes from the current node up to node,
+</I>&gt;<i> &gt;                 including node, then stop this algorithm.
+</I>&gt;<i> &gt;        3. Otherwise, if node is in neither the formatting category nor the
+</I>&gt;<i> &gt;           phrasing category, then this is a parse error. Stop this 
+</I>&gt;<i> &gt;           algorithm. The end tag token is ignored.
+</I>&gt;<i> &gt;        4. Set node to the previous entry in the stack of open elements.
+</I>&gt;<i> &gt;        5. Return to step 2.
+</I>&gt;<i> 
+</I>&gt;<i> The sublist doesn't make sense. If the current node has the same tag 
+</I>&gt;<i> name as the token, the stack should be popped. Generating implied end 
+</I>&gt;<i> tags makes no sense.
+</I>
+It's a loop. You return to step 2 after climbing up the chain.
+
+
+&gt;<i> The algorithm should probably read as follows:
+</I>&gt;<i> 1. If the current node has the same tag name as the end tag token, pop the
+</I>&gt;<i> current node off the stack and then stop this algorithm.
+</I>&gt;<i> 2. Generate implied end tags.
+</I>&gt;<i> 3. If the current node has the same tag name as the end tag token, pop the
+</I>&gt;<i> current node off the stack and then stop this algorithm.
+</I>&gt;<i> 4. If the current node is in the formatting category or in the phasing
+</I>&gt;<i> category, then this is a parse error. Pop the current node off the stack and
+</I>&gt;<i> then return to step 2.
+</I>&gt;<i> 5. Otherwise, stop this algorithm.
+</I>
+This algorithm does something different than what we want if the end tag 
+doesn't match anything.
+
+
+&gt;<i> Note that both formulations seem to make a stray &lt;/td&gt; in &quot;in body&quot; not 
+</I>&gt;<i> to be silently ignored by as closing open formatting or phrasing 
+</I>&gt;<i> elements. Is this right? Should popping phrasing or formatting elements 
+</I>&gt;<i> first check if there's an element in scope with the same tag name as the 
+</I>&gt;<i> token?
+</I>
+I have no idea what you're trying to say here, sorry.
+
+
+On Fri, 6 Jul 2007, Henri Sivonen wrote:
+&gt;<i> 
+</I>&gt;<i> The spec says:
+</I>&gt;<i> &gt; An end tag whose tag name is &quot;table&quot;
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt;     If the stack of open elements does not have an element in table scope
+</I>&gt;<i> &gt; with the same tag name as the token, this is a parse error. Ignore the
+</I>&gt;<i> &gt; token. (fragment case)
+</I>&gt;<i> 
+</I>&gt;<i> &quot;in table scope&quot; is redundant and could be struck.
+</I>
+How so?
+
+&lt;table&gt;&lt;marquee&gt;&lt;/table&gt;
+
+
+On Fri, 6 Jul 2007, Henri Sivonen wrote:
+&gt;<i> The spec says:
+</I>&gt;<i> &gt; An end tag whose tag name is &quot;table&quot;
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt;     If the stack of open elements does not have an element in table scope
+</I>&gt;<i> &gt; with the same tag name as the token, this is a parse error. Ignore the
+</I>&gt;<i> &gt; token. (fragment case)
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt;     Otherwise:
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt;     Generate implied end tags.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt;     Now, if the current node is not a table element, then this is a parse
+</I>&gt;<i> &gt;     error.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt;     Pop elements from this stack until a table element has been popped from
+</I>&gt;<i> &gt;     the stack.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt;     Reset the insertion mode appropriately.
+</I>&gt;<i> 
+</I>&gt;<i> Why have the steps
+</I>&gt;<i> &gt;     Generate implied end tags.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt;     Now, if the current node is not a table element, then this is a parse
+</I>&gt;<i> &gt;     error.
+</I>&gt;<i> there at all?
+</I>&gt;<i> 
+</I>&gt;<i> If there are implied end tags to generate, it means that the stack has 
+</I>&gt;<i> foster-parented stuff pushed onto it. The foster parenting triggered an 
+</I>&gt;<i> error when the nodes got onto the stack. Do we really care about how 
+</I>&gt;<i> gracefully they come off the stack?
+</I>
+On Fri, 6 Jul 2007, Henri Sivonen wrote:
+&gt;<i> 
+</I>&gt;<i> On the other hand, perhaps we do care about &lt;table&gt;&lt;div&gt;&lt;/table&gt; being
+</I>&gt;<i> subjectively even worse than &lt;table&gt;&lt;div&gt;&lt;/div&gt;&lt;/table&gt; but
+</I>&gt;<i> &lt;table&gt;&lt;dd&gt;&lt;/table&gt; and &lt;table&gt;&lt;dd&gt;&lt;/dd&gt;&lt;/table&gt; being equally bad.
+</I>&gt;<i> 
+</I>&gt;<i> Anyway, this isn't the only case where foster-parented subtrees come off the
+</I>&gt;<i> stack.
+</I>
+Yeah, for consistency I guess it makes no sense for &lt;table&gt;&lt;p&gt;&lt;i&gt;&lt;tr&gt; to 
+be fewer errors than &lt;table&gt;&lt;p&gt;&lt;i&gt;&lt;/table&gt;, and the latter is easier to 
+reduce to one error than the former to increase to two...
+
+In fact, I've removed all those errors. I agree with you that it makes 
+more sense to simply consider the foster parenting the reportable error, 
+and forget the other errors.
+
+
+On Fri, 6 Jul 2007, Henri Sivonen wrote:
+&gt;<i> 
+</I>&gt;<i> The spec says:
+</I>&gt;<i> &gt; If node is the first node in the stack of open elements, then set last to
+</I>&gt;<i> &gt; true. If the context element of the HTML fragment parsing algorithm is
+</I>&gt;<i> &gt; neither a td element nor a th element, then set node to the context element.
+</I>&gt;<i> &gt; (fragment case)
+</I>&gt;<i> 
+</I>&gt;<i> The second sentence is also qualified by the first &quot;If&quot;, right?
+</I>
+Clarified.
+
+
+On Tue, 10 Jul 2007, Henri Sivonen wrote:
+&gt;<i> 
+</I>&gt;<i> The tree construction section uses both &quot;insert&quot; and &quot;append&quot;. Most 
+</I>&gt;<i> often &quot;insert&quot; means just &quot;append&quot;. For clarity, it would be better to 
+</I>&gt;<i> use &quot;append&quot; when a node is appended as the new last child of a parent 
+</I>&gt;<i> and &quot;insert&quot; when the node is inserted before an existing child.
+</I>&gt;<i> 
+</I>&gt;<i> I do realize that &quot;append&quot; is just a special form of &quot;insert&quot;, but with 
+</I>&gt;<i> &quot;insert&quot; one always has to stop and look if there's a reference node 
+</I>&gt;<i> mentioned.
+</I>
+The &quot;insert an HTML element&quot; steps turn into an actual insertion when 
+there's a &lt;table&gt; involved, so I'd rather not change this. You end up 
+having to say things like &quot;except when you would normally append, insert 
+instead&quot;, which makes the whole thing somewhat of a farce.
+
+
+On Tue, 10 Jul 2007, Henri Sivonen wrote:
+&gt;<i> 
+</I>&gt;<i> Since space characters are unconditionally not foster parented, the 
+</I>&gt;<i> results of the tree builder are inconsistent with Gecko and WebKit DOM 
+</I>&gt;<i> and rendering and with Presto rendering. If you have the character 
+</I>&gt;<i> tokens &quot;foo bar&quot; and the current node is &quot;table&quot;, &quot;foobar&quot; get foster 
+</I>&gt;<i> parented and &quot; &quot; doesn't according to the current draft. WebKit and 
+</I>&gt;<i> Gecko foster parent &quot;foo bar&quot;. Presto seems to achieve results that 
+</I>&gt;<i> render similarly except the space renders as a line break (by foster 
+</I>&gt;<i> parenting in the CSS box tree?).
+</I>
+Fixed.
+
+
+On Thu, 12 Jul 2007, Jonas Sicking wrote:
+&gt;<i> Ian Hickson wrote:
+</I>&gt;<i> &gt; On Wed, 20 Jun 2007, Anne van Kesteren wrote:
+</I>&gt;<i> &gt; &gt; This also applies to the &lt;title&gt; element in Opera 9. Internet 
+</I>&gt;<i> &gt; &gt; Explorer 7 always drops the &lt;title&gt; element from the DOM. The first 
+</I>&gt;<i> &gt; &gt; &lt;title&gt; in document order (depth-first) is equal to document.title.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; IE7's behaviour looks like what the spec says now, and what the spec 
+</I>&gt;<i> &gt; says now matches Firefox and Safari, so I'd rather not change it.
+</I>&gt;<i> 
+</I>&gt;<i> We're actually planning on changing our behavior here to not move 
+</I>&gt;<i> &lt;title&gt; elements into the head. I really doubt that there is code out 
+</I>&gt;<i> there that depends on the &lt;title&gt; element appearing in the head since 
+</I>&gt;<i> there is little reason for current web authors to muck around with the 
+</I>&gt;<i> &lt;title&gt; element at all given that it doesn't do anything once it's 
+</I>&gt;<i> parsed. (this is IMHO a bug in current implementations).
+</I>
+Done.
+
+
+On Fri, 13 Jul 2007, Henri Sivonen wrote:
+&gt;<i> 
+</I>&gt;<i> There's an entry:
+</I>&gt;<i> &gt; An end tag whose tag name is one of: &quot;area&quot;, &quot;basefont&quot;, &quot;bgsound&quot;, &quot;br&quot;,
+</I>&gt;<i> &gt; &quot;embed&quot;, &quot;hr&quot;, &quot;iframe&quot;, &quot;image&quot;, &quot;img&quot;, &quot;input&quot;, &quot;isindex&quot;, &quot;noembed&quot;,
+</I>&gt;<i> &gt; &quot;noframes&quot;, &quot;param&quot;, &quot;select&quot;, &quot;spacer&quot;, &quot;table&quot;, &quot;textarea&quot;, &quot;wbr&quot;
+</I>&gt;<i> 
+</I>&gt;<i> &quot;br&quot; should be struck there as it is already handled the way it should 
+</I>&gt;<i> in:
+</I>&gt;<i>
+</I>&gt;<i> &gt; An end tag whose tag name is &quot;br&quot;
+</I>
+Fixed.
+
+
+On Sun, 15 Jul 2007, Simon Pieters wrote:
+&gt;<i> 
+</I>&gt;<i> Compare:
+</I>&gt;<i> 
+</I>&gt;<i>    <A HREF="http://www.whatwg.org/specs/web-apps/current-work/#the-initial">http://www.whatwg.org/specs/web-apps/current-work/#the-initial</A>
+</I>&gt;<i>    <A HREF="http://developer.mozilla.org/en/docs/Mozilla's_DOCTYPE_sniffing">http://developer.mozilla.org/en/docs/Mozilla's_DOCTYPE_sniffing</A>
+</I>&gt;<i> 
+</I>&gt;<i> The following cases are missing in the list of conditions that trigger quirks
+</I>&gt;<i> mode:
+</I>&gt;<i> 
+</I>&gt;<i>   * The public identifier is set to: &quot;-//SoftQuad Software//DTD HoTMetaL
+</I>&gt;<i>     PRO 6.0::19990601::extensions to HTML 4.0//EN&quot;
+</I>&gt;<i>   * The public identifier is set to: &quot;-//SoftQuad//DTD HoTMetaL PRO
+</I>&gt;<i>     4.0::19971010::extensions to HTML 4.0//EN&quot;
+</I>
+Fixed this as part of fixes last week.
+
+
+On Wed, 25 Jul 2007, Simon Pieters wrote:
+&gt;<i> 
+</I>&gt;<i>    <A HREF="http://software.hixie.ch/utilities/js/live-dom-viewer/?%3C%21DOCTYPE%20html%3E%3Cp%3E%3Ctable%3E">http://software.hixie.ch/utilities/js/live-dom-viewer/?%3C%21DOCTYPE%20html%3E%3Cp%3E%3Ctable%3E</A>
+</I>&gt;<i>    <A HREF="http://software.hixie.ch/utilities/js/live-dom-viewer/?%3Cp%3E%3Ctable%3E">http://software.hixie.ch/utilities/js/live-dom-viewer/?%3Cp%3E%3Ctable%3E</A>
+</I>&gt;<i> 
+</I>&gt;<i> Before Acid2, AFAIK, only Mozilla parsed &lt;p&gt;&lt;table&gt; as &lt;p&gt;&lt;/p&gt;&lt;table&gt;, 
+</I>&gt;<i> and only in standards mode.
+</I>&gt;<i> 
+</I>&gt;<i> Now, as a result of Acid2, Opera does the same as Mozilla, and Safari 
+</I>&gt;<i> too but also in quirks mode.
+</I>&gt;<i> 
+</I>&gt;<i> I think having parsing differences between quirks mode and standards 
+</I>&gt;<i> mode is a bad thing. If the quirks mode behavior is required for compat 
+</I>&gt;<i> (which it probably is), then I think we should always parse it the 
+</I>&gt;<i> traditional way. Doing so would also align with IE7.
+</I>
+Well, has Safari run into any problems?
+
+
+&gt;<i> Thus I suggest that the first paragraph be dropped in:
+</I>&gt;<i> 
+</I>&gt;<i>    A start tag whose tag name is &quot;table&quot;
+</I>&gt;<i>       If the stack of open elements has a p element in scope, then act as
+</I>&gt;<i>       if an end tag with the tag name p had been seen.
+</I>&gt;<i> 
+</I>&gt;<i>       Insert an HTML element for the token.
+</I>&gt;<i> 
+</I>&gt;<i>       Change the insertion mode to &quot;in table&quot;.
+</I>
+I'm reluctant to make this change in no-quirks mode, as &lt;table&gt; really 
+isn't a phrasing element, the way we've defined it.
+
+Mind you, &lt;section&gt; right now doesn't imply a &lt;/p&gt; either... maybe we 
+should keep it that way, and make &lt;table&gt; join it in the weird parsiness 
+that is HTML?
+
+
+On Sat, 18 Aug 2007, Philip Taylor wrote:
+&gt;<i> 
+</I>&gt;<i> The HTML5 parser ignores a leading line feed character in &lt;pre&gt; and 
+</I>&gt;<i> &lt;textarea&gt;. Current browsers do things differently in some cases.
+</I>&gt;<i> 
+</I>&gt;<i> IE 7: &lt;pre&gt;, &lt;textarea&gt;, &lt;xmp&gt;, &lt;listing&gt;, &lt;plaintext&gt; (and other 
+</I>&gt;<i> elements like &lt;div&gt; are totally weird, particular when comparing the 
+</I>&gt;<i> four different views and when adding CSS, and also it differs in quirks 
+</I>&gt;<i> vs standards mode, and also it sometimes differs when loading a real 
+</I>&gt;<i> page vs loading with document.write)
+</I>
+Ok, let's ignore that then.
+
+
+&gt;<i> Firefox 2: &lt;pre&gt;, &lt;textarea&gt;, &lt;listing&gt;
+</I>&gt;<i> 
+</I>&gt;<i> Opera 9.2: &lt;pre&gt;, &lt;listing&gt; (and &lt;textarea&gt; seems to be handled outside 
+</I>&gt;<i> the parser)
+</I>&gt;<i> 
+</I>&gt;<i> Safari 3: &lt;pre&gt;, &lt;listing&gt; (and &lt;textarea&gt; seems to be handled outside 
+</I>&gt;<i> the parser)
+</I>&gt;<i> 
+</I>&gt;<i> HTML5: &lt;pre&gt;, &lt;textarea&gt;
+</I>&gt;<i> 
+</I>&gt;<i> (I didn't look at any elements other than those in the above example.)
+</I>
+HTML5 seems like the best compromise so far then. :-)
+
+
+&gt;<i> In particular, &lt;listing&gt; is consistent between all browsers but missing 
+</I>&gt;<i> from HTML5.
+</I>
+I've added it to the list for HTML5.
+
+
+&gt;<i> IE's behaviour seems slightly useful for &lt;xmp&gt; and &lt;plaintext&gt;, since it 
+</I>&gt;<i> lets you write
+</I>&gt;<i> 
+</I>&gt;<i>   &lt;xmp&gt;
+</I>&gt;<i>   &lt;!DOCTYPE HTML&gt;
+</I>&gt;<i>   &lt;title&gt;An example HTML5 document&lt;/title&gt;
+</I>&gt;<i>   &lt;p&gt;...
+</I>&gt;<i>   &lt;/xmp&gt;
+</I>&gt;<i> 
+</I>&gt;<i> and not get an unexpected blank line at the top.
+</I>
+Since neither of those elements has been part of HTML for years, I'm not 
+really that concerned...
+
+
+On Tue, 21 Aug 2007, Simon Pieters wrote:
+&gt;<i> &gt;
+</I>&gt;<i> &gt; If we want to be more like IE, then I'd suggest the following spec 
+</I>&gt;<i> &gt; text:
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt;     The head element of a document is the first head element that doesn't
+</I>&gt;<i> &gt;     have a body [or frameset] element ancestor.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt;     The title element of a document is the first title element that doesn't
+</I>&gt;<i> &gt;     have a body [or frameset] element ancestor.
+</I>&gt;<i> 
+</I>&gt;<i> However, IE moves title elements found in body to head in the HTML 
+</I>&gt;<i> parser. HTML5 says to do this as well, currently. But if we want to 
+</I>&gt;<i> change the parser to not move title elements to head [1], then the 
+</I>&gt;<i> definition might instead need to be:
+</I>&gt;<i> 
+</I>&gt;<i>    The title element of a document is the first title element.
+</I>&gt;<i> 
+</I>&gt;<i> ...because some pages might well have &lt;title&gt; tags in body and expect 
+</I>&gt;<i> them to work as titles.
+</I>
+Done.
+
+
+&gt;<i> If we do this, &quot;the head element&quot; doesn't seem 
+</I>&gt;<i> to be needed at all.
+</I>
+It's sadly still needed for when we have elements between &lt;/head&gt; and 
+&lt;body&gt;.
+
+
+On Fri, 7 Sep 2007, Henri Sivonen wrote:
+&gt;<i> On Sep 5, 2007, at 05:36, Ian Hickson wrote:
+</I>&gt;<i> &gt; On Sun, 2 Sep 2007, Boris Zbarsky wrote:
+</I>&gt;<i> &gt; &gt; 
+</I>&gt;<i> &gt; &gt; What we are considering doing right now is allowing &lt;input 
+</I>&gt;<i> &gt; &gt; type=&quot;hidden&quot;&gt; (but not other kinds of inputs) to be direct children 
+</I>&gt;<i> &gt; &gt; of TABLE, TBODY, and TR.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; This would be the first step down the slippery slope of making the 
+</I>&gt;<i> &gt; tree construction stage in the parser generate DOMs that depend on 
+</I>&gt;<i> &gt; attribute values rather than being exclusively based on tag names.
+</I>&gt;<i> 
+</I>&gt;<i> I agree on the slope being slippery but...
+</I>&gt;<i> 
+</I>&gt;<i> &gt; This scares me, as it immediately precludes a significant possible set 
+</I>&gt;<i> &gt; of optimisations.
+</I>&gt;<i> 
+</I>&gt;<i> What kind of optimizations?
+</I>
+Well, for instance, parsers that don't care about attributes could throw 
+them entirely on the floor before. With this change, you'd always need to 
+parse attributes properly to get the right DOM.
+
+
+&gt;<i> &gt; &gt; Thoughts?
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; Would it be possible to instead make the &lt;input&gt; elements remember 
+</I>&gt;<i> &gt; their parse order and use that during submission?
+</I>&gt;<i> 
+</I>&gt;<i> This would add more secret data (data not exposed through the API) to 
+</I>&gt;<i> the DOM nodes. Now the only anomalies are the document mode and the form 
+</I>&gt;<i> pointer. Do we really want to go down the road of adding more?
+</I>
+I guess not.
+
+
+On Wed, 12 Sep 2007, Maciej Stachowiak wrote:
+&gt;<i> 
+</I>&gt;<i> For what it's worth, we also ran into a regression in WebKit when we 
+</I>&gt;<i> stopped allowing &lt;input type=&quot;hidden&quot;&gt; to be a direct child of table 
+</I>&gt;<i> structure elements, on a different site than the one mentioned in the 
+</I>&gt;<i> Mozilla bug. We will likely restore that parsing quirk, and I think it 
+</I>&gt;<i> would be good to make the spec require it.
+</I>
+Right then. Based on all the above feedback, I've made it basically act 
+exactly as the space characters now do. That is, &lt;input type=hidden&gt; 
+elements stay inside &lt;table&gt; elements unless some content has been 
+foster-reparented, at which point any future &lt;input type=hidden&gt;s for that 
+table get reparented too.
+
+I'm doing more research on this, but what I really would like is some 
+feedback from browser vendors once they have tried implementing this.
+
+
+On Thu, 11 Oct 2007, Thomas Broyer wrote:
+&gt;<i>
+</I>&gt;<i> The algorithm says to &quot;insert an HTML element for the token&quot; when 
+</I>&gt;<i> encountering a start tag whose tag name is one of &quot;meta&quot;, &quot;link&quot; or 
+</I>&gt;<i> &quot;base&quot;; but unlike other void elements, it doesn't say to &quot;immediately 
+</I>&gt;<i> pop the current node off the stack of open elements&quot;, which means 
+</I>&gt;<i> following elements should be appended as children of the link, base or 
+</I>&gt;<i> meta element, not a sibling.
+</I>
+Fixed.
+
+
+&gt;<i> For reference, html5lib and Validator.nu's HTML Parser currently don't 
+</I>&gt;<i> use the &quot;insert an HTML element&quot; algorithm for these cases, they instead 
+</I>&gt;<i> use a special algorithm which doesn't deal with the &quot;stack of open 
+</I>&gt;<i> elements&quot; at all. HTML Parser uses its 
+</I>&gt;<i> &quot;appendVoidElementToCurrentMayFoster&quot; algorithm for every void element 
+</I>&gt;<i> while html5lib follows the &quot;insert then pop&quot; algorithm for these (img, 
+</I>&gt;<i> hr, etc)
+</I>
+Either is conforming, yes. The effect is the same.
+
+
+On Wed, 14 Nov 2007, Simon Pieters wrote:
+&gt;<i> 
+</I>&gt;<i> It appears that some sites use document.documentElement.firstChild and 
+</I>&gt;<i> expect it to be the head element even if there was whitespace before the 
+</I>&gt;<i> &lt;head&gt; tag.
+</I>&gt;<i> 
+</I>&gt;<i> Safari seems to drop whitespace before the &lt;head&gt; tag. Firefox seems to 
+</I>&gt;<i> insert any whitespace before the &lt;head&gt; tag in the head element, even if 
+</I>&gt;<i> it was also before the &lt;html&gt; tag or before the doctype, and it also 
+</I>&gt;<i> does so with comments. IE seems to drop whitespace and put comments 
+</I>&gt;<i> before the &lt;html&gt; tag as siblings to the root element and after as 
+</I>&gt;<i> children of the head element. Opera currently does what HTML5 says, and 
+</I>&gt;<i> it has caused some compat problems.
+</I>
+Sigh. I really wanted to roundtrip all spaces... Oh well.
+
+Fixed, by dropping spaces before &lt;head&gt;, and encouraging newlines after 
+the &lt;html&gt; start tag.
+
+
+On Mon, 4 Feb 2008, Philip Taylor wrote:
+&gt;<i> 
+</I>&gt;<i> 'Main page &#8618; Anything else &#8618; If the insertion mode is &quot;in body&quot; &#8618; 
+</I>&gt;<i> A start tag whose tag name is &quot;li&quot;' says:
+</I>&gt;<i> 
+</I>&gt;<i>   &quot;Finally, insert an li element.&quot;
+</I>&gt;<i> 
+</I>&gt;<i> 'Main page &#8618; Anything else &#8618; If the insertion mode is &quot;in body&quot; &#8618; 
+</I>&gt;<i> A start tag whose tag name is one of: &quot;dd&quot;, &quot;dt&quot;' says:
+</I>&gt;<i> 
+</I>&gt;<i>   &quot;Finally, insert an HTML element with the same tag name as the token's.&quot;
+</I>&gt;<i> 
+</I>&gt;<i> Both of those sentences link to the definition of &quot;insert an HTML 
+</I>&gt;<i> element for a token&quot;, but neither mention a token to insert the element 
+</I>&gt;<i> for. I assume it's meant to simply insert an element for the current 
+</I>&gt;<i> token, and the bits about names are merely to add confusion, in which 
+</I>&gt;<i> case both sentences should be changed to:
+</I>&gt;<i> 
+</I>&gt;<i>   &quot;Finally, insert an HTML element for the token.&quot;
+</I>&gt;<i> 
+</I>&gt;<i> to make it clear that nothing special is happening.
+</I>
+Ironically, the text was originally intend to make it clear that nothing 
+special is happening!
+
+Changed as suggested.
+
+
+On Fri, 8 Feb 2008, Philip Taylor wrote:
+&gt;<i> 
+</I>&gt;<i> <A HREF="http://html5lib.googlecode.com/svn/trunk/testdata/tree-construction/tests1.dat">http://html5lib.googlecode.com/svn/trunk/testdata/tree-construction/tests1.dat</A>
+</I>&gt;<i> has the following test case:
+</I>&gt;<i> 
+</I>&gt;<i> #data
+</I>&gt;<i> &lt;b&gt;Test&lt;/i&gt;Test
+</I>&gt;<i> #errors
+</I>&gt;<i> Line: 1 Col: 3 Unexpected start tag (b). Expected DOCTYPE.
+</I>&gt;<i> Line: 1 Col: 11 End tag (i) violates step 1, paragraph 1 of the adoption
+</I>&gt;<i> agency algorithm.
+</I>&gt;<i> Line: 1 Col: 15 Expected closing tag. Unexpected end of file.
+</I>&gt;<i> #document
+</I>&gt;<i> | &lt;html&gt;
+</I>&gt;<i> |   &lt;head&gt;
+</I>&gt;<i> |   &lt;body&gt;
+</I>&gt;<i> |     &lt;b&gt;
+</I>&gt;<i> |       &quot;TestTest&quot;
+</I>&gt;<i> 
+</I>&gt;<i> The text-node coalescence is defined in
+</I>&gt;<i> <A HREF="http://www.w3.org/html/wg/html5/#append">http://www.w3.org/html/wg/html5/#append</A> as:
+</I>&gt;<i> 
+</I>&gt;<i>     &quot;When the steps below require the UA to append a character to a 
+</I>&gt;<i> node, the UA must collect it and all subsequent consecutive characters 
+</I>&gt;<i> that would be appended to that node, and insert one Text node whose data 
+</I>&gt;<i> is the concatenation of all those characters.&quot;
+</I>&gt;<i> 
+</I>&gt;<i> The tokeniser produces tokens [&lt;b&gt;, &quot;T&quot;, &quot;e&quot;, &quot;s&quot;, &quot;t&quot;, &lt;/i&gt;, &quot;T&quot;, &quot;e&quot;, 
+</I>&gt;<i> &quot;s&quot;, &quot;t&quot;]. As I read the spec, the &quot;T&quot; will trigger the &quot;append a 
+</I>&gt;<i> character&quot; step, so it will collect the three subsequent consecutive 
+</I>&gt;<i> character tokens and append one Text node &quot;Test&quot;. Then it will ignore 
+</I>&gt;<i> the end tag, and then do &quot;append a character&quot; again and append a new 
+</I>&gt;<i> Text node, so the output should be
+</I>&gt;<i> 
+</I>&gt;<i> | &lt;html&gt;
+</I>&gt;<i> |   &lt;head&gt;
+</I>&gt;<i> |   &lt;body&gt;
+</I>&gt;<i> |     &lt;b&gt;
+</I>&gt;<i> |       &quot;Test&quot;
+</I>&gt;<i> |       &quot;Test&quot;
+</I>&gt;<i> 
+</I>&gt;<i> But I could also read the spec as meaning that once &quot;append a character&quot; 
+</I>&gt;<i> is first run, &quot;estTest&quot; are the characters that will subsequently be 
+</I>&gt;<i> appended consecutively to the &lt;b&gt; node, which will give the output as in 
+</I>&gt;<i> tests1.dat. So it would be nice to know what is correct.
+</I>
+The latter (and the test) is what is correct. I've specified this in more 
+detail.
+
+
+&gt;<i> Also, what should happen with:
+</I>&gt;<i> 
+</I>&gt;<i> &lt;b&gt;Test&lt;script id=s&gt;var s=document.getElementById('s');
+</I>&gt;<i> s.parentNode.removeChild(s)&lt;/script&gt;Test
+</I>&gt;<i> 
+</I>&gt;<i> ? I'm not sure how this could be implemented differently to the 
+</I>&gt;<i> &quot;&lt;b&gt;Test&lt;/i&gt;Test&quot; case while following the general pattern of the HTML5 
+</I>&gt;<i> parser algorithm, so it should be parsed the same (whichever way that 
+</I>&gt;<i> is).
+</I>
+Yeah, there's only one text node in this case too.
+
+The evil case is:
+
+   &lt;div&gt;a&lt;table&gt;a&lt;/table&gt;&lt;/div&gt;
+
+...which should also end up with just one text node.
+
+
+&gt;<i> Also, are UAs allowed to insert a Text node before having received all 
+</I>&gt;<i> the characters, and append new characters later? (e.g. for incremental 
+</I>&gt;<i> display of a long plain-text element). I assume that should be 
+</I>&gt;<i> permitted. But the spec says the node must be inserted after all the 
+</I>&gt;<i> characters have been collected, and I expect UAs ought not to render 
+</I>&gt;<i> text that isn't (yet) in the Document.
+</I>
+Fixed to say the characters are inserted one at a time.
+
+
+&gt;<i> So, I think it should be defined either like:
+</I>&gt;<i> 
+</I>&gt;<i>     &quot;When the steps below require the UA to append a character to a 
+</I>&gt;<i> node: If the last child of the node is a Text node, then the UA must 
+</I>&gt;<i> append the character to that Text node; otherwise it must create a new 
+</I>&gt;<i> Text node whose data is the character and append it to the node.&quot;
+</I>&gt;<i> 
+</I>&gt;<i> (which would always give &quot;TestTest&quot;), or like
+</I>&gt;<i> 
+</I>&gt;<i>     &quot;When the steps below require the UA to append a character to a 
+</I>&gt;<i> node, the UA must create one Text node whose data is the character and 
+</I>&gt;<i> append it to the node. While the next token is a character token that 
+</I>&gt;<i> would be appended in the same insertion mode, that character must 
+</I>&gt;<i> instead be appended to this Text node.&quot;
+</I>&gt;<i> 
+</I>&gt;<i> (which would always give &quot;Test&quot;,&quot;Test&quot;).
+</I>
+I've done the first of these, though defined in a way that isn't 
+restricted to appending.
+
+
+On Sat, 9 Feb 2008, Simon Pieters wrote:
+&gt;<i> 
+</I>&gt;<i> <A HREF="http://krijnhoetmer.nl/irc-logs/whatwg/20080209#l-331">http://krijnhoetmer.nl/irc-logs/whatwg/20080209#l-331</A>
+</I>&gt;<i> 
+</I>&gt;<i> Consider
+</I>&gt;<i> 
+</I>&gt;<i>    &lt;table&gt;&lt;style&gt;&lt;/style&gt;&lt;/table&gt;
+</I>&gt;<i> 
+</I>&gt;<i>    &lt;table&gt;&lt;script&gt;&lt;/script&gt;&lt;/table&gt;
+</I>&gt;<i> 
+</I>&gt;<i> Both html5lib and the Validator.nu HTML parser both put &lt;style&gt; and 
+</I>&gt;<i> &lt;script&gt; elements in &lt;table&gt; instead of foster parenting them as the 
+</I>&gt;<i> spec says they should do. Mozilla fosterparents &lt;style&gt;. Safari moves 
+</I>&gt;<i> &lt;style&gt; to head. Opera and IE don't move &lt;style&gt;. All browsers don't 
+</I>&gt;<i> move &lt;script&gt;.
+</I>&gt;<i> 
+</I>&gt;<i> &lt;table&gt;&lt;style scoped&gt; might be useful for table-specific styling. 
+</I>&gt;<i> (Especially when someone comes up with a working CSS solution for e.g. 
+</I>&gt;<i> column alignment.)
+</I>&gt;<i> 
+</I>&gt;<i> &lt;table&gt;&lt;script&gt; is probably needed for roundtripping documents that do 
+</I>&gt;<i> &lt;table&gt;&lt;script&gt;document.write(rows)&lt;/script&gt;&lt;/table&gt;.
+</I>&gt;<i> 
+</I>&gt;<i> Therefore, I'd suggest that the spec be changed so that style and script 
+</I>&gt;<i> are not fosterparented when found in tables.
+</I>
+Done.
+
+
+On Sun, 10 Feb 2008, Philip Taylor wrote:
+&gt;<i>
+</I>&gt;<i> Consider the document:
+</I>&gt;<i> 
+</I>&gt;<i> &lt;!DOCTYPE html&gt;
+</I>&gt;<i> &lt;table&gt;&lt;td&gt;x&lt;/td&gt; &lt;select&gt;&lt;option&gt;a&lt;option&gt;b &lt;td&gt;y&lt;/td&gt;
+</I>&gt;<i> 
+</I>&gt;<i> In IE6, Firefox 2, Safari 3 and Opera 9.2, this is rendered as a select box
+</I>&gt;<i> with options &quot;a&quot; and &quot;b&quot; followed by a table containing cells &quot;x&quot; and &quot;y&quot;.
+</I>&gt;<i> 
+</I>&gt;<i> HTML5 currently parses this as:
+</I>&gt;<i> 
+</I>&gt;<i> | &lt;!DOCTYPE html&gt;
+</I>&gt;<i> | &lt;html&gt;
+</I>&gt;<i> |   &lt;head&gt;
+</I>&gt;<i> |   &lt;body&gt;
+</I>&gt;<i> |     &lt;select&gt;
+</I>&gt;<i> |       &lt;option&gt;
+</I>&gt;<i> |         &quot;a&quot;
+</I>&gt;<i> |       &lt;option&gt;
+</I>&gt;<i> |         &quot;b y&quot;
+</I>&gt;<i> |     &lt;table&gt;
+</I>&gt;<i> |       &lt;tbody&gt;
+</I>&gt;<i> |         &lt;tr&gt;
+</I>&gt;<i> |           &lt;td&gt;
+</I>&gt;<i> |             &quot;x&quot;
+</I>&gt;<i> |           &quot; &quot;
+</I>&gt;<i> 
+</I>&gt;<i> (&lt;<A HREF="http://parsetree.validator.nu/?doc=http://philip.html5.org/misc/fostered-select.html">http://parsetree.validator.nu/?doc=http://philip.html5.org/misc/fostered-select.html</A>&gt;)
+</I>&gt;<i> and does not handle the second cell in a compatible way.
+</I>&gt;<i> 
+</I>&gt;<i> (This happens because the &lt;select&gt; changes the insertion mode from &quot;in 
+</I>&gt;<i> table&quot; to &quot;in select&quot;, and &lt;td&gt; is ignored in that mode.)
+</I>
+Fixed.
+
+
+On Mon, 11 Feb 2008, Philip Taylor wrote:
+&gt;<i> 
+</I>&gt;<i> &lt;!DOCTYPE html&gt; &lt;table border&gt; &lt;b&gt;&lt;p&gt;a&lt;/b&gt; &lt;td&gt; b
+</I>&gt;<i> 
+</I>&gt;<i> HTML5 instead produces something a bit like
+</I>&gt;<i> 
+</I>&gt;<i> |   &lt;body&gt;
+</I>&gt;<i> |     &lt;b&gt;
+</I>&gt;<i> |     &lt;table&gt;
+</I>&gt;<i> |       &lt;p&gt;
+</I>&gt;<i> |         &lt;b&gt;
+</I>&gt;<i> |           &quot;a&quot;
+</I>&gt;<i> |       &lt;tbody&gt;
+</I>&gt;<i> |         &lt;tr&gt;
+</I>&gt;<i> |           &lt;td&gt;
+</I>&gt;<i> |             &quot;b&quot;
+</I>&gt;<i> 
+</I>&gt;<i> because the adoption agency algorithm runs with common ancestor = &lt;table&gt;, and
+</I>&gt;<i> step 8 inserts the last node (&lt;p&gt;) into the common ancestor. That is bad since
+</I>&gt;<i> it puts the &quot;a&quot; inside the table.
+</I>&gt;<i> 
+</I>&gt;<i> Ideally the output would be a bit like
+</I>&gt;<i> 
+</I>&gt;<i> |   &lt;body&gt;
+</I>&gt;<i> |     &lt;b&gt;
+</I>&gt;<i> |     &lt;p&gt;
+</I>&gt;<i> |       &lt;b&gt;
+</I>&gt;<i> |         &quot;a&quot;
+</I>&gt;<i> |     &lt;table&gt;
+</I>&gt;<i> |       &lt;tbody&gt;
+</I>&gt;<i> |         &lt;tr&gt;
+</I>&gt;<i> |           &lt;td&gt;
+</I>&gt;<i> |             &quot;b&quot;
+</I>&gt;<i> 
+</I>&gt;<i> though I don't have any suggestions as to how to make it work like that.
+</I>
+Fixed. Please let me know if the fix actually works. For various reason I 
+can't test it right now.
+
+
+On Thu, 14 Feb 2008, Philip Taylor wrote:
+&gt;<i> 
+</I>&gt;<i> <A HREF="http://www.w3.org/html/wg/html5/#adoptionAgency">http://www.w3.org/html/wg/html5/#adoptionAgency</A> uses slightly 
+</I>&gt;<i> inconsistent terminology for relative positioning, which makes the text 
+</I>&gt;<i> slightly harder to read than necessary (especially if you're 
+</I>&gt;<i> implementing in a language with lists ordered like [newest; older; ...; 
+</I>&gt;<i> oldest] so you have to mentally flip everything backwards and 
+</I>&gt;<i> occasionally get it wrong).
+</I>&gt;<i> 
+</I>&gt;<i> List of active formatting elements: last, end, start, after.
+</I>&gt;<i>
+</I>&gt;<i> Stack of open elements: topmost, lower, bottom, up to, prior to, after, 
+</I>&gt;<i> more deeply nested.
+</I>&gt;<i> 
+</I>&gt;<i> A related issue is that &quot;list&quot; and &quot;stack&quot; sound like different data 
+</I>&gt;<i> structures but actually seem to be very similar (and neither is a list 
+</I>&gt;<i> or a stack, since they occasionally require random access). But I like 
+</I>&gt;<i> that difference since it provides a clear distinction between the two 
+</I>&gt;<i> objects and prevents confusion.
+</I>
+Yeah, that was my reasoning for the arbitrary distinction.
+
+
+&gt;<i> I think it would be helpful to consistently use horizontal terminology 
+</I>&gt;<i> for the list (like what it says already) and vertical terminology for 
+</I>&gt;<i> the stack (so change &quot;prior to&quot; to &quot;above&quot;, and &quot;after&quot; to &quot;below&quot;, and 
+</I>&gt;<i> remove the &quot;more deeply nested&quot; parenthetical since it should be clear 
+</I>&gt;<i> what &quot;below&quot; means).
+</I>
+Fixed.
+
+
+
+On Fri, 15 Feb 2008, Philip Taylor wrote:
+&gt;<i> 
+</I>&gt;<i> Consider a document like &lt;table&gt;&lt;tr&gt;&lt;table&gt;
+</I>&gt;<i> 
+</I>&gt;<i> After the first two tokens, we have:
+</I>&gt;<i> 
+</I>&gt;<i> Mode: in row
+</I>&gt;<i> Current node: &lt;tr&gt;
+</I>&gt;<i> 
+</I>&gt;<i> then
+</I>&gt;<i> 
+</I>&gt;<i> Token: &lt;table&gt;
+</I>&gt;<i> &quot;in row&quot; &quot;Anything else&quot; -&gt; &quot;Process the token as if the insertion mode was
+</I>&gt;<i> &quot;in table&quot;&quot;
+</I>&gt;<i> New mode, for the duration of the reprocessing step: in table
+</I>
+No, that just means you jump to the &quot;in table&quot; section, but without 
+changing the actual mode. I've rephrased the spec to make this much 
+clearer. Let me know if it works for you.
+
+
+On Wed, 27 Feb 2008, Simon Pieters wrote:
+&gt;<i> 
+</I>&gt;<i> A page (a Sun tutorial on &lt;applet&gt; that is now gone) broke in Opera 
+</I>&gt;<i> because it had markup like:
+</I>&gt;<i> 
+</I>&gt;<i>    &lt;p&gt;
+</I>&gt;<i>     &lt;applet&gt;
+</I>&gt;<i>      &lt;p&gt;&lt;center&gt;&lt;/center&gt;&lt;/p&gt;
+</I>&gt;<i>      Blah
+</I>&gt;<i>     &lt;/applet&gt;
+</I>&gt;<i>    &lt;/p&gt;
+</I>&gt;<i> 
+</I>&gt;<i> ...and we parse it as if it were:
+</I>&gt;<i> 
+</I>&gt;<i>    &lt;p&gt;
+</I>&gt;<i>     &lt;applet&gt;
+</I>&gt;<i>      &lt;p&gt;&lt;/p&gt;&lt;center&gt;&lt;/center&gt;&lt;/applet&gt;&lt;/p&gt;
+</I>&gt;<i>      Blah
+</I>&gt;<i>    &lt;p&gt;&lt;/p&gt;
+</I>&gt;<i> 
+</I>&gt;<i> Per HTML5 currently it should be parsed as if it were:
+</I>&gt;<i> 
+</I>&gt;<i>    &lt;p&gt;
+</I>&gt;<i>     &lt;applet&gt;
+</I>&gt;<i>      &lt;/applet&gt;&lt;/p&gt;&lt;p&gt;&lt;/p&gt;&lt;center&gt;&lt;/center&gt;&lt;p&gt;&lt;/p&gt;
+</I>&gt;<i>       Blah
+</I>&gt;<i>    &lt;p&gt;&lt;/p&gt;
+</I>&gt;<i> 
+</I>&gt;<i> The net result in both Opera's case and HTML5 is that the applet and the 
+</I>&gt;<i> text &quot;Blah&quot; are both shown, which is not what was intended.
+</I>&gt;<i> 
+</I>&gt;<i> It appears that in IE and Firefox (but not Safari), applet is a &quot;scoping 
+</I>&gt;<i> element&quot; just like object.
+</I>&gt;<i> 
+</I>&gt;<i> I don't know how many pages break because of this, but perhaps HTML5 
+</I>&gt;<i> should align with IE and Firefox here.
+</I>
+Done.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="014154.html">[whatwg] HTMLDocument hasFocus - should it be a function?
+</A></li>
+	<LI>Next message: <A HREF="014155.html">[whatwg] Geolocation API Proposal
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#14148">[ date ]</a>
+              <a href="thread.html#14148">[ thread ]</a>
+              <a href="subject.html#14148">[ subject ]</a>
+              <a href="author.html#14148">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

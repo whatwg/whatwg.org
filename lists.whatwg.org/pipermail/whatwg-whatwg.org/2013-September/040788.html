@@ -1,0 +1,302 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] remove resetClip from the Canvas 2D spec
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20remove%20resetClip%20from%20the%20Canvas%202D%20spec&In-Reply-To=%3Calpine.DEB.2.00.1309120056550.12199%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="040785.html">
+   <LINK REL="Next"  HREF="040792.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] remove resetClip from the Canvas 2D spec</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20remove%20resetClip%20from%20the%20Canvas%202D%20spec&In-Reply-To=%3Calpine.DEB.2.00.1309120056550.12199%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg] remove resetClip from the Canvas 2D spec">ian at hixie.ch
+       </A><BR>
+    <I>Wed Sep 11 18:08:10 PDT 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="040785.html">[whatwg] img loading events - can load &amp; error fire for the same image?
+</A></li>
+        <LI>Next message: <A HREF="040792.html">[whatwg] whatwg Digest, Vol 114, Issue 19
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#40788">[ date ]</a>
+              <a href="thread.html#40788">[ thread ]</a>
+              <a href="subject.html#40788">[ subject ]</a>
+              <a href="author.html#40788">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Fri, 9 Aug 2013, Simon Sarris wrote:
+&gt;<i>
+</I>&gt;<i> As an alternative [to resetClip()] I would propose something like 
+</I>&gt;<i> setClip() or setClip(path) (with the former working on the current path, 
+</I>&gt;<i> just like clip()/fill()/stroke() does).
+</I>
+Seems like this would have the same problems as resetClip(), since it's 
+essentially the same as a call to resetClip() followed by a call to clip().
+
+
+On Fri, 9 Aug 2013, Justin Novosad wrote:
+&gt;<i>
+</I>&gt;<i> What if resetClip restored the clip to what it was at the save call that 
+</I>&gt;<i> created the current state stack level? In other words, restore the clip, 
+</I>&gt;<i> but without popping it off the save/restore stack.
+</I>&gt;<i> 
+</I>&gt;<i> Also, resetMatrix could be defined to do the same.
+</I>
+Wouldn't that be the same as just save()/clip()/restore() ?
+
+
+On Mon, 12 Aug 2013, Rik Cabanier wrote:
+&gt;<i> 
+</I>&gt;<i> It would be good to hear specific use cases for 'resetClip' so we can make
+</I>&gt;<i> that call.
+</I>
+The main use case would be something like:
+
+   c.save();
+   c.resetTransform();
+   c.resetClip();
+   // draw something at the top right...
+   c.restore();
+
+...deep inside some draw code.
+
+
+&gt;<i> &gt; Also, resetMatrix could be defined to do the same.
+</I>&gt;<i> 
+</I>&gt;<i> Is that API defined somewhere?
+</I>
+I think Justin meant resetTransform().
+
+
+On Mon, 12 Aug 2013, Simon Sarris wrote:
+&gt;<i>
+</I>&gt;<i> I think most performance-minded use cases will be fine with junov's idea
+</I>&gt;<i> since they will not want to touch the stack in the first place.
+</I>&gt;<i> 
+</I>&gt;<i> Here's a simple use case: Suppose there are nested objects to be drawn,
+</I>&gt;<i> Panels, TextBlocks, and other visual elements. Panels are containers that
+</I>&gt;<i> draw a background and all of their children - and they contain any number
+</I>&gt;<i> of Panels or TextBlocks or other elements, and TextBlocks set the context
+</I>&gt;<i> font (to their font) and draw some text.
+</I>&gt;<i> 
+</I>&gt;<i> The drawing structure is hierarchical, and drawn elements may be offset
+</I>&gt;<i> from their immediate parent. So a drawing hierarchy might look like this:
+</I>&gt;<i> 
+</I>&gt;<i> Panel(A)
+</I>&gt;<i>     Panel(B)
+</I>&gt;<i>         TextBlock
+</I>&gt;<i>     TextBlock
+</I>&gt;<i> 
+</I>&gt;<i> That is, Panel(A) contains Panel(B) and a TextBlock. And Panel(B) contains
+</I>&gt;<i> another TextBlock. In practice, nesting could be much deeper and more
+</I>&gt;<i> complicated.
+</I>&gt;<i> 
+</I>&gt;<i> Now suppose also that Panels have some settings, such as a maximum width,
+</I>&gt;<i> that might cause their visual elements to be clipped. So a panel might need
+</I>&gt;<i> to save(), clip(), draw all of its children, and then restore(). Nesting
+</I>&gt;<i> means multiple levels of clipping, for instance with the above hierarchy it
+</I>&gt;<i> might look like:
+</I>&gt;<i> 
+</I>&gt;<i> Panel(A)
+</I>&gt;<i>     clip (save)
+</I>&gt;<i>     drawChildren:
+</I>&gt;<i>         Panel(B)
+</I>&gt;<i>             clip (save)
+</I>&gt;<i>             drawChildren:
+</I>&gt;<i>                 TextBlock
+</I>&gt;<i>                     sets font X
+</I>&gt;<i>                     fillText
+</I>&gt;<i>             restore
+</I>&gt;<i>         TextBlock
+</I>&gt;<i>             sets font X
+</I>&gt;<i>             fillText
+</I>&gt;<i>     restore
+</I>&gt;<i> 
+</I>&gt;<i> This is problematic, because it means:
+</I>&gt;<i> 
+</I>&gt;<i> 1. I must use save() and restore(), which are slow in their own right
+</I>
+I'm pretty sure save() and restore() are the right solution here. If those 
+don't work, we should fix those, not add more features that might have 
+their own issues.
+
+
+&gt;<i> 2. The usage of save() and restore() means that, even if all (or most) of
+</I>&gt;<i> my fonts are set to the same value, I have to keep setting them over and
+</I>&gt;<i> over. Setting the font is slow in practice, even if it is set to the same
+</I>&gt;<i> value as before, and so it should be cached if at all possible.
+</I>
+Again, if settings fonts is slow, that should be fixed independently of 
+resetClip().
+
+
+On Mon, 12 Aug 2013, Justin Novosad wrote:
+&gt;<i> 
+</I>&gt;<i> Good point, I think part of the problem has to do with the fact that save
+</I>&gt;<i> is non-selective (saves all of the state).
+</I>&gt;<i> Might be worthwhile to have a selective save that pushes only a
+</I>&gt;<i> user-specified subset of the current state onto the stack.
+</I>
+There's no reason save() and restore() need be slow just because they save 
+a lot. It's relatively easy to have a stack that only saves the things 
+that have changed (e.g. by setting a bit when you change things, so you 
+know what has changed, and then only pushing onto the stack the 
+instructions to change the stuff that has changed).
+
+
+On Mon, 12 Aug 2013, Simon Sarris wrote:
+&gt;<i> 
+</I>&gt;<i> Yes, since save() and restore() save and restore everything, it creates 
+</I>&gt;<i> the side effect of needing to set ctx.font/fillStyle/strokeStyle more 
+</I>&gt;<i> often than otherwise, which are slow to set, probably because of some 
+</I>&gt;<i> CSS parser activity, but I'm not wise enough to know.
+</I>
+save() and restore() should have no reason to go through the CSS parser.
+
+
+On Mon, 12 Aug 2013, Justin Novosad wrote:
+&gt;<i>
+</I>&gt;<i> Ok, so here is a simple proposal:
+</I>&gt;<i> 
+</I>&gt;<i> IDL:
+</I>&gt;<i> enum CanvasSaveMode { &quot;all&quot;, &quot;transform&quot;, &quot;clip&quot;, &quot;transform-and-clip&quot; };
+</I>&gt;<i> save(optional CanvasSaveMode mode);
+</I>&gt;<i> 
+</I>&gt;<i> Modes:
+</I>&gt;<i> all: save the entire rendering context state
+</I>&gt;<i> transform: save only the current transform
+</I>&gt;<i> clip: save only the current clip
+</I>&gt;<i> 
+</I>&gt;<i> if mode is not specified, the entire context state is saved (for backward
+</I>&gt;<i> compatibility)
+</I>&gt;<i> 
+</I>&gt;<i> The restore method's interface does not change. It restores whatever state
+</I>&gt;<i> was saved by the matching save call.
+</I>
+I don't understand what problem this is solving.
+
+
+On Tue, 13 Aug 2013, Simon Sarris wrote:
+&gt;<i> 
+</I>&gt;<i> I'd argue its not strictly a performance issue. More generally its 
+</I>&gt;<i> awkward that you can reset any piece of the canvas context state except 
+</I>&gt;<i> the clipping region. The clipping region alone requires you to clobber 
+</I>&gt;<i> all state in order to reset it.
+</I>&gt;<i> 
+</I>&gt;<i> You can set the fillStyle back to black, you can set the transformation 
+</I>&gt;<i> matrix back to identity, etc. But you can't set the clipping region back 
+</I>&gt;<i> to the entire canvas area without save()/restore() or 
+</I>&gt;<i> can.width=can.width. It's the only thing like that.
+</I>&gt;<i> 
+</I>&gt;<i> That ought to be considered bad on principle I think. It makes clipping 
+</I>&gt;<i> a really odd operation compared to anything else, and at the least it 
+</I>&gt;<i> makes the one part of the API unintuitive.
+</I>
+This is the argument for resetClip(), though the only use case seems to be 
+the one I mentioned (drawing something at the top right, or whatever, deep 
+inside some code that has clipped and transformed).
+
+I've marked the resetClip() feature in the spec as being considered form 
+removal. If no browser implement it in due course, I'll remove it. Despite 
+being relatively commonly requested, it must be admitted that the use 
+cases for this feature aren't that compelling.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="040785.html">[whatwg] img loading events - can load &amp; error fire for the same image?
+</A></li>
+	<LI>Next message: <A HREF="040792.html">[whatwg] whatwg Digest, Vol 114, Issue 19
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#40788">[ date ]</a>
+              <a href="thread.html#40788">[ thread ]</a>
+              <a href="subject.html#40788">[ subject ]</a>
+              <a href="author.html#40788">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

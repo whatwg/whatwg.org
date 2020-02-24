@@ -1,0 +1,231 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] RFC: Alternatives to storage mutex for cookies and localStorage
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20RFC%3A%20Alternatives%20to%20storage%20mutex%20for%20cookies%20and%0A%20localStorage&In-Reply-To=%3C4AA7DEEB.2020102%40mozilla.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="065077.html">
+   <LINK REL="Next"  HREF="065095.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] RFC: Alternatives to storage mutex for cookies and localStorage</H1>
+<!--htdig_noindex-->
+    <B>Chris Jones</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20RFC%3A%20Alternatives%20to%20storage%20mutex%20for%20cookies%20and%0A%20localStorage&In-Reply-To=%3C4AA7DEEB.2020102%40mozilla.com%3E"
+       TITLE="[whatwg] RFC: Alternatives to storage mutex for cookies and localStorage">cjones at mozilla.com
+       </A><BR>
+    <I>Wed Sep  9 09:59:23 PDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="065077.html">[whatwg] RFC: Alternatives to storage mutex for cookies and	localStorage
+</A></li>
+        <LI>Next message: <A HREF="065095.html">[whatwg] RFC: Alternatives to storage mutex for cookies and	localStorage
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#65081">[ date ]</a>
+              <a href="thread.html#65081">[ thread ]</a>
+              <a href="subject.html#65081">[ subject ]</a>
+              <a href="author.html#65081">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Jeremy Orlow wrote:
+&gt;<i>         Those who want a queue.  I.e. those who want an asynchronous
+</I>&gt;<i>         callback based interface and the UA will only call one callback
+</I>&gt;<i>         at a time.  Perhaps on a per-origin basis.  Note that this can
+</I>&gt;<i>         never &quot;fail&quot;, need to be rolled back, etc.
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i>     This sounds to me like { traditional transactions, async,
+</I>&gt;<i>     unobservable transaction failures } which is the same as your first
+</I>&gt;<i>     camp above except async only.  Or are you proposing that the unit of
+</I>&gt;<i>     atomicity/consistency is not all operations performed in the
+</I>&gt;<i>     callback; i.e., that modifications done in the callback can be
+</I>&gt;<i>     partially applied?
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> It's just an implementational difference.  A queue means that the event 
+</I>&gt;<i> loop can continue processing stuff while waiting for the 'lock' (which 
+</I>&gt;<i> maybe is better described as an 'update token' or something).  If you 
+</I>&gt;<i> implement it as a lock (which you would for a synchronous interface) 
+</I>&gt;<i> then the event loop is blocked.
+</I>&gt;<i>  
+</I>
+OK, agreed.  What we describe reduce to the same thing --- the &quot;trylock&quot; 
+implementation Rob O'Callahan and I discussed would also never block the 
+event loop.  But I better understand now what you have in mind.  (I'm 
+not sure which is better, but that's what implementation details are all 
+about!)
+
+&gt;<i> 
+</I>&gt;<i>         I believe Aaron is in the queue camp with me.  I'm becoming more
+</I>&gt;<i>         and more convinced that Chromium should/will not implement the
+</I>&gt;<i>         storage mutex at all (even for LocalStorage) unless we can come
+</I>&gt;<i>         up with a way for event loops to not be blocked.  And, as far as
+</I>&gt;<i>         I can tell, Async interfaces are the only way to accomplish this.
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i>     In general, agreed.  I still believe that a sync API
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> The problem with a sync interface, especially if it's one that can be 
+</I>&gt;<i> held after the top level script context, is deadlock issues with 
+</I>&gt;<i> WebDatabase (and possibly others).  What's there now doesn't have this 
+</I>&gt;<i> issue because you'd never have the lock when calling the database 
+</I>&gt;<i> transaction callback.
+</I>&gt;<i>  
+</I>
+I didn't think of Web Database, although I had in mind a nonblocking 
+implementation of localStorage (i.e., no mutex) that would prevent it 
+from participating in deadlocks.
+
+But in general, nesting transactions, both { localStorage { Web DataBase 
+} } and { localStorage { localStorage  } }, is something the spec should 
+explicitly disallow.  There's not a clearly best way to resolve the 
+semantic problems that arise.  (Note that preventing nested transactions 
+also eliminates deadlock concerns for mutex implementations.)
+
+&gt;<i> 
+</I>&gt;<i>     with exposed transaction failures
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> You'll only have transaction failures in an optimistic transaction 
+</I>&gt;<i> model, right?  So is that what you're suggesting?
+</I>&gt;<i>  
+</I>&gt;<i> 
+</I>&gt;<i>     (as I proposed in the OP) and the right implementation could do
+</I>&gt;<i>     quite well.  But I now think that an async version of that same API
+</I>&gt;<i>     could perform even better.  In addition, that API is most flexible
+</I>&gt;<i>     in terms of possible UA implementations.
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i>     IOW, I think that { traditional transactions, async, observable
+</I>&gt;<i>     failures } subsumes both { traditional transactions, sync,
+</I>&gt;<i>     observable failures } (OP's proposal) *and* { traditional
+</I>&gt;<i>     transactions, async, unobservable failures } (your and Aaron's
+</I>&gt;<i>     proposal).
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i>     IMHO there are two remaining questions: first, whether the &quot;ideal&quot;
+</I>&gt;<i>     localStorage transactional API should allow observable transaction
+</I>&gt;<i>     failures.  I believe that it should, as this allows for the widest
+</I>&gt;<i>     variety of efficient implementations without changing ACID (best
+</I>&gt;<i>     effort) guarantees given to authors or significantly complicating
+</I>&gt;<i>     the localStorage API.
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> What failures could there be in a pesimistic/queue model?
+</I>&gt;<i> 
+</I>
+I'm trying to think of a &quot;universal failure,&quot; something that could arise 
+in any implementation of any proposal.  I think that universal failure 
+is &quot;exceeded localStorage space quota&quot;.  (I believe there are others, 
+but one is enough for this discussion.)
+
+So there are really two questions: first, what happens if you detect 
+&quot;quota exceeded&quot; in the middle of a localStorage.transaction() callback? 
+  Are the modifications made *up to* the quota exceeded error applied to 
+backing store?  Or are they rolled back?  This is the 
+atomicity/consistency design decision I described: what is the unit of 
+atomic modification (all applied or none applied).
+
+And second, can scripts be notified that the transaction failed (or was 
+only partially applied) because of quota exceeded?
+
+AFAICT this is irrespective of sync/async/optimistic/pessimistic/queue. 
+  Any implementation has to deal with this error somehow.
+
+In the current localStorage spec, if a setItem() fails because space is 
+exhausted, it raises QUOTA_EXCEEDED_ERR and does *not* apply any part of 
+the change in setItem().  That is, setItem() is atomic --- it either 
+applies or not (not partially applied).  But modifications to 
+localStorage *before* that failing setItem(), within the same storage 
+mutex acquire/release set, *are* applied to backing store.
+
+In the Web Database spec, if executing a SQL statement in a Transaction 
+would cause space quota to be exceeded, then *none* of the statements in 
+the transaction are executed (i.e. none committed to backing store), and 
+the Transaction fails with QUOTA_ERR.  The unit of atomicity for Web 
+Database is that Transaction object --- either all statements in 
+Transaction successfully execute or none do.
+
+I'm not sure whether you're proposing that modifications within a 
+localStorage.transaction() callback are atomic (all applied or none 
+applied) in the face of quota exceeded.  (I'm proposing that they 
+*should* be atomic.)
+
+It sounds like you're proposing that scripts *cannot* be notified of 
+quota exceeded.  If this is true, then there are some semantic issues 
+I'd like to discuss.  But I want to make sure we're on the same page 
+first :).  (I'm proposing that scripts *should* be able to be notified 
+of this.)
+
+&gt;<i>     Second, what is the best way to go forward with transactional
+</I>&gt;<i>     localStorage while remaining backwards-compatible with current
+</I>&gt;<i>     implementations.  One option would be to deprecate localStorage in
+</I>&gt;<i>     favor of a future, transactional window.domainStorage or somesuch.
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> If we do this, we might as well just adopt something like the 
+</I>&gt;<i> WebSimpleDatabase proposal (which I still haven't gotten around to 
+</I>&gt;<i> reading yet) which seems much more powerful in many other ways.
+</I>&gt;<i>  
+</I>
+Certainly a matter of taste, but I like localStorage's API, I'd like to 
+see it succeed.
+
+&gt;<i>     In addition, for cases like &quot;clear private data&quot;, UAs would be
+</I>&gt;<i>     allowed to silently break storage-mutex isolation for apps using the
+</I>&gt;<i>     non-transactional API.
+</I>&gt;<i> 
+</I>&gt;<i> 
+</I>&gt;<i> I think it'd be better if they waited for the lock to be freed.
+</I>
+Should be clear that this is for users of the deprecated, 
+non-transactional API only.  Isolation wouldn't be broken for 
+transactional users.
+
+By the storage mutex spec, without the caveat that isolation may be 
+sometimes broken, even non-malicious pages that don't exceed the slow 
+script timeout might be able to (unknowingly) cooperate to indefinitely 
+prevent a MELUA from clearing private data (assuming clear private data 
+isn't a blocking operation in the MELUA).  The UA might be able to 
+prevent that with some fancy footwork, but I don't see the point in 
+doing that for a deprecated API.
+
+Cheers,
+Chris
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="065077.html">[whatwg] RFC: Alternatives to storage mutex for cookies and	localStorage
+</A></li>
+	<LI>Next message: <A HREF="065095.html">[whatwg] RFC: Alternatives to storage mutex for cookies and	localStorage
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#65081">[ date ]</a>
+              <a href="thread.html#65081">[ thread ]</a>
+              <a href="subject.html#65081">[ subject ]</a>
+              <a href="author.html#65081">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

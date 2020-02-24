@@ -1,0 +1,131 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Script preloading
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Script%20preloading&In-Reply-To=%3C03B9120F-2AB3-4B99-B9EE-8AC500A225BE%40gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="082336.html">
+   <LINK REL="Next"  HREF="082285.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Script preloading</H1>
+<!--htdig_noindex-->
+    <B>Kyle Simpson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Script%20preloading&In-Reply-To=%3C03B9120F-2AB3-4B99-B9EE-8AC500A225BE%40gmail.com%3E"
+       TITLE="[whatwg] Script preloading">getify at gmail.com
+       </A><BR>
+    <I>Thu Jul 11 15:14:34 PDT 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="082336.html">[whatwg] Script preloading
+</A></li>
+        <LI>Next message: <A HREF="082285.html">[whatwg] Script preloading
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#82280">[ date ]</a>
+              <a href="thread.html#82280">[ thread ]</a>
+              <a href="subject.html#82280">[ subject ]</a>
+              <a href="author.html#82280">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>&gt;<i> I am interested to see how the above use-cases would be met in your
+</I>&gt;<i> counter proposal(s) to see if it would be simpler/faster. If LabJS is
+</I>&gt;<i> a requirement, it must be factored in as a unit of complexity and
+</I>&gt;<i> load-step.
+</I>&gt;<i> 
+</I>&gt;<i> Please do this rather than declare anything to be insufficient without
+</I>&gt;<i> reasoning.
+</I>
+It's gonna take a lot of time to write proof-of-concept code for all the different nuances and use-cases I've brought up. I'm presenting 2 here. There's more to come.
+
+Unfortunately, Jake made a number of simplifying assumptions, or simply missed various nuances, in his attempt to combine/reduce/restate my use-case list. I'm not ascribing any ill-will to that, but just pointing out that it's not nearly as easy as his list might suggest.
+
+I've spent some time trying to put together a first set of code comparisons between the `&lt;script preload&gt;` proposal I've put forth and the `&lt;link rel=subresource&gt;` + `&lt;script dependencies=..&gt;` proposal Jake is advocating. This is by no means an exhaustive comparison or even nearly stating the many issues I forsee, but it starts the discussion with actual code instead of theoretical concepts.
+
+
+
+<A HREF="https://gist.github.com/getify/5976429">https://gist.github.com/getify/5976429</A>
+
+
+There's lots of code comments in there to explain intended semantics, outstanding questions/issues, etc.
+
+
+
+Some observations/clarifications:
+
+* &quot;ex1-getify.js&quot; is my attempt at creating a simple `loadScripts()` script loader that loads scripts in parallel, but executes them strictly in request order, serially.
+
+  --&gt; ONE KEY NOTE: my implementation accomplishes my use case #11 quite easily, in that it doesn't start executing any of the scripts in a group until ALL the scripts are finished preloading, thus minimizing any gaps/delays between them running. I'm able to do this easily because every script fires a preload event, so it's trivial to know when all such events have fired as my clue on when to start execution.
+
+
+* &quot;ex1-jaffathecake.js&quot; is my attempt at doing something as close as possible using Jake's proposed way. I've asked for his feedback on this code, so until he has a chance to feedback, take it with a grain of salt.
+
+In any case, the code is certainly simpler, but it's missing a KEY COMPONENT: it's NOT able to assure what my script loader code does. That is, &quot;a.js&quot; might run long before &quot;b.js&quot; runs, whereas in my implementation, there should be almost no gaps, because &quot;a.js&quot; doesn't run until &quot;b.js&quot; is loaded and ready to go.
+
+Jake suggested a hack to address this use-case which is based on the idea of hiding the whole page while scripts load with gaps in between. This hack is not only terribly ugly, but it also misses a big point of my motivation for that use-case.
+
+The point is NOT &quot;can we hide stuff visually&quot;, it's &quot;can we make sure stuff doesn't run until EVERYTHING is ready to run&quot;.
+
+Moreover, as I note in the code comments, it is impossible/impractical for a generalized script loader to be able to determine all or parts of a page that it should hide, and under what conditions. The script loader is agnostic of what it's loading, and it certainly is supposed to be as unobtrusive to the hosting page as possible, so it's out of the question to consider that a script loader would go and do nuclear-level things like hiding the document element.
+
+The key thing that's missing in Jake's proposal that's necessary to address this use-case is that there's no way to be notified that all the scripts have finished pre-loading. Instead, his approach obfuscates when things finish loading by simply letting the &lt;script&gt; element internally listen for loads of its &quot;dependencies&quot;.
+
+This is what I mean when I keep saying &quot;chicken-and-the-egg&quot;, because I want to know everything's finished preloading BEFORE I start the execution cursor, but in Jake's world, I can't know stuff is finished loading until after I observe that it's running.
+
+
+* &quot;ex2-getify.js&quot; is a more complex script loader, that takes into account the ability to have &quot;sub-groups&quot; of scripts, where within the sub-group, ASAP execution order is desired, and serial-request-order execution order is desired across the various sub-groups.
+
+Simply stated: All of C, D, E, and F scripts load in parallel. When it comes to execution, &quot;C.js&quot; runs, then a sub-group of &quot;D.js&quot; and &quot;E.js&quot; will run, where within the sub-group, either D or E runs first, ASAP (they don't block each other), and then when both have run, finally, &quot;F.js&quot; executes.
+
+This scenario is quite common: I load jquery.js, then I load 4 jquery plugins (which are independent), then I load my page's app.js code runs. jquery.js is the firs to execute, then the 4 plugins run in ASAP order, then when they're all done, finally my app.js code executes.
+
+Also, this more complex script loader listens for `script.onerror` events, and if it detects one, it aborts any of the rest of the execution.
+
+Any such error handling is trivial in my loader, because I am always fully in control over which script is loading at any given time.
+
+
+* &quot;ex2-jaffathecake.js&quot; is again my attempt to address this use-case using Jake's proposal. The major outstanding question here is how `dependencies` will respond to loading errors. It's unclear, thus far, how much sensitivity (if any) this mechanism would have to loading (network) errors, compile-time (syntax) errors, and run-time errors. The less sensitive it is, the more complex this code needs to be made to handle those use cases.
+
+
+
+
+
+--Kyle
+
+
+
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="082336.html">[whatwg] Script preloading
+</A></li>
+	<LI>Next message: <A HREF="082285.html">[whatwg] Script preloading
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#82280">[ date ]</a>
+              <a href="thread.html#82280">[ thread ]</a>
+              <a href="subject.html#82280">[ subject ]</a>
+              <a href="author.html#82280">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

@@ -1,0 +1,150 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Window and WindowProxy
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Window%20and%20WindowProxy&In-Reply-To=%3C5211BE6E.1000608%40mit.edu%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="082759.html">
+   <LINK REL="Next"  HREF="040386.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Window and WindowProxy</H1>
+<!--htdig_noindex-->
+    <B>Boris Zbarsky</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Window%20and%20WindowProxy&In-Reply-To=%3C5211BE6E.1000608%40mit.edu%3E"
+       TITLE="[whatwg] Window and WindowProxy">bzbarsky at MIT.EDU
+       </A><BR>
+    <I>Sun Aug 18 23:42:54 PDT 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="082759.html">[whatwg] Window and WindowProxy
+</A></li>
+        <LI>Next message: <A HREF="040386.html">[whatwg] A question about the drawimage() canvas function
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#82776">[ date ]</a>
+              <a href="thread.html#82776">[ thread ]</a>
+              <a href="subject.html#82776">[ subject ]</a>
+              <a href="author.html#82776">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On 8/13/13 4:34 PM, Ian Hickson wrote:
+&gt;<i> I see that this is a requirement in the JS spec, but I don't understand
+</I>&gt;<i> why, other than providing a sane API
+</I>
+That's why, basically.  Providing something that guarantees at least 
+_some_ invariants that things that want to enforce other invariants can 
+then build on.
+
+&gt;<i> It also doesn't appear to be enforced in proxies
+</I>
+I believe the intent of ES6 proxies is in fact to enforce these 
+invariants.  Deviations from that, if there are any, are presumably spec 
+bugs.
+
+&gt;<i> unless I'm missing something (indeed the spec says &quot;it is
+</I>&gt;<i> possible to define a proxy object whose handler methods violates the
+</I>&gt;<i> invariants&quot;, which seems to explicitly contradict this.)
+</I>
+It then goes on to say &quot;These invariants are explicitly enforced by the 
+proxy internal methods specified in this section&quot;.  As in, even if your 
+handler tries to violate the invariants, the ES implementations is not 
+supposed to let it do that.
+
+For example, see ES6 section 8.5.5 step 21 for what happens if your 
+handler tries to claim a property is non-configurable without it 
+actually being non-configurable on the target object.  And see step 12 
+for making sure the handler can't claim to not have a property if it's 
+non-configurable on the target object.  The combination of those two is 
+that once the proxy successfully claims a property is non-configurable, 
+the property can't go away.
+
+&gt;&gt;&gt;&gt;<i> in that situation two different origins become the same origin and
+</I>&gt;&gt;&gt;&gt;<i> the fact that they have different Window objects for the same
+</I>&gt;&gt;&gt;&gt;<i> current window ends up observable.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> Well, what the spec says now is that when the script changes effective
+</I>&gt;&gt;&gt;<i> origin, it also changes its prototypes and so forth, essentially.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Does any UA do this?  I would be somewhat surprised if this were web
+</I>&gt;&gt;<i> compatible, and even more surprised if it were implementable in practice
+</I>&gt;&gt;<i> and if any UA wanted to implement it....
+</I>&gt;<i>
+</I>&gt;<i> No idea. What should we do instead? What do browsers do?
+</I>
+What Gecko does is that there is a set of canonical prototypes (the DOM 
+ones, Object.prototype, Array.prototype, etc) per global.  The effective 
+script origin of a global is mutable.  The effect of changing the 
+effective script origin of a global on the prototypes associated with 
+that global is that nothing at all happens to them: they stay as the 
+same objects.
+
+Now what happens to actual objects and their proto chains when they go 
+from being same-effective-script-origin to not or back...  I'm not 
+actually sure.  Bobby Holley probably knows, though; I think this is 
+basically the situation he's talking about in 
+&lt;<A HREF="https://www.w3.org/Bugs/Public/show_bug.cgi?id=20701#c38">https://www.w3.org/Bugs/Public/show_bug.cgi?id=20701#c38</A>&gt;.
+
+&gt;&gt;<i> Sure, but changing this makes it very hard to reason about ES, in very
+</I>&gt;&gt;<i> undesirable ways.  This has been pretty extensively hashed out on
+</I>&gt;&gt;<i> es-discuss and public-script-coord...
+</I>&gt;<i>
+</I>&gt;<i> When it was hashed out, what was the conclusion with respect to what to do
+</I>&gt;<i> for cross-origin objects, Window, and the dichotomy between Window,
+</I>&gt;<i> WindowProxy, &quot;this&quot; in main code, and the global object?
+</I>
+_That_ part is still being sorted out, unfortunately, since none of that 
+is part of ES-the-language per se.  :(  Yes, this is suboptimal.  Again, 
+please see the discussion at 
+&lt;<A HREF="http://lists.w3.org/Archives/Public/public-script-coord/2012OctDec/0386.html">http://lists.w3.org/Archives/Public/public-script-coord/2012OctDec/0386.html</A>&gt; 
+and following.
+
+&gt;<i> How are the invariants preserved in JS-backed Proxies?
+</I>
+See above.
+
+&gt;&gt;<i> The WindowProxy is the object the script has.  It's the object
+</I>&gt;&gt;<i> [[GetOwnProperty]] (via Object.getOwnPropertyDescriptor) is called on.
+</I>&gt;<i>
+</I>&gt;<i> Proxies can override [[GetOwnProperty]], though, to return whatever they
+</I>&gt;<i> want.
+</I>
+Not quite whatever they want: they in fact can't override it to violate 
+certain invariants.
+
+-Boris
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="082759.html">[whatwg] Window and WindowProxy
+</A></li>
+	<LI>Next message: <A HREF="040386.html">[whatwg] A question about the drawimage() canvas function
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#82776">[ date ]</a>
+              <a href="thread.html#82776">[ thread ]</a>
+              <a href="subject.html#82776">[ subject ]</a>
+              <a href="author.html#82776">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

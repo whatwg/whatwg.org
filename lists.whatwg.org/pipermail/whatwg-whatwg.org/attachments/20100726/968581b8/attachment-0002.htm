@@ -1,0 +1,33 @@
+<tt>
+On&nbsp;Mon,&nbsp;Jul&nbsp;26,&nbsp;2010&nbsp;at&nbsp;7:41&nbsp;PM,&nbsp;Philip&nbsp;Jägenstedt&nbsp;&lt;span&nbsp;dir=&quot;ltr&quot;&gt;&lt;&lt;a&nbsp;href=&quot;mailto:philipj@opera.com&quot;&gt;philipj@opera.com&lt;/a&gt;&gt;&lt;/span&gt;&nbsp;wrote:&lt;br&gt;&lt;div&nbsp;class=&quot;gmail_quote&quot;&gt;&lt;blockquote&nbsp;class=&quot;gmail_quote&quot;&nbsp;style=&quot;margin:&nbsp;0pt&nbsp;0pt&nbsp;0pt&nbsp;0.8ex;&nbsp;border-left:&nbsp;1px&nbsp;solid&nbsp;rgb(204,&nbsp;204,&nbsp;204);&nbsp;padding-left:&nbsp;1ex;&quot;&gt;<br>
+<br>
+I&nbsp;actually&nbsp;don&#39;t&nbsp;think&nbsp;there&#39;s&nbsp;anything&nbsp;wrong&nbsp;about&nbsp;the&nbsp;spec&nbsp;as&nbsp;it&nbsp;is.&lt;br&gt;<br>
+&lt;br&gt;<br>
+NETWORK_NO_SOURCE&nbsp;is&nbsp;not&nbsp;a&nbsp;state&nbsp;of&nbsp;failure,&nbsp;it&nbsp;is&nbsp;a&nbsp;waiting&nbsp;state.&nbsp;Here&#39;s&nbsp;what&nbsp;happens&nbsp;as&nbsp;the&nbsp;parser&nbsp;inserts&nbsp;elements&nbsp;into&nbsp;the&nbsp;DOM:&lt;br&gt;<br>
+&lt;br&gt;<br>
+&lt;video&nbsp;controls&nbsp;width=&quot;400px&quot;&gt;&lt;br&gt;<br>
+&lt;!--&nbsp;video&nbsp;has&nbsp;been&nbsp;inserted&nbsp;but&nbsp;resource&nbsp;selection&nbsp;hasn&#39;t&nbsp;run&nbsp;--&gt;&lt;br&gt;<br>
+&nbsp; &lt;source&nbsp;type=&quot;video/mp4&quot;&gt;&lt;br&gt;<br>
+&lt;!--&nbsp;resource&nbsp;selection&nbsp;is&nbsp;started,&nbsp;ends&nbsp;on&nbsp;step&nbsp;21&nbsp;with&nbsp;NETWORK_NO_SOURCE&nbsp;and&nbsp;pointer&nbsp;pointing&nbsp;to&nbsp;just&nbsp;after&nbsp;the&nbsp;only&nbsp;source&nbsp;element&nbsp;--&gt;&lt;br&gt;<br>
+&nbsp; &lt;source&nbsp;type=&quot;video/webm&quot;&gt;&lt;br&gt;<br>
+&lt;!--&nbsp;resource&nbsp;selection&nbsp;continues&nbsp;at&nbsp;step&nbsp;22,&nbsp;going&nbsp;another&nbsp;loop&nbsp;and&nbsp;ending&nbsp;at&nbsp;step&nbsp;21,&nbsp;but&nbsp;with&nbsp;pointer&nbsp;pointer&nbsp;to&nbsp;after&nbsp;the&nbsp;second&nbsp;source&nbsp;element&nbsp;--&gt;&lt;br&gt;<br>
+&nbsp; &lt;source&nbsp;type=&quot;video/ogg&quot;&gt;&lt;br&gt;<br>
+&lt;--&nbsp;same&nbsp;as&nbsp;above,&nbsp;but&nbsp;pointing&nbsp;to&nbsp;after&nbsp;the&nbsp;third&nbsp;source&nbsp;element&nbsp;--&gt;&lt;br&gt;<br>
+&lt;/video&gt;&lt;br&gt;<br>
+&lt;br&gt;<br>
+If&nbsp;nothing&nbsp;is&nbsp;done,&nbsp;the&nbsp;resource&nbsp;selection&nbsp;algorithm&nbsp;will&nbsp;wait&nbsp;forever&nbsp;at&nbsp;step&nbsp;21.&nbsp;To&nbsp;get&nbsp;out&nbsp;of&nbsp;that&nbsp;state&nbsp;you&nbsp;have&nbsp;to&nbsp;either&nbsp;call&nbsp;load()&nbsp;to&nbsp;restart&nbsp;resource&nbsp;selection,&nbsp;or&nbsp;append&nbsp;another&nbsp;source&nbsp;element.&lt;br&gt;<br>
+&lt;br&gt;<br>
+If&nbsp;we&nbsp;should&nbsp;let&nbsp;networkState&nbsp;be&nbsp;NETWORK_EMPTY&nbsp;after&nbsp;inserting&nbsp;the&nbsp;dummy&nbsp;&lt;source&gt;&nbsp;elements,&nbsp;then&nbsp;resource&nbsp;selection&nbsp;would&nbsp;be&nbsp;run&nbsp;from&nbsp;the&nbsp;beginning&nbsp;each&nbsp;time,&nbsp;which&nbsp;means&nbsp;that&nbsp;during&nbsp;parsing,&nbsp;the&nbsp;first&nbsp;&lt;source&gt;&nbsp;element&nbsp;will&nbsp;be&nbsp;considered&nbsp;3&nbsp;times,&nbsp;the&nbsp;second&nbsp;2&nbsp;times&nbsp;and&nbsp;the&nbsp;last&nbsp;1&nbsp;time.&nbsp;In&nbsp;your&nbsp;example&nbsp;this&nbsp;doesn&#39;t&nbsp;matter,&nbsp;but&nbsp;if&nbsp;the&nbsp;reason&nbsp;a&nbsp;&lt;source&gt;&nbsp;failed&nbsp;was&nbsp;because&nbsp;of&nbsp;network&nbsp;errors,&nbsp;unsupported&nbsp;Content-Type&nbsp;or&nbsp;an&nbsp;unsupported&nbsp;file&nbsp;format,&nbsp;then&nbsp;that&nbsp;will&nbsp;also&nbsp;happen&nbsp;too&nbsp;many&nbsp;times,&nbsp;adding&nbsp;useless&nbsp;network&nbsp;traffic&nbsp;(unless&nbsp;e.g.&nbsp;404&nbsp;results&nbsp;are&nbsp;cached).&lt;br&gt;<br>
+<br>
+<br>
+&lt;br&gt;<br>
+So,&nbsp;I&nbsp;think&nbsp;the&nbsp;algorithm&nbsp;should&nbsp;stay&nbsp;as&nbsp;it&nbsp;is&nbsp;and&nbsp;that&nbsp;the&nbsp;other&nbsp;browsers&nbsp;should&nbsp;change&nbsp;their&nbsp;implementations.&nbsp;In&nbsp;your&nbsp;original&nbsp;example&nbsp;you&nbsp;used&nbsp;&lt;source&gt;&nbsp;elements&nbsp;with&nbsp;no&nbsp;src&nbsp;attribute.&nbsp;This&nbsp;is&nbsp;invalid,&nbsp;and&nbsp;I&nbsp;think&nbsp;the&nbsp;proper&nbsp;solution&nbsp;would&nbsp;be&nbsp;to&nbsp;create&nbsp;each&nbsp;source&nbsp;element,&nbsp;set&nbsp;the&nbsp;src&nbsp;attribute&nbsp;and&nbsp;append&nbsp;it&nbsp;to&nbsp;the&nbsp;video&nbsp;element.&lt;br&gt;<br>
+<br>
+&lt;/blockquote&gt;&lt;/div&gt;&lt;br&gt;Ok,&nbsp;I&nbsp;re-read&nbsp;the&nbsp;spec&nbsp;about&nbsp;&lt;source&gt;&nbsp;and&nbsp;you&nbsp;are&nbsp;correct:&nbsp;it&#39;s&nbsp;invalid&nbsp;to&nbsp;create&nbsp;&lt;source&gt;&nbsp;elements&nbsp;without&nbsp;a&nbsp;@src&nbsp;attribute.&nbsp;It&nbsp;could,&nbsp;however,&nbsp;still&nbsp;be&nbsp;created&nbsp;without&nbsp;a&nbsp;URI,&nbsp;in&nbsp;which&nbsp;case&nbsp;the&nbsp;resulting&nbsp;state&nbsp;would&nbsp;indeed&nbsp;be&nbsp;a&nbsp;NETWORK_NO_SOURCE,&nbsp;since&nbsp;it&nbsp;fails&nbsp;to&nbsp;find&nbsp;a&nbsp;valid&nbsp;@currentSrc&nbsp;.&lt;br&gt;<br>
+<br>
+&lt;br&gt;I&nbsp;still&nbsp;think,&nbsp;though,&nbsp;that&nbsp;NETWORK_NO_SOURCE&nbsp;is&nbsp;a&nbsp;failure&nbsp;state,&nbsp;since&nbsp;it&nbsp;is&nbsp;specified&nbsp;as&lt;br&gt;NETWORK_NO_SOURCE&nbsp;(numeric&nbsp;value&nbsp;3):&lt;br&gt;<br>
+&nbsp; &nbsp; &nbsp;The&nbsp;element&#39;s&nbsp;resource&nbsp;selection&nbsp;algorithm&nbsp;is&nbsp;active,&nbsp;but&nbsp;it&nbsp;has&nbsp;failed&nbsp;to&nbsp;find&nbsp;a&nbsp;resource&nbsp;to&nbsp;use.&lt;br&gt;&lt;br&gt;&lt;br&gt;I&nbsp;now&nbsp;wonder&nbsp;about&nbsp;the&nbsp;intention&nbsp;of&nbsp;play()&nbsp;(and&nbsp;also&nbsp;of&nbsp;pause()).&nbsp;As&nbsp;I&nbsp;understood&nbsp;it,&nbsp;they&nbsp;are&nbsp;both&nbsp;meant&nbsp;to&nbsp;reload&nbsp;the&nbsp;media&nbsp;resource&nbsp;if&nbsp;@currentSrc&nbsp;has&nbsp;changed,&nbsp;similar&nbsp;to&nbsp;what&nbsp;load()&nbsp;is&nbsp;supposed&nbsp;to&nbsp;do.&lt;br&gt;<br>
+<br>
+&lt;br&gt;Also,&nbsp;I&nbsp;wonder&nbsp;what&nbsp;NETWORK_EMPTY&nbsp;is&nbsp;used&nbsp;for&nbsp;when&nbsp;not&nbsp;at&nbsp;the&nbsp;beginning&nbsp;of&nbsp;parsing&nbsp;the&nbsp;media&nbsp;resource.&nbsp;I&nbsp;haven&#39;t&nbsp;managed&nbsp;to&nbsp;catch&nbsp;Opera&nbsp;in&nbsp;that&nbsp;state.&lt;br&gt;&lt;br&gt;Cheers,&lt;br&gt;Silvia.&lt;br&gt;&lt;br&gt;<br>
+
+</tt>

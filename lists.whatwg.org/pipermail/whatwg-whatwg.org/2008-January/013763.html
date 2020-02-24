@@ -1,0 +1,253 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] CSSOM
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20CSSOM&In-Reply-To=%3Cc9e12660801281903pa2363dbv45a0da11ec4bc628%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="056093.html">
+   <LINK REL="Next"  HREF="056052.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] CSSOM</H1>
+<!--htdig_noindex-->
+    <B>Garrett Smith</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20CSSOM&In-Reply-To=%3Cc9e12660801281903pa2363dbv45a0da11ec4bc628%40mail.gmail.com%3E"
+       TITLE="[whatwg] CSSOM">dhtmlkitchen at gmail.com
+       </A><BR>
+    <I>Mon Jan 28 19:03:27 PST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="056093.html">[whatwg] scope attribute on td
+</A></li>
+        <LI>Next message: <A HREF="056052.html">[whatwg] HTML5 frame navigation policy
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#13763">[ date ]</a>
+              <a href="thread.html#13763">[ thread ]</a>
+              <a href="subject.html#13763">[ subject ]</a>
+              <a href="author.html#13763">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Alpha component is equal to 1.
+The color is an uppercase six-digit hexadecimal value, prefixed with a
+# character
+(U+0023 NUMBER SIGN), with the first two digits representing the red component,
+the next two digits representing the green component, and the last two
+digits representing the blue component,
+the digits being in the range 0-9 A-F (U+0030 to U+0039 and U+0041 to U+0046).
+
+---
+I think I remember an earlier spec said that colors are returned in
+RGB(0-0xFF,0-0xFF,0-0xFF) string format. Some implementations provide
+an rgb value, others provide whatever was supplied in the sheet.
+Others, such as Safari, are more complex.
+
+Setting a value to have a keyword, using javascript:
+
+rule.style.color = &quot;lawngreen&quot;;
+rule.style.color.indexOf( &quot;rgb&quot; ) != -1; // true, safari just
+converted it to an RGB string.
+
+I cound not find mention of color keywords. For example: red.
+
+having RGB value is more useful, otherwise you have to have a whole
+table in js to convert &quot;red&quot; to &quot;#FF0000&quot;. Painful.
+
+Consider reading a color value of an element. If the color is 0xFF0000,
+I expect an rgb value.
+
+getComputedStyle(el, &quot;&quot;).getPropertyValue(&quot;color&quot;); // =&gt; returns
+&quot;rgb(255, 0, 0)&quot;
+
+Given one stylesheet with one rule, matching that same element
+
+#el {
+  color: red;
+}
+
+document.styleSheets[0].cssRules[0].style.color// =&gt; &quot;red&quot; or &quot;rgb(255, 0, 0)&quot; ?
+
+It would be useful to get the computed style from the property; the
+other value, &quot;red&quot;, is available in the cssText.
+
+Should getting a property return the computed value? I think it
+should. I think the cssText should contain the rules
+given cssText, though, not computed cssText.
+I would not mind having a method to get the given value, such as
+CSSRule.getProperty(...), but would probably not use it.
+
+
+Whitespace:
+If whitespace may be removed without changing the meaning of the value
+it is to be removed.
+---
+Why?
+
+A single space should be added after each comma that is not part of a string,
+except where that would change the meaning of the value. For example:
+---
+Why does this matter?
+
+
+
+The deleteRule(index) method, when invoked, must remove a statement
+where index is index and rule list is cssRules.
+
+
+---
+ADD: Upon deletion, the view should be updated, reflecting the removal
+of the rule, even if the rule is an @import rule.
+
+---
+
+The document does not mention that selector text is case-sensitive and
+should not be case-converted. Although this
+seems obvious to me, to Microsoft, it does not. IE converts element
+selectors to upper case, probably
+to deal with IE's HTML parser.
+
+
+Regarding the design of the API, I have found:
+1) no good way to get all the CSSStyleRules of a styleSheet.
+2) no good way to find a CSSStyleRule by selectorText.
+
+Finding a CSSStyleRule by it's selectorText is painful. It requires a
+lengthy search to first loop
+through the rules, then split the selector text on &quot;,&quot;, then do a
+RegExp on each selector text.
+It should be necessary (using the standard API), to loop again through
+the media rules. This is painful.
+
+It would be more convenient to me to have a styleSheet method for
+this. It's not terrible, but it is
+a little painful. Here is js code, which does not return a list, and
+does not even consider rules that may be
+nested inside @media rules (too much work).
+
+
+	/** IE will not return the correct selector text for Element
+selectors in HTML.
+	 * Instead, IE puts the element selector and pseudoclass selectors in
+upper case.
+	 *
+	 * Media rules are not queried.
+	 * This function compares selectors, case sensitive, but
+	 * case insensitive for element selector parts.
+	 * @return CSSStyleRule the first rule that matches the selector text.
+	 */
+
+	getRuleBySelectorText : function(selectorText) {
+		var tuc = APE.StyleSheetAdapter._tagNamesToUpperCase;
+
+		// Convert local selectorText to have upper-case element selectors.
+		selectorText = tuc(selectorText);
+		var cssRuleList = this.sheet.cssRules || this.sheet.rules;
+
+		// Loop through the cssRuleList.
+		for(var i = 0, iLen = cssRuleList.length; i &lt; iLen; i++) {
+
+			// Check each rule's selectorText to see if it matches the one provided.
+			// Since a rule can have multiple selectors, separated by &quot;,&quot;,
+			// we split on &quot;,&quot; (with optional whitespace) and return the rule for any
+			// matching selector text.
+			var selectorTextMatches = cssRuleList[i].selectorText.split(/\s*,\s*/);
+
+			for(var j = 0; j &lt; selectorTextMatches.length; j++) {
+				if(tuc(selectorTextMatches[j]) == selectorText)
+					return cssRuleList[i];
+			}
+		}
+		return null;
+	},
+
+
+/**
+ * Converts the tag names of selector text to upper case.
+ * This is used internally for matching/comparison of selector text.
+ * Internet Explorer converts all
+ * HTML Element selectors to upper case. It is a bad design decision
+by the IE team.
+ * @private
+ */
+APE.StyleSheetAdapter._tagNamesToUpperCase = function(s) {
+	// Element Selector = Start of string or ws, followed by one or more
+letter chars.
+	var elementSelector = /(^|\s)([a-z]+)/;
+	var matches = s.match( elementSelector ), R = RegExp;
+	while( elementSelector.test(s) ) s = s.replace(elementSelector,
+R.$1+R.$2.toUpperCase());
+	return s;
+};
+
+I would prefer this to be native code.
+
+/ **
+  * @param {String} media media blocks to search in.
+  * if media is null or &quot;&quot;, then does not look in nested media blocks.
+  * @return {CSSRuleList} list of matching rules, empty if no matches found.
+  */
+interface CSSStyleSheet : StyleSheet {
+  CSSRuleList getRulesBySelectorText(in DOMString SelectorText, in
+DOMString media);
+}
+
+Not a lot of people use CSSOM and I think it's mostly because of poor
+browser support. But the spec has changed contradictorily. Only
+Mozilla had good support a long time. IE is still very non-standard.
+Safari is only recently supporting this. The other reason it is not
+used much is that the API is not as convenient to use. So you have an
+API that is not very convenient, coupled with poor browser support.
+What you get is people writing there own query engines
+(getElementsBySelectorText)/
+
+The other approach is to let the browser do the cascade and modify the
+stylesheet rules, like Webkit's CSS Transitions.
+Using javascript to implement CSS transitions can provide a fallback
+as other browsers catch up to webkit.
+It has different implications, and is doesn't let you get the actual
+elements, but it is perfectly valid approach; in fact it's more
+appropriate in some cases.
+
+I have also found want for:
+1) element.getCascadedStyle
+2) element.getImplementedRules
+
+However, at this point, I think fixing API features would take
+precedence over adding new API features. Ian seems to think CSSOM
+should be abandoned.
+
+</PRE>
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="056093.html">[whatwg] scope attribute on td
+</A></li>
+	<LI>Next message: <A HREF="056052.html">[whatwg] HTML5 frame navigation policy
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#13763">[ date ]</a>
+              <a href="thread.html#13763">[ thread ]</a>
+              <a href="subject.html#13763">[ subject ]</a>
+              <a href="author.html#13763">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

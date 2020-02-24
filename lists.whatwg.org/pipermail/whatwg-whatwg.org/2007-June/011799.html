@@ -1,0 +1,196 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Canvas shadow rendering
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Canvas%20shadow%20rendering&In-Reply-To=%3Cea09c0d10706141759y3c5776b5nc1169bdb884e7463%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="011798.html">
+   <LINK REL="Next"  HREF="011800.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Canvas shadow rendering</H1>
+<!--htdig_noindex-->
+    <B>Philip Taylor</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Canvas%20shadow%20rendering&In-Reply-To=%3Cea09c0d10706141759y3c5776b5nc1169bdb884e7463%40mail.gmail.com%3E"
+       TITLE="[whatwg] Canvas shadow rendering">excors+whatwg at gmail.com
+       </A><BR>
+    <I>Thu Jun 14 17:59:54 PDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="011798.html">[whatwg] Typo in 9.2.3
+</A></li>
+        <LI>Next message: <A HREF="011800.html">[whatwg] Entity parsing
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#11799">[ date ]</a>
+              <a href="thread.html#11799">[ thread ]</a>
+              <a href="subject.html#11799">[ subject ]</a>
+              <a href="author.html#11799">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>I've looked at how Safari renders shadows - the spec should probably
+define something similar, since it works and it's not insane or
+anything.
+
+Just before a shape/image is drawn, a shadow image is created (based
+on the original shape/image's alpha values (ignoring the RGB entirely)
+and the shadow colour/offset/blur). That shadow image is then drawn as
+normal (affected by globalAlpha and globalCompositeOperation), and
+then the original shape/image is drawn on top as normal.
+
+The shadow image copies the original alpha values, then gets
+Gaussian-blurred (<A HREF="http://en.wikipedia.org/wiki/Gaussian_blur">http://en.wikipedia.org/wiki/Gaussian_blur</A> etc). The
+&#963; parameter in the Gaussian function is derived from shadowBlur: as
+far as I can tell, the best approximation to Safari's behaviour is
+with &#963; = (if shadowBlur &lt; 8 then shadowBlur/2 else
+sqrt(2*shadowBlur)).
+&lt;<A HREF="http://canvex.lazyilluminati.com/misc/shadow/shadow1.html">http://canvex.lazyilluminati.com/misc/shadow/shadow1.html</A>&gt; (in
+Safari) shows its shadow rendering compared to that Gaussian function.
+There's not a perfect correspondence, but there's at least one place
+where Safari is simply buggy (it cuts off the left edge by one pixel
+when shadowBlur = 6) so it's never going to be a perfect
+correspondence, and it looks close enough to me. But if anyone has a
+better idea of the exact equation, that would be good to know, since I
+got fed up with trying to guess :-)
+
+After that, it's just multiplied by the shadow colour and then drawn.
+&lt;<A HREF="http://canvex.lazyilluminati.com/misc/shadow/shadow2.html">http://canvex.lazyilluminati.com/misc/shadow/shadow2.html</A>&gt; shows (in
+the middle column) that it works the same as Safari's shadows when
+manually drawing the shadow image (using lots of temporary bitmaps for
+the blurring) then compositing that and then compositing the original
+image on top.
+
+The shadowOffset and shadowBlur are unaffected by transformations, as
+in &lt;<A HREF="http://canvex.lazyilluminati.com/misc/shadow/shadow3.html">http://canvex.lazyilluminati.com/misc/shadow/shadow3.html</A>&gt;.
+
+
+I think the definition would be like:
+
+--------------------------------
+
+3.14.11.1.6. Shadows
+
+All drawing operations are affected by the four global shadow attributes.
+
+The shadowColor attribute sets the color of the shadow.
+
+When the context is created, the shadowColor attribute initially must
+be fully-transparent black.
+
+The shadowOffsetX and shadowOffsetY attributes specify the distance
+that the shadow will be offset in the positive horizontal and positive
+vertical distance respectively. Their values are in coordinate space
+units, and are not affected by the transformation matrix.
+
+When the context is created, the shadow offset attributes initially
+have the value 0.
+
+The shadowBlur attribute specifies the number of coordinate space
+units that the blurring is to cover, and is not affected by the
+transformation matrix. On setting, negative numbers must be ignored,
+leaving the attribute unmodified.
+
+When the context is created, the shadowBlur attribute must initially
+have the value 0.
+
+Support for shadows is optional. When they are supported, then, when
+shadows are drawn, they must be rendered using the specified color,
+offset, and blur radius as described below. When they are not
+supported, shadows must be rendered as if the shadow color was
+transparent black.
+
+[...]
+
+3.14.11.1.11. Drawing model
+
+When a shape or image is painted, user agents must follow these steps,
+in the order given (or act as if they do):
+* If the current transformation matrix is infinite, then do nothing.
+Abort these steps.
+* The coordinates are transformed by the current transformation matrix.
+* The shape or image is rendered, creating image A, as described in
+the previous sections. For shapes, the current fill, stroke, and line
+styles must be honoured.
+* The shadow image is rendered, as a Gaussian-blurred version of the
+alpha channel from image A:
+  * Create a shadow bitmap, filled with transparent black.
+  * For every pixel in image A, with position (x, y):
+    * For every pixel in the shadow image, with position (x', y'):
+      * Let u = x' - (x + shadowOffsetX). Let v = y' - (y + shadowOffsetY).
+      * If shadowBlur is zero, then:
+          * If u = v = 0 then let G = 1. Otherwise, let G = 0.
+        Otherwise, shadowBlur in nonzero:
+          * If shadowBlur &lt; 8, let &#963; = shadowBlur/2. Otherwise, let &#963;
+= sqrt(2*shadowBlur).
+          * Let G = 1/(2 &#960; &#963;^2) e^-(u^2 + v^2)/(2 &#963;^2).
+      * Let (r, g, b, a) be the components of shadowColor. Let a' be
+the alpha component of the pixel in image A at (x, y). Add the value
+(r, g, b, a * a' * G) onto the shadow image at (x', y'), using the
+Porter-Duff 'plus' operator.
+* The shadow image has its alpha adjusted by globalAlpha.
+* Within the clip region (as affected by the current transformation
+matrix), the shadow image is composited over the current canvas bitmap
+using the current composition operator.
+* The previous two steps are repeated, using image A instead of the
+shadow image.
+
+--------------------------------
+
+(I haven't tried actually implementing it in the way detailed above,
+so the description may be buggy, but I can't see anything wrong myself
+so I guess it's probably alright.)
+
+It is assumed that all the images (particularly image A) have infinite
+size, so a shape drawn entirely off-screen can still cast shadows into
+the visible area.
+
+The algorithm as specified is quite horrendously inefficient, but the
+obvious optimisations are to skip the entire shadow part if the shadow
+colour is fully transparent, and to perform the Gaussian blur by doing
+the horizontal and vertical components separately and ignoring the
+bits where max(u,v) &gt; shadowBlur (because G will be so small that its
+contribution to the shadow will be lost in the rounding errors). I
+assume implementors can work that out for themselves, since it's just
+a standard Gaussian blur - the only peculiar bit is the mapping from
+shadowBlur to &#963;. So that's all alright.
+
+
+One odd issue is with clearRect - Safari sort of applies shadows to
+that, as in &lt;<A HREF="http://canvex.lazyilluminati.com/misc/shadow/shadow4.html">http://canvex.lazyilluminati.com/misc/shadow/shadow4.html</A>&gt;,
+except it ignores the colour and just uses the blur. It seems sensible
+to just call that a bug, and require that shadows never apply to
+clearRect since it doesn't go through the Drawing Model at all. I'll
+try to look out for any other possible problem areas.
+
+-- 
+Philip Taylor
+<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">excors at gmail.com</A>
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="011798.html">[whatwg] Typo in 9.2.3
+</A></li>
+	<LI>Next message: <A HREF="011800.html">[whatwg] Entity parsing
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#11799">[ date ]</a>
+              <a href="thread.html#11799">[ thread ]</a>
+              <a href="subject.html#11799">[ subject ]</a>
+              <a href="author.html#11799">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

@@ -1,0 +1,234 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Adding features needed for WebGL to ImageBitmap
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Adding%20features%20needed%20for%20WebGL%20to%20ImageBitmap&In-Reply-To=%3CCAMYvS2dncg2agM4eeVwwh8Gip%2B%3DnvPy%2BD_gCOtBQBNe81DC2iw%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="039983.html">
+   <LINK REL="Next"  HREF="082259.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Adding features needed for WebGL to ImageBitmap</H1>
+<!--htdig_noindex-->
+    <B>Kenneth Russell</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Adding%20features%20needed%20for%20WebGL%20to%20ImageBitmap&In-Reply-To=%3CCAMYvS2dncg2agM4eeVwwh8Gip%2B%3DnvPy%2BD_gCOtBQBNe81DC2iw%40mail.gmail.com%3E"
+       TITLE="[whatwg] Adding features needed for WebGL to ImageBitmap">kbr at google.com
+       </A><BR>
+    <I>Wed Jul 10 16:13:02 PDT 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="039983.html">[whatwg] Adding features needed for WebGL to ImageBitmap
+</A></li>
+        <LI>Next message: <A HREF="082259.html">[whatwg] Adding features needed for WebGL to ImageBitmap
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#82258">[ date ]</a>
+              <a href="thread.html#82258">[ thread ]</a>
+              <a href="subject.html#82258">[ subject ]</a>
+              <a href="author.html#82258">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>(Replying on behalf of Gregg, who unfortunately isn't at Google any more)
+
+On Wed, Jul 10, 2013 at 3:17 PM, Ian Hickson &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">ian at hixie.ch</A>&gt; wrote:
+&gt;<i> On Wed, 19 Jun 2013, Gregg Tavares wrote:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> In order for ImageBitmap to be useful for WebGL we need more options
+</I>&gt;<i>
+</I>&gt;<i> ImageBitmap is trying to just be a generic HTMLImageElement, that is, a
+</I>&gt;<i> bitmap image. It's not trying to be anything more than that.
+</I>&gt;<i>
+</I>&gt;<i> Based on some of these questions, though, maybe you mean ImageData?
+</I>
+Gregg meant ImageBitmap.
+
+Some background: when uploading HTMLImageElements to WebGL it's
+required to be able to specify certain options, such as whether to
+premultiply the alpha channel, or perform colorspace conversion.
+Because it seemed infeasible at the time to modify the HTML spec,
+these options are set via the WebGL API. If they're set differently
+from the browser's defaults (which are generally to do
+premultiplication, and do colorspace conversion), then the WebGL
+implementation has to re-decode the image when it's uploaded to a
+WebGL texture. (There's no way to know in advance whether a given
+image is intended for upload to WebGL as opposed to insertion into the
+document, and making image decoding lazier than it currently is would
+introduce bad hiccups while scrolling.)
+
+We'd like to avoid the same problems with the new ImageBitmap concept.
+
+The current ImageBitmap draft has the problem that when the callback
+is called, image decoding will already have been done, just like
+HTMLImageElement -- at least, this is almost surely how it'll be
+implemented, in order to obey the rule &quot;An ImageBitmap object
+represents a bitmap image that can be painted to a canvas without
+undue latency&quot;. Just like HTMLImageElement, these options need to be
+set before decoding occurs, to avoid redundant work and rendering
+pauses which would happen if operations like colorspace conversion
+were done lazily. (By the way, colorspace conversion is typically
+implemented inside the image decoder itself, and it would be a lot of
+work to factor it out into code which can be applied to a
+previously-decoded image. In fact from looking again at the code in
+Blink which does this I'd say it's completely infeasible.)
+
+
+&gt;&gt;<i> premultipliedAlpha: true/false (default true)
+</I>&gt;&gt;<i> Nearly all GL games use non-premultipiled alpha textures. So all those
+</I>&gt;&gt;<i> games people want to port to WebGL will require non-premultipied textures.
+</I>&gt;&gt;<i> Often in games the alpha might not even be used for alpha but rather for
+</I>&gt;&gt;<i> glow maps or specular maps or the other kinds of data.
+</I>&gt;<i>
+</I>&gt;<i> How do you do this with &lt;img&gt; today?
+</I>
+Per above, by specifying the option via the WebGL API, and performing
+a synchronous image re-decode. This re-decode is really expensive, and
+a major pain point for WebGL developers. It's so bad that developers
+are using pure JavaScript decoders for PNG and JPG formats just so
+that they can do this on a worker thread.
+
+
+&gt;&gt;<i> flipY: true/false (default false)
+</I>&gt;&gt;<i> Nearly all 3D modeling apps expect the bottom left pixel to be the first
+</I>&gt;&gt;<i> pixel in a texture so many 3D engines flip the textures on load. WebGL
+</I>&gt;&gt;<i> provides this option but it takes time and memory to flip a large image
+</I>&gt;&gt;<i> therefore it would be nice if that flip happened before the callback
+</I>&gt;&gt;<i> from ImageBitmap
+</I>&gt;<i>
+</I>&gt;<i> No pixel is the first pixel in an ImageBitmap. I don't really understand
+</I>&gt;<i> what this means.
+</I>
+There's a longstanding difference between the coordinate systems used
+by most 2D libraries, and 3D APIs. OpenGL in particular long ago
+adopted the convention that the origin of a texture is its lower-left
+corner, with the Y axis pointing up.
+
+Every image loading library ever created for OpenGL has had an option
+to flip (or not) loaded textures along the Y axis; the option is
+required to support pipelines for loading artists' work.
+
+The WebGL spec offers this option via the UNPACK_FLIP_Y_WEBGL state.
+<A HREF="http://www.khronos.org/registry/webgl/specs/latest/#TEXIMAGE2D_HTML">http://www.khronos.org/registry/webgl/specs/latest/#TEXIMAGE2D_HTML</A>
+defines that the upper left pixel of images is by default the first
+pixel transferred to the GPU.
+
+Flipping large images vertically is expensive, taking a significant
+percentage of frame time. As with premultiplication of alpha, we want
+to avoid doing it unnecessarily, redundantly, or synchronously with
+respect to the application. For this reason we want to make it an
+option on createImageBitmap so when the callback is called, the
+decoded image data is already oriented properly for upload to the GPU.
+
+
+&gt;&gt;<i> colorspaceConversion: true/false (default true)
+</I>&gt;&gt;<i> Some browsers apply color space conversion to match monitor settings.
+</I>&gt;&gt;<i> That's fine for images with color but WebGL apps often load heightmaps,
+</I>&gt;&gt;<i> normalmaps, lightmaps, global illumination maps and many other kinds of
+</I>&gt;&gt;<i> data through images. If the browser applies a colorspace conversion the
+</I>&gt;&gt;<i> data is not longer suitable for it's intended purpose therefore many WebGL
+</I>&gt;&gt;<i> apps turn off color conversions. As it is now, when an image is uploaded to
+</I>&gt;&gt;<i> WebGL, if colorspace conversion is
+</I>&gt;&gt;<i> off&lt;<A HREF="http://www.khronos.org/registry/webgl/specs/latest/#PIXEL_STORAGE_PARAMETERS">http://www.khronos.org/registry/webgl/specs/latest/#PIXEL_STORAGE_PARAMETERS</A>&gt;,
+</I>&gt;&gt;<i> WebGL has to synchronously re-decode the image. It would be nice if
+</I>&gt;&gt;<i> ImageBitmap could handle this case so it can decode the image without
+</I>&gt;&gt;<i> applying any colorspace manipulations.
+</I>&gt;<i>
+</I>&gt;<i> ImageBitmap doesn't apply any colour space manipulation. That's only done
+</I>&gt;<i> when drawing, according to the spec.
+</I>
+The spec may say that, but the reality is that it'll be done during
+image decoding. It's infeasible to factor out the colorspace
+conversion code from existing JPEG and PNG image decoding libraries.
+The implication is that if a WebGL app requires that colorspace
+conversion not be performed -- which is the default behavior for most
+apps -- a full image re-decode will have to be done.
+
+
+&gt;<i> On Wed, 19 Jun 2013, Gregg Tavares wrote:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> colorspaceConversion: true   = browser does whatever it thinks is best for
+</I>&gt;&gt;<i> color images.
+</I>&gt;&gt;<i> colorspaceConversion: false  = give me the bits in the image file. Don't
+</I>&gt;&gt;<i> manipulate them with either embedded color data or local machine gamma
+</I>&gt;&gt;<i> corrections or anything else.
+</I>&gt;<i>
+</I>&gt;<i> This seems like something that should apply when _using_ the image, not in
+</I>&gt;<i> the API that just represents the raw image data.
+</I>&gt;<i>
+</I>&gt;<i> We could provide a way to say &quot;strip color space information from any
+</I>&gt;<i> images loaded this way&quot;, but I don't understand why you'd include color
+</I>&gt;<i> space information that was wrong in the first place.
+</I>
+See above. The reality of browser implementations is that colorspace
+conversion is an integral part of image decoding. If the WebGL app
+requires that no colorspace conversion be applied during image
+decoding then the image has to be re-decoded from the compressed data
+with a different set of options.
+
+
+&gt;&gt;<i>     c = document.createElement(&quot;canvas&quot;);
+</I>&gt;&gt;<i>     ctx = c.getContext(&quot;2d&quot;);
+</I>&gt;&gt;<i>     i = ctx.getImageData(0, 0, 1, 1);
+</I>&gt;&gt;<i>     i.data[0] = 255;
+</I>&gt;&gt;<i>     ctx.putImageData(i, 0, 0);
+</I>&gt;&gt;<i>     i2 = ctx.getImageData(0, 0, 1, 1);
+</I>&gt;&gt;<i>     console.log(i2.data[0])  // prints 0 on both FF and Chrome
+</I>&gt;<i>
+</I>&gt;<i> This is using ImageData, not ImageBitmap. Are we talking about the same
+</I>&gt;<i> thing here? I'm confused.
+</I>
+I think Gregg's point here is that most CanvasRenderingContext2D
+implementations premultiply the alpha channel into the color channels,
+which loses information. From early days of the WebGL spec it was
+clear that this would not work for 99% of the 3D use cases which put
+arbitrary data, not just colors, in those four channels. This is why
+the state parameters UNPACK_FLIP_Y_WEBGL,
+UNPACK_PREMULTIPLY_ALPHA_WEBGL, and UNPACK_COLORSPACE_CONVERSION_WEBGL
+are in the spec.
+
+The ImageBitmap spec as it stands will require re-decoding of images
+when they're uploaded to the GPU for use by WebGL, just like
+HTMLImageElement. Let's fix this by adding image decoding options to
+createImageBitmap.
+
+-Ken
+
+
+&gt;<i> --
+</I>&gt;<i> Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+</I>&gt;<i> <A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+</I>&gt;<i> Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</I>
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="039983.html">[whatwg] Adding features needed for WebGL to ImageBitmap
+</A></li>
+	<LI>Next message: <A HREF="082259.html">[whatwg] Adding features needed for WebGL to ImageBitmap
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#82258">[ date ]</a>
+              <a href="thread.html#82258">[ thread ]</a>
+              <a href="subject.html#82258">[ subject ]</a>
+              <a href="author.html#82258">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

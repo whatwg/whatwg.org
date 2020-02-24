@@ -1,0 +1,149 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Limiting the amount of downloaded but not watched video
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Limiting%20the%20amount%20of%20downloaded%20but%20not%20watched%20video&In-Reply-To=%3CAANLkTiky6ihCA%3D6SUmvXQXxXmFx%3Df44m0wVQ85zMT8EW%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="072277.html">
+   <LINK REL="Next"  HREF="072286.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Limiting the amount of downloaded but not watched video</H1>
+<!--htdig_noindex-->
+    <B>Glenn Maynard</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Limiting%20the%20amount%20of%20downloaded%20but%20not%20watched%20video&In-Reply-To=%3CAANLkTiky6ihCA%3D6SUmvXQXxXmFx%3Df44m0wVQ85zMT8EW%40mail.gmail.com%3E"
+       TITLE="[whatwg] Limiting the amount of downloaded but not watched video">glenn at zewt.org
+       </A><BR>
+    <I>Thu Jan 20 18:12:40 PST 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="072277.html">[whatwg] Limiting the amount of downloaded but not watched video
+</A></li>
+        <LI>Next message: <A HREF="072286.html">[whatwg] Limiting the amount of downloaded but not watched video
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#72245">[ date ]</a>
+              <a href="thread.html#72245">[ thread ]</a>
+              <a href="subject.html#72245">[ subject ]</a>
+              <a href="author.html#72245">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Thu, Jan 20, 2011 at 1:16 PM, Zachary Ozer &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">zach at longtailvideo.com</A>&gt; wrote:
+&gt;<i> On Thu, Jan 20, 2011 at 4:19 AM, Glenn Maynard &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">glenn at zewt.org</A>&gt; wrote:
+</I>&gt;&gt;<i> I think that pausing shouldn't affect read-ahead buffering behavior. &#160;I'd
+</I>&gt;&gt;<i> suggest another preload value, preload=buffer, sitting between &quot;metadata&quot;
+</I>&gt;&gt;<i> and &quot;auto&quot;. &#160;In addition to everything loaded by &quot;metadata&quot;, it also fills
+</I>&gt;&gt;<i> the read-ahead buffer (whether the video is playing or not).
+</I>&gt;<i>
+</I>&gt;<i> Would the read-ahead buffer length be a configurable property?
+</I>...
+&gt;<i> * Adding the &quot;downloadTargetBuffer&quot; property, which can be updated at any time
+</I>
+I don't think we've seen any use cases for directly configuring the
+read-ahead buffer size (downloadTargetBuffer).  The closest to one
+that was mentioned is essentially to work around browser bugs: if a
+browser selects too small of a buffer, you can increase it.
+
+If this is configurable, then a default value (eg. null) should mean
+&quot;browser-determined&quot;, and people should be strongly encouraged to use
+it for prebuffering, not setting a specific number.
+
+&gt;<i> * Once the user has indicated they want to play a video, the browser
+</I>&gt;<i> &#160;will go into state3 and buffer at least &quot;downloadTargetBuffer&quot; seconds
+</I>&gt;<i> &#160;of video before playing
+</I>
+Be careful here: this greys the line between &quot;minimum prebuffer&quot; and
+&quot;maximum buffer size&quot;.  That is, you may want to buffer up to 30
+seconds of video, but to start playing after 5 seconds of video is
+buffered.  The above means that if you set downloadTargetBuffer=&quot;30&quot;,
+the video won't start playing for a long time, since
+downloadTargetBuffer is doubling as both the minimum and maximum
+values.
+
+&gt;<i> &#160;&gt; If the buffer &lt; &quot;downloadTargetBuffer&quot; seconds:
+</I>&gt;<i> &#160; - The browser will set preload = &quot;auto&quot;
+</I>
+This is odd: you can't reset preload=auto to preload=state3 if less
+than downloadTargetBuffer is currently buffered.  For example, if the
+user is implementing &quot;preload=auto only when paused&quot;, and
+downloadTargetBuffer is effectively 30 seconds, then pausing (and
+setting preload=auto) then unpausing (and resetting to preload=buffer)
+could cause preload to get stuck in auto.
+
+I think the approach of making preload a state variable is a bit odd.
+Here's an rough alternative proposal, which is based on leaving
+preload as a simple hint as it is now, and deriving
+downloadTargetBuffer from it:
+
+- downloadTargetBuffer is a derived (read-only) property that tells
+the browser the minimum amount it should attempt to prebuffer.  This
+applies independently of any other state.
+- If preload=auto, downloadTargetBuffer value is infinity.
+- If preload=none or meta AND the video is paused, downloadTargetBuffer is zero.
+- In all other cases,
+    downloadTargetBuffer is browser-determined as the amount necessary
+to play the video without underruns, and may change over time.
+    If the browser determines that there's insufficient bandwidth to
+stream the video, downloadTargetBuffer is forced to infinity.  (This
+is actually redundant with the previous line.)
+
+The minimum amount to buffer before playback can begin (eg. the
+transition from HAVE_CURRENT_DATA to HAVE_FUTURE_DATA) is unrelated to
+this proposal.  We're only talking about maximum buffering, not
+minimum.
+
+If we want to allow the user to further influence
+downloadTargetBuffer, do so with separate non-derived properties (eg.
+&quot;minimumReadAhead&quot;).
+
+&gt;<i> What if my bandwidth situation improves (moving from 3g to WiFi, for example)?
+</I>&gt;<i> At that point, perhaps I should go from auto to invoked?
+</I>
+The above also addresses this.  The browser's determination of whether
+you have enough bandwidth or not is reflected only in the value of
+downloadTargetBuffer.  It can be increased or decreased however the
+implementation sees fit, eg. in response to having more bandwidth
+available (switching to WiFi), or in response to the server adjusting
+the bitrate of your stream.
+
+It's not clear to me that unclamping prebuffering is actually a
+meaningful response to having insufficient bandwidth, but this leaves
+that decision up to the implementation.
+
+-- 
+Glenn Maynard
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="072277.html">[whatwg] Limiting the amount of downloaded but not watched video
+</A></li>
+	<LI>Next message: <A HREF="072286.html">[whatwg] Limiting the amount of downloaded but not watched video
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#72245">[ date ]</a>
+              <a href="thread.html#72245">[ thread ]</a>
+              <a href="subject.html#72245">[ subject ]</a>
+              <a href="author.html#72245">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

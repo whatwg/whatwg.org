@@ -1,0 +1,191 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] localStorage + worker processes
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20localStorage%20%2B%20worker%20processes&In-Reply-To=%3C11e306600903240318o77e5f57fr6eecb0d32d03eee8%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="018991.html">
+   <LINK REL="Next"  HREF="019051.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] localStorage + worker processes</H1>
+<!--htdig_noindex-->
+    <B>Robert O'Callahan</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20localStorage%20%2B%20worker%20processes&In-Reply-To=%3C11e306600903240318o77e5f57fr6eecb0d32d03eee8%40mail.gmail.com%3E"
+       TITLE="[whatwg] localStorage + worker processes">robert at ocallahan.org
+       </A><BR>
+    <I>Tue Mar 24 03:18:47 PDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="018991.html">[whatwg] localStorage + worker processes
+</A></li>
+        <LI>Next message: <A HREF="019051.html">[whatwg] localStorage + worker processes
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18993">[ date ]</a>
+              <a href="thread.html#18993">[ thread ]</a>
+              <a href="subject.html#18993">[ subject ]</a>
+              <a href="author.html#18993">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Tue, Mar 24, 2009 at 10:11 PM, Ian Hickson &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">ian at hixie.ch</A>&gt; wrote:
+
+&gt;<i>   - extended the implicit lock mechanism that we had for storage to also
+</I>&gt;<i>   cover document.cookie, and made the language more explicit about how
+</I>&gt;<i>   it works.
+</I>
+
+That's basically good. It's possible that people might want to implement
+something that's equivalent to the storage mutex in observable behaviour,
+but allows more parallelism, such as speculative execution or finer-grained
+locking when the implementation can prove it's safe. I assume implementors
+of HTML5 already understand that that's allowed.
+
+- added navigator.releaseLock().
+&gt;<i>
+</I>
+This name could be confusing to developers, because there is no
+corresponding explicit acquireLock(), which there usually is in an API that
+exposes releaseLock().
+
+navigator.allowInterruption() maybe?
+
+On Sat, 21 Mar 2009, Jonas Sicking wrote:
+&gt;<i> &gt;
+</I>&gt;<i> &gt; As a side note, if we do go with this async lock acquiring, we could add
+</I>&gt;<i> &gt; an API like:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; getLockedFeatures(callback, 'localStore', 'cookie');
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; This would be an asynchronously grab locks to multiple features and only
+</I>&gt;<i> &gt; call the callback once all of them have been acquired. This would allow
+</I>&gt;<i> &gt; computations across data from multiple locations guaranteed to be in
+</I>&gt;<i> &gt; sync. The implementation would be responsible for grabbing the locks in
+</I>&gt;<i> &gt; a consistent order to prevent deadlocks.
+</I>&gt;<i>
+</I>&gt;<i> Why would we want more than one lock? Is the potential performance gain
+</I>&gt;<i> worth the complexity?
+</I>&gt;<i>
+</I>&gt;<i> The problem with going with an async approach is that it means changing
+</I>&gt;<i> the API, which is something we can't really do for cookie (and don't
+</I>&gt;<i> really want to do for localStorage, since IE8 has shipped it.) We we are
+</I>&gt;<i> going to need a synchronous locking mechanism anyway.
+</I>
+
+It would be possible to use something like getLockedFeatures for workers
+while using implicit locking for the main thread.
+
+On Mon, 23 Mar 2009, Robert O'Callahan wrote:
+&gt;<i> &gt; It has to be resolved in a way that doesn't expose asynchronous cookie
+</I>&gt;<i> &gt; or localStorage changes to Web developers. There is abundant evidence
+</I>&gt;<i> &gt; that race conditions and synchronization are too hard for developers to
+</I>&gt;<i> &gt; deal with. The spec should forbid asynchronously visible changes to
+</I>&gt;<i> &gt; cookies or localStorage. In fact, it should probably simply say that all
+</I>&gt;<i> &gt; script execution is serializable: always equivalent to some execution
+</I>&gt;<i> &gt; you could get with a single-threaded browser that runs all scripts to
+</I>&gt;<i> &gt; completion. Allowance could be made for explicit yield points if we need
+</I>&gt;<i> &gt; to, e.g. alert().
+</I>&gt;<i>
+</I>&gt;<i> Generally speaking I have tried to maintain this invariant, but I have
+</I>&gt;<i> failed with cookies, and with localStorage in workers.
+</I>
+
+Now, with the storage mutex, are there any cases you know of where
+serializability fails? If there are, it may be worth noting them in the
+spec. If there aren't, why not simply write serializability into the spec?
+
+User agents that share event loops between origins can't actually have any
+&gt;<i> more than one lock total. Consider a case where there are three windows
+</I>&gt;<i> from three different origins, A, B, and C, where C contains a couple of
+</I>&gt;<i> &lt;iframe&gt;s, and where A, B, and C are independent, but C share an event
+</I>&gt;<i> loop with whatever content is in its iframes. (This is the situation
+</I>&gt;<i> Chrome and IE are in, as I understand it, with event loops being
+</I>&gt;<i> per-window not per-origin, and it may be required because access to the
+</I>&gt;<i> frames[] hierarchy is synchronous.) Now, assume A and B have both obtained
+</I>&gt;<i> their respective locks, and are busy doing some long script. C is free to
+</I>&gt;<i> run more tasks from its event loop, which could include navigating one
+</I>&gt;<i> iframe to a page on either A and the other iframe to a page on B, meaning
+</I>&gt;<i> that the event loop of C is now beholden to two locks. If there is any
+</I>&gt;<i> manner in which to synchronously cause another origin to run script, this
+</I>&gt;<i> now means that C can attempt to obtain both locks; if we now imagine
+</I>&gt;<i> another window just like C that instead obtains the locks in the reverse
+</I>&gt;<i> order, we get deadlock.
+</I>
+
+Interesting example!
+
+When two sets of unrelated browser contexts become related (e.g., C loads A
+into an iframe), I imagined you would join A's lock and C's lock into a
+single lock covering the new set of related browser contexts, which is safe
+to do if at most one of those locks is currently held. When this happens due
+to a document being created with origin A in C's iframe, it happens
+asynchronously in C, right? So at that point C's lock is not held by
+currently running script in C (although it might be held by code in another
+domain which is already related to C), and we can block the join operation
+in C until one of the two locks is released.
+
+Then in your example, suppose C loads A's document first. Then C's lock and
+A's lock are joined to make a CA-lock. Then suppose D (&quot;another window just
+like C&quot;) loads B's document; D's lock and B's lock are merged to make the
+DB-lock. Now suppose C loads B. The two remaining locks are merged to form a
+single CADB-lock. No deadlock is possible.
+
+If it can be shown that it is not ever possible for script in one origin
+&gt;<i> to synchronously invoke script in another origin, then I guess we could
+</I>&gt;<i> have per-origin locks instead of a single lock.
+</I>&gt;<i>
+</I>
+I'm not sure why synchronous invocation across origins matters. I think what
+matters here is whether there's a synchronous operation that can cause two
+browsing contexts to become related that previously weren't. If there is,
+then the above approach would break down; a script in A could get A's lock
+and then attempt to join with C, while a script in C could get C's lock and
+then attempt to join with A. I can't think of such a case though.
+
+Rob
+-- 
+&quot;He was pierced for our transgressions, he was crushed for our iniquities;
+the punishment that brought us peace was upon him, and by his wounds we are
+healed. We all, like sheep, have gone astray, each of us has turned to his
+own way; and the LORD has laid on him the iniquity of us all.&quot; [Isaiah
+53:5-6]
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: &lt;<A HREF="http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20090324/4618da02/attachment-0001.htm">http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20090324/4618da02/attachment-0001.htm</A>&gt;
+</PRE>
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="018991.html">[whatwg] localStorage + worker processes
+</A></li>
+	<LI>Next message: <A HREF="019051.html">[whatwg] localStorage + worker processes
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18993">[ date ]</a>
+              <a href="thread.html#18993">[ thread ]</a>
+              <a href="subject.html#18993">[ subject ]</a>
+              <a href="author.html#18993">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

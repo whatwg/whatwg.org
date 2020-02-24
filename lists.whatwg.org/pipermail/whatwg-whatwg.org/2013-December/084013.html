@@ -1,0 +1,254 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] onclose events for MessagePort
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20onclose%20events%20for%20MessagePort&In-Reply-To=%3CCAArhhisqnrLaer2heCp4Kd%3DFeDrLDfM9mM0fQaEq_yonzbvsWQ%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="041739.html">
+   <LINK REL="Next"  HREF="084014.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] onclose events for MessagePort</H1>
+<!--htdig_noindex-->
+    <B>Andrew Wilson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20onclose%20events%20for%20MessagePort&In-Reply-To=%3CCAArhhisqnrLaer2heCp4Kd%3DFeDrLDfM9mM0fQaEq_yonzbvsWQ%40mail.gmail.com%3E"
+       TITLE="[whatwg] onclose events for MessagePort">atwilson at google.com
+       </A><BR>
+    <I>Sat Dec  7 04:32:54 PST 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="041739.html">[whatwg] onclose events for MessagePort
+</A></li>
+        <LI>Next message: <A HREF="084014.html">[whatwg] onclose events for MessagePort
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#84013">[ date ]</a>
+              <a href="thread.html#84013">[ thread ]</a>
+              <a href="subject.html#84013">[ subject ]</a>
+              <a href="author.html#84013">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Sat, Dec 7, 2013 at 2:22 AM, Ian Hickson &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">ian at hixie.ch</A>&gt; wrote:
+
+&gt;<i>
+</I>&gt;<i> On Fri, 11 Oct 2013, Andrew Wilson wrote:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Interesting. Section 5.3.1 of the MessagePort spec
+</I>&gt;<i>
+</I>&gt;<i> (BTW, I really recommend using the WHATWG HTML spec rather than the
+</I>&gt;<i> MessagePort spec, especially the version on the TR/ page. The W3C version
+</I>&gt;<i> on the TR/ page is about 18 months old, which in this space is _ancient_.)
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> Good to know. I'll look there from now on.
+</I>
+
+&gt;<i> &gt; states that the ports should only be GC'd if there are no references to
+</I>&gt;<i> &gt; either side and if there are no pending messages for either port
+</I>&gt;<i> &gt; (basically, meaning that neither port is reachable), but this
+</I>&gt;<i> &gt; &quot;channeldropped&quot; API provides a new way of access.
+</I>&gt;<i>
+</I>&gt;<i> In what sense?
+</I>&gt;<i>
+</I>
+Here's my point - let's say you have two UA implementations, one that GCs
+aggressively when two ports are not reachable and are idle, and one that
+never GCs entangled ports.
+
+Two documents (A and B) are connected via entangled ports, but the ports
+themselves are no longer reachable. However, document A has registered a
+&quot;channeldropped&quot; handler on its port. In the aggressive UA implementation,
+the ports have been GC'd. Now, document B crashes. In this case, only one
+UA gets a &quot;channeldropped&quot; notification, which seems like a source of
+incompatibilities - if you do something in this error case, you're
+basically exposing GC behavior. You can argue that this is OK since
+&quot;document B crashes&quot; is something that can't happen on-demand (although I'd
+disagree in the case that an OOM can cause the document to crash) - it's a
+dangerous precedent and I'm not sure this new |error| event is useful
+enough to motivate this change (especially since you're not generating this
+event in the case of things like page navigation or user closing the
+document).
+
+A page could already detect crashed documents by polling if it wanted.
+
+
+&gt;<i>
+</I>&gt;<i> If the port is GC'ed before the other side is destroyed, then you miss the
+</I>&gt;<i> message, but so what?
+</I>&gt;<i>
+</I>&gt;<i> If the port is not GC'ed before the other side is destroyed, but could
+</I>&gt;<i> have been, then it exposes GC behaviour, but that seems like a very minor
+</I>&gt;<i> concern in this case, as noted in my response to Jonas above.
+</I>&gt;<i>
+</I>
+I think we disagree about whether exposing GC behavior is a &quot;very minor&quot;
+concern. But I don't want to be too dogmatic about it if the consensus is
+that being able to detect crashed port owners without the latency/overhead
+of polling is incredibly valuable.
+
+
+&gt;<i>
+</I>&gt;<i> If the port is not GC'ed before the other side is destroyed, and could not
+</I>&gt;<i> have been, then it's the same as if you had a reference, so it seems like
+</I>&gt;<i> a non-issue.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> On Fri, 11 Oct 2013, Anne van Kesteren wrote:
+</I>&gt;<i> &gt; On Fri, Oct 11, 2013 at 9:38 AM, Andrew Wilson &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">atwilson at google.com</A>&gt;
+</I>&gt;<i> &gt; wrote:
+</I>&gt;<i> &gt; &gt; *&quot;or while there exists an event listener on either port for the
+</I>&gt;<i> &gt; &gt; channeldropped event.&quot;*
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Once you do that you basically rely on the developer to handle GC and
+</I>&gt;<i> &gt; you'll end up with memory leaks instead.
+</I>&gt;<i>
+</I>&gt;<i> Yeah.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> On Fri, 11 Oct 2013, Andrew Wilson wrote:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Agreed. I'm just pointing out that language/behavior like this is
+</I>&gt;<i> &gt; basically required if you're going to support a channeldropped event
+</I>&gt;<i> &gt; that can be spontaneously generated even on ports that have no live
+</I>&gt;<i> &gt; external references.
+</I>&gt;<i>
+</I>&gt;<i> Presumably the only case that this can matter is if the event is
+</I>&gt;<i> dispatched. If it gets GC'ed before then, then it didn't matter. I've made
+</I>&gt;<i> sure the spec says that while the event (any event, actually) is queued,
+</I>&gt;<i> the object can't go away.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> On Fri, 18 Oct 2013, Jonas Sicking wrote:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; I thought the proposal was to not fire &quot;channeldropped&quot; when the channel
+</I>&gt;<i> &gt; is GCed. Thus allowing channels with both &quot;message&quot; and &quot;channeldropped&quot;
+</I>&gt;<i> &gt; event listeners on either side to still be GCed. Is that correct?
+</I>&gt;<i>
+</I>&gt;<i> It's what the spec says.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> &gt; If so, that exposes GC behavior. If at some point both pages that hold
+</I>&gt;<i> &gt; on to an endpoint of a message channel drop their references the channel
+</I>&gt;<i> &gt; can get GCed. If it is GCed no events fire.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; However if the page holding on to either port crashes before the GC
+</I>&gt;<i> &gt; happens, then the &quot;channeldropped&quot; event is fired on the other port.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Hence the timing of the GC affects whether &quot;channeldropped&quot; is fired.
+</I>&gt;<i> &gt; Hence GC behavior is exposed.
+</I>&gt;<i>
+</I>&gt;<i> The GC behaviour is exposed _if one of the sides crashes_. As noted above,
+</I>&gt;<i> that's a case where even if we do expose GC behaviour, we're not likely to
+</I>&gt;<i> really constrain ourselves.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> On Mon, 21 Oct 2013, Andrew Wilson wrote:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Makes sense, although I'm a bit fuzzy about the rules around
+</I>&gt;<i> &gt; MessagePorts and window navigation (for example, if I navigate a window,
+</I>&gt;<i> &gt; is all content in that window now shutdown/discarded, even though I
+</I>&gt;<i> &gt; could in theory get back to the window by immediately clicking &quot;back&quot;)?
+</I>&gt;<i>
+</I>&gt;<i> No, nothing is discarded, because of, as you say, the bfcache.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> On Mon, 21 Oct 2013, Ehsan Akhgari wrote:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; I think we may need to mandate that a &quot;channeldropped&quot; eventis fired
+</I>&gt;<i> &gt; when you register a handler on a port with the other side having already
+</I>&gt;<i> &gt; crashed.
+</I>&gt;<i>
+</I>&gt;<i> That would be very weird behaviour for an event.
+</I>&gt;<i>
+</I>&gt;<i> But as designed, I think it works ok to just always hook the listener if
+</I>&gt;<i> you need it, since it doesn't prevent GC. So this is probably a non-issue.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> On Tue, 22 Oct 2013, Jonas Sicking wrote:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; So we could have:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; interface MessagePort {
+</I>&gt;<i> &gt;   ...
+</I>&gt;<i> &gt;   Promise pin();
+</I>&gt;<i> &gt;   void unpin(optional any value);
+</I>&gt;<i> &gt; };
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Rather than firing channeldropped we reject any promise returned from
+</I>&gt;<i> &gt; pin(). Once the caller receives an expected answer he/she calls unpin()
+</I>&gt;<i> &gt; which resolves the promise using whatever value is passed in and so the
+</I>&gt;<i> &gt; port becomes GCable again.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; When pin() is called again after the unpin call we create a new promise
+</I>&gt;<i> &gt; which again prevents the port from getting GCed.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; We could even expose a failAndUnpin function which rejects the promise.
+</I>&gt;<i> &gt; This could be useful to enable the page to implement timeouts etc.
+</I>&gt;<i>
+</I>&gt;<i> This seems like a rather elaborate API that's easy to misuse...
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> On Tue, 22 Oct 2013, Jonas Sicking wrote:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; As the API stands in the proposal above you could write code like:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; port.postMessage({ doStuff: &quot;using-this-data&quot; });
+</I>&gt;<i> &gt; port.onmessage = e =&gt; { port.unpin(e.data); };
+</I>&gt;<i> &gt; port.pin().then(d =&gt; doAsync(d)).then(...);
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Which is great.
+</I>&gt;<i>
+</I>&gt;<i> I dunno how great it is. It's not hugehly readable. I can't tell what the
+</I>&gt;<i> heck it's doing. :-)
+</I>&gt;<i>
+</I>&gt;<i> On Wed, 2 Oct 2013, Andrew Wilson wrote:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; I don't have any objections to adding some kind of close event to detect
+</I>&gt;<i> &gt; cases where an owner goes away
+</I>&gt;<i>
+</I>&gt;<i> I haven't done this. If this is something we do want to do, then I can
+</I>&gt;<i> spec it (the spec in fact used to do something like it), but it wasn't
+</I>&gt;<i> clear to me from this thread that this was the immediate need, and given
+</I>&gt;<i> the risks involved, I wanted to avoid scope creep.
+</I>&gt;<i>
+</I>&gt;<i> --
+</I>&gt;<i> Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+</I>&gt;<i> <A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+</I>&gt;<i> Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</I>&gt;<i>
+</I>
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="041739.html">[whatwg] onclose events for MessagePort
+</A></li>
+	<LI>Next message: <A HREF="084014.html">[whatwg] onclose events for MessagePort
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#84013">[ date ]</a>
+              <a href="thread.html#84013">[ thread ]</a>
+              <a href="subject.html#84013">[ subject ]</a>
+              <a href="author.html#84013">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

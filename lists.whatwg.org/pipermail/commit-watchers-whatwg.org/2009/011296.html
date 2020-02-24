@@ -1,0 +1,325 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [html5] r4427 - [giow] (1) Make the WebSocket API stop firing	'message' events as soon as close( [...]
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commit-watchers%40lists.whatwg.org?Subject=Re%3A%20%5Bhtml5%5D%20r4427%20-%20%5Bgiow%5D%20%281%29%20Make%20the%20WebSocket%20API%20stop%20firing%0A%09%27message%27%20events%20as%20soon%20as%20close%28%20%5B...%5D&In-Reply-To=%3C20091209184005.35FB6140A28%40hixie.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="011295.html">
+   <LINK REL="Next"  HREF="011297.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[html5] r4427 - [giow] (1) Make the WebSocket API stop firing	'message' events as soon as close( [...]</H1>
+<!--htdig_noindex-->
+    <B>whatwg at whatwg.org</B> 
+    <A HREF="mailto:commit-watchers%40lists.whatwg.org?Subject=Re%3A%20%5Bhtml5%5D%20r4427%20-%20%5Bgiow%5D%20%281%29%20Make%20the%20WebSocket%20API%20stop%20firing%0A%09%27message%27%20events%20as%20soon%20as%20close%28%20%5B...%5D&In-Reply-To=%3C20091209184005.35FB6140A28%40hixie.dreamhostps.com%3E"
+       TITLE="[html5] r4427 - [giow] (1) Make the WebSocket API stop firing	'message' events as soon as close( [...]">whatwg at whatwg.org
+       </A><BR>
+    <I>Wed Dec  9 10:40:05 PST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="011295.html">[html5] r4426 - [giow] (1) Change the WebSocket API to never change	readyState asynchronously.
+</A></li>
+        <LI>Next message: <A HREF="011297.html">[html5] r4428 - [e] (0) typo fix
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#11296">[ date ]</a>
+              <a href="thread.html#11296">[ thread ]</a>
+              <a href="subject.html#11296">[ subject ]</a>
+              <a href="author.html#11296">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Author: ianh
+Date: 2009-12-09 10:39:58 -0800 (Wed, 09 Dec 2009)
+New Revision: 4427
+
+Modified:
+   complete.html
+   source
+Log:
+[giow] (1) Make the WebSocket API stop firing 'message' events as soon as close() is called. Also make close() change readyState to CLOSED.
+
+Modified: complete.html
+===================================================================
+--- complete.html	2009-12-09 18:06:48 UTC (rev 4426)
++++ complete.html	2009-12-09 18:39:58 UTC (rev 4427)
+@@ -65446,11 +65446,13 @@
+ 
+   &lt;p&gt;The &lt;dfn id=dom-websocket-close title=dom-WebSocket-close&gt;&lt;code&gt;close()&lt;/code&gt;&lt;/dfn&gt;
+   method must &lt;a href=#close-the-web-socket-connection&gt;close the Web Socket connection&lt;/a&gt; or
+-  connection attempt, if any. If the connection is already closed, it
+-  must do nothing.&lt;/p&gt;
++  connection attempt, if any, and change the &lt;code title=dom-WebSocket-readyState&gt;&lt;a href=#dom-websocket-readystate&gt;readyState&lt;/a&gt;&lt;/code&gt; attribute's value
++  to &lt;code title=dom-WebSocket-CLOSED&gt;&lt;a href=#dom-websocket-closed&gt;CLOSED&lt;/a&gt;&lt;/code&gt; (2). If the
++  connection is already closed, it must do nothing.&lt;/p&gt;
+ 
+-  &lt;p class=note&gt;Closing the connection eventually causes a &lt;code title=event-close&gt;close&lt;/code&gt; event to be fired and the &lt;code title=dom-WebSocket-readyState&gt;&lt;a href=#dom-websocket-readystate&gt;readyState&lt;/a&gt;&lt;/code&gt; attribute's value
+-  to change, as &lt;a href=#closeWebSocket&gt;described below&lt;/a&gt;.&lt;/p&gt;
++  &lt;p class=note&gt;Closing the connection immediately causes a task to
++  be queued to fire a &lt;code title=event-close&gt;close&lt;/code&gt; event, as
++  &lt;a href=#closeWebSocket&gt;described below&lt;/a&gt;.&lt;/p&gt;
+ 
+   &lt;hr&gt;&lt;p&gt;The &lt;dfn id=dom-websocket-bufferedamount title=dom-WebSocket-bufferedAmount&gt;&lt;code&gt;bufferedAmount&lt;/code&gt;&lt;/dfn&gt;
+   attribute must return the number of bytes that have been queued but
+@@ -65469,34 +65471,30 @@
+   &lt;/table&gt;&lt;h4 id=feedback-from-the-protocol&gt;&lt;span class=secno&gt;10.3.3 &lt;/span&gt;Feedback from the protocol&lt;/h4&gt;
+ 
+   &lt;p&gt;When the &lt;i&gt;&lt;a href=#web-socket-connection-is-established&gt;Web Socket connection is established&lt;/a&gt;&lt;/i&gt;, the user
+-  agent must &lt;a href=#queue-a-task&gt;queue a task&lt;/a&gt; to run the following steps:&lt;/p&gt;
++  agent must &lt;a href=#queue-a-task&gt;queue a task&lt;/a&gt; to first change the &lt;code title=dom-WebSocket-readyState&gt;&lt;a href=#dom-websocket-readystate&gt;readyState&lt;/a&gt;&lt;/code&gt; attribute's value
++  to &lt;code title=dom-WebSocket-OPEN&gt;&lt;a href=#dom-websocket-open&gt;OPEN&lt;/a&gt;&lt;/code&gt; (1), and then
++  &lt;a href=#fire-a-simple-event&gt;fire a simple event&lt;/a&gt; named &lt;code title=event-open&gt;open&lt;/code&gt; at the &lt;code&gt;&lt;a href=#websocket&gt;WebSocket&lt;/a&gt;&lt;/code&gt;
++  object.&lt;/p&gt;
+ 
+-  &lt;ol&gt;&lt;li&gt;
+-
+-    &lt;p&gt;Change the &lt;code title=dom-WebSocket-readyState&gt;&lt;a href=#dom-websocket-readystate&gt;readyState&lt;/a&gt;&lt;/code&gt; attribute's value
+-    to &lt;code title=dom-WebSocket-OPEN&gt;&lt;a href=#dom-websocket-open&gt;OPEN&lt;/a&gt;&lt;/code&gt; (1).&lt;/p&gt;
+-
+-   &lt;/li&gt;
+-
+-   &lt;li&gt;
+-
+-    &lt;p&gt;&lt;a href=#fire-a-simple-event&gt;Fire a simple event&lt;/a&gt; named &lt;code title=event-open&gt;open&lt;/code&gt; at the &lt;code&gt;&lt;a href=#websocket&gt;WebSocket&lt;/a&gt;&lt;/code&gt;
+-    object.&lt;/p&gt;
+-
+-   &lt;/li&gt;
+-
+-  &lt;/ol&gt;&lt;hr&gt;&lt;p&gt;When &lt;i&gt;a Web Socket message has been received&lt;/i&gt; with text &lt;var title=&quot;&quot;&gt;data&lt;/var&gt;, the user agent must create an event that uses
++  &lt;p&gt;When &lt;i&gt;a Web Socket message has been received&lt;/i&gt; with text &lt;var title=&quot;&quot;&gt;data&lt;/var&gt;, the user agent must create an event that uses
+   the &lt;code&gt;&lt;a href=#messageevent&gt;MessageEvent&lt;/a&gt;&lt;/code&gt; interface, with the event name &lt;code title=event-message&gt;&lt;a href=#event-message&gt;message&lt;/a&gt;&lt;/code&gt;, which does not bubble, is not
+-  cancelable, has no default action, and whose &lt;code title=dom-MessageEvent-data&gt;&lt;a href=#dom-messageevent-data&gt;data&lt;/a&gt;&lt;/code&gt; attribute is set to &lt;var title=&quot;&quot;&gt;data&lt;/var&gt;, and &lt;a href=#queue-a-task&gt;queue a task&lt;/a&gt; to dispatch it at
+-  the &lt;code&gt;&lt;a href=#websocket&gt;WebSocket&lt;/a&gt;&lt;/code&gt; object.&lt;/p&gt;
+-
+-  &lt;hr&gt;&lt;p id=closeWebSocket&gt;When the &lt;i&gt;&lt;a href=#web-socket-connection-is-closed&gt;Web Socket connection is
+-  closed&lt;/a&gt;&lt;/i&gt;, must &lt;a href=#queue-a-task&gt;queue a task&lt;/a&gt; to change the &lt;code title=dom-WebSocket-readyState&gt;&lt;a href=#dom-websocket-readystate&gt;readyState&lt;/a&gt;&lt;/code&gt; attribute's value
+-  to &lt;code title=dom-WebSocket-CLOSED&gt;&lt;a href=#dom-websocket-closed&gt;CLOSED&lt;/a&gt;&lt;/code&gt; (2) and then
+-  &lt;a href=#fire-a-simple-event&gt;fire a simple event&lt;/a&gt; named &lt;code title=event-close&gt;close&lt;/code&gt; at the &lt;code&gt;&lt;a href=#websocket&gt;WebSocket&lt;/a&gt;&lt;/code&gt;
++  cancelable, has no default action, and whose &lt;code title=dom-MessageEvent-data&gt;&lt;a href=#dom-messageevent-data&gt;data&lt;/a&gt;&lt;/code&gt; attribute is set to &lt;var title=&quot;&quot;&gt;data&lt;/var&gt;, and &lt;a href=#queue-a-task&gt;queue a task&lt;/a&gt; to check to see
++  if the &lt;code title=dom-WebSocket-readyState&gt;&lt;a href=#dom-websocket-readystate&gt;readyState&lt;/a&gt;&lt;/code&gt;
++  attribute's value is &lt;code title=dom-WebSocket-OPEN&gt;&lt;a href=#dom-websocket-open&gt;OPEN&lt;/a&gt;&lt;/code&gt;
++  (1), and if so, dispatch the event at the &lt;code&gt;&lt;a href=#websocket&gt;WebSocket&lt;/a&gt;&lt;/code&gt;
+   object.&lt;/p&gt;
+ 
+-  &lt;hr&gt;&lt;p&gt;The &lt;a href=#task-source&gt;task source&lt;/a&gt; for all &lt;a href=#concept-task title=concept-task&gt;tasks&lt;/a&gt; &lt;a href=#queue-a-task title=&quot;queue a
++  &lt;p id=closeWebSocket&gt;When the &lt;i&gt;&lt;a href=#web-socket-connection-is-closed&gt;Web Socket connection is
++  closed&lt;/a&gt;&lt;/i&gt;, the user agent must &lt;a href=#queue-a-task&gt;queue a task&lt;/a&gt; to first
++  change the &lt;code title=dom-WebSocket-readyState&gt;&lt;a href=#dom-websocket-readystate&gt;readyState&lt;/a&gt;&lt;/code&gt;
++  attribute's value to &lt;code title=dom-WebSocket-CLOSED&gt;&lt;a href=#dom-websocket-closed&gt;CLOSED&lt;/a&gt;&lt;/code&gt; (2), and then &lt;a href=#fire-a-simple-event&gt;fire
++  a simple event&lt;/a&gt; named &lt;code title=event-close&gt;close&lt;/code&gt;
++  at the &lt;code&gt;&lt;a href=#websocket&gt;WebSocket&lt;/a&gt;&lt;/code&gt; object. (If the &lt;code title=dom-WebSocket-close&gt;&lt;a href=#dom-websocket-close&gt;close()&lt;/a&gt;&lt;/code&gt; method was called, the
++  code title=&quot;dom-WebSocket-readyState&quot;&gt;readyState attribute's
++  value will already be set to &lt;code title=dom-WebSocket-CLOSED&gt;&lt;a href=#dom-websocket-closed&gt;CLOSED&lt;/a&gt;&lt;/code&gt; (2) when this task
++  runs.)&lt;/p&gt;
++
++  &lt;p&gt;The &lt;a href=#task-source&gt;task source&lt;/a&gt; for all &lt;a href=#concept-task title=concept-task&gt;tasks&lt;/a&gt; &lt;a href=#queue-a-task title=&quot;queue a
+   task&quot;&gt;queued&lt;/a&gt; in this section is the &lt;dfn id=web-socket-task-source&gt;Web Socket task
+   source&lt;/dfn&gt;.&lt;/p&gt;
+ 
+@@ -66994,26 +66992,18 @@
+ 
+   &lt;p&gt;To &lt;dfn id=close-the-web-socket-connection&gt;close the Web Socket connection&lt;/dfn&gt;, either the user
+   agent or the server closes the TCP/IP connection. There is no
+-  closing handshake. Whether the user agent or the server closes the
+-  connection, it is said that the &lt;dfn id=web-socket-connection-is-closed&gt;Web Socket connection is
++  closing handshake. When a user agent notices that the server has
++  closed its connection, it must immediately close its side of the
++  connection also. Whether the user agent or the server closes the
++  connection first, it is said that the &lt;dfn id=web-socket-connection-is-closed&gt;Web Socket connection is
+   closed&lt;/dfn&gt;.&lt;/p&gt;
+ 
+-  &lt;p&gt;When a user agent is to &lt;a href=#close-the-web-socket-connection&gt;close the Web Socket
+-  connection&lt;/a&gt;, it must drop all subsequent data from the server
+-  and must act as if the server had immediately closed its side of the
+-  connection.&lt;/p&gt;
+-
+-  &lt;p&gt;When a user agent notices that the &lt;a href=#web-socket-connection-is-closed&gt;Web Socket connection is
+-  closed&lt;/a&gt;, it must immediately close its side of the
+-  connection.&lt;/p&gt;
+-
+   &lt;p&gt;Servers may &lt;a href=#close-the-web-socket-connection&gt;close the Web Socket connection&lt;/a&gt; whenever
+-  desired.&lt;/p&gt;
+-
+-  &lt;p&gt;User agents should not &lt;a href=#close-the-web-socket-connection&gt;close the Web Socket
++  desired. User agents should not &lt;a href=#close-the-web-socket-connection&gt;close the Web Socket
+   connection&lt;/a&gt; arbitrarily.&lt;/p&gt;
+ 
+ 
++
+   &lt;h5 id=security-considerations&gt;&lt;span class=secno&gt;10.3.4.6 &lt;/span&gt;Security considerations&lt;/h5&gt;
+ 
+   &lt;p&gt;While this protocol is intended to be used by scripts in Web
+
+Modified: source
+===================================================================
+--- source	2009-12-09 18:06:48 UTC (rev 4426)
++++ source	2009-12-09 18:39:58 UTC (rev 4427)
+@@ -74635,17 +74635,17 @@
+   (e.g. because the user agent just had a buffer overflow and failed
+   to send the data).&lt;/p&gt;
+ 
+-  &lt;p&gt;The &lt;dfn
+-  title=&quot;dom-WebSocket-close&quot;&gt;&lt;code&gt;close()&lt;/code&gt;&lt;/dfn&gt;
++  &lt;p&gt;The &lt;dfn title=&quot;dom-WebSocket-close&quot;&gt;&lt;code&gt;close()&lt;/code&gt;&lt;/dfn&gt;
+   method must &lt;span&gt;close the Web Socket connection&lt;/span&gt; or
+-  connection attempt, if any. If the connection is already closed, it
+-  must do nothing.&lt;/p&gt;
+-
+-  &lt;p class=&quot;note&quot;&gt;Closing the connection eventually causes a &lt;code
+-  title=&quot;event-close&quot;&gt;close&lt;/code&gt; event to be fired and the &lt;code
++  connection attempt, if any, and change the &lt;code
+   title=&quot;dom-WebSocket-readyState&quot;&gt;readyState&lt;/code&gt; attribute's value
+-  to change, as &lt;a href=&quot;#closeWebSocket&quot;&gt;described below&lt;/a&gt;.&lt;/p&gt;
++  to &lt;code title=&quot;dom-WebSocket-CLOSED&quot;&gt;CLOSED&lt;/code&gt; (2). If the
++  connection is already closed, it must do nothing.&lt;/p&gt;
+ 
++  &lt;p class=&quot;note&quot;&gt;Closing the connection immediately causes a task to
++  be queued to fire a &lt;code title=&quot;event-close&quot;&gt;close&lt;/code&gt; event, as
++  &lt;a href=&quot;#closeWebSocket&quot;&gt;described below&lt;/a&gt;.&lt;/p&gt;
++
+   &lt;hr&gt;
+ 
+   &lt;p&gt;The &lt;dfn
+@@ -74676,51 +74676,38 @@
+   &lt;h4&gt;Feedback from the protocol&lt;/h4&gt;
+ 
+   &lt;p&gt;When the &lt;i&gt;Web Socket connection is established&lt;/i&gt;, the user
+-  agent must &lt;span&gt;queue a task&lt;/span&gt; to run the following steps:&lt;/p&gt;
++  agent must &lt;span&gt;queue a task&lt;/span&gt; to first change the &lt;code
++  title=&quot;dom-WebSocket-readyState&quot;&gt;readyState&lt;/code&gt; attribute's value
++  to &lt;code title=&quot;dom-WebSocket-OPEN&quot;&gt;OPEN&lt;/code&gt; (1), and then
++  &lt;span&gt;fire a simple event&lt;/span&gt; named &lt;code
++  title=&quot;event-open&quot;&gt;open&lt;/code&gt; at the &lt;code&gt;WebSocket&lt;/code&gt;
++  object.&lt;/p&gt;
+ 
+-  &lt;ol&gt;
+-
+-   &lt;li&gt;
+-
+-    &lt;p&gt;Change the &lt;code
+-    title=&quot;dom-WebSocket-readyState&quot;&gt;readyState&lt;/code&gt; attribute's value
+-    to &lt;code title=&quot;dom-WebSocket-OPEN&quot;&gt;OPEN&lt;/code&gt; (1).&lt;/p&gt;
+-
+-   &lt;/li&gt;
+-
+-   &lt;li&gt;
+-
+-    &lt;p&gt;&lt;span&gt;Fire a simple event&lt;/span&gt; named &lt;code
+-    title=&quot;event-open&quot;&gt;open&lt;/code&gt; at the &lt;code&gt;WebSocket&lt;/code&gt;
+-    object.&lt;/p&gt;
+-
+-   &lt;/li&gt;
+-
+-  &lt;/ol&gt;
+-
+-  &lt;hr&gt;
+-
+   &lt;p&gt;When &lt;i&gt;a Web Socket message has been received&lt;/i&gt; with text &lt;var
+   title=&quot;&quot;&gt;data&lt;/var&gt;, the user agent must create an event that uses
+   the &lt;code&gt;MessageEvent&lt;/code&gt; interface, with the event name &lt;code
+   title=&quot;event-message&quot;&gt;message&lt;/code&gt;, which does not bubble, is not
+   cancelable, has no default action, and whose &lt;code
+   title=&quot;dom-MessageEvent-data&quot;&gt;data&lt;/code&gt; attribute is set to &lt;var
+-  title=&quot;&quot;&gt;data&lt;/var&gt;, and &lt;span&gt;queue a task&lt;/span&gt; to dispatch it at
+-  the &lt;code&gt;WebSocket&lt;/code&gt; object.&lt;/p&gt;
++  title=&quot;&quot;&gt;data&lt;/var&gt;, and &lt;span&gt;queue a task&lt;/span&gt; to check to see
++  if the &lt;code title=&quot;dom-WebSocket-readyState&quot;&gt;readyState&lt;/code&gt;
++  attribute's value is &lt;code title=&quot;dom-WebSocket-OPEN&quot;&gt;OPEN&lt;/code&gt;
++  (1), and if so, dispatch the event at the &lt;code&gt;WebSocket&lt;/code&gt;
++  object.&lt;/p&gt;
+ 
+-  &lt;hr&gt;
+-
+   &lt;p id=&quot;closeWebSocket&quot;&gt;When the &lt;i&gt;Web Socket connection is
+-  closed&lt;/i&gt;, must &lt;span&gt;queue a task&lt;/span&gt; to change the &lt;code
+-  title=&quot;dom-WebSocket-readyState&quot;&gt;readyState&lt;/code&gt; attribute's value
+-  to &lt;code title=&quot;dom-WebSocket-CLOSED&quot;&gt;CLOSED&lt;/code&gt; (2) and then
+-  &lt;span&gt;fire a simple event&lt;/span&gt; named &lt;code
+-  title=&quot;event-close&quot;&gt;close&lt;/code&gt; at the &lt;code&gt;WebSocket&lt;/code&gt;
+-  object.&lt;/p&gt;
++  closed&lt;/i&gt;, the user agent must &lt;span&gt;queue a task&lt;/span&gt; to first
++  change the &lt;code title=&quot;dom-WebSocket-readyState&quot;&gt;readyState&lt;/code&gt;
++  attribute's value to &lt;code
++  title=&quot;dom-WebSocket-CLOSED&quot;&gt;CLOSED&lt;/code&gt; (2), and then &lt;span&gt;fire
++  a simple event&lt;/span&gt; named &lt;code title=&quot;event-close&quot;&gt;close&lt;/code&gt;
++  at the &lt;code&gt;WebSocket&lt;/code&gt; object. (If the &lt;code
++  title=&quot;dom-WebSocket-close&quot;&gt;close()&lt;/code&gt; method was called, the
++  code title=&quot;dom-WebSocket-readyState&quot;&gt;readyState&lt;/code&gt; attribute's
++  value will already be set to &lt;code
++  title=&quot;dom-WebSocket-CLOSED&quot;&gt;CLOSED&lt;/code&gt; (2) when this task
++  runs.)&lt;/p&gt;
+ 
+-  &lt;hr&gt;
+-
+   &lt;p&gt;The &lt;span&gt;task source&lt;/span&gt; for all &lt;span
+   title=&quot;concept-task&quot;&gt;tasks&lt;/span&gt; &lt;span title=&quot;queue a
+   task&quot;&gt;queued&lt;/span&gt; in this section is the &lt;dfn&gt;Web Socket task
+@@ -76425,26 +76412,18 @@
+ 
+   &lt;p&gt;To &lt;dfn&gt;close the Web Socket connection&lt;/dfn&gt;, either the user
+   agent or the server closes the TCP/IP connection. There is no
+-  closing handshake. Whether the user agent or the server closes the
+-  connection, it is said that the &lt;dfn&gt;Web Socket connection is
++  closing handshake. When a user agent notices that the server has
++  closed its connection, it must immediately close its side of the
++  connection also. Whether the user agent or the server closes the
++  connection first, it is said that the &lt;dfn&gt;Web Socket connection is
+   closed&lt;/dfn&gt;.&lt;/p&gt;
+ 
+-  &lt;p&gt;When a user agent is to &lt;span&gt;close the Web Socket
+-  connection&lt;/span&gt;, it must drop all subsequent data from the server
+-  and must act as if the server had immediately closed its side of the
+-  connection.&lt;/p&gt;
+-
+-  &lt;p&gt;When a user agent notices that the &lt;span&gt;Web Socket connection is
+-  closed&lt;/span&gt;, it must immediately close its side of the
+-  connection.&lt;/p&gt;
+-
+   &lt;p&gt;Servers may &lt;span&gt;close the Web Socket connection&lt;/span&gt; whenever
+-  desired.&lt;/p&gt;
+-
+-  &lt;p&gt;User agents should not &lt;span&gt;close the Web Socket
++  desired. User agents should not &lt;span&gt;close the Web Socket
+   connection&lt;/span&gt; arbitrarily.&lt;/p&gt;
+ 
+ 
++
+   &lt;h5&gt;Security considerations&lt;/h5&gt;
+ 
+   &lt;p&gt;While this protocol is intended to be used by scripts in Web
+
+
+</PRE>
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="011295.html">[html5] r4426 - [giow] (1) Change the WebSocket API to never change	readyState asynchronously.
+</A></li>
+	<LI>Next message: <A HREF="011297.html">[html5] r4428 - [e] (0) typo fix
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#11296">[ date ]</a>
+              <a href="thread.html#11296">[ thread ]</a>
+              <a href="subject.html#11296">[ subject ]</a>
+              <a href="author.html#11296">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/commit-watchers-whatwg.org">More information about the Commit-Watchers
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

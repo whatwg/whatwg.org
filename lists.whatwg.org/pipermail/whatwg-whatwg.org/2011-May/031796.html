@@ -1,0 +1,170 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Proposal for separating script downloads and execution
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Proposal%20for%20separating%20script%20downloads%20and%20execution&In-Reply-To=%3CBANLkTikMZE6_R_ft%3DLO3fLe__MWTJNQBXw%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="031794.html">
+   <LINK REL="Next"  HREF="031797.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Proposal for separating script downloads and execution</H1>
+<!--htdig_noindex-->
+    <B>Aryeh Gregor</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Proposal%20for%20separating%20script%20downloads%20and%20execution&In-Reply-To=%3CBANLkTikMZE6_R_ft%3DLO3fLe__MWTJNQBXw%40mail.gmail.com%3E"
+       TITLE="[whatwg] Proposal for separating script downloads and execution">Simetrical+w3c at gmail.com
+       </A><BR>
+    <I>Wed May 25 17:05:40 PDT 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="031794.html">[whatwg] Proposal for separating script downloads and execution
+</A></li>
+        <LI>Next message: <A HREF="031797.html">[whatwg] Proposal for separating script downloads and execution
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#31796">[ date ]</a>
+              <a href="thread.html#31796">[ thread ]</a>
+              <a href="subject.html#31796">[ subject ]</a>
+              <a href="author.html#31796">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Tue, May 24, 2011 at 12:34 PM, Nicholas Zakas &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">nzakas at yahoo-inc.com</A>&gt; wrote:
+&gt;<i> Moving parsing and compilation to a background thread solves part of the problem, the problem where doing so freezes the UI currently. It doesn't solve what I consider to be the important part of the problem, and that is the inability to have a JavaScript resource downloaded but not applied to the page. The best next experience can only be achieved when the resources are ready and then applied at the right moment.
+</I>
+Consider this hypothetical scenario: when you add a &lt;script async&gt; to
+the DOM, browsers all download it and parse it in the background,
+without blocking the main thread.  Then they execute it on the main
+thread, but the execution can take negligible time if you write it as
+a function that does nothing until called.  Would you need any further
+features if this hypothetical scenario were real life?  If so, what
+features, and why?  If not, the specs already say everything they need
+to, and you should take the issue up with browser implementers.
+
+On Tue, May 24, 2011 at 7:12 PM, Steve Souders &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">steve at souders.org</A>&gt; wrote:
+&gt;<i> In many (all?) cases below the term &quot;execution&quot; is meant to include parsing
+</I>&gt;<i> and compilation. I know that's what Nicholas and Kyle have in mind, and is
+</I>&gt;<i> the motivation behind Gmail's comment hack and my ControlJS library.
+</I>
+There's a big conceptual difference between parsing the script and
+executing it.  We need to be careful not to conflate the two, even if
+browsers don't *currently* separate them.
+
+&gt;<i> If browsers processed (parsed &amp; compiled) scripts in a background thread it
+</I>&gt;<i> would mitigate the problem, but not solve it. Suppose I have 100K of JS I
+</I>&gt;<i> need right now to generate the DOM for the initial page, and I have another
+</I>&gt;<i> 500K of JS that's only needed if the user clicks on FeatureX. Assuming
+</I>&gt;<i> there's only one background thread, I want to prioritize the first 100K of
+</I>&gt;<i> JS on that thread, and not have it blocked by the unnecessary processing of
+</I>&gt;<i> the second script.
+</I>
+If browsers parsed async scripts on a background thread, it would be
+natural to assign the thread a low OS priority so that it doesn't
+interfere with operation on the main thread, which would necessarily
+include synchronous scripts.  Are you worried that even low-priority
+background parsing would significantly hurt performance?
+
+I did a test on my home Linux machine, which has two cores.  I ran
+four copies of &quot;python -c 'while True: pass'&quot;, two with nice 19 and
+two at regular priority.  On top, I observed that the two copies with
+nice 19 never used more than 2% CPU each, usually 1%.  The ones with
+regular priority used 80-100% CPU, and it would have been higher
+except that other processes were running.  And incidentally, I noticed
+no UI lag in any of the other programs I had open (browser, IRC
+clients, terminals) -- even the regular-priority processes using 100%
+CPU didn't interfere with the UI.
+
+OSes have got CPU prioritization down pretty well these days.  I don't
+think we want to add features to work around bad OS thread scheduling
+unless there's very specific and compelling evidence that it's an
+issue.
+
+&gt;<i> Also, I only want to do the processing on the second
+</I>&gt;<i> script if the user activates the feature. This is important on mobile now to
+</I>&gt;<i> reduce power consumption but is also important on desktops as CPUs become
+</I>&gt;<i> more power sensitive and JS payloads grow.
+</I>
+How much power would it take, in absolute terms, to parse and compile
+even 1 MB of script?  Surely not enough to be noticeable if you're
+only doing it a handful of times per day?  We aren't talking about a
+scenario where people are downloading a megabyte of script every
+minute or anything.  This would only be on large, complicated sites,
+and if they're even slightly performance-optimized, it will only be
+the first time you visit between cache clearing.  That shouldn't be
+more than once or twice a day per site in the worst case, even with
+small cache or aggressive cache-clearing.  I'd be very surprised if
+this were a noticeable power drain, but I'd be interested to hear any
+data you might have.
+
+2011/5/25 Nicholas Zakas &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">nzakas at yahoo-inc.com</A>&gt;:
+&gt;<i> I already explained that in my previous email. Parsing and compilation on a background thread removes some of the problem but not all of it. Ultimately, even if the script is just a function waiting to be called, the browser still executes it in a blocking fashion after parsing and compilation. It's the execution that is troublesome part because it interferes with the UI. The fact that the script isn't doing much is helpful, but once again, there will be a non-zero interrupt that can affect user experience.
+</I>
+What do you mean by &quot;execution&quot; here?  If the script is already
+compiled, and you write it so that all it does is define a function,
+then executing it should not take any measurable amount of time
+(&lt;1ms).  Currently this might not be observable, since if I understand
+correctly, browsers don't separate compilation from execution.  But
+with &lt;script async&gt; that's compiled on a background thread and
+executed on the main thread, the execution itself should not be an
+issue if all it does is expose a function.  Am I misunderstanding
+something?
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="031794.html">[whatwg] Proposal for separating script downloads and execution
+</A></li>
+	<LI>Next message: <A HREF="031797.html">[whatwg] Proposal for separating script downloads and execution
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#31796">[ date ]</a>
+              <a href="thread.html#31796">[ thread ]</a>
+              <a href="subject.html#31796">[ subject ]</a>
+              <a href="author.html#31796">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

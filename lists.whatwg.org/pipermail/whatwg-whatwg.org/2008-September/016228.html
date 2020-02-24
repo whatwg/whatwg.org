@@ -1,0 +1,161 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] workers
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20workers&In-Reply-To=%3C278fd46c0809121450t8e8fe31x2037476d0b7deeb2%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="058527.html">
+   <LINK REL="Next"  HREF="058503.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] workers</H1>
+<!--htdig_noindex-->
+    <B>Aaron Boodman</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20workers&In-Reply-To=%3C278fd46c0809121450t8e8fe31x2037476d0b7deeb2%40mail.gmail.com%3E"
+       TITLE="[whatwg] workers">aa at google.com
+       </A><BR>
+    <I>Fri Sep 12 14:50:53 PDT 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="058527.html">[whatwg] HTML 5 will be ready in 2022
+</A></li>
+        <LI>Next message: <A HREF="058503.html">[whatwg] workers
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16228">[ date ]</a>
+              <a href="thread.html#16228">[ thread ]</a>
+              <a href="subject.html#16228">[ subject ]</a>
+              <a href="author.html#16228">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>I've reviewed and digested the latest workers update
+(<A HREF="http://lists.whatwg.org/pipermail/whatwg-whatwg.org/2008-August/015853.html">http://lists.whatwg.org/pipermail/whatwg-whatwg.org/2008-August/015853.html</A>).
+I think we're converging :).
+
+There are still a few improvements and simplifications I'd like to
+see, however. With these (relatively minor) changes, I'd be really
+happy with what we have.
+
+* I think it was an interesting idea to have separate interfaces for
+Dedicated and Shared workers, but in the end I don't think there's
+enough difference between the two cases to justify it. I'd rather have
+the total API surface be smaller, and generalize concepts as much as
+possible. So...
+  -  We should remove all the sendMessage/onmessage stuff from
+DedicatedWorker, and just use the port convenience property.
+  - We should move onconnect() up into WorkerGlobalScope
+
+* Similarly, I'd like to rename startConversation() to connect(). I
+think this aligns nicely with the onconnect event (connect() should
+also trigger a 'connect' event inside the worker).
+
+* I think it would be a nice convenience to have an onmessage event
+inside workers that receives all messages sent to any port in the
+worker.
+
+* We have discussed having onerror expose runtime script errors that
+happened inside the worker. I don't think this makes sense for shared
+workers, so I propose that it be spec'd to only expose load errors.
+Script errors can still be exposed via a global onerror property
+inside the worker, and they can still be reported to the error
+console. I don't think having script errors that happened inside a
+worker be exposed outside it is that useful (load errors are useful,
+though).
+
+* I think onclose makes sense on Port instead of on Worker. The other
+side of a Port can close out from under you, even if it is a window.
+
+* Ojan brought this up earlier, but I don't think there should be
+anything added to the global scope of workers except a single 'self'
+object, which implements all the APIs that are available there.
+
+* I still don't buy the utility of passing around MessagePorts, so I
+suggest we table that for v2. It can always be added back later.
+
+
+Here is an IDL sketch of what the API would look like after these changes...
+
+OUTSIDE
+
+interface MessagePort {
+  EventListener onmessage;
+  EventListener onclose; // if the other side goes away
+  void sendMessage(in DOMString message);
+}
+
+interface Worker {
+  EventListener onload;
+  Port port; // convenience -- corresponds to the port available on
+the created worker's WorkerContext object
+  Port connect(); // the method previously known as &quot;startConversation&quot;
+}
+
+interface DedicatedWorker : Worker {
+  void close();
+}
+
+INSIDE
+
+// this is all exposed via &quot;self&quot;
+interface WorkerContext {
+  EventListener onclose;
+  EventListener onmessage; // convenience -- receives all messages
+sent to this worker, from any port
+  // fired when the worker is first created, and for each additional
+new SharedWorker() or connect() call
+  EventListener onconnect;
+
+  readonly String name;
+  readonly MessagePort port; // convenience -- corresponds to the port
+available on created Worker object
+
+  void close();
+
+  // + all the utils stuffs
+}
+
+CREATING WORKERS
+
+var worker = new Worker(url);
+var sharedWorker = new SharedWorker(name, url);
+
+
+Let me know what you think!
+
+- a
+
+</PRE>
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="058527.html">[whatwg] HTML 5 will be ready in 2022
+</A></li>
+	<LI>Next message: <A HREF="058503.html">[whatwg] workers
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#16228">[ date ]</a>
+              <a href="thread.html#16228">[ thread ]</a>
+              <a href="subject.html#16228">[ subject ]</a>
+              <a href="author.html#16228">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

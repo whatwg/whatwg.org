@@ -1,0 +1,623 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Worker feedback
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Worker%20feedback&In-Reply-To=%3CPine.LNX.4.62.0903252223490.25082%40hixie.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="019038.html">
+   <LINK REL="Next"  HREF="019066.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Worker feedback</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Worker%20feedback&In-Reply-To=%3CPine.LNX.4.62.0903252223490.25082%40hixie.dreamhostps.com%3E"
+       TITLE="[whatwg] Worker feedback">ian at hixie.ch
+       </A><BR>
+    <I>Fri Mar 27 18:23:57 PDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="019038.html">[whatwg] AppCache and SharedWorkers?
+</A></li>
+        <LI>Next message: <A HREF="019066.html">[whatwg] Worker feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19061">[ date ]</a>
+              <a href="thread.html#19061">[ thread ]</a>
+              <a href="subject.html#19061">[ subject ]</a>
+              <a href="author.html#19061">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Thu, 5 Mar 2009, Jonas Sicking wrote:
+&gt;<i> 
+</I>&gt;<i> Allowing cookie to be set would unfortunately create a synchronous 
+</I>&gt;<i> communication channel between the worker and the main window. This is 
+</I>&gt;<i> something that we need to avoid to prevent users from having to deal 
+</I>&gt;<i> with locking and other thread related issues.
+</I>&gt;<i> 
+</I>&gt;<i> For what it's worth, this is a problem that exists with the localStorage 
+</I>&gt;<i> API that is also exposed in current workers draft. Something that also 
+</I>&gt;<i> needs to be fixed.
+</I>
+I have continued to not include cookies in, and have removed localStorage 
+from, the workers API.
+
+
+&gt;<i> It seems like it should fine to allow reading cookies in dedicated 
+</I>&gt;<i> workers though.
+</I>
+Wouldn't this run into the same problems?
+
+
+On Thu, 19 Mar 2009, Drew Wilson wrote:
+&gt;<i>
+</I>&gt;<i> The WebWorkers spec states:
+</I>&gt;<i> &quot;DedicatedWorkerGlobalScope objects act as if they had an implicit
+</I>&gt;<i> MessagePort associated with them&quot;
+</I>&gt;<i> 
+</I>&gt;<i> MessagePorts will queue up events until the owner either explicitly 
+</I>&gt;<i> invokes start() on them, or sets the onmessage attribute. Is the intent 
+</I>&gt;<i> that dedicated workers also implement this same functionality for their 
+</I>&gt;<i> implicit port (i.e. if I create a dedicated worker, and immediately post 
+</I>&gt;<i> a message to it, but the worker doesn't actually set an onmessage 
+</I>&gt;<i> handler, should that event be queued until such a time as the worker 
+</I>&gt;<i> does set an onmessage handler)?
+</I>
+No (because we don't want to expose the start() method on workers). I've 
+made this clear by expliciting saying when the port is opened.
+
+
+&gt;<i> There's a similar issue with cross-window postMessage(). I've been 
+</I>&gt;<i> playing around with the current implementation in Chrome/WebKit, and 
+</I>&gt;<i> code like this:
+</I>&gt;<i> 
+</I>&gt;<i> function newWindow() {
+</I>&gt;<i>   var childWin = window.open();
+</I>&gt;<i>   childWin.document.location = &quot;<A HREF="http://example.com/child.html&quot;;">http://example.com/child.html&quot;;</A>
+</I>&gt;<i> 
+</I>&gt;<i>   childWin.postMessage(&quot;hi new window&quot;, &quot;*&quot;);
+</I>&gt;<i> 
+</I>&gt;<i> }
+</I>&gt;<i> 
+</I>&gt;<i> ...does not result in the message handler in the new window being 
+</I>&gt;<i> called, because the window isn't loaded at the time the message is 
+</I>&gt;<i> posted (it works just fine after the new window has loaded/executed its 
+</I>&gt;<i> script). I'm curious whether this is just a bug in the early 
+</I>&gt;<i> implementation, or if this is indeed the expected behavior -- if so, 
+</I>&gt;<i> then it makes it difficult to do cross-domain messaging as you have this 
+</I>&gt;<i> race condition on startup.
+</I>
+This is the expected behaviour, but there is no race condition; navigation 
+happens as part of the event loop, and thus will always happen after the 
+script has finished. (Specifically, the &quot;update the session history with 
+the new page&quot; algorithm always gets run as a task.)
+
+
+On Thu, 19 Mar 2009, Dmitry Titov wrote:
+&gt;<i> On Tue, Mar 17, 2009 at 11:57 AM, Dmitry Titov &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">dimich at chromium.org</A>&gt; wrote:
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; I can't find place in the spec which would define the text encoding 
+</I>&gt;<i> &gt; used to decode the script of the Web Worker.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; For example, section 4.3.1, in &quot;runnning a script&quot;, step 2, defines 
+</I>&gt;<i> &gt; that for the &lt;script&gt; element - the encoding is 'inherited' from 
+</I>&gt;<i> &gt; Document and can be overridden by 'charset' attribute or HTTP header.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; But for Workers, there is no specific instructions. I would assume 
+</I>&gt;<i> &gt; (probably incorrectly) that the Web Workers behave like &lt;script&gt; 
+</I>&gt;<i> &gt; element in this regard - so the encoding shoul dbe inherited from the 
+</I>&gt;<i> &gt; 'parent Document', but this feels contradicting the specific 
+</I>&gt;<i> &gt; requirements fro URLs in Workers to be encoded using UTF-8. It also 
+</I>&gt;<i> &gt; feels the spirit of the Workers spec is leaning to UTF-8 everywhere :-)
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; So in the absence of HTTP header, what text encoding should be used to 
+</I>&gt;<i> &gt; decode the Worker scripts, including nested Workers and 
+</I>&gt;<i> &gt; importScripts(...) targets?
+</I>&gt;<i>
+</I>&gt;<i> FYI: per IRC talk, the answer is the scripts should be using UTF-8 in 
+</I>&gt;<i> the absence of explicit override. Spec likely will reflect this more 
+</I>&gt;<i> cleanly at some point.
+</I>
+This is now defined here:
+
+   <A HREF="http://www.whatwg.org/specs/web-workers/current-work/#decode-a-script-resource">http://www.whatwg.org/specs/web-workers/current-work/#decode-a-script-resource</A>
+
+
+On Thu, 19 Mar 2009, Anne van Kesteren wrote:
+&gt;<i> 
+</I>&gt;<i> Can we get away with not following Content-Type at all? As we do for 
+</I>&gt;<i> text/event-stream and text/cache-manifest. Both which simply require 
+</I>&gt;<i> UTF-8.
+</I>
+text/javascript is defined to take a charset parameter.
+
+
+On Thu, 19 Mar 2009, Jonas Sicking wrote:
+&gt;<i>
+</I>&gt;<i> The problem is if we want to allow people to use already existing 
+</I>&gt;<i> scripts then they are likely often not in UTF-8.
+</I>&gt;<i> 
+</I>&gt;<i> Most scripts will probably not work out-of-the box anyway since there is 
+</I>&gt;<i> no access to DOM. But purely computational libraries should work.
+</I>
+It does seem reasonable to support non-UTF-8 scripts, given the legacy of 
+existing scripts.
+
+
+On Thu, 19 Mar 2009, Anne van Kesteren wrote:
+&gt;<i> 
+</I>&gt;<i> Would such libraries have a lot of non-UTF-8 characters? Also, it's not 
+</I>&gt;<i> that hard to encode something as UTF-8 these days and the reduced 
+</I>&gt;<i> complexity would be a nice benefit.
+</I>
+We already have the complexity for scripts, so I don't think it's a huge 
+deal. The spec does the same as for &lt;script src&gt; (except for not having an 
+inline explicit override like charset=&quot;&quot;).
+
+
+On Fri, 20 Mar 2009, Alexey Proskuryakov wrote:
+&gt;<i> 20.03.2009, &#215; 1:43, Anne van Kesteren &#206;&#193;&#208;&#201;&#211;&#193;&#204;(&#193;):
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; Can we get away with not following Content-Type at all? As we do for 
+</I>&gt;<i> &gt; text/event-stream and text/cache-manifest. Both which simply require 
+</I>&gt;<i> &gt; UTF-8.
+</I>&gt;<i> 
+</I>&gt;<i> Good point - but to the contrary, I think that charset from Content-Type 
+</I>&gt;<i> should be always honored, adding special cases is an unnecessary 
+</I>&gt;<i> complication.
+</I>&gt;<i> 
+</I>&gt;<i> Formally, a proxy can re-encode any text/* resource and expect the 
+</I>&gt;<i> client to honor Content-Type charset over &lt;meta&gt; and built-in 
+</I>&gt;<i> preconceptions, although I think that such proxies are extremely rare in 
+</I>&gt;<i> this millennium.
+</I>
+I think, given text/css, text/html, and text/xml all have character 
+encoding declarations inline, transcoding is not going to work in 
+practice. I think the better solution would be to remove the rules that 
+make text/* an issue in the standards world (it's not an issue in the 
+&quot;real&quot; world).
+
+For new formats, though, I think just supporting UTF-8 is a big win.
+
+
+On Fri, 20 Mar 2009, Julian Reschke wrote:
+&gt;<i> 
+</I>&gt;<i> An easy way to avoid this issue is not to use a text/* content type.
+</I>
+I think the abuse of application/* for text types has been widly shown to 
+be a mistake. The &quot;issue&quot; doesn't, in practice, exist.
+
+
+On Fri, 20 Mar 2009, Drew Wilson wrote:
+&gt;<i> 
+</I>&gt;<i> Good point. Cookie-based auth is not a great use case, because as you 
+</I>&gt;<i> point out, you could just do this by passing credentials to the server 
+</I>&gt;<i> via an XHR request and have it set your cookies. I guess the motivation 
+</I>&gt;<i> for allowing cookies to be set from workers is the same as the 
+</I>&gt;<i> motivation for allowing web-page script to set cookies - perhaps this 
+</I>&gt;<i> motivation is deprecated now that we have localStorage but even 
+</I>&gt;<i> localStorage doesn't seem to have the nice cross-sub-domain sharing that 
+</I>&gt;<i> cookies allow.
+</I>
+I figured the use case for setting cookies was to track user preferences 
+that the server might need to know about. I'm not sure that makes sense in 
+a worker.
+
+Another use case would be keeping track of what has been done so far, for 
+this I guess it would make sense to have a localStorage API for shared 
+workers (scoped to their name). I haven't added this yet, though.
+
+
+&gt;<i> &gt; &gt; Gears had an explicit permissions variable applications could check, 
+</I>&gt;<i> &gt; &gt; which seems valuable - do we do anything similar elsewhere in HTML5 
+</I>&gt;<i> &gt; &gt; that we could use as a model here?
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; HTML5 so far has avoided anything that requires explicit permission 
+</I>&gt;<i> &gt; grants, because they are generally a bad idea from a security 
+</I>&gt;<i> &gt; perspective (users will grant any permissions the system asks them 
+</I>&gt;<i> &gt; for).
+</I>&gt;<i> 
+</I>&gt;<i> The Database spec has a strong implication that applications can request 
+</I>&gt;<i> a larger DB quota, which will result in the user being prompted for 
+</I>&gt;<i> permission either immediately, or at the point that the default quota is 
+</I>&gt;<i> exceeded. So it's not without precedent, I think. Or maybe I'm just 
+</I>&gt;<i> misreading this:
+</I>&gt;<i> 
+</I>&gt;<i> User agents are expected to use the display name and the estimated 
+</I>&gt;<i> database size to optimize the user experience. For example, a user agent 
+</I>&gt;<i> could use the estimated size to suggest an initial quota to the user. 
+</I>&gt;<i> This allows a site that is aware that it will try to use hundreds of 
+</I>&gt;<i> megabytes to declare this upfront, instead of the user agent prompting 
+</I>&gt;<i> the user for permission to increase the quota every five megabytes.
+</I>
+There are many ways to expose this, e.g. asynchronously as a drop-down 
+infobar, or as a pie chart showing the disk usage that the user can click 
+on to increase the allocaton whenever they want, etc.
+
+
+&gt;<i> To be clear, are you saying that our philosophy is to leave any 
+</I>&gt;<i> permissions granting up to the individual user agent (i.e. not described 
+</I>&gt;<i> in the spec)? Or that we're trying to avoid specifying functionality 
+</I>&gt;<i> that might be invasive enough to require permissions?
+</I>
+Both.
+
+
+&gt;<i> In fact, I'd go further - I don't think we should even *have* names for
+</I>&gt;<i> persistent workers (the use case for having names is &quot;what if I want to run
+</I>&gt;<i> the same worker multiple times without having to host multiple scripts&quot;,
+</I>&gt;<i> which I don't think really applies to persistent workers).
+</I>
+Makes sense.
+
+
+&gt;<i> Also, one of the things I'd like to experiment with in my implementation 
+</I>&gt;<i> is allowing cross-domain access to workers (this is required if you want 
+</I>&gt;<i> workers to be able to communicate/share resources across domains, since 
+</I>&gt;<i> workers don't have access to any of the cross-domain functionality that 
+</I>&gt;<i> window-based script has) - getting rid of the &quot;name&quot; and always having 
+</I>&gt;<i> persistent workers identified by their script url helps enable this, and 
+</I>&gt;<i> avoids some security issues, such as the ones described in this old 
+</I>&gt;<i> Gears proposal I came across: 
+</I>&gt;<i> <A HREF="http://code.google.com/p/gears/wiki/CrossOriginAPI">http://code.google.com/p/gears/wiki/CrossOriginAPI</A>
+</I>
+True.
+
+
+&gt;<i> &gt; &gt; Additionally, there's no good way for workers under different 
+</I>&gt;<i> &gt; &gt; domains to talk to one another (a window can use the cross-domain 
+</I>&gt;<i> &gt; &gt; messaging functionality to talk to other domains, but there's no 
+</I>&gt;<i> &gt; &gt; analog for this for workers).
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; This has been intentionally delayed while we wait for more 
+</I>&gt;<i> &gt; implementation experience.
+</I>&gt;<i> 
+</I>&gt;<i> I'm hoping to experiment with this some (per my earlier comment), so 
+</I>&gt;<i> hopefully I'll be able to report back with some interesting data points 
+</I>&gt;<i> (or at least my miserable failure will serve as an object lesson for 
+</I>&gt;<i> future implementors :).
+</I>
+Great! :-)
+
+
+On Fri, 20 Mar 2009, Jeremy Orlow wrote:
+&gt;<i>
+</I>&gt;<i> Now that Web Storage spec has been split out, there are several parts of 
+</I>&gt;<i> the Web Worker spec that should no longer point at the HTML 5 spec.  An 
+</I>&gt;<i> example is the following section, but I'm sure there are others: 
+</I>&gt;<i> <A HREF="http://dev.w3.org/html5/workers/#apis-defined-in-other-specifications">http://dev.w3.org/html5/workers/#apis-defined-in-other-specifications</A>).
+</I>
+Fixed.
+
+
+Regarding the suggestion of an explicit yield() that would push a 
+continuation of the script onto the task queue, I haven't added this for 
+now. I think it's something to bear in mind for implementors; if it 
+becomes practical to do this, we should definitely revisit it.
+
+
+On Tue, 24 Mar 2009, Robert O'Callahan wrote:
+&gt;<i> 
+</I>&gt;<i> It's possible that people might want to implement something that's 
+</I>&gt;<i> equivalent to the storage mutex in observable behaviour, but allows more 
+</I>&gt;<i> parallelism, such as speculative execution or finer-grained locking when 
+</I>&gt;<i> the implementation can prove it's safe. I assume implementors of HTML5 
+</I>&gt;<i> already understand that that's allowed.
+</I>
+The spec allows implementations to do whatever they want so long as the 
+black-box behaviour is equivalent. I hope this is understood by all 
+implementors!
+
+
+&gt;<i> - added navigator.releaseLock().
+</I>&gt;<i> 
+</I>&gt;<i> This name could be confusing to developers, because there is no 
+</I>&gt;<i> corresponding explicit acquireLock(), which there usually is in an API 
+</I>&gt;<i> that exposes releaseLock().
+</I>&gt;<i> 
+</I>&gt;<i> navigator.allowInterruption() maybe?
+</I>
+It doesn't really allow interruptions, but it allows storage changes... 
+I've changed it to navigator.getStorageUpdates().
+
+
+&gt;<i> It would be possible to use something like getLockedFeatures for workers 
+</I>&gt;<i> while using implicit locking for the main thread.
+</I>
+The problem with any locks that cross from workers to windows is that 
+workers have a tendency to be long-lived, so it would lead to a lot of 
+time waiting for locks. I don't think we should make that possible.
+
+
+&gt;<i> Now, with the storage mutex, are there any cases you know of where 
+</I>&gt;<i> serializability fails? If there are, it may be worth noting them in the 
+</I>&gt;<i> spec. If there aren't, why not simply write serializability into the 
+</I>&gt;<i> spec?
+</I>
+Just writing that something must be true doesn't make it true. :-) I think 
+it's safer for us to make the design explicitly enforce this rather than 
+say that browser vendors must figure out where it might be broken and 
+enforce it themselves.
+
+
+&gt;<i> When two sets of unrelated browser contexts become related (e.g., C 
+</I>&gt;<i> loads A into an iframe), I imagined you would join A's lock and C's lock 
+</I>&gt;<i> into a single lock covering the new set of related browser contexts, 
+</I>&gt;<i> which is safe to do if at most one of those locks is currently held. 
+</I>&gt;<i> When this happens due to a document being created with origin A in C's 
+</I>&gt;<i> iframe, it happens asynchronously in C, right? So at that point C's lock 
+</I>&gt;<i> is not held by currently running script in C (although it might be held 
+</I>&gt;<i> by code in another domain which is already related to C), and we can 
+</I>&gt;<i> block the join operation in C until one of the two locks is released.
+</I>&gt;<i> 
+</I>&gt;<i> Then in your example, suppose C loads A's document first. Then C's lock 
+</I>&gt;<i> and A's lock are joined to make a CA-lock. Then suppose D (&quot;another 
+</I>&gt;<i> window just like C&quot;) loads B's document; D's lock and B's lock are 
+</I>&gt;<i> merged to make the DB-lock. Now suppose C loads B. The two remaining 
+</I>&gt;<i> locks are merged to form a single CADB-lock. No deadlock is possible.
+</I>
+Yes, if we have one lock per group consisting of the transitive closure of 
+all origins and browsing contexts related by origin or by a unit of 
+related browsing contexts, then we could make any navigation that would 
+cause two groups to be joined to also need to grab the lock of the other 
+group before navigating. I'm not going to mention that in the spec, 
+though; I'll leave that up to browser vendors to implement as an 
+optimisation if they think it's worth it.
+
+
+&gt;<i> &gt; If it can be shown that it is not ever possible for script in one 
+</I>&gt;<i> &gt; origin to synchronously invoke script in another origin, then I guess 
+</I>&gt;<i> &gt; we could have per-origin locks instead of a single lock.
+</I>&gt;<i> 
+</I>&gt;<i> I'm not sure why synchronous invocation across origins matters.
+</I>
+Because it would enable a deadlock to occur. If origin A's lock is owned 
+by some window 1, and in window 2, a script in origin B gets its lock and 
+then synchronously calls a script in origin A which then tries to get its 
+lock, and then the script from origin A in window 1 synchronously calls a 
+script in origin B which then tries to get its lock, you'll have deadlock.
+
+
+&gt;<i> I think what matters here is whether there's a synchronous operation 
+</I>&gt;<i> that can cause two browsing contexts to become related that previously 
+</I>&gt;<i> weren't.
+</I>
+Setting cookies that are visible cross-domain might be one such 
+mechanism, as mentioned by Drew:
+
+
+On Tue, 24 Mar 2009, Drew Wilson wrote:
+&gt;<i> 
+</I>&gt;<i> The spec doesn't seem to say this explicitly, but it implies that 
+</I>&gt;<i> server-initiated cookie changes that happen in parallel with script 
+</I>&gt;<i> execution (for example, if the user agent fetches an image while script 
+</I>&gt;<i> is executing) will still be reflected in document.cookie even though the 
+</I>&gt;<i> storage mutex may be held. Is that correct (the intent is that only 
+</I>&gt;<i> script modifications are locked out, not changes due to network 
+</I>&gt;<i> activity)?
+</I>
+I suppose that network activity should also wait for the lock. I've made 
+that happen.
+
+
+&gt;<i> Cookies have a cross-domain aspect (multiple subdomains can share cookie 
+</I>&gt;<i> state at the top domain) - does this impact the specification of the 
+</I>&gt;<i> storage mutex since we need to lockout multiple domains?
+</I>
+There's only one lock, so that should work fine.
+
+
+&gt;<i> Finally, are we making any exceptions for things that block the current 
+</I>&gt;<i> thread of execution (like displaying alerts() or sync xhr), or are we 
+</I>&gt;<i> also guaranteeing that other subdomains will still be locked out?
+</I>
+I suppose it would be bad to lock everyone when an alert is up, so I've 
+made all the modal dialog features release the lock.
+
+Sync XHR should also release the lock, and then grab it again to set 
+cookies and rerelease it. I've contacted the XHR editor about this.
+
+
+On Tue, 24 Mar 2009, Drew Wilson wrote:
+&gt;<i>
+</I>&gt;<i> Is ApplicationCache intended to apply to workers? The application cache 
+</I>&gt;<i> API isn't available to workers, but I'm guessing the intent is that if 
+</I>&gt;<i> an application creates a dedicated worker then worker requests (like 
+</I>&gt;<i> importScripts()) would come out of the cache inherited from the parent 
+</I>&gt;<i> document. If not, then it seems impossible to support running workers 
+</I>&gt;<i> when in offline mode.
+</I>
+On Wed, 25 Mar 2009, Michael Nordman wrote:
+&gt;<i>
+</I>&gt;<i> How's this for a starting point for how these things intereract...
+</I>&gt;<i> * Dedicated worker contexts should be associated with an appcache according
+</I>&gt;<i> to the same resource loading and cache selection logic used for child
+</I>&gt;<i> browsing contexts. (So just like navigating an iframe).
+</I>
+On Wed, 25 Mar 2009, Drew Wilson wrote:
+&gt;<i> 
+</I>&gt;<i> Since dedicated workers are tightly tied (1:1) with a specific top-level 
+</I>&gt;<i> browsing context, I'd say that they should use the same appcache as the 
+</I>&gt;<i> document that started them.
+</I>
+On Tue, 24 Mar 2009, Drew Wilson wrote:
+&gt;<i> 
+</I>&gt;<i> Since SharedWorkers are shared by multiple windows, there's some 
+</I>&gt;<i> ambiguity about which app cache it should use (perhaps always the one 
+</I>&gt;<i> from the creator window?) - it seems like an app might get different 
+</I>&gt;<i> SharedWorkers() loading from different app caches depending on the order 
+</I>&gt;<i> in which different windows create them, which seems like a dubious 
+</I>&gt;<i> outcome.
+</I>
+On Wed, 25 Mar 2009, Michael Nordman wrote:
+&gt;<i>
+</I>&gt;<i> * Shared (or persistent) worker contexts should be associated with an
+</I>&gt;<i> appcache according to the same resource loading and cache selection logic
+</I>&gt;<i> used for top-level browsing contexts. (So just like navigating a window.)
+</I>&gt;<i> 
+</I>&gt;<i> What does a shared (or persistent) worker do when the appcache its
+</I>&gt;<i> associated with is updated? Is there a way to &quot;reload&quot; itself with the new
+</I>&gt;<i> script in the latest version of the appcache? What about message ports
+</I>&gt;<i> between the worker and other contexts?
+</I>
+On Wed, 25 Mar 2009, Drew Wilson wrote:
+&gt;<i> 
+</I>&gt;<i> That may make sense for Shared workers, I think. For persistent workers I
+</I>&gt;<i> think this is a problem - persistent workers need a way to manage their own
+</I>&gt;<i> app cache, since they are not guaranteed to have any open windows/documents
+</I>&gt;<i> associated with them. My concern about this is that app cache manifests are
+</I>&gt;<i> only specified via &lt;manifest&gt; html tags, which makes them only applicable to
+</I>&gt;<i> HTML documents (you can't associate a manifest with a worker since there's
+</I>&gt;<i> no document to put the manifest tag in).
+</I>&gt;<i>
+</I>&gt;<i> One could imagine that the worker would reload its javascript via 
+</I>&gt;<i> importScripts(). It kind of assumes that the script is idempotent, 
+</I>&gt;<i> though.
+</I>
+On Wed, 25 Mar 2009, David Levin wrote:
+&gt;<i> 
+</I>&gt;<i> Similarly one could use nested workers (which I like because it gives 
+</I>&gt;<i> the new script a new global object). The shared/persistent worker would 
+</I>&gt;<i> start a nested worker.  Then for a reload, it could shut down the 
+</I>&gt;<i> current nested worker and start up a new one.
+</I>&gt;<i> 
+</I>&gt;<i> Regarding message ports, it would be up to the implementation to decide 
+</I>&gt;<i> if the shared/persistent worker followed a pointer to implementation 
+</I>&gt;<i> pattern or if it handed out message ports directly to the nested worker.
+</I>
+On Wed, 25 Mar 2009, Drew Wilson wrote:
+&gt;<i>
+</I>&gt;<i> Good point - I like the idea of nested workers, especially if the
+</I>&gt;<i> SharedWorker uses the pattern where it just passes off all incoming message
+</I>&gt;<i> ports directly to the nested worker so it doesn't have to proxy messages.
+</I>&gt;<i> It'd have to have some app-specific mechanism to get them all back when it
+</I>&gt;<i> wants to restart the nested worker, though :)
+</I>
+On Thu, 26 Mar 2009, Alexey Proskuryakov wrote:
+&gt;<i>
+</I>&gt;<i> Letting faceless background processes update themselves without user 
+</I>&gt;<i> consent is not necessarily desirable. I think that they need browser UI 
+</I>&gt;<i> for this, and/or associated HTML configuration pages that could (among 
+</I>&gt;<i> other duties) trigger application cache update.
+</I>&gt;<i> 
+</I>&gt;<i> So in my opinion, this is pretty much a sub-task of defining what UI is 
+</I>&gt;<i> necessary for persistent workers in the browser, not a question of 
+</I>&gt;<i> exposing application cache APIs to them.
+</I>
+On Thu, 26 Mar 2009, Drew Wilson wrote:
+&gt;<i> 
+</I>&gt;<i> I'd be curious about why you think this is a problem, especially given 
+</I>&gt;<i> the existence of importScripts() and XHR which allow workers to load 
+</I>&gt;<i> scripts dynamically anyway.
+</I>&gt;<i> 
+</I>&gt;<i> ApplicationCache for persistent workers would enable them to continue 
+</I>&gt;<i> running even when offline - I don't see that it introduces any new 
+</I>&gt;<i> security/permission wrinkles, though. If you don't provide something 
+</I>&gt;<i> like that, then you'll have workers doing things like using XHR to 
+</I>&gt;<i> download script, store it in the data store, then eval() it at load time 
+</I>&gt;<i> to roll their own manual offline support.
+</I>
+On Thu, 26 Mar 2009, Alexey Proskuryakov wrote:
+&gt;<i> 
+</I>&gt;<i> importScripts() will only allow dynamic loading if any URL prefixes are 
+</I>&gt;<i> designated as &quot;NETWORK&quot; in the manifest, which security sensitive users 
+</I>&gt;<i> may potentially detect and block. The level of support for this in 
+</I>&gt;<i> browsers, firewalls, anti-viruses and other software will obviously 
+</I>&gt;<i> depend on future usage patterns and threats, but the possibility is 
+</I>&gt;<i> there.
+</I>&gt;<i> 
+</I>&gt;<i> But I was looking at this in terms of a model for users, not any 
+</I>&gt;<i> specific security threats - if we think of persistent workers as an 
+</I>&gt;<i> equivalent of native applications that need installation, then we should 
+</I>&gt;<i> consider that native applications don't usually update themselves 
+</I>&gt;<i> without user consent.
+</I>
+On Thu, 26 Mar 2009, Drew Wilson wrote:
+&gt;<i> 
+</I>&gt;<i> It seems like a common model is for offline-enabled applications to 
+</I>&gt;<i> store their javascript in the ApplicationCache, and encourage users to 
+</I>&gt;<i> create desktop links to access those apps even when offline. Should 
+</I>&gt;<i> these applications (which for all intents are &quot;installed&quot;) also prompt 
+</I>&gt;<i> users before updating? Are you suggesting that user agents may want to 
+</I>&gt;<i> require explicit user permission when any application invokes 
+</I>&gt;<i> ApplicationCache.update()? That might be a reasonable approach if a 
+</I>&gt;<i> given user agent wants to enforce some kind of &quot;no silent update&quot; 
+</I>&gt;<i> policy...
+</I>
+I think it makes sense to treat dedicated workers as simple subresources, 
+not separate browsing contexts, and that they should thus just use the 
+application cache of their parent browsing contexts. This is what WebKit 
+does, according to ap.
+
+I've now done this in the spec.
+
+
+For shared workers, I see these options:
+
+ - Not allow app caches, so shared workers don't work when offline. That 
+   seems bad.
+
+ - Same as suggested for dedicated workers above -- use the creator's 
+   cache, so at least one client will get the version they expect. Other 
+   clients will have no idea what version they're talking to, the creator 
+   would have an unusual relationship with the worker (it would be able 
+   to call swapCache() but nobody else would), and once the creator goes 
+   away, there will be a zombie relationship.
+
+ - Pick an appcache more or less at random, like when you view an image in 
+   a top-level browsing context. Clients will have no idea which version 
+   they're talking to.
+
+ - Allow workers to specify a manifest using some sort of comment syntax.
+   Nobody knows what version they'll get, but at least it's always the 
+   same version, and it's always up to date.
+
+Using the creator's cache is the one that minimises the number of clients 
+that are confused, but it also makes the debugging experience most differ 
+from the case where there are two apps using the worker.
+
+Using an appcache selected the same way we would pick one for images has 
+the minor benefit of being somewhat consistent with how window.open() 
+works, and we could say that window.open() and new SharedWorker are 
+somewhat similar.
+
+I have picked this route for now. Implementation feedback is welcome in 
+determining if this is a good idea.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="019038.html">[whatwg] AppCache and SharedWorkers?
+</A></li>
+	<LI>Next message: <A HREF="019066.html">[whatwg] Worker feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19061">[ date ]</a>
+              <a href="thread.html#19061">[ thread ]</a>
+              <a href="subject.html#19061">[ subject ]</a>
+              <a href="author.html#19061">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

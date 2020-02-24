@@ -1,0 +1,131 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] StringEncoding open issues
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20StringEncoding%20open%20issues&In-Reply-To=%3CCA%2Bc2ei9%3DiKhWsUDDRVfwZi6cx8bRE9Sesqwy19qYLDTmm%3D9scg%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="079207.html">
+   <LINK REL="Next"  HREF="079210.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] StringEncoding open issues</H1>
+<!--htdig_noindex-->
+    <B>Jonas Sicking</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20StringEncoding%20open%20issues&In-Reply-To=%3CCA%2Bc2ei9%3DiKhWsUDDRVfwZi6cx8bRE9Sesqwy19qYLDTmm%3D9scg%40mail.gmail.com%3E"
+       TITLE="[whatwg] StringEncoding open issues">jonas at sicking.cc
+       </A><BR>
+    <I>Fri Aug 17 00:23:18 PDT 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="079207.html">[whatwg] StringEncoding open issues
+</A></li>
+        <LI>Next message: <A HREF="079210.html">[whatwg] StringEncoding open issues
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#79209">[ date ]</a>
+              <a href="thread.html#79209">[ thread ]</a>
+              <a href="subject.html#79209">[ subject ]</a>
+              <a href="author.html#79209">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Tue, Aug 14, 2012 at 10:34 AM, Joshua Bell &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">jsbell at chromium.org</A>&gt; wrote:
+&gt;<i> On Mon, Aug 6, 2012 at 5:06 PM, Glenn Maynard &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">glenn at zewt.org</A>&gt; wrote:
+</I>&gt;<i>
+</I>&gt;&gt;<i> I agree with Jonas that encoding should just use a replacement character
+</I>&gt;&gt;<i> (U+FFFD for Unicode encodings, '?' otherwise), and that we should put off
+</I>&gt;&gt;<i> other modes (eg. exceptions and user-specified replacement characters)
+</I>&gt;&gt;<i> until there's a clear need.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> My intuition is that encoding DOMString to UTF-16 should never have errors;
+</I>&gt;&gt;<i> if there are dangling surrogates, pass them through unchanged.  There's no
+</I>&gt;&gt;<i> point in using a placeholder that says &quot;an error occured here&quot;, when the
+</I>&gt;&gt;<i> error can be passed through in exactly the same form (not possible with eg.
+</I>&gt;&gt;<i> DOMString-&gt;SJIS).  I don't feel strongly about this only because outputting
+</I>&gt;&gt;<i> UTF-16 is so rare to begin with.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> On Mon, Aug 6, 2012 at 1:29 PM, Joshua Bell &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">jsbell at chromium.org</A>&gt; wrote:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> &gt; - if the document is encoded in UTF-8, UTF-16LE or UTF-16BE and includes
+</I>&gt;&gt;<i> &gt; the byte order mark (the encoding-specific serialization of U+FEFF).
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> This rarely detects the wrong type, but that doesn't mean it's not the
+</I>&gt;&gt;<i> wrong answer.  If my input is meant to be UTF-8, and someone hands me
+</I>&gt;&gt;<i> BOM-marked UTF-16, I want it to fail in the same way it would if someone
+</I>&gt;&gt;<i> passed in SJIS.  I don't want it silently translated.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> On the other hand, it probably does make sense for UTF-16 to switch to
+</I>&gt;&gt;<i> UTF-16BE, since that's by definition the original purpose of the BOM.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> The convention iconv uses, which I think is a useful one, is decoding from
+</I>&gt;&gt;<i> &quot;UTF-16&quot; means &quot;try to figure out the encoding from the BOM, if any&quot;, and
+</I>&gt;&gt;<i> &quot;UTF-16LE&quot; and &quot;UTF-16BE&quot; mean &quot;always use this exact encoding&quot;.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> Let me take a crack at making this into an algorithm:
+</I>&gt;<i>
+</I>&gt;<i> In the TextDecoder constructor:
+</I>&gt;<i>
+</I>&gt;<i>    - If encoding is not specified, set an internal useBOM flag
+</I>&gt;<i>    - If encoding is specified and is a case insensitive match for &quot;utf-16&quot;
+</I>&gt;<i>    set an internal useBOM flag.
+</I>&gt;<i>
+</I>&gt;<i> NOTE: This means if &quot;utf-8&quot;, &quot;utf-16le&quot; or &quot;utf-16be&quot; is explicitly
+</I>&gt;<i> specified the flag is not set.
+</I>&gt;<i>
+</I>&gt;<i> When decode() is called
+</I>&gt;<i>
+</I>&gt;<i>    - If useBOM is set and the stream offset is 0, then
+</I>&gt;<i>       - If there are not enough bytes to test for a BOM then return without
+</I>&gt;<i>       emitting anything (NOTE: if not streaming an EOF byte would be present in
+</I>&gt;<i>       the stream which would be a negative match for a BOM)
+</I>&gt;<i>       - If encoding is &quot;utf-16&quot; and the first bytes match 0xFF 0xFE or 0xFE
+</I>&gt;<i>       0xFF then set current encoding to &quot;utf-16&quot; or &quot;utf-16be&quot; respectively and
+</I>&gt;<i>       advance the stream past the BOM. The current encoding is used until the
+</I>&gt;<i>       stream is reset.
+</I>&gt;<i>       - Otherwise, if the first bytes match 0xFF 0xFE, 0xFE 0xFF, or 0xEF
+</I>&gt;<i>       0xBB 0xBF then set current encoding to &quot;utf-16&quot;, &quot;utf-16be&quot; or &quot;utf-8&quot;
+</I>&gt;<i>       respectively and advance the stream past the BOM. The current encoding is
+</I>&gt;<i>       used until the stream is reset.
+</I>
+This doesn't sound right. The effect of the rules so far would be that
+if you create a decoder and specify &quot;utf-16&quot; as encoding, and the
+first bytes in the stream are 0xEF 0xBB 0xBF you'd silently switch to
+&quot;utf-8&quot; decoding.
+
+/ Jonas
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="079207.html">[whatwg] StringEncoding open issues
+</A></li>
+	<LI>Next message: <A HREF="079210.html">[whatwg] StringEncoding open issues
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#79209">[ date ]</a>
+              <a href="thread.html#79209">[ thread ]</a>
+              <a href="subject.html#79209">[ subject ]</a>
+              <a href="author.html#79209">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

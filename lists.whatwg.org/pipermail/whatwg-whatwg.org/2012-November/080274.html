@@ -1,0 +1,147 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Canvas in Workers
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Canvas%20in%20Workers&In-Reply-To=%3CPine.LNX.4.64.1211191754320.16964%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="080261.html">
+   <LINK REL="Next"  HREF="080280.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Canvas in Workers</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Canvas%20in%20Workers&In-Reply-To=%3CPine.LNX.4.64.1211191754320.16964%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg] Canvas in Workers">ian at hixie.ch
+       </A><BR>
+    <I>Mon Nov 19 10:04:27 PST 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="080261.html">[whatwg] Canvas in Workers
+</A></li>
+        <LI>Next message: <A HREF="080280.html">[whatwg] Canvas in Workers
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#80274">[ date ]</a>
+              <a href="thread.html#80274">[ thread ]</a>
+              <a href="subject.html#80274">[ subject ]</a>
+              <a href="author.html#80274">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Mon, 19 Nov 2012, Gregg Tavares (&#231;&#164;&#190;&#231;~T&#168;) wrote:
+&gt;<i>
+</I>&gt;<i> Sorry if this is clear in the specs but can you explain how sizing the 
+</I>&gt;<i> canvas works?
+</I>
+There's two sizes involved in a canvas: the size of the bitmap, and the 
+size of the rendering. Both default to 300x150 in the absence of explicit 
+sizing.
+
+The size of the bitmap, for getContext()-based canvases, is given by the 
+&lt;canvas&gt; element's width and height attributes. For rendering contexts 
+created by their constructor, it's initially set by the arguments to the 
+constructor. It can be changed using the width and height attributes on 
+the rendering context. When a context is bound to a canvas, it takes on 
+the dimensions of the canvas bitmap. To change the canvas bitmap 
+dimensions before calling setContext() or transferControlToProxy(), you 
+use the width and height attributes as before. Once you've called 
+setContext() or transferControlToProxy(), though, to avoid race conditions 
+with workers, only the width and height attributes on the rendering 
+context affect the canvas, so you have to first bind the rendering context 
+and then set the size if you need the size changed.
+
+The size of the rendering is set by CSS, and defaults to whatever the 
+width and height attributes of the canvas element are. Note that if you 
+are drawing to the canvas from a worker and you have changed the 
+dimensions of the bitmap after you called setContext() or 
+transferControlToProxy(), you will have to explicitly set the dimensions 
+of the canvas using the element's attributes or CSS, otherwise the canvas 
+bitmap will be resized for rendering.
+
+
+&gt;<i>    // main.html
+</I>&gt;<i>    &lt;canvas&gt;&lt;/canvas&gt;
+</I>
+Here the bitmap and rendering are 300x150.
+
+&gt;<i>    &lt;script&gt;
+</I>&gt;<i>     var canvas = document.getElementsByTagName('canvas')[0];
+</I>&gt;<i>     var worker = new Worker('clock.js');
+</I>&gt;<i>     var proxy = canvas.transferControlToProxy());
+</I>
+At this point, canvas.width/.height no longer affect the bitmap size.
+
+&gt;<i>     worker.postMessage(proxy, [proxy]);
+</I>&gt;<i> 
+</I>&gt;<i>     setTimeout(function() {
+</I>&gt;<i>         canvas.width = 200;   // does this work? What happens?
+</I>
+This just changes the rendered width.
+
+&gt;<i>     }, 4000);
+</I>&gt;<i>    &lt;/script&gt;
+</I>&gt;<i> 
+</I>&gt;<i>    // clock.js worker
+</I>&gt;<i>    onmessage = function (event) {
+</I>&gt;<i>      var context = new CanvasRenderingContext2d();
+</I>
+The constructor could be called with arguments, as in new 
+   CanvasRenderingContext2d(200, 150);
+
+That size will have no effect though, since the context is immediately 
+bound to a canvas bitmap and takes the bitmap's size:
+
+&gt;<i>      event.data.setContext(context);
+</I>&gt;<i>      setInterval(function () {
+</I>&gt;<i>        context.width = 400;  // Can I do this? What happens when I do?
+</I>
+This changes the canvas bitmap's dimensions (and resets all state of the 
+rendering context). It doesn't change the canvas element's rendered 
+dimensions, however (we could push the state out like the bitmap itself, I 
+guess, but that would make the DOM change out of the blue which is weird).
+
+&gt;<i>        context.clearRect(0, 0, context.width, context.height);
+</I>&gt;<i>        context.fillText(0, 100, new Date());
+</I>&gt;<i>        context.commit();
+</I>&gt;<i>      }, 1000);
+</I>&gt;<i>    };
+</I>
+HTH,
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="080261.html">[whatwg] Canvas in Workers
+</A></li>
+	<LI>Next message: <A HREF="080280.html">[whatwg] Canvas in Workers
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#80274">[ date ]</a>
+              <a href="thread.html#80274">[ thread ]</a>
+              <a href="subject.html#80274">[ subject ]</a>
+              <a href="author.html#80274">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

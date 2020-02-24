@@ -1,0 +1,147 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Sync/async drag-and-drop data and Blob
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Sync/async%20drag-and-drop%20data%20and%20Blob&In-Reply-To=%3CAANLkTim8i4A6fZJtMJ9w1ym4sBJaLvSmF69VLKmtkC8o%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="028924.html">
+   <LINK REL="Next"  HREF="028927.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Sync/async drag-and-drop data and Blob</H1>
+<!--htdig_noindex-->
+    <B>Daniel Cheng</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Sync/async%20drag-and-drop%20data%20and%20Blob&In-Reply-To=%3CAANLkTim8i4A6fZJtMJ9w1ym4sBJaLvSmF69VLKmtkC8o%40mail.gmail.com%3E"
+       TITLE="[whatwg] Sync/async drag-and-drop data and Blob">dcheng at google.com
+       </A><BR>
+    <I>Fri Oct 29 16:11:24 PDT 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="028924.html">[whatwg] Sync/async drag-and-drop data and Blob
+</A></li>
+        <LI>Next message: <A HREF="028927.html">[whatwg] I added you as a friend on Quepasa.com
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#71198">[ date ]</a>
+              <a href="thread.html#71198">[ thread ]</a>
+              <a href="subject.html#71198">[ subject ]</a>
+              <a href="author.html#71198">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>It's come to my attention that FileReaderSync is only available on worker
+threads. Since the general trend seems to be moving towards no synchronous
+operations on the main thread, I'd like to propose changing getData() and
+setData() to only handle the legacy types 'Text' and 'URL' for IE
+compatibility. If you want to handle any other types, you must go through
+getDataAsBlob()/setDataAsBlob().
+
+Daniel
+
+On Fri, Oct 29, 2010 at 15:31, Daniel Cheng &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">dcheng at google.com</A>&gt; wrote:
+
+&gt;<i> I've been thinking about how to extend DataTransfer to support non-text
+</I>&gt;<i> types, such as images or RTF. Some use cases that this would enable:
+</I>&gt;<i> - Copying and pasting images between Photoshop and a web-based image
+</I>&gt;<i> editing app such as <A HREF="http://canvaspaint.org/.">http://canvaspaint.org/.</A>
+</I>&gt;<i> - Copying a slide with inline pictures from a presentation and pasting it
+</I>&gt;<i> into an email without losing any of the formatting.
+</I>&gt;<i>
+</I>&gt;<i> Since the data might be in text or binary form, I propose adding Blob
+</I>&gt;<i> support to DataTransfer. The proposed additions would add the following two
+</I>&gt;<i> functions to DataTransfer:
+</I>&gt;<i> Blob getDataAsBlob(in DOMString format);
+</I>&gt;<i> void setDataAsBlob(in DOMString format, in Blob data);
+</I>&gt;<i>
+</I>&gt;<i> Callers would use it like this:
+</I>&gt;<i> &lt;script&gt;
+</I>&gt;<i> document.addEventListener('paste', function (event) {
+</I>&gt;<i>   var imageBlob = event.dataTransfer.getDataAsBlob('image/png');
+</I>&gt;<i>   var reader = new FileReaderSync();
+</I>&gt;<i>   var newImage = document.appendChild(document.createElement('img'));
+</I>&gt;<i>   newImage.src = reader.readAsDataURL(imageBlob);
+</I>&gt;<i> });
+</I>&gt;<i> document.addEventListener('copy', function (event) {
+</I>&gt;<i>   var bb = new BlobBuilder();
+</I>&gt;<i>   bb.append(someFunctionThatConvertsAnImageSelectionToAnArrayBuffer());
+</I>&gt;<i>   event.dataTransfer.setData('image/png', bb.getBlob());
+</I>&gt;<i> });
+</I>&gt;<i> &lt;/script&gt;
+</I>&gt;<i>
+</I>&gt;<i> By using Blob, callers have the freedom to pick a synchronous or
+</I>&gt;<i> asynchronous model. For example, to avoid blocking the page, an image
+</I>&gt;<i> editing app might choose to read pasted image data asynchronously in a
+</I>&gt;<i> callback:
+</I>&gt;<i> &lt;script&gt;
+</I>&gt;<i> function onImageLoaded(event) {
+</I>&gt;<i>   // Do something with the event.target.result.
+</I>&gt;<i> }
+</I>&gt;<i> document.addEventListener('paste', function (event) {
+</I>&gt;<i>   var imageBlob = event.dataTransfer.getDataAsBlob('image/png');
+</I>&gt;<i>   var reader = new FileReader();
+</I>&gt;<i>   reader.onload = onImageLoaded;
+</I>&gt;<i>   var newImage = document.appendChild(document.createElement('img'));
+</I>&gt;<i>   reader.readAsDataURL(imageBlob);
+</I>&gt;<i> });
+</I>&gt;<i> &lt;/script&gt;
+</I>&gt;<i>
+</I>&gt;<i> In addition, getData() and setData() could be redefined to be based on the
+</I>&gt;<i> two new functions:
+</I>&gt;<i> DataTransfer.prototype.getData = function (format) {
+</I>&gt;<i>   var reader = new FileReaderSync();
+</I>&gt;<i>   var blob = this.getDataAsBlob(format);
+</I>&gt;<i>   return reader.readAsText(blob);
+</I>&gt;<i> };
+</I>&gt;<i> DataTransfer.prototype.setData = function (format, data) {
+</I>&gt;<i>   var builder = new BlobBuilder();
+</I>&gt;<i>   builder.append(data);
+</I>&gt;<i>   this.setDataAsBlob(format, builder.getBlob());
+</I>&gt;<i> };
+</I>&gt;<i>
+</I>&gt;<i> One issue that I'm not clear how to resolve is the issue of Blob.size. In
+</I>&gt;<i> general, the UA won't be able to populate Blob.size without reading in all
+</I>&gt;<i> the data first... which defeats the point of using Blob to begin with. Since
+</I>&gt;<i> people may not read Blob.size very often in the context of copy-and-paste or
+</I>&gt;<i> drag-and-drop, maybe it's acceptable to lazily populate Blob.size only if
+</I>&gt;<i> people try querying its value? People who want async behavior won't truly
+</I>&gt;<i> get it if they query Blob.size, but I don't see another way around the
+</I>&gt;<i> problem.
+</I>&gt;<i>
+</I>&gt;<i> Daniel
+</I>&gt;<i>
+</I>-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: &lt;<A HREF="http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20101029/b77d8214/attachment-0002.htm">http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20101029/b77d8214/attachment-0002.htm</A>&gt;
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="028924.html">[whatwg] Sync/async drag-and-drop data and Blob
+</A></li>
+	<LI>Next message: <A HREF="028927.html">[whatwg] I added you as a friend on Quepasa.com
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#71198">[ date ]</a>
+              <a href="thread.html#71198">[ thread ]</a>
+              <a href="subject.html#71198">[ subject ]</a>
+              <a href="author.html#71198">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

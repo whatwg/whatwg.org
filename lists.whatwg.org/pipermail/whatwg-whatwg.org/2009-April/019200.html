@@ -1,0 +1,183 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Worker feedback
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Worker%20feedback&In-Reply-To=%3C11e306600904061913l42ccc40eq2e5a6120684da61%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="019205.html">
+   <LINK REL="Next"  HREF="019144.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Worker feedback</H1>
+<!--htdig_noindex-->
+    <B>Robert O'Callahan</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Worker%20feedback&In-Reply-To=%3C11e306600904061913l42ccc40eq2e5a6120684da61%40mail.gmail.com%3E"
+       TITLE="[whatwg] Worker feedback">robert at ocallahan.org
+       </A><BR>
+    <I>Mon Apr  6 19:13:23 PDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="019205.html">[whatwg] Worker feedback
+</A></li>
+        <LI>Next message: <A HREF="019144.html">[whatwg] Worker feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19200">[ date ]</a>
+              <a href="thread.html#19200">[ thread ]</a>
+              <a href="subject.html#19200">[ subject ]</a>
+              <a href="author.html#19200">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Tue, Apr 7, 2009 at 1:53 AM, Darin Fisher &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">darin at chromium.org</A>&gt; wrote:
+
+&gt;<i> OK... so if I am building an API, the consumer of my API might not realize
+</I>&gt;<i> that I have stuck a sync XHR in the middle of it.  (People often do that so
+</I>&gt;<i> that their API can work during unload.)  So the consumer of such an API now
+</I>&gt;<i> has to deal with the cookie lock being released?
+</I>&gt;<i>
+</I>
+Yes. If sync XHR spins up a subsidiary event loop, the cookie lock is the
+least of your worries, because event handlers may run and mutate arbitrary
+script/DOM state. (We're actually tightening up what is allowed to run
+during sync XHR in Gecko, but I don't know the details and I don't know what
+other browsers do.)
+
+APIs that can cause reentrancy, or block, or yield, need to be carefully
+documented. That's why we want to minimize them...
+
+
+&gt;<i> When deciding how to handle cookies in Chrome, we did not worry about the
+</I>&gt;&gt;&gt;<i> problem being debated here.  Our concerns were allayed by recognizing that
+</I>&gt;&gt;&gt;<i> IE does not try to solve it (and IE6 is multi-process just like Chrome with
+</I>&gt;&gt;&gt;<i> a shared network stack), so clearly web developers must already have to
+</I>&gt;&gt;&gt;<i> cope.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> You mean IE8.
+</I>&gt;&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> No, IE6,7,8 (maybe older versions too?) ... you can launch multiple IE6
+</I>&gt;<i> processes, and those share cookies.  You can also programmatically access
+</I>&gt;<i> the same cookies via WinInet from any application.  It is not uncommon for a
+</I>&gt;<i> separate application to be mucking around with cookies for intranet.com.
+</I>&gt;<i>
+</I>
+OK, that's interesting.
+
+
+&gt;<i> How would Web developers cope? There's no way to synchronize. I doubt more
+</I>&gt;&gt;<i> than a handful of Web developers even know this problem could exist.
+</I>&gt;&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> You can synchronize through the origin server...
+</I>&gt;<i>
+</I>&gt;<i> What I meant was that they &quot;cope&quot; by not expecting document.cookie to
+</I>&gt;<i> return the same results each time it is called.  I'd imagine it is not
+</I>&gt;<i> uncommon for users to login to a site in multiple windows and perform
+</I>&gt;<i> similar operations in each browser window.  That scenario seems like it
+</I>&gt;<i> could trigger what we have here.
+</I>&gt;<i>
+</I>
+Many sites, such as my bank, detect that and attempt to prohibit it by
+refusing to let more than one window work. I wonder if they use a
+race-vulnerable cookie protocol to detect it...
+
+
+&gt;<i>
+</I>&gt;&gt;<i> I think it would be best to specify that document.cookie returns a
+</I>&gt;&gt;&gt;<i> snapshot.  I think that is consistent with existing implementations
+</I>&gt;&gt;&gt;<i> including IE, Firefox, and Chrome.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Not at all. In Firefox, cookies don't change while a script is running, as
+</I>&gt;&gt;<i> long as it doesn't call the handful of blocking DOM APIs (such as alert() or
+</I>&gt;&gt;<i> sync XHR); we satisfy the current spec.
+</I>&gt;&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> I don't understand why the sync XHR exception is taken so lightly.  As I
+</I>&gt;<i> mention above, that is most frequently used as a
+</I>&gt;<i> transparent-to-the-rest-of-the-application way of communicating with the
+</I>&gt;<i> server (usually because some APIs cannot be easily changed or need to be
+</I>&gt;<i> available during unload).  Yet, here we are saying that that cannot be
+</I>&gt;<i> transparent because of this locking issue.
+</I>&gt;<i>
+</I>
+Yes. Making sync-XHR &quot;transparent&quot; by reducing all consistency guarantees to
+what we can provide around sync-XHR is the wrong direction to go IMHO.
+
+
+&gt;<i>
+</I>&gt;&gt;<i> The insidious part is that almost all the time, IE and Chrome will also be
+</I>&gt;&gt;<i> observed to obey the spec; when a quick cookie-read-modify-write script
+</I>&gt;&gt;<i> runs, it is very unlikely cookies will change underneath it. (Is it possible
+</I>&gt;&gt;<i> people don't write such scripts?)
+</I>&gt;&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> I'm sure people write cookie-read-modify-write scripts and don't realize
+</I>&gt;<i> the potential problems.  But I suspect the incidents of problems related to
+</I>&gt;<i> two scripts doing so are extremely low as to not matter enough to
+</I>&gt;<i> application developers.  They can just say:  opening our webmail program in
+</I>&gt;<i> two browser tabs at the same time is not supported.
+</I>&gt;<i>
+</I>
+If they're not aware of the problem, why would they say that?
+
+
+&gt;<i> Maybe we need dynamic race detection for Web browsers. After a script reads
+</I>&gt;&gt;<i> document.cookie, stall for a while to give network transactions or scripts
+</I>&gt;&gt;<i> running in other threads a chance to change the cookies so the original
+</I>&gt;&gt;<i> script carries on with wrong data.
+</I>&gt;&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> Sounds interesting, but what happens when the script writes cookies?  Now
+</I>&gt;<i> there is a merging problem :(
+</I>&gt;<i>
+</I>
+Oh, dynamic race detection is only good for finding bugs more easily, not
+fixing them :-).
+
+Rob
+-- 
+&quot;He was pierced for our transgressions, he was crushed for our iniquities;
+the punishment that brought us peace was upon him, and by his wounds we are
+healed. We all, like sheep, have gone astray, each of us has turned to his
+own way; and the LORD has laid on him the iniquity of us all.&quot; [Isaiah
+53:5-6]
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: &lt;<A HREF="http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20090407/5eb18f53/attachment.htm">http://lists.whatwg.org/pipermail/whatwg-whatwg.org/attachments/20090407/5eb18f53/attachment.htm</A>&gt;
+</PRE>
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="019205.html">[whatwg] Worker feedback
+</A></li>
+	<LI>Next message: <A HREF="019144.html">[whatwg] Worker feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19200">[ date ]</a>
+              <a href="thread.html#19200">[ thread ]</a>
+              <a href="subject.html#19200">[ subject ]</a>
+              <a href="author.html#19200">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

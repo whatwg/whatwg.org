@@ -1,0 +1,189 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Enabling LCD Text and antialiasing in canvas
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Enabling%20LCD%20Text%20and%20antialiasing%20in%20canvas&In-Reply-To=%3CCAPeKFTjxnm_mFxK5S1K7qqBJ8yx14FN50YBvTfFA8qSduR6gkg%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="081408.html">
+   <LINK REL="Next"  HREF="081419.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Enabling LCD Text and antialiasing in canvas</H1>
+<!--htdig_noindex-->
+    <B>Stephen White</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Enabling%20LCD%20Text%20and%20antialiasing%20in%20canvas&In-Reply-To=%3CCAPeKFTjxnm_mFxK5S1K7qqBJ8yx14FN50YBvTfFA8qSduR6gkg%40mail.gmail.com%3E"
+       TITLE="[whatwg] Enabling LCD Text and antialiasing in canvas">senorblanco at chromium.org
+       </A><BR>
+    <I>Tue Mar 12 10:03:32 PDT 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="081408.html">[whatwg] Enabling LCD Text and antialiasing in canvas
+</A></li>
+        <LI>Next message: <A HREF="081419.html">[whatwg] Enabling LCD Text and antialiasing in canvas
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#81410">[ date ]</a>
+              <a href="thread.html#81410">[ thread ]</a>
+              <a href="subject.html#81410">[ subject ]</a>
+              <a href="author.html#81410">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Here's a draft of proposal (1) above:
+
+Motivation:  Compositing a &lt;canvas&gt; element into the page can be expensive,
+due to blending operations, and lack of opportunity for culling.  Since
+arbitrary graphics operations can affect the opacity of the canvas, it is
+difficult to determine programmatically whether the canvas is opaque.
+ Allowing the developer to explicitly mark a canvas as opaque allows the
+user agent to optimize blending at page composite time, as well to cull
+fully-obscured elements behind the canvas.
+
+Description:
+
+The &quot;opaque&quot; attribute is a boolean attribute of the canvas element, whose
+presence indicates that the alpha values in the canvas backing store must
+be 1.0 at all times.  All canvas operations are modified to preserve this
+invariant.  If the &quot;opaque&quot; attribute is not present, or if parsing its
+value returns an error, then the default value (false) must be used instead.
+
+When a canvas has the opaque attribute, the backing store must be
+initialized to opaque black (rgba(0, 0, 0, 1.0)), instead of transparent
+black (rgba(0, 0, 0, 0.0)).  Setting, changing, removing or setting the
+attribute redundantly to its existing value causes the canvas to be cleared
+to the appropriate value.
+
+When a canvas has the opaque attribute, clearRect() clears to opaque black
+instead of transparent black.
+
+The behaviour of putImageData() and putImageDataHD() when a canvas has the
+opaque attribute is to premultiply the RGB components by the alpha
+component as usual, but write 1.0 into destination alpha.  In other words,
+if (r, g, b, a) are the component values in a given pixel passed to
+putImageData[HD](), then r' = ar, g' = ag, b' = ab are the colour
+components of the resulting canvas pixel, and (r', g', b', 1.0) is written
+to the canvas backing store.
+
+When a canvas has the opaque attribute, all globalCompositeOperation modes
+behave as normal and the resulting RGB components are written to the canvas
+backing store, but the alpha component is left unchanged at 1.0.
+
+Stephen
+
+
+
+On Tue, Mar 12, 2013 at 12:53 PM, Stephen White &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">senorblanco at chromium.org</A>&gt;wrote:
+
+&gt;<i>
+</I>&gt;<i> On Mon, Mar 11, 2013 at 4:32 PM, Robert O'Callahan &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">robert at ocallahan.org</A>&gt;wrote:
+</I>&gt;<i>
+</I>&gt;&gt;<i> On Tue, Mar 12, 2013 at 8:23 AM, Stephen White &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">senorblanco at chromium.org</A>&gt;wrote:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> On Mon, Mar 11, 2013 at 2:56 PM, Robert O'Callahan &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">robert at ocallahan.org</A>
+</I>&gt;&gt;&gt;<i> &gt; wrote:
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> On Tue, Mar 12, 2013 at 7:53 AM, Stephen White &lt;
+</I>&gt;&gt;&gt;&gt;<i> <A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">senorblanco at chromium.org</A>&gt; wrote:
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;<i> All other canvas functionality behaves as normal, including operations
+</I>&gt;&gt;&gt;&gt;&gt;<i> which modify the alpha values of the backing store.  However, any such
+</I>&gt;&gt;&gt;&gt;&gt;<i> transparency values will be ignored when compositing the canvas into the
+</I>&gt;&gt;&gt;&gt;&gt;<i> page, and the canvas will be treated as if every pixel has an alpha of 1.0.
+</I>&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> That would mean getImageData can return non-1.0 alpha values, which is
+</I>&gt;&gt;&gt;&gt;<i> probably not what you want to implement.
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> That's what Firefox/Linux does (in fact, it always seems to return 0.0
+</I>&gt;&gt;&gt;<i> alpha from getImageData()).
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> We definitely shouldn't spec that! And I'm pretty sure that behavior
+</I>&gt;&gt;<i> would vary across Firefox platforms. But we need to have consistent
+</I>&gt;&gt;<i> behavior here.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>  I considered three options:
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> 1)  Prevent non-1.0 alpha ever getting into the canvas.  At a minimum,
+</I>&gt;&gt;&gt;<i> this would require the following:
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>    - For putImageData, apply premultiplication, then write 1.0 alpha
+</I>&gt;&gt;&gt;<i>    into the canvas.
+</I>&gt;&gt;&gt;<i>    - Change initialization and clearRect() to clear to opaque black
+</I>&gt;&gt;&gt;<i>    instead of transparent black.
+</I>&gt;&gt;&gt;<i>    - Modify all canvas compositing modes to leave destination alpha
+</I>&gt;&gt;&gt;<i>    unchanged
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> The latter is easy to do in OpenGL and CoreGraphics, but hard to do in
+</I>&gt;&gt;&gt;<i> Skia, and hard to do in accelerated CoreGraphics (IOSurfaces don't seem to
+</I>&gt;&gt;&gt;<i> support any opaque formats, although I could be wrong -- that was just from
+</I>&gt;&gt;&gt;<i> an hour or so of experimentation).  I'm not sure about Cairo.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> You can always implement it slowly using readback. I think we should just
+</I>&gt;&gt;<i> spec this, and maybe note that authors shouldn't use non-over operators on
+</I>&gt;&gt;<i> opaque canvases. Over time we'll probably find a way to make it fast
+</I>&gt;&gt;<i> everywhere.
+</I>&gt;&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> I'm a little leery of spec'ing something that has negative performance
+</I>&gt;<i> implications.  As an example, the &quot;darker&quot; compositing mode was removed
+</I>&gt;<i> from the spec due to hardware-accelerated performance concerns, IIRC.
+</I>&gt;<i>  OTOH, unlike that change, this spec should not have performance
+</I>&gt;<i> implications for OpenGL or Direct3D acceleration, only CoreGraphics via
+</I>&gt;<i> IOSurface and skia (so far).
+</I>&gt;<i>
+</I>&gt;<i> How would you feel about simply mapping the dest-alpha-modifying
+</I>&gt;<i> compositing modes to source-over, as in proposal 2) above?
+</I>&gt;<i>
+</I>&gt;<i> Stephen
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Rob
+</I>&gt;&gt;<i> --
+</I>&gt;&gt;<i> Wrfhf pnyyrq gurz gbtrgure naq fnvq, &#8220;Lbh xabj gung gur ehyref bs gur
+</I>&gt;&gt;<i> Tragvyrf ybeq vg bire gurz, naq gurve uvtu bssvpvnyf rkrepvfr nhgubevgl
+</I>&gt;&gt;<i> bire gurz. Abg fb jvgu lbh. Vafgrnq, jubrire jnagf gb orpbzr terng nzbat
+</I>&gt;&gt;<i> lbh zhfg or lbhe freinag, naq jubrire jnagf gb or svefg zhfg or lbhe fynir
+</I>&gt;&gt;<i> &#8212; whfg nf gur Fba bs Zna qvq abg pbzr gb or freirq, ohg gb freir, naq gb
+</I>&gt;&gt;<i> tvir uvf yvsr nf n enafbz sbe znal.&#8221; [Znggurj 20:25-28]
+</I>&gt;&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="081408.html">[whatwg] Enabling LCD Text and antialiasing in canvas
+</A></li>
+	<LI>Next message: <A HREF="081419.html">[whatwg] Enabling LCD Text and antialiasing in canvas
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#81410">[ date ]</a>
+              <a href="thread.html#81410">[ thread ]</a>
+              <a href="subject.html#81410">[ subject ]</a>
+              <a href="author.html#81410">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

@@ -1,0 +1,317 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Private browsing vs. Storage and Databases
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Private%20browsing%20vs.%20Storage%20and%20Databases&In-Reply-To=%3CPine.LNX.4.62.0904200353270.10370%40hixie.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="019291.html">
+   <LINK REL="Next"  HREF="019272.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Private browsing vs. Storage and Databases</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Private%20browsing%20vs.%20Storage%20and%20Databases&In-Reply-To=%3CPine.LNX.4.62.0904200353270.10370%40hixie.dreamhostps.com%3E"
+       TITLE="[whatwg] Private browsing vs. Storage and Databases">ian at hixie.ch
+       </A><BR>
+    <I>Sun Apr 19 22:54:07 PDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="019291.html">[whatwg] Private browsing vs. Storage and Databases
+</A></li>
+        <LI>Next message: <A HREF="019272.html">[whatwg] Opera2d-game Extensions to Canvas: setPixel() and	getPixel()
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19367">[ date ]</a>
+              <a href="thread.html#19367">[ thread ]</a>
+              <a href="subject.html#19367">[ subject ]</a>
+              <a href="author.html#19367">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Tue, 7 Apr 2009, Brady Eidson wrote:
+&gt;<i>
+</I>&gt;<i> A commonly added feature in browsers these days is &quot;private browsing 
+</I>&gt;<i> mode&quot; where the intention is that the user's browsing session leaves no 
+</I>&gt;<i> footprint on their machine.
+</I>
+Different &quot;private browsing modes&quot; have different philosophies and 
+purposes, but yes, this feature does exist in different variations in 
+different browsers.
+
+
+&gt;<i> Cookies, cache files, history, and other data that the browser would 
+</I>&gt;<i> normally store to disk are not updated during these private browsing 
+</I>&gt;<i> sessions.
+</I>
+That is one implementation strategy, indeed.
+
+
+&gt;<i> This concept is at odds with allowing pages to store data on the user's 
+</I>&gt;<i> machine as allowed by LocalStorage and Databases.  Surly persistent 
+</I>&gt;<i> changes during a private browsing session shouldn't be written to the 
+</I>&gt;<i> user's disk as that would violate the intention of a private browsing 
+</I>&gt;<i> session.
+</I>
+I think we can all agree that nothing should be written to disk, yes.
+
+
+&gt;<i> Let's take the specific case of LocalStorage, which is what I am 
+</I>&gt;<i> currently working on with WebKit.  In attempting to fix this bug I came 
+</I>&gt;<i> up with a few possible solutions:
+</I>&gt;<i> 
+</I>&gt;<i> 1 - Disable LocalStorage completely when private browsing is on.  Remove it
+</I>&gt;<i> from the DOM completely.
+</I>
+Not implementing a feature is an option, though it would cause sites that 
+use that feature to not work.
+
+
+&gt;<i> 2 - Disable LocalStorage mostly when private browsing is on.  It exists 
+</I>&gt;<i> at window.localStorage, but is empty and has a 0-quota.
+</I>
+This doesn't seem to offer any advantages over the previous option, though 
+it is more likely to run into trouble (e.g. sites that detect its support 
+will assume it is functional instead of falling back on another feature).
+
+
+&gt;<i> 3 - Slide a &quot;fake&quot; LocalStorage object in when private browsing is 
+</I>&gt;<i> enabled. It starts empty, changes to it are successful, but it is never 
+</I>&gt;<i> written to disk.  When private browsing is disabled, all changes to the 
+</I>&gt;<i> private browsing proxy are thrown out.
+</I>
+That seems like a reasonable strategy; it would be equivalent to the 
+browser being two user agents, one for the private mode and one for the 
+regular mode.
+
+
+&gt;<i> 4 - Cover the real LocalStorage object with a private browsing layer.  
+</I>&gt;<i> It starts with all previously stored contents.  Any changes to it are 
+</I>&gt;<i> pretended to occur, but are never written to disk.  When private 
+</I>&gt;<i> browsing is disabled, all items revert to the state they were in when 
+</I>&gt;<i> private browsing was enabled and writing changes to disk is re-enabled.
+</I>
+That is again a reasonable implementation strategy, similar to the 
+previous one.
+
+
+&gt;<i> 5 - Treat LocalStorage as read-only when private browsing is on.  It 
+</I>&gt;<i> exists, and all previously stored contents can be retrieved.  Any 
+</I>&gt;<i> attempt to setItem(), removeItem(), or clear() fail.
+</I>
+This would be equivalent to the user agent having hardware limitations 
+preventing it from complying with the specification, as with an out-of- 
+memory condition or some such. User agents are explicitly allowed to make 
+arbitrary implementation choices for such cases.
+
+Note though that this allows the sites to detect with some reliability 
+when they are being visited in &quot;private&quot; mode. This can be a problem.
+
+
+&gt;<i> For now we're going with option 5.  setItem() during private browsing 
+</I>&gt;<i> will fail with the QUOTA_EXCEEDED_ERR the spec mentions.  removeItem() 
+</I>&gt;<i> and clear() will silently fail, since the spec assumes they always 
+</I>&gt;<i> succeed and doesn't provide a failure mechanism.
+</I>
+If the private browsing mode is documented as being intended to act in a 
+manner that does not comply with the specification, that seems fine 
+(though it leaks to the site the information that the user is using 
+private browsing mode, which could be a problem). It is the equivalent of 
+&quot;Small Screen Rendering&quot; mode in browsers like Opera, where the CSS 
+specifications are intentionally not implemented correctly in order to 
+achieve particular results the author didn't intend.
+
+
+&gt;<i> 1 - What *should* the specified behavior be?
+</I>
+Since the answer depends on the philosophy of the browser feature, which 
+can vary from implementation to implementation, there is no single answer 
+to this. I don't think this is something that can or should be described 
+in a formal user-agent-independent specification.
+
+
+&gt;<i> 2 - If read-only ends up being the specified behavior, should we have a 
+</I>&gt;<i> mechanism for removeItem() and clear() to demonstrate that they failed?
+</I>
+They can always fail with a user-agent-specific exception, as with &quot;out 
+of memory&quot; conditions.
+
+
+On Tue, 7 Apr 2009, Ian Fette (&#165;&#164;&#165;&#162;&#165;&#243;&#165;&#213;&#165;&#167;&#165;&#195;&#165;&#198;&#165;&#163;) wrote:
+&gt;<i>
+</I>&gt;<i> In Chrome/Chromium, &quot;incognito&quot; mode is basically a new profile that is 
+</I>&gt;<i> in memory (plus or minus... the cache will never get written out to 
+</I>&gt;<i> disk, although of course the memory pages could get swapped out and hit 
+</I>&gt;<i> the disk that way...). The implication is that, for many of these 
+</I>&gt;<i> features, things could just naturally get handled. That is, whilst the 
+</I>&gt;<i> session is active, pages can still use a database / local storage / ... 
+</I>&gt;<i> / and at the end of the session, when that profile is deleted, things 
+</I>&gt;<i> will go away.
+</I>
+This is a reasonable implementation strategy, equivalent, as you describe, 
+to the browser pretending to be two different user agents, and the 
+configuration or user data for one of these user agents being deleted 
+before the user can use it again.
+
+
+On Tue, 7 Apr 2009, Jonas Sicking wrote:
+&gt;<i> 
+</I>&gt;<i> But I do have concerned about essentially telling a website that we'll 
+</I>&gt;<i> store the requested data, only to drop it on the floor as soon as the 
+</I>&gt;<i> user exits private browsing mode (or crashes).
+</I>
+This is no different to the normal case, where the hard disk might fail 
+unexpectedly, or the user might wipe his profile, or uninstall the 
+browser, or switch to another browser, or another computer. It's just that 
+we know ahead of time (and theoretically, the user knows ahead of time) 
+that the data will be lost. This could be addressed by some UI informing 
+the user that the data is not permanently stored, e.g. an infobar when a 
+change is detected that says:
+
+   This site has attempted to store data locally. Because you are in 
+   Private Browsing Mode, this data will be lost when you close this 
+   window. (( More information ))
+
+There could even be some interface to force the information to be stored, 
+though care would have to be taken to implement this in a way that doesn't 
+clobber information set in the regular-mode browsing contexts.
+
+
+On Tue, 7 Apr 2009, Brady Eidson wrote:
+&gt;<i> 
+</I>&gt;<i> LocalStorage and Databases are expected to be persistent unless a script 
+</I>&gt;<i> or the user explicitly removes them.  They're more like files, where 
+</I>&gt;<i> arbitrarily misplacing them is unacceptable.
+</I>
+I think in practice they're more like files, where arbitrarily misplacing 
+them is common.
+
+
+On Wed, 8 Apr 2009, timeless wrote:
+&gt;<i> 
+</I>&gt;<i> Is there any API in localStorage to enable the browser to tell the web 
+</I>&gt;<i> app that it wants to reduce the size of its cache, to e.g. 0?
+</I>
+Not currently.
+
+
+&gt;<i> Because if we had an API which would let the browser tell an app &quot;my 
+</I>&gt;<i> user has decided to reduce your available space to &lt;x&gt;&quot; and the user 
+</I>&gt;<i> picks 0, then the app can choose to flush all of its pending data.
+</I>
+Since this might happen even when the Web page in question isn't open, or 
+when the user is visiting one app (e.g. Mail) when that domain stores data 
+for multiple other apps (e.g. Calendar and Contacts), I don't really see 
+how we can do this.
+
+
+
+On Tue, 7 Apr 2009, Jeremy Orlow wrote:
+&gt;<i> 
+</I>&gt;<i> Maybe something could be added to the spec with respect to App Cache.  
+</I>&gt;<i> For example, an app in app cache could define something to be run when 
+</I>&gt;<i> it's being evicted from storage?  Of course, this could have some 
+</I>&gt;<i> interesting/negative security implications.  In addition, if the user is 
+</I>&gt;<i> off line, they're completely screwed.
+</I>
+I think this would also lead to sites depending on this, which they can't, 
+for numerous reasons already listed (e.g. the user just moving to another 
+computer without doing anything about his browser's local data).
+
+
+On Tue, 7 Apr 2009, Brady Eidson wrote:
+&gt;<i> 
+</I>&gt;<i> I strongly share Jonas' concern that we'd tell web applications that 
+</I>&gt;<i> we're storing there data when we already know we're going to dump it 
+</I>&gt;<i> later.  For 3 and 4 both, we're basically lying to the application and 
+</I>&gt;<i> therefore the user.
+</I>
+I disagree that lying to the app is the same as lying to the user. Is 
+blocking third-party cookies &quot;lying to the user&quot;?
+
+
+&gt;<i> Imagine a scenario where a user has no network connection and 
+</I>&gt;<i> unknowingly left their browser in private browsing mode.
+</I>
+That would seem like a UI bug. Surely there should be no doubt in the 
+user's mind as to which mode he is using.
+
+
+On Tue, 7 Apr 2009, Ian Fette (&#165;&#164;&#165;&#162;&#165;&#243;&#165;&#213;&#165;&#167;&#165;&#195;&#165;&#198;&#165;&#163;) wrote:
+&gt;<i>
+</I>&gt;<i> FWIW, I think it would be helpful to expose via some manner that the 
+</I>&gt;<i> user is in an incognito/private/whatever mode, especially to plugins. 
+</I>&gt;<i> (Right now none of us can really control what plugins are doing). If we 
+</I>&gt;<i> exposed that fact, a page could check it and decide what it wants to do. 
+</I>&gt;<i> To me, that feels a lot better than just saying &quot;No, sorry, you don't 
+</I>&gt;<i> get XYZ.&quot;
+</I>
+Exposing this to plugins makes sense; I recommend raising this with the 
+plugin-futures group working on the NPAPI.
+
+
+On Tue, 7 Apr 2009, Brady Eidson wrote:
+&gt;<i> 
+</I>&gt;<i> Another problem with the &quot;reset to an empty storage area&quot; case is this: 
+</I>&gt;<i> say the user starts using an application and it does some things with 
+</I>&gt;<i> LocalStorage.  Then, without leaving the application, the user realizes 
+</I>&gt;<i> &quot;Oh, I should be in private browsing mode&quot; and activates it.  In one 
+</I>&gt;<i> fell swoop, LocalStorage is reset to empty and the application is left 
+</I>&gt;<i> in an inconsistent state.  Is that okay?
+</I>
+From the specification's perspective, yes. Assuming you're implementing 
+&quot;private browsing mode&quot; as a &quot;pretend to be on a readonly filesystem&quot; 
+mode, then you've just enabled a mode in which the browser pretends to 
+have a hardware limitation preventing it from writing to disk.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="019291.html">[whatwg] Private browsing vs. Storage and Databases
+</A></li>
+	<LI>Next message: <A HREF="019272.html">[whatwg] Opera2d-game Extensions to Canvas: setPixel() and	getPixel()
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19367">[ date ]</a>
+              <a href="thread.html#19367">[ thread ]</a>
+              <a href="subject.html#19367">[ subject ]</a>
+              <a href="author.html#19367">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

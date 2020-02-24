@@ -1,0 +1,239 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] CSP sandbox directive integration with HTML
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20CSP%20sandbox%20directive%20integration%20with%20HTML&In-Reply-To=%3CCAJE5ia9iPP%3DGhuQXHeTbveDCet_BFtqpA6jEq36A%3Dqj5dBNjuQ%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="076348.html">
+   <LINK REL="Next"  HREF="034076.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] CSP sandbox directive integration with HTML</H1>
+<!--htdig_noindex-->
+    <B>Adam Barth</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20CSP%20sandbox%20directive%20integration%20with%20HTML&In-Reply-To=%3CCAJE5ia9iPP%3DGhuQXHeTbveDCet_BFtqpA6jEq36A%3Dqj5dBNjuQ%40mail.gmail.com%3E"
+       TITLE="[whatwg] CSP sandbox directive integration with HTML">w3c at adambarth.com
+       </A><BR>
+    <I>Mon Dec  5 23:05:29 PST 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="076348.html">[whatwg] &lt;object&gt;, type, and fallback
+</A></li>
+        <LI>Next message: <A HREF="034076.html">[whatwg] Proposal: &lt;intent&gt; tag for Web Intents API
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#34071">[ date ]</a>
+              <a href="thread.html#34071">[ thread ]</a>
+              <a href="subject.html#34071">[ subject ]</a>
+              <a href="author.html#34071">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>I wrote some somewhat goofy text in the CSP spec trying to integrate
+the sandbox directive with HTML's iframe sandbox machinery.  Hixie and
+I chatted in #whatwg about how best to do the integration.  I think
+Hixie is going to refactor the machinery in the spec to be a bit more
+generic and to call out to the CSP spec to get the sandbox flags from
+the CSP policy.  There are more details in the IRC log below.
+
+Thanks,
+Adam
+
+
+[06:43am] abarth: Hixie: do you have a moment to tell me how nutty
+this text about sandbox flags is?
+<A HREF="http://dvcs.w3.org/hg/content-security-policy/raw-file/tip/csp-specification.dev.html#sandbox">http://dvcs.w3.org/hg/content-security-policy/raw-file/tip/csp-specification.dev.html#sandbox</A>
+[06:43am] abarth: &quot;When enforcing the sandbox directive, the user
+agent must set the sandbox flags for the protected document as if the
+document where contained in a nested browsing context within a
+document with sandbox flags given by the the directive-value.&quot;
+[06:45am] Hixie: hrm
+[06:45am] abarth: i don't think its quite right
+[06:45am] abarth: i couldn't find a good hook in HTML for this
+[06:45am] Hixie: what you probably want to do is set some hook that i
+can then do the right magic with
+[06:46am] Hixie: rather than try to poke the html spec flags
+[06:46am] abarth: ok
+[06:46am] Hixie: because the flags you have to set are pretty complex and subtle
+[06:46am] Hixie: and involve the navigation algorithm, etc
+[06:46am] abarth: how about the &quot;CSP sandbox flags&quot; as a property of a Document
+[06:46am] abarth: which will be a string like you'd get in the iframe attribute?
+[06:46am] abarth: so HTML handles the parsing
+[06:46am] Hixie: has to be on a browsing context, not a document
+[06:46am] Hixie: doesn't make sense to sandbox a document
+[06:46am] abarth: why not?
+[06:47am] abarth: sorry, let me ask a different question
+[06:47am] abarth: is a browsing context preserved across navigations?
+[06:47am] Hixie: yes
+[06:48am] Hixie: but the flags can change during the lifetime of the
+browsing context
+[06:48am] abarth: ah
+[06:48am] abarth: ok
+[06:48am] Hixie: what matters to all teh security stuff is the state
+when the browsing context was last navigated
+[06:49am] Hixie: e.g. &quot;if... its browsing context had its sandboxed
+forms browsing context flag set when the Document was created ...&quot;
+[06:49am] abarth: i see
+[06:49am] Margle joined the chat room.
+[06:49am] Hixie: but the net result is that you have to set the flags
+before the document is created
+[06:49am] abarth: do we have the response headers when the document is created?
+[06:49am] Hixie: er, before the Document is created
+[06:49am] Hixie: sure
+[06:49am] Hixie: assuming it came over HTTP
+[06:50am] abarth: ok, so when the document is created, HTML needs to
+ask about the CSP policy for the document
+[06:50am] abarth: or for the response
+[06:50am] Hixie: we get the headers by navigate step 19 or so (type
+sniffing step), we create the document as a side-effect of step 20
+(the switch statement that relies on the sniffed type)
+[06:51am] abarth: Upon receiving an HTTP response containing ...
+[06:51am] abarth: that's when the CSP policy starts getting enforced
+[06:51am] abarth: &quot;Upon receiving an HTTP response containing at least
+one Content-Security-Policy header field, the user agent must enforce
+the combination of all the policies contained in these header fields.&quot;
+[06:52am] Hixie: so... what happens if the page navigates itself to a
+page without the CSP?
+[06:52am] Hixie: or does a history.back() to a accomplice page that
+isn't sandboxed?
+[06:52am] abarth: that's fine
+[06:53am] abarth: consider the unique-origin sandbox bits
+[06:53am] abarth: or the disable-script
+[06:53am] Hixie: k
+[06:53am] abarth: those make sense on a per-document basisi
+[06:53am] Hixie: so when do we reset the flags?
+[06:53am] abarth: each navigation
+[06:54am] abarth: what actually happens in the implementation is that
+we copy the sandbox flags from the Frame to the Document when the
+document is created
+[06:54am] abarth: because we're supposed to freeze the sandbox flags
+[06:54am] abarth: we enquire about the CSP policy at that time
+[06:54am] abarth: that happens each time a new document is loaded into a Frame
+[06:54am] Hixie: hmm... the document is created before the session
+history change happens
+[06:55am] Hixie: so we'd have to reset the flags before the old
+document is removed...
+[06:55am] Hixie: might make sense to just set the flags temporarily
+while the document is being created or something
+[06:55am] Hixie: how is this supposed to interact with the sandbox
+attribute? union?
+[06:55am] abarth: can we not just set them on the document when we
+copy the state to the document?
+[06:56am] abarth: Hixie: its the same combination operator that
+happens when you have nested iframes
+[06:56am] abarth: that each contribute a sandbox attribute
+[06:57am] Hixie: hmmm
+[06:57am] Hixie: so the way it works for nested iframes is that
+setting the flag on an iframe just forces it on for all descendants
+iframes
+[06:58am] abarth: yeah, so the union
+[06:58am] abarth: (assuming the items are things like &quot;sandboxed
+scripts browsing context flag&quot;)
+[06:58am] Hixie: the precise text right now is &quot;In addition, any
+browsing contexts nested within an iframe, either directly or
+indirectly, must have all the flags set on them as were set on the
+iframe's Document's browsing context when the iframe's Document was
+created.&quot;
+[06:59am] Hixie: so i guess i'd just change that to &quot;nested within a
+browsing context&quot;
+[06:59am] Hixie: and change the other &quot;iframe&quot;s to &quot;browsing context&quot;
+[06:59am] abarth: yes
+[07:00am] abarth: &quot;iframe's Document's browsing context when the
+iframe's Document was created&quot;
+[07:00am] abarth: that state gets represented in the implementation
+[07:00am] abarth: explicitly as a property of the document
+[07:00am] Hixie: sigh, probably makes sense to just hoist all this
+stuff up to a generic section
+[07:00am] Hixie: and then invoke it from iframe creation and from navigation
+[07:00am] Hixie: or something
+[07:00am] Hixie: and maybe do your &quot;freeze on document&quot; thing at the same time
+[07:00am] Hixie: for clarity
+[07:00am] abarth: sorry to make work for you
+[07:00am] Hixie: no worries
+[07:00am] Hixie: tis my job
+[07:01am] Hixie: can you file a bug or send mail about it? reference
+this irc log if you can
+[07:01am] abarth: sure
+[07:01am] Hixie: probably won't happen until early next year
+[07:01am] abarth: yeah, there's no rush
+[07:01am] Hixie: k
+[07:01am] abarth: thanks
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="076348.html">[whatwg] &lt;object&gt;, type, and fallback
+</A></li>
+	<LI>Next message: <A HREF="034076.html">[whatwg] Proposal: &lt;intent&gt; tag for Web Intents API
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#34071">[ date ]</a>
+              <a href="thread.html#34071">[ thread ]</a>
+              <a href="subject.html#34071">[ subject ]</a>
+              <a href="author.html#34071">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

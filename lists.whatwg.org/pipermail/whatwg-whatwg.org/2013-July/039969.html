@@ -1,0 +1,192 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Script preloading
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Script%20preloading&In-Reply-To=%3CCAJ5xic_R5nw7G3iJD-hzxnss%2BAKtRrZ1XN1M6Sov9B2HVr9OFw%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="039963.html">
+   <LINK REL="Next"  HREF="039973.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Script preloading</H1>
+<!--htdig_noindex-->
+    <B>Jake Archibald</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Script%20preloading&In-Reply-To=%3CCAJ5xic_R5nw7G3iJD-hzxnss%2BAKtRrZ1XN1M6Sov9B2HVr9OFw%40mail.gmail.com%3E"
+       TITLE="[whatwg] Script preloading">jaffathecake at gmail.com
+       </A><BR>
+    <I>Wed Jul 10 02:29:04 PDT 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="039963.html">[whatwg] Script preloading
+</A></li>
+        <LI>Next message: <A HREF="039973.html">[whatwg] Script preloading
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#39969">[ date ]</a>
+              <a href="thread.html#39969">[ thread ]</a>
+              <a href="subject.html#39969">[ subject ]</a>
+              <a href="author.html#39969">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On 9 July 2013 21:41, Kyle Simpson &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">getify at gmail.com</A>&gt; wrote:
+
+&gt;<i> <A HREF="http://wiki.whatwg.org/wiki/Script_Execution_Control">http://wiki.whatwg.org/wiki/Script_Execution_Control</A>
+</I>&gt;<i>
+</I>&gt;<i> My proposal was to standardize what IE4-10 did, which is to start loading
+</I>&gt;<i> a script even if it's not in the DOM, but not execute it until it's in the
+</I>&gt;<i> DOM. Then, you monitor an event to know if one or more scripts have
+</I>&gt;<i> finished this &quot;preloading&quot;, and then you can decide if and when and in what
+</I>&gt;<i> order to add the corresponding &lt;script&gt; elements to the DOM to allow
+</I>&gt;<i> &quot;execution&quot; to proceed.
+</I>&gt;<i>
+</I>
+The IE4-10 technique is invisible to pre-parsers, if we're chasing
+performance here it's not good enough.
+
+
+&gt;<i> Setting aside IE's non-standard event mechanism, Nicholas' proposal was
+</I>&gt;<i> also perfectly sensible, and pretty simple. He suggested the same mechanism
+</I>&gt;<i> for execution (adding a &lt;script&gt; to the DOM), but suggested a `preload`
+</I>&gt;<i> attribute on the element to prevent auto-execution, and a `onpreload` event
+</I>&gt;<i> to notify you of loading-complete.
+</I>&gt;<i>
+</I>
+Also invisible to preloaders.
+
+You could make &quot;preload&quot; an attribute which does a non-blocking download
+but not execution. This is visible to preloaders and falls back to standard
+ordered blocking loading which is fine. Then you'd have a method to
+trigger execution of the script later. This is Hixie's &quot;whenneeded&quot;
+proposal.
+
+However, &quot;whenneeded&quot; is more complex than &quot;dependencies&quot;. Unless there's a
+good use-case for deferred parsing that can't be handled by
+link[rel=subresource] and similar, &quot;dependencies&quot; is the better option.
+
+&gt;<i> 1. Add a &quot;dependencies&quot; attribute to &lt;script&gt; that can point to other
+</I>&gt;<i> &gt;   scripts to indicate that execution of this script should be delayed
+</I>&gt;<i> &gt;   until all other scripts that are (a) earlier in the tree order and (b)
+</I>&gt;<i> &gt;   identified by this attribute have executed.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt;     &lt;script id=&quot;jquery&quot; src=&quot;jquery.js&quot; async&gt;&lt;/script&gt;
+</I>&gt;<i> &gt;     &lt;script id=&quot;shims&quot; src=&quot;shims.js&quot; async&gt;&lt;/script&gt;
+</I>&gt;<i> &gt;     &lt;script dependencies=&quot;shims jquery&quot; src=&quot;myscript.js&quot; async&gt;&lt;/script&gt;
+</I>&gt;<i>
+</I>&gt;<i> &#8230;content-management-systems (through plugins) load different items into a
+</I>&gt;<i> page independently of other plugins. Those plugins have no knowledge of the
+</I>&gt;<i> complete content/markup-structure of the page&#8230;
+</I>&gt;<i>
+</I>
+If &quot;dependencies&quot; took a CSS selector it could be:
+
+&lt;script dependencies=&quot;.cms-core&quot; src=&quot;cmd-plugin.js&quot;&gt;&lt;/script&gt;
+
+Now the number of scripts with class &quot;cms-core&quot; can change between versions
+of the CMS but the plugin still waits for them all. No ID generation
+needed. Does this fix the issue for you?
+
+
+&gt;<i> Moreover, this ignores some use-cases for &quot;script preloading&quot; which are
+</I>&gt;<i> basically speculative preloading. I may want to load several plugins, but
+</I>&gt;<i> not execute any of them, and then only use one of them depending on what
+</I>&gt;<i> the user does.
+</I>&gt;<i>
+</I>
+This can be better achieved with things like link[rel=subresource] which
+work for more than just scripts. When the script is required, it can be
+added to the page with js, using something like LabJS or the &quot;dependencies&quot;
+attribute to control execution order if necessary.
+
+
+&gt;<i> So, the real need here is NOT just to chain a set of scripts together, but
+</I>&gt;<i> to put the author in control of pausing a script between load and execute,
+</I>&gt;<i> and then they get to decide when/if they unpause a script.
+</I>&gt;<i>
+</I>
+Given the above, is there a usecase that isn't catered for by
+&quot;dependencies&quot; and existing preloading features?
+
+
+&gt;<i> &gt; 2. Add an &quot;whenneeded&quot; boolean content attribute&#8230;
+</I>&gt;<i>
+</I>&gt;<i> It doesn't solve the &quot;I need an event to know when load is finished&quot;. If
+</I>&gt;<i> I'm waiting for a bunch of stuff to load before asking any of them to
+</I>&gt;<i> execute (in the order I want), I need a way to know that each of them are
+</I>&gt;<i> in fact fully loaded.
+</I>&gt;<i>
+</I>
+Sorry to keep being Mr Use-case, but what do you need to do that isn't
+catered for? You can call markNeeded() when you want the script executed &amp;
+both a promise and the script's &quot;load&quot; event will tell you when it's done.
+Why would you need to know when it's downloaded but not executed?
+
+
+&gt;<i> Secondly, it seems like a bit more complex version of Nicholas' proposal,
+</I>&gt;<i> with just different names. Not sure why the complecting of API with
+</I>&gt;<i> (mostly) his same semantics.
+</I>&gt;<i>
+</I>
+To me, it seems like a simplification of Nicholas' proposal, but still more
+complicated than &quot;dependencies&quot; without good reason. Also, it works with
+preparsers. Can you provide a comparison that shows another suggestion to
+be simpler than both of Hixie's proposals and match/beat it's performance?
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="039963.html">[whatwg] Script preloading
+</A></li>
+	<LI>Next message: <A HREF="039973.html">[whatwg] Script preloading
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#39969">[ date ]</a>
+              <a href="thread.html#39969">[ thread ]</a>
+              <a href="subject.html#39969">[ subject ]</a>
+              <a href="author.html#39969">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

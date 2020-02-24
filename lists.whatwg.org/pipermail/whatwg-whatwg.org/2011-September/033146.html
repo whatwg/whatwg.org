@@ -1,0 +1,173 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] readystatechange for SCRIPT
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20readystatechange%20for%20SCRIPT&In-Reply-To=%3Cop.v1jb20aoa3v5gv%40hr-opera.oslo.osa%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="033137.html">
+   <LINK REL="Next"  HREF="033150.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] readystatechange for SCRIPT</H1>
+<!--htdig_noindex-->
+    <B>Hallvord R. M. Steen</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20readystatechange%20for%20SCRIPT&In-Reply-To=%3Cop.v1jb20aoa3v5gv%40hr-opera.oslo.osa%3E"
+       TITLE="[whatwg] readystatechange for SCRIPT">hallvord at opera.com
+       </A><BR>
+    <I>Fri Sep  9 02:46:13 PDT 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="033137.html">[whatwg] readystatechange for SCRIPT
+</A></li>
+        <LI>Next message: <A HREF="033150.html">[whatwg] readystatechange for SCRIPT
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#33146">[ date ]</a>
+              <a href="thread.html#33146">[ thread ]</a>
+              <a href="subject.html#33146">[ subject ]</a>
+              <a href="author.html#33146">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Thu, 08 Sep 2011 22:57:25 +0200, Ian Hickson &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">ian at hixie.ch</A>&gt; wrote:
+
+&gt;<i> On Thu, 8 Sep 2011, Hallvord R. M. Steen wrote:
+</I>&gt;&gt;<i> in our experience firing both load and readystatechange
+</I>&gt;&gt;<i> events on SCRIPT will be painful. I suggest removing the latter again.
+</I>&gt;<i>
+</I>&gt;<i> Interesting. We added it for compatibility reasons!
+</I>&gt;<i>
+</I>&gt;<i> Do you have any examples of pages that do this so I could study them?
+</I>
+Many of those we've had trouble with have been updated and fixed, it seems  
+(we've contacted several of them to recommend changes). I'll include a  
+good amount of information below regarding the problems we found in the  
+past:
+
+* <A HREF="http://www.hotmail.com">http://www.hotmail.com</A> - banner shown twice on login page
+
+Caused by stuff like this (still seen in  
+<A HREF="https://secure.shared.live.com/~Live.SiteContent.ID/~16.1.16/~/~/~/~/js/WLWorkflow.js">https://secure.shared.live.com/~Live.SiteContent.ID/~16.1.16/~/~/~/~/js/WLWorkflow.js</A>  
+):
+
+EVENT.add(a,EVENT.Name.OnReadyStateChange,a.addEventHandler(ScriptLoader.evt_readystatechange));EVENT.add(a,EVENT.Name.OnLoad,a.addEventHandler(ScriptLoader.evt_onload));
+
+but it's no longer a problem since they have added a _loaded property to  
+the SCRIPT to make sure the handler only runs once, and now do:
+
+(a.readyState==&quot;complete&quot;||a.readyState==&quot;loaded&quot;)&amp;&amp;!a._loaded
+
+Needless to say, if they repeat the pattern elsewhere without the  
+workaround we'll be in trouble again.
+
+* Bing Advanced Search Box not work with Opera
+Bing's search field embedded on third-party site did not work. Bing does  
+no longer provide such a service to webmasters, and the handful of sites  
+we knew about that used Bing search have switched to other providers, but  
+here's my description of the problem: &quot;They keep a global counter of how  
+many scripts have loaded. If all expected ones have loaded they try to  
+call the search box script ready function. However, since they define both  
+onreadystatechange and onload and we fire both, the counter increments  
+twice as fast as they expect and they call the function before they've  
+loaded the script.&quot;
+
+* Google Maps on Tripadvisor.com not interactive in Opera
+This also seems fixed, here's the analysis: &quot;the script isn't prepared for  
+a browser that supports both onload and readystatechange on SCRIPT, it  
+ends up adding the main Google Maps file twice, and the double callback  
+ from the Maps code confuses things. (It's the readystatechange for  
+<A HREF="http://c1.tacdn.com/js3/ta-maps-c-v2524033128a.js">http://c1.tacdn.com/js3/ta-maps-c-v2524033128a.js</A> that causes double  
+append etc.)&quot;
+
+* Broken Facebook app &quot;Are YOU Interested?&quot;
+This app called into Facebook's API in a way that caused problems. This  
+too seems to work now, but the underlying problem in Facebook's JS is  
+still there. I guess it's a matter of chance and luck whether Facebook  
+functionality that uses this API work or not:
+
+<A HREF="http://static.ak.fbcdn.net/rsrc.php/v1/yz/r/VKS0m5QqjtF.js">http://static.ak.fbcdn.net/rsrc.php/v1/yz/r/VKS0m5QqjtF.js</A>
+
+Search for &quot;function loadExternalJavascript&quot; and you'll find this part  
+inside (line wrapped by me):
+
+if(b){
+	d.onerror=d.onload=b;
+	d.onreadystatechange=function(){
+		if(this.readyState==&quot;complete&quot;||this.readyState==&quot;loaded&quot;)b();
+
+So b() (an argument passed to the method by the calling code) is going to  
+be called twice. Searching for onreadystatechange in that file shows it's  
+not the only place this is a potential problem.
+
+* DOM Exceptions from popcornjs loading
+Some source code is quoted in their bug report:
+<A HREF="https://webmademovies.lighthouseapp.com/projects/63272-popcorn-js/tickets/375-domexception-in-opera-1101#ticket-375-5">https://webmademovies.lighthouseapp.com/projects/63272-popcorn-js/tickets/375-domexception-in-opera-1101#ticket-375-5</A>
+
+All in all, this problem has bitten us many times on major sites, wasted  
+many hours of QA time on complex analysis, required site patches for  
+Hotmail and tripadvisor.com, and is still a potential compat problem with  
+Facebook code. I expect to keep running into issues caused by this until  
+we remove script.onreadystatechange support.
+
+-- 
+Hallvord R. M. Steen, Core Tester, Opera Software
+<A HREF="http://www.opera.com">http://www.opera.com</A> <A HREF="http://my.opera.com/hallvors/">http://my.opera.com/hallvors/</A>
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="033137.html">[whatwg] readystatechange for SCRIPT
+</A></li>
+	<LI>Next message: <A HREF="033150.html">[whatwg] readystatechange for SCRIPT
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#33146">[ date ]</a>
+              <a href="thread.html#33146">[ thread ]</a>
+              <a href="subject.html#33146">[ subject ]</a>
+              <a href="author.html#33146">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

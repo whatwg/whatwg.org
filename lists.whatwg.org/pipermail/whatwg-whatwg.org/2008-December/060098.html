@@ -1,0 +1,143 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Sending MessagePorts after they have started
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Sending%20MessagePorts%20after%20they%20have%20started&In-Reply-To=%3CPine.LNX.4.62.0812160105030.30225%40hixie.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="060097.html">
+   <LINK REL="Next"  HREF="060101.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Sending MessagePorts after they have started</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Sending%20MessagePorts%20after%20they%20have%20started&In-Reply-To=%3CPine.LNX.4.62.0812160105030.30225%40hixie.dreamhostps.com%3E"
+       TITLE="[whatwg] Sending MessagePorts after they have started">ian at hixie.ch
+       </A><BR>
+    <I>Mon Dec 15 17:37:54 PST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="060097.html">[whatwg] event.message in workers examples
+</A></li>
+        <LI>Next message: <A HREF="060101.html">[whatwg] JSON support for worker postMessage
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#60098">[ date ]</a>
+              <a href="thread.html#60098">[ thread ]</a>
+              <a href="subject.html#60098">[ subject ]</a>
+              <a href="author.html#60098">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Thu, 13 Nov 2008, Jonas Sicking wrote:
+&gt;<i> 
+</I>&gt;<i> It is currently possible (I think) to send a port through postMessage 
+</I>&gt;<i> after the port was started. This makes sending ports across processes 
+</I>&gt;<i> (such as to an iframe or worker living in a different process) pretty 
+</I>&gt;<i> painful to implement. It also makes it hard to define without causing 
+</I>&gt;<i> race conditions.
+</I>
+The implementation strategy you describe does indeed seem like it would be 
+all kinds of pain to set up. However, it isn't the only strategy available 
+and indeed I think some of the other strategies are more appropriate here.
+
+Some of these other strategies include:
+
+ * Using a Unix socket, Windows mailslot, or other communication mechanism 
+   that is buffered, asynchronous, and can be passed between processes.
+   With such a mechanism, when passing a port from one process or thread 
+   to another, the source thread would just post an event to the 
+   destination thread, and stop reading from the underlying pipe. The 
+   receiving thread would then receive the event, and only when it was 
+   ready to process a message from the pipe would it read from it -- if 
+   the pipe was sent to be sent to another thread first, then it might in 
+   fact never read from the pipe. Meanwhile, the other end of the pipe, 
+   the thread with the other port, need not know any of this, and can be 
+   writing to the pipe without worrying about messages getting lost.
+
+ * Shared memory for the ports. Similar to the above strategy, one could 
+   have a block of shared memory for each direction, with in each 
+   direction one side being responsible for adding messages and marking 
+   them new, and the other side being responsible for removing messages 
+   and marking them read.
+
+ * Proxying all messages through a single master message controller 
+   thread. Instead of posting messages straight to the destination thread, 
+   each cross-thread or cross-process pair of ports would have its 
+   end-points registered with a single controlling thread or process. 
+   Messages would then be sent to that thread/process, which would keep 
+   them buffered while a port was being bounced around, and would only 
+   actually send messages to the final destination when it was ready.
+
+
+&gt;<i> There are alternative implementation strategies. The simplest one is 
+</I>&gt;<i> probably to never tell the other end when a port is moved, instead set 
+</I>&gt;<i> up a permanent proxy and forward all message through the full chain of 
+</I>&gt;<i> processes that the ports have passed through. Another strategy is to 
+</I>&gt;<i> require that each message is acknowledged and resend messages if a port 
+</I>&gt;<i> end was retangled before the message got processed.
+</I>
+Yes, if IPC absolutely _must_ be done over cross-thread IPC without any 
+sort of separate message channel to represent the pairs of ports, these 
+are other options.
+
+
+&gt;<i> It's also hard to specify this without race conditions since you have to 
+</I>&gt;<i> deal with the situation that a port has been retangled after a message 
+</I>&gt;<i> was queued for it to fire against the port.
+</I>
+Good point. Fixed.
+
+I also dropped MessagePort.onclose which had all kinds of weird race 
+conditions. Currently the only way to know if a port is not entangled is 
+to change its |active| attribute.
+
+
+&gt;<i> To fix all this I propose that if a port has been started, we don't 
+</I>&gt;<i> allow it to be passed to postMessage. If that is done an exception is 
+</I>&gt;<i> thrown.
+</I>
+This seems like it unnecessarily limits the power of message channels. 
+What if you want to receive a message, and then defer to another thread if 
+the message you receive is one asking for a particularly time-consuming 
+process, but not if it is something simple?
+
+Cheers,
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="060097.html">[whatwg] event.message in workers examples
+</A></li>
+	<LI>Next message: <A HREF="060101.html">[whatwg] JSON support for worker postMessage
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#60098">[ date ]</a>
+              <a href="thread.html#60098">[ thread ]</a>
+              <a href="subject.html#60098">[ subject ]</a>
+              <a href="author.html#60098">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

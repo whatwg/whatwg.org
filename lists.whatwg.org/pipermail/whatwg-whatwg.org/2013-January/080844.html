@@ -1,0 +1,140 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Proposal: Add CanvasRenderingContext2D.fillRule with &quot;nonzero&quot; (default) and &quot;evenodd&quot; options
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Proposal%3A%20Add%20CanvasRenderingContext2D.fillRule%20with%0A%20%22nonzero%22%20%28default%29%20and%20%22evenodd%22%20options&In-Reply-To=%3C50EDA528.1050606%40mit.edu%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="080838.html">
+   <LINK REL="Next"  HREF="080846.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Proposal: Add CanvasRenderingContext2D.fillRule with &quot;nonzero&quot; (default) and &quot;evenodd&quot; options</H1>
+<!--htdig_noindex-->
+    <B>Boris Zbarsky</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Proposal%3A%20Add%20CanvasRenderingContext2D.fillRule%20with%0A%20%22nonzero%22%20%28default%29%20and%20%22evenodd%22%20options&In-Reply-To=%3C50EDA528.1050606%40mit.edu%3E"
+       TITLE="[whatwg] Proposal: Add CanvasRenderingContext2D.fillRule with &quot;nonzero&quot; (default) and &quot;evenodd&quot; options">bzbarsky at MIT.EDU
+       </A><BR>
+    <I>Wed Jan  9 09:13:12 PST 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="080838.html">[whatwg] Proposal: Add CanvasRenderingContext2D.fillRule with &quot;nonzero&quot; (default) and &quot;evenodd&quot; options
+</A></li>
+        <LI>Next message: <A HREF="080846.html">[whatwg] Proposal: Add CanvasRenderingContext2D.fillRule with &quot;nonzero&quot; (default) and &quot;evenodd&quot; options
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#80844">[ date ]</a>
+              <a href="thread.html#80844">[ thread ]</a>
+              <a href="subject.html#80844">[ subject ]</a>
+              <a href="author.html#80844">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On 1/9/13 1:20 AM, Rik Cabanier wrote:
+&gt;<i> Also, would there be a performance impact of having a string
+</I>&gt;<i> argument for a call that happens very frequently?
+</I>
+That's an excellent question.  The answer is that it depends.
+
+Here's a testcase that exercises setting a property to a WebIDL enum and 
+measures the time in ns per property set:
+
+&lt;script&gt;
+   var xhr = new XMLHttpRequest;
+   xhr.open(&quot;GET&quot;, &quot;&quot;);
+   var count = 1000000;
+   var start = new Date;
+   for (var i = 0; i &lt; count; ++i) {
+     xhr.responseType = &quot;text&quot;;
+   }
+   var stop = new Date;
+   alert((stop - start) / count * 1e6);
+&lt;/script&gt;
+
+What I see on my hardware in a current Firefox nightly is that this 
+takes about 27ns per set (this is on a 6-month-old fast laptop, for 
+context, but of course you can measure on the hardware of your choice). 
+  About 8-10ns of that is the general overhead associated with the loop 
+counter, the setter invocation, etc.  If my profiler is not lying to me, 
+another several ns is the actual implementation of the C++ responseType 
+setter.  The rest of the time is spent dealing with the string.  For 
+what it's worth, it's possible we could make the string bit faster for 
+cases when a constant string is being used, as above; I'd have to think 
+about it a bit.
+
+Here's a similar testcase that exercises a boolean:
+
+&lt;script&gt;
+   var xhr = new XMLHttpRequest;
+   xhr.open(&quot;GET&quot;, &quot;&quot;);
+   var count = 1000000;
+   var start = new Date;
+   for (var i = 0; i &lt; count; ++i) {
+     xhr.withCredentials = false;
+   }
+   var stop = new Date;
+   alert((stop - start) / count * 1e6);
+&lt;/script&gt;
+
+The time I see now is closer to 12-13ns.  So there is definitely 
+overhead associated with the string: about 15ns per call.  How many 
+calls are we expecting people to make here?
+
+But as I said, it depends.  The numbers are quite different in other 
+UAs.  Testing a Chrome 25 dev channel build, a WebKit nightly (labeled 
+&quot;Safari&quot; below), and and Opera build that claims to be &quot;12.50 internal&quot;, 
+I get numbers like so, in ns (all with a few ns plus or minus; I'm 
+leaving off the error bars):
+
+              enum    boolean
+Firefox       27       13
+Safari        51       33
+Chrome        58       40
+Opera        158       82
+
+so how long this stuff takes is clearly pretty implementation-dependent. 
+  And note that these are upper bounds, since I have no guarantees that 
+the time taken by the actual C++ setters is negligible in these case 
+(except for Firefox, where profiles show that it is).  For example, 
+Chrome gets about 30% slower if I set responseType to &quot;document&quot; instead 
+of &quot;text&quot;, as far as I can tell, and that might be due to the C++ side.
+
+Hope that helps,
+Boris
+
+P.S.  For a real fun time, try doing xhr.responseType = false, as I 
+accidentally did at some point while testing this and look at the 
+resulting numbers.  ;)
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="080838.html">[whatwg] Proposal: Add CanvasRenderingContext2D.fillRule with &quot;nonzero&quot; (default) and &quot;evenodd&quot; options
+</A></li>
+	<LI>Next message: <A HREF="080846.html">[whatwg] Proposal: Add CanvasRenderingContext2D.fillRule with &quot;nonzero&quot; (default) and &quot;evenodd&quot; options
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#80844">[ date ]</a>
+              <a href="thread.html#80844">[ thread ]</a>
+              <a href="subject.html#80844">[ subject ]</a>
+              <a href="author.html#80844">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

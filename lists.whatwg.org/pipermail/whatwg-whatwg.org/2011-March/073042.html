@@ -1,0 +1,173 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Session Management
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Session%20Management&In-Reply-To=%3C4D6EB294.2000005%40emsai.net%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="073037.html">
+   <LINK REL="Next"  HREF="073049.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Session Management</H1>
+<!--htdig_noindex-->
+    <B>Roger H&#229;gensen</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Session%20Management&In-Reply-To=%3C4D6EB294.2000005%40emsai.net%3E"
+       TITLE="[whatwg] Session Management">rescator at emsai.net
+       </A><BR>
+    <I>Wed Mar  2 13:11:48 PST 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="073037.html">[whatwg] Session Management
+</A></li>
+        <LI>Next message: <A HREF="073049.html">[whatwg] Session Management
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#73042">[ date ]</a>
+              <a href="thread.html#73042">[ thread ]</a>
+              <a href="subject.html#73042">[ subject ]</a>
+              <a href="author.html#73042">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On 2011-03-02 18:42, Bjartur Thorlacius wrote:
+&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> Just see what happens when users login to a site, then navigate to
+</I>&gt;&gt;&gt;<i> another and authenticate to the latter, and then logout from the
+</I>&gt;&gt;&gt;<i> latter. In that case, they're still authenticated to the former site.
+</I>&gt;&gt;&gt;<i> In theory, this shouldn't be a problem, as users should clear all UA
+</I>&gt;&gt;&gt;<i> data before granting anyone else access to the UA data store, but in
+</I>&gt;&gt;&gt;<i> ill-managed public terminals, that may not be the case.
+</I>&gt;&gt;<i> Yes but do they? Theory is nice but can't a site aid a user in this?
+</I>&gt;&gt;<i>
+</I>&gt;<i> If neither the sysadmin, nor the user, clear the credentials - who will?
+</I>&gt;<i> This specifically is probably the main use case for expiring auth tokens.
+</I>&gt;<i>
+</I>
+Three Ways...
+
+Method #1:
+Browser timeout. For legacy reasons the browser could default to within 
+a sensible min/max timeout.
+Once the timeout is triggered, the HTTP Authentication is ended, and the 
+the user has to log in again.
+Like say maybe 30 minutes to 60 minutes.
+This can easily be done right now for all current browsers. No UI 
+changes or any real code changes at all.
+
+Note:
+Ideally the user should be able to adjust the default timeout within 
+some sensible min/max range,
+but this would require a UI change/addition.
+
+Method #2:
+A second way to &quot;logout&quot; from a HTTP Authentication would be to end the 
+HTTP Authentication when the LAST tab or window is closed that is using 
+the authentication to that site/directory.
+
+Note:
+It's a shame one can not use javascript to let the webdesigner provide a 
+button or url with &quot;javascript:window.close()&quot; or similar.
+Perhaps a &quot;javascript:crypto.httpauth_closesession()&quot; or similar could 
+be added in the future.
+
+Method #3:
+The server (or serverside script, like PHP or similar) sends the 
+following to the browser:
+     header('HTTP/1.0 401 Unauthorized');
+     header('WWW-Authenticate: Close realm=&quot;My Realm&quot;');
+     *PS! the auth stuff is much longer here obviously, this was just to 
+show the use of &quot;Close&quot;*
+
+Note:
+If Method 1 or 2 is used the browser should probably send the following 
+to the server:
+     GET /private/index.html HTTP/1.1
+     Authorization: Close username=&quot;something&quot;
+     *PS! the auth stuff is much longer here obviously, this was just to 
+show the use of &quot;Close&quot;*
+
+
+I think that Method 3 is the real key piece here, on it's own it allows 
+the server to &quot;timeout&quot; the client/user AND notify the client that this 
+has happen.
+combined with Method 1 and 2 it is now possible for either the client or 
+browser to end the http authentication session and notify each other, 
+and let the user know as well.
+Method 3 alone would not need a UI change, it would simply instruct the 
+browser to clear it's auth session, the page content itself could hold a 
+message from the server to the user that they are now logged out.
+
+Explained as easily as possible, the closing is exactly the same as 
+serverside &quot;WWW-Authenticate: Digest&quot; and clientside &quot;Authorization: 
+Digest&quot; but
+instead of the word Digest it is replaced with Close, the rest of the 
+auth should otherwise be just like a normal Digest auth to ensure it's 
+not a fake close.
+just doing &quot;WWW-Authenticate: Close&quot; might be an issue with future 
+improvements beyond Digest method, so maybe &quot;WWW-Authenticate: Close 
+Digest &quot; would make more sense.
+Just avoid calling it &quot;Digest Close&quot; as that could be confused with a 
+normal &quot;Digest&quot;.
+&quot;Close&quot; is just an example, &quot;End&quot; or &quot;Quit&quot; or &quot;Clear&quot; could just as 
+well be used, the word doesn't matter, the hint brings from the server 
+to the browser is the vital key though.
+
+It is basically the server saying to the browser that &quot;those session 
+credentials are no longer valid, please stop spamming me with them&quot; 
+*laughs* at which point the browser clears the auth session,
+and starts talking to the site with a clean slate again. If something 
+like Method 3 was implemented then I'm pretty sure that the devs of 
+phpBB, vBulletin and who knows how many CMS devs out there would be 
+happy to support this.
+
+Sidesubject:
+Hopefully the old WWW-Authenticate: Basic is fully deprecated soon as it 
+is no different from plaintext html login forms (almost all forums and 
+websites out there that do not use SSL/certificates).
+WWW-Authenticate: Digest should be minimum requirement. I'm not sure but 
+I believe that Opera did fix some of the issue with Basic being fallen 
+back to, no idea how all browsers lay on this currently.
+It would be tempting to fix the Basic issue and security &quot;hole&quot; by 
+instead changing things so that it's called: &quot;WWW-Authenticate2: Digest&quot; 
+and &quot;WWW-Authenticate2: Close Digest&quot; where Basic is not allowed at all,
+this would prevent exploits that try to sneak Basic into the header and 
+make the browser use plain text instead.
+
+-- 
+Roger &quot;Rescator&quot; H&#229;gensen.
+Freelancer - <A HREF="http://www.EmSai.net/">http://www.EmSai.net/</A>
+
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="073037.html">[whatwg] Session Management
+</A></li>
+	<LI>Next message: <A HREF="073049.html">[whatwg] Session Management
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#73042">[ date ]</a>
+              <a href="thread.html#73042">[ thread ]</a>
+              <a href="subject.html#73042">[ subject ]</a>
+              <a href="author.html#73042">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

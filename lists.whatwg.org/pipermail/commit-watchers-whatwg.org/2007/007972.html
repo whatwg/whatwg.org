@@ -1,0 +1,303 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [html5] r1064 - /
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commit-watchers%40lists.whatwg.org?Subject=Re%3A%20%5Bhtml5%5D%20r1064%20-%20/&In-Reply-To=%3C20071017225358.706B81389CC%40hixie.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="007971.html">
+   <LINK REL="Next"  HREF="007973.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[html5] r1064 - /</H1>
+<!--htdig_noindex-->
+    <B>whatwg at whatwg.org</B> 
+    <A HREF="mailto:commit-watchers%40lists.whatwg.org?Subject=Re%3A%20%5Bhtml5%5D%20r1064%20-%20/&In-Reply-To=%3C20071017225358.706B81389CC%40hixie.dreamhostps.com%3E"
+       TITLE="[html5] r1064 - /">whatwg at whatwg.org
+       </A><BR>
+    <I>Wed Oct 17 15:53:58 PDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="007971.html">[html5] r1063 - /
+</A></li>
+        <LI>Next message: <A HREF="007973.html">[html5] r1065 - /
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#7972">[ date ]</a>
+              <a href="thread.html#7972">[ thread ]</a>
+              <a href="subject.html#7972">[ subject ]</a>
+              <a href="author.html#7972">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Author: ianh
+Date: 2007-10-17 15:53:57 -0700 (Wed, 17 Oct 2007)
+New Revision: 1064
+
+Modified:
+   index
+   source
+Log:
+[] (0) SQL: Make expected version '' allow any version, but actual version '' not work with any random version. Make changeVersion() async.
+
+Modified: index
+===================================================================
+--- index	2007-10-17 07:36:12 UTC (rev 1063)
++++ index	2007-10-17 22:53:57 UTC (rev 1064)
+@@ -30226,7 +30226,7 @@
+    database already exists but has a different version, then the method must
+    raise an &lt;code&gt;INVALID_STATE_ERR&lt;/code&gt; exception.
+ 
+-  &lt;p&gt;Otherwise, if the database version is the empty string, or if the
++  &lt;p&gt;Otherwise, if the database provided is the empty string, or if the
+    database doesn't yet exist, or if the database exists and the version
+    provided to the &lt;code title=dom-opendatabase&gt;&lt;a
+    href=&quot;#opendatabase&quot;&gt;openDatabase()&lt;/a&gt;&lt;/code&gt; method is the same as the
+@@ -30256,11 +30256,15 @@
+ 
+ interface &lt;dfn id=database0&gt;Database&lt;/dfn&gt; {
+   readonly attribute DOMString &lt;a href=&quot;#version&quot; title=dom-database-version&gt;version&lt;/a&gt;;
+-  bool &lt;a href=&quot;#changeversion&quot; title=dom-database-changeVersion&gt;changeVersion&lt;/a&gt;(in DOMString oldVersion, in DOMString newVersion);
++  void &lt;a href=&quot;#changeversion&quot; title=dom-database-changeVersion&gt;changeVersion&lt;/a&gt;(in DOMString oldVersion, in DOMString newVersion, in &lt;a href=&quot;#versionchangecallback&quot;&gt;VersionChangeCallback&lt;/a&gt; callback);
+   void &lt;a href=&quot;#executesql&quot; title=dom-database-executeSql&gt;executeSql&lt;/a&gt;(in DOMString sqlStatement, in &lt;a href=&quot;#objectarray&quot;&gt;ObjectArray&lt;/a&gt; arguments, in &lt;a href=&quot;#sqlcallback&quot;&gt;SQLCallback&lt;/a&gt; callback);
+   void &lt;a href=&quot;#closetransaction&quot; title=dom-database-closeTransaction&gt;closeTransaction&lt;/a&gt;();
+ };
+ 
++interface &lt;dfn id=versionchangecallback&gt;VersionChangeCallback&lt;/dfn&gt; {
++  void &lt;span title=dom-versionchangecallback-handleEvent&gt;handleEvent&lt;/span&gt;(in bool versionChanged);
++};
++
+ interface &lt;dfn id=sqlcallback&gt;SQLCallback&lt;/dfn&gt; {
+   void &lt;span title=dom-sqlcallback-handleEvent&gt;handleEvent&lt;/span&gt;(in &lt;a href=&quot;#sqlresultset&quot;&gt;SQLResultSet&lt;/a&gt; resultSet);
+ };&lt;/pre&gt;
+@@ -30276,19 +30280,21 @@
+   &lt;p&gt;The &lt;dfn id=changeversion
+    title=dom-database-changeVersion&gt;changeVersion()&lt;/dfn&gt; method allows you
+    to atomically verify the version number and change it. When the method is
+-   invoked, the user agent must obtain a full lock of the database (waiting
+-   for all open transactions to be closed), and then must verify that the
+-   current version of the database matches the first argument to the method.
+-   If it does not match, then the user agent must release the lock and return
+-   false. Otherwise, the current version matches the first argument, and the
+-   user agent must change the current version of the database and the &lt;a
+-   href=&quot;#expected&quot; title=concept-database-expected-version&gt;expected
+-   version&lt;/a&gt; of the &lt;code&gt;&lt;a href=&quot;#database0&quot;&gt;Database&lt;/a&gt;&lt;/code&gt; object
+-   on which the method was invoked to the value of the second argument. Then,
+-   the lock must be released. Any &lt;code&gt;&lt;a
+-   href=&quot;#database0&quot;&gt;Database&lt;/a&gt;&lt;/code&gt; instances that have an expected
+-   version that differs from the new version will start failing at this
+-   point. Finally, the method must return true.
++   invoked, it must immediately return, and then the user agent must obtain a
++   full lock of the database (waiting for all open transactions to be
++   closed), and then must verify that the current version of the database
++   matches the first argument to the method. If it does not match, then the
++   user agent must release the lock and invoke the callback argument with the
++   value false as the callback's argument. Otherwise, the current version
++   matches the first argument, and the user agent must change the current
++   version of the database and the &lt;a href=&quot;#expected&quot;
++   title=concept-database-expected-version&gt;expected version&lt;/a&gt; of the
++   &lt;code&gt;&lt;a href=&quot;#database0&quot;&gt;Database&lt;/a&gt;&lt;/code&gt; object on which the method
++   was invoked to the value of the second argument. Then, the lock must be
++   released. Any &lt;code&gt;&lt;a href=&quot;#database0&quot;&gt;Database&lt;/a&gt;&lt;/code&gt; instances
++   that have an expected version that differs from the new version will start
++   failing at this point. Finally, the method must invoke its callback
++   argument with the value true as the callback's argument.
+ 
+   &lt;h4 id=executing&gt;&lt;span class=secno&gt;4.11.3. &lt;/span&gt;Executing SQL statements&lt;/h4&gt;
+ 
+@@ -44812,8 +44818,8 @@
+    Sutton, Agust&iacute;n Fern&aacute;ndez, Alexey Feldgendler, Andrew Gove,
+    Andrew Sidwell, Anne van Kesteren, Anthony Hickson, Asbj&oslash;rn
+    Ulsberg, Ben Godfrey, Ben Meadowcroft, Benjamin Hawkes-Lewis, Bert Bos,
+-   Bjoern Hoehrmann, Boris Zbarsky, Brad Fults, Brad Neuberg, Brendan Eich,
+-   Brett Wilson, Carlos Perell&oacute; Mar&iacute;n, Chao Cai,
++   Bjoern Hoehrmann, Boris Zbarsky, Brad Fults, Brad Neuberg, Brady Eidson,
++   Brendan Eich, Brett Wilson, Carlos Perell&oacute; Mar&iacute;n, Chao Cai,
+    &amp;#xc724;&amp;#xc11d;&amp;#xcc2c; (Channy Yun), Charl van
+    Niekerk&lt;!--status.whatwg.org maintainer--&gt;, Charles Iliya Krempeaux,
+    Charles McCathieNevile, Christian Biesinger, Christian Johansen, Chriswa,
+@@ -44837,7 +44843,8 @@
+    Matthew Thomas, Mattias Waldau, Max Romantschuk, Michael 'Ratt'
+    Iannarelli, Michael A. Nachbaur, Michael A. Puls II&lt;!--Shadow2531--&gt;,
+    Michael Gratton, Michael Powers, Michel Fortin, Mihai
+-   &amp;#x015E;ucan&lt;!-- from ROBO Design --&gt;, Mike Brown, Mike
++   &amp;#x015E;ucan&lt;!-- from ROBO
++  Design --&gt;, Mike Brown, Mike
+    Dierken&lt;!-- S. Mike Dierken --&gt;, Mike Dixon, Mike Schinkel, Mike Shaver,
+    Mikko Rantalainen, Neil Deakin, Olav Junker Kj&aelig;r, Philip Taylor,
+    Rajas Moonka, Rimantas Liubertas, Robert O'Callahan, Robert Sayre, Roman
+
+Modified: source
+===================================================================
+--- source	2007-10-17 07:36:12 UTC (rev 1063)
++++ source	2007-10-17 22:53:57 UTC (rev 1064)
+@@ -27848,11 +27848,15 @@
+ 
+ interface &lt;dfn&gt;Database&lt;/dfn&gt; {
+   readonly attribute DOMString &lt;span title=&quot;dom-database-version&quot;&gt;version&lt;/span&gt;;
+-  bool &lt;span title=&quot;dom-database-changeVersion&quot;&gt;changeVersion&lt;/span&gt;(in DOMString oldVersion, in DOMString newVersion);
++  void &lt;span title=&quot;dom-database-changeVersion&quot;&gt;changeVersion&lt;/span&gt;(in DOMString oldVersion, in DOMString newVersion, in &lt;span&gt;VersionChangeCallback&lt;/span&gt; callback);
+   void &lt;span title=&quot;dom-database-executeSql&quot;&gt;executeSql&lt;/span&gt;(in DOMString sqlStatement, in &lt;span&gt;ObjectArray&lt;/span&gt; arguments, in &lt;span&gt;SQLCallback&lt;/span&gt; callback);
+   void &lt;span title=&quot;dom-database-closeTransaction&quot;&gt;closeTransaction&lt;/span&gt;();
+ };
+ 
++interface &lt;dfn&gt;VersionChangeCallback&lt;/dfn&gt; {
++  void &lt;span title=&quot;dom-versionchangecallback-handleEvent&quot;&gt;handleEvent&lt;/span&gt;(in bool versionChanged);
++};
++
+ interface &lt;dfn&gt;SQLCallback&lt;/dfn&gt; {
+   void &lt;span title=&quot;dom-sqlcallback-handleEvent&quot;&gt;handleEvent&lt;/span&gt;(in &lt;span&gt;SQLResultSet&lt;/span&gt; resultSet);
+ };&lt;/pre&gt;
+@@ -27868,19 +27872,22 @@
+   &lt;p&gt;The &lt;dfn
+   title=&quot;dom-database-changeVersion&quot;&gt;changeVersion()&lt;/span&gt;&lt;/dfn&gt;
+   method allows you to atomically verify the version number and change
+-  it. When the method is invoked, the user agent must obtain a full
+-  lock of the database (waiting for all open transactions to be
+-  closed), and then must verify that the current version of the
+-  database matches the first argument to the method. If it does not
+-  match, then the user agent must release the lock and return
+-  false. Otherwise, the current version matches the first argument,
+-  and the user agent must change the current version of the database
+-  and the &lt;span title=&quot;concept-database-expected-version&quot;&gt;expected
+-  version&lt;/span&gt; of the &lt;code&gt;Database&lt;/code&gt; object on which the
+-  method was invoked to the value of the second argument. Then, the
+-  lock must be released. Any &lt;code&gt;Database&lt;/code&gt; instances that have
+-  an expected version that differs from the new version will start
+-  failing at this point. Finally, the method must return true.&lt;/p&gt;
++  it. When the method is invoked, it must immediately return, and then
++  the user agent must obtain a full lock of the database (waiting for
++  all open transactions to be closed), and then must verify that the
++  current version of the database matches the first argument to the
++  method. If it does not match, then the user agent must release the
++  lock and invoke the callback argument with the value false as the
++  callback's argument. Otherwise, the current version matches the
++  first argument, and the user agent must change the current version
++  of the database and the &lt;span
++  title=&quot;concept-database-expected-version&quot;&gt;expected version&lt;/span&gt; of
++  the &lt;code&gt;Database&lt;/code&gt; object on which the method was invoked to
++  the value of the second argument. Then, the lock must be
++  released. Any &lt;code&gt;Database&lt;/code&gt; instances that have an expected
++  version that differs from the new version will start failing at this
++  point. Finally, the method must invoke its callback argument with
++  the value true as the callback's argument.&lt;/p&gt;
+ 
+ 
+ 
+@@ -40707,43 +40714,44 @@
+   Andrew Gove, Andrew Sidwell, Anne van Kesteren, Anthony Hickson,
+   Asbj&oslash;rn Ulsberg, Ben Godfrey, Ben Meadowcroft, Benjamin
+   Hawkes-Lewis, Bert Bos, Bjoern Hoehrmann, Boris Zbarsky, Brad Fults,
+-  Brad Neuberg, Brendan Eich, Brett Wilson, Carlos Perell&oacute;
+-  Mar&iacute;n, Chao Cai, &amp;#xc724;&amp;#xc11d;&amp;#xcc2c; (Channy Yun), Charl
+-  van Niekerk&lt;!--status.whatwg.org maintainer--&gt;, Charles Iliya
+-  Krempeaux, Charles McCathieNevile, Christian Biesinger, Christian
+-  Johansen, Chriswa, Daniel Peng, Daniel Sp&aring;ng, Darin Alder,
+-  Darin Fisher, Dave Singer, Dave Townsend&lt;!-- Mossop on moz irc --&gt;,
+-  David Baron, David Flanagan, David H&aring;s&auml;ther, David Hyatt,
+-  Derek Featherstone, Dimitri Glazkov, dolphinling, Doron Rosenberg,
+-  Eira Monstad, Elliotte Harold, Erik Arvidsson, Evan Martin,
+-  fantasai, Franck 'Shift' Qu&eacute;lain, Geoffrey Sneddon,
+-  H&aring;kon Wium Lie, Henri Sivonen, Henrik Lied, Ignacio Javier,
+-  J. King, James Graham, James M Snell, James Perrett, Jan-Klaas
+-  Kollhof, Jasper Bryant-Greene, Jeff Cutsinger, Jeff Walden, Jens
+-  Bannmann, Jeroen van der Meer, Joel Spolsky, John Boyer, John
+-  Harding, Johnny Stenback, Jon Perlow, Jonathan Worent, Jorgen
+-  Horstink, Josh Levenberg, Joshua Randall, Jukka K. Korpela, Kai
+-  Hendry, &lt;!-- Keryx Web, = Lars Gunther --&gt; Kornel Lesinski,
+-  &amp;#x9ed2;&amp;#x6fa4;&amp;#x525b;&amp;#x5fd7; (KUROSAWA Takeshi), Kristof
+-  Zelechovski, Lachlan Hunt, Larry Page, Lars Gunther, Laurens Holst,
+-  Lenny Domnitser, L&eacute;onard Bouchet, Leons Petrazickis,
+-  Logan&lt;!-- on moz irc --&gt;, Loune, Maciej Stachowiak, Malcolm Rowe,
+-  Mark Nottingham, Mark Rowe&lt;!--bdash--&gt;, Mark Schenk, Martijn
+-  Wargers, Martin Atkins, Martin Honnen, Mathieu Henri, Matthew
+-  Mastracci, Matthew Raymond, Matthew Thomas, Mattias Waldau, Max
+-  Romantschuk, Michael 'Ratt' Iannarelli, Michael A. Nachbaur, Michael
+-  A. Puls II&lt;!--Shadow2531--&gt;, Michael Gratton, Michael Powers, Michel
+-  Fortin, Mihai &amp;#x015E;ucan&lt;!-- from ROBO Design --&gt;, Mike Brown,
+-  Mike Dierken&lt;!-- S. Mike Dierken --&gt;, Mike Dixon, Mike Schinkel,
+-  Mike Shaver, Mikko Rantalainen, Neil Deakin, Olav Junker Kj&aelig;r,
+-  Philip Taylor, Rajas Moonka, Rimantas Liubertas, Robert O'Callahan,
+-  Robert Sayre, Roman Ivanov, S. Mike Dierken, Sam Ruby, Sam Weinig,
+-  Scott Hess, Sean Knapp, Shaun Inman, Silvia Pfeiffer, Simon Pieters,
+-  Stefan Haustein, Stephen Ma, Steve Runyon, Steven Garrity, Stewart
+-  Brodie, Stuart Parmenter, Tantek &Ccedil;elik, Thomas Broyer, Thomas
+-  O'Connor, Tim Altman, Vladimir Vuki&amp;#x0107;evi&amp;#x0107;, Wakaba,
+-  William Swanson, &Oslash;istein E. Andersen, and everyone on the
+-  WHATWG mailing list for their useful and substantial comments.&lt;/p&gt;
++  Brad Neuberg, Brady Eidson, Brendan Eich, Brett Wilson, Carlos
++  Perell&oacute; Mar&iacute;n, Chao Cai, &amp;#xc724;&amp;#xc11d;&amp;#xcc2c;
++  (Channy Yun), Charl van Niekerk&lt;!--status.whatwg.org maintainer--&gt;,
++  Charles Iliya Krempeaux, Charles McCathieNevile, Christian
++  Biesinger, Christian Johansen, Chriswa, Daniel Peng, Daniel
++  Sp&aring;ng, Darin Alder, Darin Fisher, Dave Singer, Dave
++  Townsend&lt;!-- Mossop on moz irc --&gt;, David Baron, David Flanagan,
++  David H&aring;s&auml;ther, David Hyatt, Derek Featherstone, Dimitri
++  Glazkov, dolphinling, Doron Rosenberg, Eira Monstad, Elliotte
++  Harold, Erik Arvidsson, Evan Martin, fantasai, Franck 'Shift'
++  Qu&eacute;lain, Geoffrey Sneddon, H&aring;kon Wium Lie, Henri
++  Sivonen, Henrik Lied, Ignacio Javier, J. King, James Graham, James M
++  Snell, James Perrett, Jan-Klaas Kollhof, Jasper Bryant-Greene, Jeff
++  Cutsinger, Jeff Walden, Jens Bannmann, Jeroen van der Meer, Joel
++  Spolsky, John Boyer, John Harding, Johnny Stenback, Jon Perlow,
++  Jonathan Worent, Jorgen Horstink, Josh Levenberg, Joshua Randall,
++  Jukka K. Korpela, Kai Hendry, &lt;!-- Keryx Web, = Lars Gunther --&gt;
++  Kornel Lesinski, &amp;#x9ed2;&amp;#x6fa4;&amp;#x525b;&amp;#x5fd7; (KUROSAWA
++  Takeshi), Kristof Zelechovski, Lachlan Hunt, Larry Page, Lars
++  Gunther, Laurens Holst, Lenny Domnitser, L&eacute;onard Bouchet,
++  Leons Petrazickis, Logan&lt;!-- on moz irc --&gt;, Loune, Maciej
++  Stachowiak, Malcolm Rowe, Mark Nottingham, Mark Rowe&lt;!--bdash--&gt;,
++  Mark Schenk, Martijn Wargers, Martin Atkins, Martin Honnen, Mathieu
++  Henri, Matthew Mastracci, Matthew Raymond, Matthew Thomas, Mattias
++  Waldau, Max Romantschuk, Michael 'Ratt' Iannarelli, Michael
++  A. Nachbaur, Michael A. Puls II&lt;!--Shadow2531--&gt;, Michael Gratton,
++  Michael Powers, Michel Fortin, Mihai &amp;#x015E;ucan&lt;!-- from ROBO
++  Design --&gt;, Mike Brown, Mike Dierken&lt;!-- S. Mike Dierken --&gt;, Mike
++  Dixon, Mike Schinkel, Mike Shaver, Mikko Rantalainen, Neil Deakin,
++  Olav Junker Kj&aelig;r, Philip Taylor, Rajas Moonka, Rimantas
++  Liubertas, Robert O'Callahan, Robert Sayre, Roman Ivanov, S. Mike
++  Dierken, Sam Ruby, Sam Weinig, Scott Hess, Sean Knapp, Shaun Inman,
++  Silvia Pfeiffer, Simon Pieters, Stefan Haustein, Stephen Ma, Steve
++  Runyon, Steven Garrity, Stewart Brodie, Stuart Parmenter, Tantek
++  &Ccedil;elik, Thomas Broyer, Thomas O'Connor, Tim Altman, Vladimir
++  Vuki&amp;#x0107;evi&amp;#x0107;, Wakaba, William Swanson, &Oslash;istein
++  E. Andersen, and everyone on the WHATWG mailing list for their
++  useful and substantial comments.&lt;/p&gt;
+ 
+   &lt;p&gt;Special thanks to Richard Williamson for creating the first
+   implementation of &lt;code&gt;canvas&lt;/code&gt; in Safari, from which the
+
+
+</PRE>
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="007971.html">[html5] r1063 - /
+</A></li>
+	<LI>Next message: <A HREF="007973.html">[html5] r1065 - /
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#7972">[ date ]</a>
+              <a href="thread.html#7972">[ thread ]</a>
+              <a href="subject.html#7972">[ subject ]</a>
+              <a href="author.html#7972">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/commit-watchers-whatwg.org">More information about the Commit-Watchers
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

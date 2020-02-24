@@ -1,0 +1,965 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] WebSocket feedback
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20WebSocket%20feedback&In-Reply-To=%3CPine.LNX.4.62.0811171030580.1237%40hixie.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="059637.html">
+   <LINK REL="Next"  HREF="059549.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] WebSocket feedback</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20WebSocket%20feedback&In-Reply-To=%3CPine.LNX.4.62.0811171030580.1237%40hixie.dreamhostps.com%3E"
+       TITLE="[whatwg] WebSocket feedback">ian at hixie.ch
+       </A><BR>
+    <I>Mon Nov 17 03:45:25 PST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="059637.html">[whatwg] [rest-discuss] HTML5 and RESTful HTTP in browsers
+</A></li>
+        <LI>Next message: <A HREF="059549.html">[whatwg] JSON support for worker postMessage
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#59514">[ date ]</a>
+              <a href="thread.html#59514">[ thread ]</a>
+              <a href="subject.html#59514">[ subject ]</a>
+              <a href="author.html#59514">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>
+On Fri, 11 Jul 2008, Mike Wilson wrote:
+&gt;<i>
+</I>&gt;<i> Blocking I/O on the main thread is ok if it's possible to specify a 
+</I>&gt;<i> timeout for the I/O operation, see:
+</I>&gt;<i> 
+</I>&gt;<i> <A HREF="http://www.openajax.org/runtime/wiki/Synchronous_XHR_Enhancements">http://www.openajax.org/runtime/wiki/Synchronous_XHR_Enhancements</A>
+</I>&gt;<i> 
+</I>&gt;<i> and if the UA'a user interface is kept responsive (running animated 
+</I>&gt;<i> GIFs, repainting UI etc) and allows the user to abort the blocking 
+</I>&gt;<i> operation (f ex as a new use of the Stop button), see:
+</I>&gt;<i> 
+</I>&gt;<i> <A HREF="http://www.openajax.org/runtime/wiki/Browser_Unresponsive_Mode_Enhancements">http://www.openajax.org/runtime/wiki/Browser_Unresponsive_Mode_Enhancements</A>
+</I>
+We're avoiding blocking anything on the main thread on principle these 
+days.
+
+
+On Tue, 22 Jul 2008, Shannon wrote:
+&gt;<i>
+</I>&gt;<i> In order to understand this issue better I did some preliminary research 
+</I>&gt;<i> into how HTTP and common implementations currently support the five 
+</I>&gt;<i> primary requirements of the WebSocket/TCPSocket proposal; namely 
+</I>&gt;<i> persistence, asynchronism, security, shared hosting and simplicity. 
+</I>&gt;<i> After reading <A HREF="http://www.w3.org/Protocols/rfc2616/rfc2616-sec8.html">http://www.w3.org/Protocols/rfc2616/rfc2616-sec8.html</A> I'm 
+</I>&gt;<i> starting to suspect that both systems can be fully implemented without a 
+</I>&gt;<i> new connection protocol.
+</I>&gt;<i> 
+</I>&gt;<i> Firstly, according to rfc2616 &quot;In HTTP/1.1, persistent connections are 
+</I>&gt;<i> the default behavior of any connection.&quot;
+</I>
+This is basically a lie, for what it's worth. Browsers have found they 
+can't do pipelining due to proxies.
+
+
+&gt;<i> The other thing about persistent HTTP/1.1 connections is that they are 
+</I>&gt;<i> already asynchronous. Thanks to pipelining the client may request 
+</I>&gt;<i> additional data even while receiving it. This makes the whole websockets 
+</I>&gt;<i> protocol achievable on current HTML4 browsers using a simple application 
+</I>&gt;<i> or perl wrapper in front of the service ie:
+</I>&gt;<i> 
+</I>&gt;<i> service &lt;--&gt; wrapper &lt;--&gt; webserver (optional) &lt;--&gt; proxy (optional) 
+</I>&gt;<i> &lt;--&gt; client
+</I>&gt;<i> 
+</I>&gt;<i> a simple pseudo-code wrapper would look like this:
+</I>&gt;<i> 
+</I>&gt;<i> wait for connection;
+</I>&gt;<i> receive persistent connection request;
+</I>&gt;<i> pass request body to service;
+</I>&gt;<i> response = read from service;
+</I>&gt;<i> response_length = length of response;
+</I>&gt;<i> send Content-Length: $response_length;
+</I>&gt;<i> send $response
+</I>&gt;<i> close request or continue
+</I>&gt;<i> 
+</I>&gt;<i> A threaded wrapper could queue multiple requests and responses.
+</I>&gt;<i> 
+</I>&gt;<i> In theory (as I have yet to perform tests) this solution solves all websocket
+</I>&gt;<i> goals:
+</I>&gt;<i> 
+</I>&gt;<i> Simple: Can use CGI (taking advantage of webserver virtual-hosting, security,
+</I>&gt;<i> etc...) or basic script wrapper
+</I>
+Without doing actual HTTP, which has a huge overhead per message (I mean, 
+on the order of 2x to 10x overhead for typical short messages), I don't 
+see how you could do this using just CGI.
+
+Also, I don't see how you could have a persistent CGI script in this 
+scenario.
+
+
+&gt;<i> Persistent: HTTP/1.1 connections are persistent by default
+</I>
+This isn't true in practice.
+
+
+&gt;<i> Asynchronous: Requests and responses can be pipelined, meaning requests and
+</I>&gt;<i> responses can be transmitted simultaneously and are queued.
+</I>
+Granted.
+
+
+&gt;<i> Backwards-compatible: Should work with all common HTTP/1.1 compatible clients,
+</I>&gt;<i> proxies and servers.
+</I>
+Presumably by definition.
+
+
+&gt;<i> Secure: To exploit a service you would require CGI or dedicated application.
+</I>&gt;<i> ISPs tightly control access to these. SSLis easy to implement as a tunnel (ie.
+</I>&gt;<i> stunnel) or part of  existing webserver.
+</I>
+If it's just HTTP then presumably it has HTTP's security characteristics.
+
+
+&gt;<i> Port sharing: This system can co-exist with existing webserver/applications on
+</I>&gt;<i> same server using CGI, transparent proxy or redirection.
+</I>
+I don't really see how to implement this in a simple way client-side while 
+sharing a port with a fully-fledged HTTP server, and I don't really see 
+how to do this on a dedicated port without huge pain since then you'd have 
+to implement a whole HTTP server to have a compliant implementation.
+
+
+&gt;<i> Obviously some real-world testing would be helpful (when I find the 
+</I>&gt;<i> time) but this raises the question of whether websockets is actually 
+</I>&gt;<i> necessary at all. Probably the only part HTML5 has to play in this would 
+</I>&gt;<i> be to ensure that Javascript can open, read, write and close a 
+</I>&gt;<i> connection object and handle errors in a consistent manner. The 
+</I>&gt;<i> handshaking requirement and new headers appear to complicate matters 
+</I>&gt;<i> rather than help.
+</I>
+As far as I can tell, what you describe is just XHR, and that doesn't 
+really do what we need, mostly due to the overhead and complexity problems 
+described above.
+
+
+On Tue, 22 Jul 2008, Philipp Serafin wrote:
+&gt;<i> 
+</I>&gt;<i> I think the problem is that this definition of &quot;asynchronous&quot; is very
+</I>&gt;<i> narrow. Yes, you don't need to wait for a request to finish before you
+</I>&gt;<i> issue a new one. But you'd still be bound to HTTP's request/response
+</I>&gt;<i> scheme in general.
+</I>
+Also true -- you can't receive messages without sending them, in this 
+scheme.
+
+
+&gt;<i> However, web authors might want to employ other schemes as well, for
+</I>&gt;<i> example server-sided asynchronous notifications (&quot;pushing&quot;),
+</I>&gt;<i> client-sided notifications that don't need to be replied or requests
+</I>&gt;<i> that can be answered out-of-order. Things like this could be
+</I>&gt;<i> implemented easily on top of the current WebSocket proposal, but would
+</I>&gt;<i> be very complicated to do with HTTP.
+</I>
+Right.
+
+
+&gt;<i> If desired, maybe we could add an API to XHR to control pipelining 
+</I>&gt;<i> though?
+</I>
+That would be an issue for the WebApps group at the W3C.
+
+
+On Wed, 23 Jul 2008, Shannon wrote:
+&gt;<i> 
+</I>&gt;<i> WebSockets uses HTTP so it is hardly immune to the request/response 
+</I>&gt;<i> behaviour of its underlying protocol (including the stream nature of 
+</I>&gt;<i> TCP).
+</I>
+Once a connection is established, the server can push packets without 
+client-side involvement, so this seems false.
+
+
+&gt;<i> Besides this statement appears to be based on the assumption that the 
+</I>&gt;<i> server MUST wait for additional client requests to send each &quot;message&quot;. 
+</I>&gt;<i> However the specification allows the server to send &quot;chunked&quot; or 
+</I>&gt;<i> &quot;multipart&quot; data in a variety of ways so full asynchronous communication 
+</I>&gt;<i> is acheivable by making the response chunks part of one long HTTP 
+</I>&gt;<i> multipart response and allowing the javascript API to access the 
+</I>&gt;<i> incoming data while the response is incomplete.
+</I>
+This loses sight of the &quot;simplicity&quot; goal, IMHO. How would a CGI script do 
+this while still listening for client messages? The CGI specification 
+doesn't really cover that possibility as far as I can tell.
+
+
+&gt;<i> I'm not advocating against WebSockets, just its current definition. In 
+</I>&gt;<i> particular it tries to solve things that HTTP/1.1 already handles.
+</I>
+I am not convinced of this.
+
+
+&gt;<i> I believe we should be thinking of WebSockets as a Javascript API, not a 
+</I>&gt;<i> new communications protocol for the simple reason that HTTP is already a 
+</I>&gt;<i> very suitable and widely deployed protocol. What authors (especially 
+</I>&gt;<i> AJAX authors) are missing is a reliable way to use HTTP's existing 
+</I>&gt;<i> asynchronous connection support.
+</I>
+I'm not at all convinced that HTTP is what we need. As you point out, to 
+get the right behavior, you have to hack it by making the server use a 
+second level of encoding (chunking or multipart), and in addition it has 
+to listen for additional requests, which seems very much like a misuse of 
+HTTP's semantics (it's supposed to be stateless).
+
+
+&gt;<i> Here are my issues with WebSockets as currently defined:
+</I>&gt;<i> 
+</I>&gt;<i> 1.) Request must have a &lt;scheme&gt; component whose value is either &quot;ws&quot; or 
+</I>&gt;<i> &quot;wss&quot;
+</I>&gt;<i> 
+</I>&gt;<i> The &quot;scheme&quot; should be HTTP(S). WebSockets should be the API.
+</I>
+If we used HTTP, I'd agree. We're not using HTTP though; HTTP isn't 
+appropriate IMHO.
+
+
+&gt;<i> 2.) The message event is fired when when data is received for a 
+</I>&gt;<i> connection.
+</I>&gt;<i> 
+</I>&gt;<i> What &quot;data&quot;? A byte, a line, a chunk, the whole response? The spec isn't 
+</I>&gt;<i> clear.
+</I>
+It seems extremely clear to me; see section 7.3.4.1.2 &quot;Data framing&quot;. I 
+don't really see how to make this less ambiguous.
+
+
+&gt;<i> I'd also recommend adding a connection.read( max_bytes ) method 
+</I>&gt;<i> as used by Python and most languages to let the author receive bytes at 
+</I>&gt;<i> a frequency appropriate to the application (eg, a game might want to 
+</I>&gt;<i> frequently poll for small updates).
+</I>
+No need for polling, the server framing triggers events automatically.
+
+
+&gt;<i> 3.) If the resulting absolute URL has a &lt;port&gt; component, then let port 
+</I>&gt;<i> be that component's value; otherwise, if secure is false, let port be 
+</I>&gt;<i> 81, otherwise let port be 815.
+</I>&gt;<i> 
+</I>&gt;<i> No, no, no! Don't let paranoia override common sense. Not all websocket 
+</I>&gt;<i> applications will have the luxury to run on these ports (multiple web 
+</I>&gt;<i> servers, shared host, tunnelled connections, 2 websocket apps on one 
+</I>&gt;<i> host, etc...).
+</I>
+I don't understand your objection.
+
+
+&gt;<i> 4.) The whole handshake is too complex.
+</I>&gt;<i> 
+</I>&gt;<i> There are many firewalls, proxies and servers that legimately insert, 
+</I>&gt;<i> change, split, or remove HTTP headers or modify their order. This is 
+</I>&gt;<i> also likely if the service being provided sits on top of a 
+</I>&gt;<i> framework/server (such as Coldfusion/IIS). Also what happens if HTTP/1.2 
+</I>&gt;<i> is sent? These will break the WebSocket handshake as currently defined.
+</I>
+That's intentional. The whole point is to prevent anything unintentional 
+from breaking things or being vulnerable. This isn't HTTP, it's the Web 
+Socket Protocol, that happens to start like HTTP in order to allow a 
+server to upgrade from HTTP if the author desires.
+
+
+&gt;<i> 5.) URI parsing specification
+</I>&gt;<i> 
+</I>&gt;<i> The current proposal spells out the URI/path parsing scheme. However 
+</I>&gt;<i> this should be treated EXACTLY like HTTP so the need to define it in the 
+</I>&gt;<i> spec is redundant. It is enough to say that the resource may be 
+</I>&gt;<i> requested using a GET or POST request. Same with cookie handling, 
+</I>&gt;<i> authorization and other HTTP headers. These should be handled by the 
+</I>&gt;<i> webserver and/or application exactly as normal, there is no need to 
+</I>&gt;<i> rewrite the rules simply because the information flow is asynchronous.
+</I>
+I don't understand the objection here either.
+
+
+&gt;<i> 6.) Data framing specification
+</I>&gt;<i> 
+</I>&gt;<i> Redundant because HTTP already provides multiple methods of data segment 
+</I>&gt;<i> encapsulation including &quot;Content-Length&quot;, &quot;Transfer-Encoding&quot; and 
+</I>&gt;<i> &quot;Content-Type&quot;. Each of these have sub-types suitable for a range of 
+</I>&gt;<i> possible WebSocket applications. Naturally it is not necessary for the 
+</I>&gt;<i> client or server to support them all since there are HTTP headers 
+</I>&gt;<i> explicitly designed for this kind of negotiation. The WebSocket should 
+</I>&gt;<i> however define at least one fallback method that can be relied on (I 
+</I>&gt;<i> recommend &quot;Content-Length&quot;, &quot;Transfer-Encoding: chunked&quot; and 
+</I>&gt;<i> &quot;Content-Type: multipart/form-data&quot; as MUST requirements).
+</I>
+As noted above, HTTP's framing is inappropriate here.
+
+
+&gt;<i> 7.) WebSockets needs a low-level interface as well
+</I>&gt;<i> 
+</I>&gt;<i> By &quot;dumbing down&quot; the data transfer into fired events and wrapping the 
+</I>&gt;<i> data segments internally the websocket hides the true communication 
+</I>&gt;<i> behind an abstract object. This is a good thing for simplicity but 
+</I>&gt;<i> extremely limiting for authors wanting to fine-tune an application or 
+</I>&gt;<i> adapt to future protocols. I strongly recommend that rawwrite() and 
+</I>&gt;<i> rawread() methods be made available to an OPEN (ie, 
+</I>&gt;<i> authenticated/handshaked) websocket to allow direct handling of the 
+</I>&gt;<i> stream. It would be understood that authors using these methods must 
+</I>&gt;<i> understand the nature of both HTTP and websockets. In the same way a 
+</I>&gt;<i> settimeout() method should be provided to control blocking/non-blocking 
+</I>&gt;<i> behaviour. I can't stress enough how important these interfaces are, as 
+</I>&gt;<i> they may one day be required to implement WebSockets 2.0 on &quot;legacy&quot; or 
+</I>&gt;<i> broken HTML5 browsers.
+</I>
+The plan is to offer binary blobs in a future version, and maybe other 
+kinds of data too (e.g. multiplexed audio/video streams), but for now we 
+should keep things simple.
+
+
+&gt;<i> 8.) Origin: / WebSocket-Origin:
+</I>&gt;<i> 
+</I>&gt;<i> Specifying clients allowed to originate a connection is a disaster 
+</I>&gt;<i> waiting to happen for the simple reason that sending your origin is a 
+</I>&gt;<i> privacy violation in the same vain as the referrer field.
+</I>
+Only the hostname is included. If two hosts want to communicate, the least 
+they can do is share each other's hostnames. This isn't a privacy 
+violation in the least.
+
+
+&gt;<i> Any open-source browser or privacy plugin will simply disable or spoof 
+</I>&gt;<i> this since it would allow advertising networks to track people by 
+</I>&gt;<i> ad-serving via websockets.
+</I>
+They could do far more than the header would ever allow them -- as soon as 
+they've established the connection, they could send the whole URL over the 
+socket, along with all cookies and everything!
+
+
+&gt;<i> Such tracking undermines the security of anonymising proxies (as the 
+</I>&gt;<i> &quot;origin&quot; may be a private site or contain a client id).
+</I>
+Why would that site be communicating with this remote server then?
+
+
+&gt;<i> Using origin as a required field essentially makes the use of &quot;referrer&quot; 
+</I>&gt;<i> mandatory. If a websocket wants to restrict access then it will have to 
+</I>&gt;<i> use credentials or IP ranges like everything else.
+</I>
+This has nothing to do with the server limiting origin and everything to 
+do with the handshake preventing unexpected connections from being 
+established, precisely to prevent sites from connecting to resources that 
+would otherwise be vulnerable.
+
+
+&gt;<i> 9.) WebSocket-Location
+</I>&gt;<i> 
+</I>&gt;<i> The scenario this is supposed to solve (that an application makes a 
+</I>&gt;<i> mistake about what host it's on and somehow sends the wrong data) is 
+</I>&gt;<i> contrived.
+</I>
+That's not the attack scenario at all. This is just intended to help 
+prevent someone from connecting to an open port that isn't expecting this 
+protocol.
+
+
+&gt;<i> What's more likely to happen is that a server application has trouble 
+</I>&gt;<i> actually knowing its (virtual) hostname (due to a proxy, mod_rewrite, 
+</I>&gt;<i> URL masking or other legitimate redirect) and therefore NO clients can 
+</I>&gt;<i> connect.
+</I>
+That value is passed along with the request in a manner that is trivial to 
+reconstruct, so this isn't a concern.
+
+
+&gt;<i> 10.) To close the Web Socket connection, either the user agent or the 
+</I>&gt;<i> server closes the TCP/IP connection. There is no closing handshake.
+</I>&gt;<i> 
+</I>&gt;<i> HTTP provides a reliable way of closing a connection so that all parties 
+</I>&gt;<i> (client, server and proxies) know why the connection ended. There is no 
+</I>&gt;<i> reason for websockets to not follow this protocol and close the 
+</I>&gt;<i> connection properly.
+</I>
+Defining an explicit handshake for closing just means extra complexity on 
+the server side to implement this, and extra complexity on the client side 
+to handle errors in that handshake. Why bother? TCP/IP already has a 
+closing handshake, why isn't that enough?
+
+
+&gt;<i> In conclusion, the current specification of WebSockets re-invents 
+</I>&gt;<i> several wheels and does so in ways that are overly complex, error-prone 
+</I>&gt;<i> and yet seriously limited in functionality. The whole concept needs to 
+</I>&gt;<i> be approached from the position of making HTTP's features (which are 
+</I>&gt;<i> already implemented in most UAs) available to Javascript (while 
+</I>&gt;<i> preventing the exploit of non-HTTP services). I do not believe this is 
+</I>&gt;<i> difficult if my recommendations above are followed. I do not wish to be 
+</I>&gt;<i> overly critical without contributing a solution, so if there are no 
+</I>&gt;<i> serious objections to the points I've made I will put time into 
+</I>&gt;<i> reframing my objections as a compete specification proposal.
+</I>
+I don't really agree with any of these points, as explained above.
+
+
+On Thu, 24 Jul 2008, Shannon wrote:
+&gt;<i> 
+</I>&gt;<i> I found this in rfc2817 section 1:
+</I>&gt;<i> 
+</I>&gt;<i>   The historical practice of deploying HTTP over SSL3 [3] has
+</I>&gt;<i>   distinguished the combination from HTTP alone by a unique URI scheme
+</I>&gt;<i>   and the TCP port number. The scheme 'http' meant the HTTP protocol
+</I>&gt;<i>   alone on port 80, while 'https' meant the HTTP protocol over SSL on
+</I>&gt;<i>   port 443.  Parallel well-known port numbers have similarly been
+</I>&gt;<i>   requested -- and in some cases, granted -- to distinguish between
+</I>&gt;<i>   secured and unsecured use of other application protocols (e.g.
+</I>&gt;<i>   snews, ftps). This approach effectively halves the number of
+</I>&gt;<i>   available well known ports.
+</I>&gt;<i> 
+</I>&gt;<i>   At the Washington DC IETF meeting in December 1997, the Applications
+</I>&gt;<i>   Area Directors and the IESG reaffirmed that the practice of issuing
+</I>&gt;<i>   parallel &quot;secure&quot; port numbers should be deprecated. The HTTP/1.1
+</I>&gt;<i>   Upgrade mechanism can apply Transport Layer Security [6] to an open
+</I>&gt;<i>   HTTP connection.
+</I>
+With all due respect, this position isn't tenable. We need to be able to 
+declare whether we expect encryption or not before the connection is 
+established. There's a reason 2817 hasn't been implemented.
+
+
+&gt;<i> I believe we should rule out both new ports in favour of upgrading a 
+</I>&gt;<i> port 80 connection to a WebSocket; however according to the same 
+</I>&gt;<i> document the WebSockets proposal does not follow the expected 
+</I>&gt;<i> client-side behaviour for doing so:
+</I>&gt;<i> 
+</I>&gt;<i> 3.2 Mandatory Upgrade
+</I>&gt;<i> If an unsecured response would be unacceptable, a client MUST send an 
+</I>&gt;<i> OPTIONS request first to complete the switch to TLS/1.0 (if possible).
+</I>&gt;<i> 
+</I>&gt;<i>       OPTIONS * HTTP/1.1
+</I>&gt;<i>       Host: example.bank.com
+</I>&gt;<i>       Upgrade: TLS/1.0
+</I>&gt;<i>       Connection: Upgrade
+</I>&gt;<i> 
+</I>&gt;<i> Nor does the WebSocket server supply a valid response:
+</I>&gt;<i> 
+</I>&gt;<i> 3.3 Server Acceptance of Upgrade Request
+</I>&gt;<i> As specified in HTTP/1.1 [1], if the server is prepared to initiate the 
+</I>&gt;<i> TLS handshake, it MUST send the intermediate &quot;101 Switching Protocol&quot; 
+</I>&gt;<i> and MUST include an Upgrade response header specifying the tokens of the 
+</I>&gt;<i> protocol stack it is switching to:
+</I>&gt;<i> 
+</I>&gt;<i>       HTTP/1.1 101 Switching Protocols
+</I>&gt;<i>       Upgrade: TLS/1.0, HTTP/1.1
+</I>&gt;<i>       Connection: Upgrade
+</I>&gt;<i> 
+</I>&gt;<i> Obviously this is referring to TLS however WebSockets is also a protocol 
+</I>&gt;<i> switch and should therefore follow the same rules.
+</I>
+I refer you to the requirement that implementing the server side in a 
+conforming fashion should require no more than a few dozen lines of code.
+
+
+&gt;<i> I understand the reluctance to use a true HTTP handshake (hence the 
+</I>&gt;<i> <A HREF="ws://">ws://</A> scheme and alternate ports) however I think the claims of added 
+</I>&gt;<i> complexity on the server end are exaggerated (I say this as somebody who 
+</I>&gt;<i> has written a basic standalone webserver). It seems to me we're only 
+</I>&gt;<i> looking at required support for:
+</I>&gt;<i> 
+</I>&gt;<i> * Validating and parsing HTTP headers (that doesn't mean they are all 
+</I>&gt;<i> understood or implemented, simply collected into a native 
+</I>&gt;<i> structure/object/array)
+</I>&gt;<i>
+</I>&gt;<i> * Handling (or simply pattern-matching) the Version, Upgrade and 
+</I>&gt;<i> Connection headers
+</I>&gt;<i>
+</I>&gt;<i> * Adding a Content-Length header before each message sent to the client 
+</I>&gt;<i> and/or &quot;chunk encoding&quot; variable-length messages
+</I>&gt;<i>
+</I>&gt;<i> * Sending and respecting the &quot;connection close&quot; message
+</I>&gt;<i>
+</I>&gt;<i> * Sending &quot;not implemented&quot;, &quot;not authorised&quot; and error status messages 
+</I>&gt;<i> as needed.
+</I>&gt;<i> 
+</I>&gt;<i> Currently WebSockets requires practically all of these features as well, 
+</I>&gt;<i> except that it implements them in non-standard fashion - effectively 
+</I>&gt;<i> making asyncronous delivery via existing infrastructure (ie: CGI) a 
+</I>&gt;<i> potentially more difficult and error-prone affair. In fact as it stands 
+</I>&gt;<i> I would say the current proposal rules out both CGI and proxy support 
+</I>&gt;<i> entirely since it cannot handle the addition of otherwise valid HTTP 
+</I>&gt;<i> headers (such as Expires, X-Forwarded-For or Date) in the first 85 
+</I>&gt;<i> bytes.
+</I>
+I would want to see the code of your fully-conforming implementation of 
+the server-side of this before really considering this. I simply don't 
+believe it can be done in a few lines of code.
+
+
+On Sat, 26 Jul 2008, Frode B&#248;rli wrote:
+&gt;<i>
+</I>&gt;<i> I think we should agree on which features that WebSockets need to 
+</I>&gt;<i> provide before deciding on a protocol or method of achieving the goals.
+</I>
+We did that a few years ago. :-)
+
+
+&gt;<i> Basically I want these features from WebSockets:
+</I>&gt;<i> 
+</I>&gt;<i> 1. The server side script that generated the page can at any later time 
+</I>&gt;<i> raise any event on the client side.
+</I>&gt;<i>
+</I>&gt;<i> 2. The client side script can at any time raise any event on the server 
+</I>&gt;<i> side (meaning inside the script that initially generated the page).
+</I>&gt;<i>
+</I>&gt;<i> 3. It must work trough existing Internet infrastructure, including 
+</I>&gt;<i> strict firewalls and proxies.
+</I>&gt;<i>
+</I>&gt;<i> 4. It should also be possible to open extra websockets to other scripts 
+</I>&gt;<i> - possibly trough the XMLHttpRequest object.
+</I>
+Those are some requirements, though I don't really see why we would want 
+to connect to the original page as opposed to a separate server for 
+events. Ideally, the HTML pages would be static and fully cachable, with 
+the processing ocurring separately.
+
+
+On Fri, 1 Aug 2008, Harlan Iverson wrote:
+&gt;<i> 
+</I>&gt;<i> I am an implementor of BOSH and interested in WebSockets as future 
+</I>&gt;<i> option for browser based XMPP connections. I think a useful feature of 
+</I>&gt;<i> BOSH is the ability to send a pause request to the server, which 
+</I>&gt;<i> effectively increases the amount of time that can elapse before it 
+</I>&gt;<i> considers a client timed out; a client then resumes by making a normal 
+</I>&gt;<i> request with the same session ID and the request ID incremented as 
+</I>&gt;<i> usual. This is useful/needed because BOSH is a sequenced protocol. 
+</I>&gt;<i> Importantly, it enables a use case of maintaining a 'persistent' 
+</I>&gt;<i> connection between page loads.
+</I>&gt;<i> 
+</I>&gt;<i> Is there any equivalent mechanism in WebSockets to produce a 
+</I>&gt;<i> 'persistent' connection between page loads? Combined with sessionStorage 
+</I>&gt;<i> this would be very useful for an application such as Facebook Chat.
+</I>
+There's no mechanism for making a Web Socket survive a page load 
+currently, mostly because there's no mechanism for anything to survive 
+page loads at all. If we address this, it would be by making a &quot;lifeboat&quot; 
+feature to which objects could be assigned before navigation, so that 
+navigation to a same-origin page would maintain these objects.
+
+
+On Sun, 21 Sep 2008, Richard's Hotmail wrote:
+&gt;<i> 
+</I>&gt;<i> My particular beef is with the intended WebSocket support, and 
+</I>&gt;<i> specifically the restrictive nature of its implementation. I 
+</I>&gt;<i> respectfully, yet forcefully, suggest that the intended implementation 
+</I>&gt;<i> is complete crap and you'd do better to look at existing Socket support 
+</I>&gt;<i> from SUN Java, Adobe Flex, and Microsoft Silverlight before engraving 
+</I>&gt;<i> anything into stone! What we need (and is a really great idea) is native 
+</I>&gt;<i> HTML/JavaScript support for Sockets - What we don't need is someone 
+</I>&gt;<i> re-inventing sockets 'cos they think they can do it better.
+</I>&gt;<i> 
+</I>&gt;<i> Anyway I find it difficult to not be inflammatory so I'll stop now, but 
+</I>&gt;<i> please look to the substance of my complaint (and the original post in 
+</I>&gt;<i> comp.lang.JavaScript attached below) and at least question why it is 
+</I>&gt;<i> that you are putting all these protocol restriction on binary socket 
+</I>&gt;<i> support.
+</I>
+On Sun, 21 Sep 2008, Richard's Hotmail wrote:
+&gt;<i> 
+</I>&gt;<i> Look, I'm not sure exactly what problem you guys are solving with 
+</I>&gt;<i> HTML5's WebSockets but I wish you well. What I and *many* others are 
+</I>&gt;<i> looking for is native JavaScript support for Sockets a la mode de (SUN 
+</I>&gt;<i> Java Applets + Adobe Flex + MIcrosoft Silverlight) that for some strange 
+</I>&gt;<i> reason don't seem to be subject to the same imaginary obstacles that are 
+</I>&gt;<i> being discussed in that thread. Please explain what security 
+</I>&gt;<i> vulnerabilities et al that Adobe, SUN and Microsoft have foisted upon us 
+</I>&gt;<i> that the HTML5 people wish to spare us from.
+</I>
+On Sun, 21 Sep 2008, ddailey wrote:
+&gt;<i> 
+</I>&gt;<i> My apologies for getting involved in a topic I confess to knowing very 
+</I>&gt;<i> little about (though I would like to be able to have direct 
+</I>&gt;<i> client-to-client communication for a variety of purposes including 
+</I>&gt;<i> gaming and social networking), but it seems like the question here is 
+</I>&gt;<i> &quot;what does the approach you are advocating enable that the approach on 
+</I>&gt;<i> the table doesn't do?&quot;  I understand that you are saying the approach 
+</I>&gt;<i> WHATWG and HTML5 WG have undertaken is flawed (and I acknowledge your 
+</I>&gt;<i> claim that lots of folks are doing it better), but I really don't see 
+</I>&gt;<i> what you are hoping to do that these folks (whose expertise in such 
+</I>&gt;<i> matters I would certainly be willing to defer to) will not enable? Are 
+</I>&gt;<i> you claiming, for example, that HTTP roundtrips from a server to each 
+</I>&gt;<i> client will be intrinsically too slow to support such applications as 
+</I>&gt;<i> gaming? If so, then it would seem that would be a concrete complaint 
+</I>&gt;<i> that the advocates of the current proposal could, in theory, respond to. 
+</I>&gt;<i> The history of the discussion referred to by the link, indicates that as 
+</I>&gt;<i> James says, the current proposal has undergone numerous revisions based 
+</I>&gt;<i> on input. Perhaps since you obviously care so much about it, you can 
+</I>&gt;<i> help the proposal to evolve into something which addresses your 
+</I>&gt;<i> concerns.
+</I>
+On Sat, 27 Sep 2008, Richard's Hotmail wrote:
+&gt;<i> 
+</I>&gt;<i> The easiest way to do that is to point you towards the BSD Socket 
+</I>&gt;<i> documentation or, in the case of browser-based functionality, go to 
+</I>&gt;<i> <A HREF="http://java.sun.com/j2se/1.5.0/docs/api/index.html">http://java.sun.com/j2se/1.5.0/docs/api/index.html</A> and look up 
+</I>&gt;<i> java.net.Socket. Now, you might like to sit there and ask me to justify 
+</I>&gt;<i> the need or desirability for each and every attribute and method, but 
+</I>&gt;<i> then you'd problably also claim that &quot;AJAX long-polling does everything 
+</I>&gt;<i> we need already so why bother with sockets anyway&quot;?
+</I>&gt;<i> 
+</I>&gt;<i> Connection Timeouts? Read Timeouts? KeepAlive? NoDelay? Peeking?
+</I>&gt;<i> 
+</I>&gt;<i> Perhaps - &quot;Well we do that sort of stuff with HTTP headers, so there!&quot;?
+</I>&gt;<i> 
+</I>&gt;<i> I am just asking why Sockets are being re-invented for html5, and in 
+</I>&gt;<i> such a restricted and watered-down fashion. If you guys/gals really like 
+</I>&gt;<i> to build an integer 7 bits at a time or &quot;frame&quot; UTF-8 then more power to 
+</I>&gt;<i> you; just please stop forcing every one else to perfoem the same 
+</I>&gt;<i> contortions. Please gives us a normal a Socket (UDP and Multicast too 
+</I>&gt;<i> please) Subject it to same-origin policy or whatever else is reqd.
+</I>&gt;<i> 
+</I>&gt;<i> There are Intranets and IPsec and all sorts of configurations that lend 
+</I>&gt;<i> themselves to just such functionality. But you say &quot;It's fine for 
+</I>&gt;<i> gaming&quot; others say &quot;It's just fine for chat&quot; what else could there be 
+</I>&gt;<i> eh?
+</I>
+On Sat, 27 Sep 2008, Kristof Zelechovski wrote:
+&gt;<i>
+</I>&gt;<i> If you are in control of the server, you can simulate datagram sockets 
+</I>&gt;<i> with one-shot controlled sockets and multicast socket with a central 
+</I>&gt;<i> dispatcher that all interested parties can register with.  For access to 
+</I>&gt;<i> external services that already accept datagram packets only, a gateway 
+</I>&gt;<i> of some sort may be necessary indeed.  Services that respond to 
+</I>&gt;<i> multicast packets are never external so it is not an issue, except for 
+</I>&gt;<i> an internal burglar. And I wonder what comes next.  Would you like to 
+</I>&gt;<i> trace route from JavaScript?  Or perhaps some ARP poisoning stuff, or a 
+</I>&gt;<i> packet sniffer?  Come on.
+</I>
+On Mon, 29 Sep 2008, Philipp Serafin wrote:
+&gt;<i> 
+</I>&gt;<i> I do not agree with Richard at all, but I have to play devil's advocate 
+</I>&gt;<i> here because I think such a simulation would be pretty useless.
+</I>&gt;<i> 
+</I>&gt;<i> After all, more or less the only situation you'd want to use UDP outside 
+</I>&gt;<i> a LAN is when TCP doesn't fit your needs, e.g. because the flow control 
+</I>&gt;<i> does more harm than good to your use-case or because your peers have not 
+</I>&gt;<i> enough processing power for a full TCP implementation. Simulating UDP 
+</I>&gt;<i> via TCP would pretty much combine the disadvantages of both protocols.
+</I>&gt;<i> 
+</I>&gt;<i> Also, you already need a full roudtrip to initiate a TCP connection, a 
+</I>&gt;<i> second one to perform the WS handshake and a third one to close the 
+</I>&gt;<i> connection. Data not taken into account. You can hardly repeat that for 
+</I>&gt;<i> every datagram you want to send.
+</I>&gt;<i> 
+</I>&gt;<i> That out of the way, I think the &quot;structure in content&quot; approach is 
+</I>&gt;<i> preferable because in the end it makes the whole feature easier to use 
+</I>&gt;<i> and accessible to a much broader range of web authors. Because a WS 
+</I>&gt;<i> stream has standardized metadata and delimiters, you can easily build a 
+</I>&gt;<i> generic framework that processes those parts for you.
+</I>&gt;<i> 
+</I>&gt;<i> This is especially important if you DON'T have full control over the 
+</I>&gt;<i> server, which I believe is the case for the majority of smaller sites 
+</I>&gt;<i> that use a shared hosting solution. Those hosters usually don't give 
+</I>&gt;<i> their clients access to the underlying processes at all. All the clients 
+</I>&gt;<i> can do is upload static files and script files that get executed in a 
+</I>&gt;<i> restricted environment. It's really hard to integrate pure, persistent 
+</I>&gt;<i> connections into such a setup. With WS, a hoster could for example have 
+</I>&gt;<i> a demon listen to all incoming WS connections and call the client's 
+</I>&gt;<i> scripts whenever a data frame has been received. In short, it's much 
+</I>&gt;<i> easier for them to manage persistent connections if there is a 
+</I>&gt;<i> standardized structure. And if it's easier for them, hopefully the 
+</I>&gt;<i> support for this feature will grow.
+</I>&gt;<i> 
+</I>&gt;<i> As for the restriction of unicode data, of course we could just use an 
+</I>&gt;<i> octet counting mechanism like HTTP does instead of a fixed delimiter. 
+</I>&gt;<i> This would allow arbitrary data inside the WS frames. On the other hand, 
+</I>&gt;<i> this might make it easier to spoof existing protocols. Would the 
+</I>&gt;<i> benefits of this outweigh the risks?
+</I>&gt;<i> 
+</I>&gt;<i> Note that it was a conscious design decision to make WS incompatible 
+</I>&gt;<i> with existing protocols, because the risk for misuse is too great.
+</I>&gt;<i> 
+</I>&gt;<i> If you need your web app to inerac with a specific service, it should be 
+</I>&gt;<i> easy to write a generic proxy that does the handshake, strips out the 
+</I>&gt;<i> frame marks and transforms the data.
+</I>&gt;<i> 
+</I>&gt;<i> Also, it's not like the other technologies would vanish all of a sudden. 
+</I>&gt;<i> If you have sufficient control over your server, you can STILL use Java 
+</I>&gt;<i> or Flash sockets.
+</I>
+On Wed, 29 Oct 2008, Richard's Hotmail wrote:
+&gt;<i> 
+</I>&gt;<i> Fine, you want &quot;structure in content&quot; then you stick it on *afterwards*. 
+</I>&gt;<i> Please don't impose your particular views on what everyone else's data 
+</I>&gt;<i> stream should look like! Some might like chunking, record-type 
+</I>&gt;<i> indicators, or data-length sentinels, or something completely different; 
+</I>&gt;<i> it's up to them!
+</I>
+On Mon, 22 Sep 2008, Shannon wrote:
+&gt;<i>
+</I>&gt;<i> It's hard to determine the substance of your complaint. It appears you 
+</I>&gt;<i> don't really understand the Java, Flex or Silverlight implementations. 
+</I>&gt;<i> They are all quite restrictive, just in different ways:
+</I>&gt;<i> 
+</I>&gt;<i> * Java raises a security exception unless the user authorises the socket 
+</I>&gt;<i> using an ugly and confusing popup security dialog
+</I>&gt;<i>
+</I>&gt;<i> * Flex and Silverlight requires the remote server or device also run a 
+</I>&gt;<i> webserver (to serve crossdomain.xml). Flex supports connections ONLY to 
+</I>&gt;<i> port numbers higher than 1024. The crossdomain files for each platform 
+</I>&gt;<i> have different filenames and appear to already be partly incompatible 
+</I>&gt;<i> between the two companies, hardly a &quot;standard&quot;.
+</I>&gt;<i> 
+</I>&gt;<i> Both Silverlight and Flash/Flex are fundamentally flawed since they run 
+</I>&gt;<i> on the assumption that a file hosted on port 80 is an authorative 
+</I>&gt;<i> security policy for a whole server. As someone who works in an ISP I 
+</I>&gt;<i> assure you this is an incorrect assumuption. Many ISPs run additional 
+</I>&gt;<i> services on their webserver, such as databases and email, to save rack 
+</I>&gt;<i> hosting costs or for simplicity or security reasons. I would not want 
+</I>&gt;<i> one of our virtual hosting customers authorising web visitors access to 
+</I>&gt;<i> those services. It is also fundamentally flawed to assume services on 
+</I>&gt;<i> ports greater than 1024 are automatically &quot;safe&quot;.
+</I>&gt;<i> 
+</I>&gt;<i> These companies chose convienience over security, which quite frankly is 
+</I>&gt;<i> why their software is so frequently exploited. However that's between 
+</I>&gt;<i> them and their customers, this group deals with standards that must be 
+</I>&gt;<i> acceptable to the web community at large.
+</I>&gt;<i> 
+</I>&gt;<i> The current approach the HTML spec is taking is that that policy files 
+</I>&gt;<i> are essentially untrustworthy so the service itself must arbitrate 
+</I>&gt;<i> access with a handshake. Most of the details of this handshake are 
+</I>&gt;<i> hidden from the Javascript author so your concerns about complexity seem 
+</I>&gt;<i> unjustified. If you are worried about the complexity of implementing the 
+</I>&gt;<i> server end of the service I can't see why, it's about 3-6 lines of 
+</I>&gt;<i> output and some reasonably straight-forward text parsing. It could 
+</I>&gt;<i> easily be done with a wrapper for existing services.
+</I>&gt;<i> 
+</I>&gt;<i> Other than that it behaves as an asynchronous binary TCP socket. What 
+</I>&gt;<i> exactly are you concerned about?
+</I>
+I'm not really sure what the concerns are in the above-quoted e-mails.
+
+The Web Socket protocol is designed to prevent spammers from writing Web 
+pages that connect to SMTP servers, malware authors from writing Web pages 
+that connect to IRC servers, spyware authors from writing Web pages that 
+connect to SQL servers, and fraudsters from writing Web pages that connect 
+to your bank's WebSocket API and transfering your money to their account.
+
+It's also designed so that the API is trivial to use. It's also extensible 
+so that in future we can add binary data and other mechanisms easily.
+
+Sure, it means there are specific framings you have to use, and the 
+handshake is a bit esoteric, but those seem like a cheap price to pay for 
+the security.
+
+
+On Mon, 29 Sep 2008, Anne van Kesteren wrote:
+&gt;<i>
+</I>&gt;<i> What is the reason for doing literal comparison on the websocket-origin 
+</I>&gt;<i> and websocket-location HTTP headers? Access Control for Cross-Site 
+</I>&gt;<i> Requests is currently following this design for 
+</I>&gt;<i> access-control-allow-origin but sicking is complaining about so maybe it 
+</I>&gt;<i> should be URL-without-&lt;path&gt; comparison instead. (E.g., then 
+</I>&gt;<i> <A HREF="http://example.org">http://example.org</A> and <A HREF="http://example.org:80">http://example.org:80</A> would be equivalent.)
+</I>
+I don't really see the advantage of making this less strict.
+
+
+On Tue, 30 Sep 2008, Shannon wrote:
+&gt;<i>
+</I>&gt;<i> I think the temptation to standardise features like access control 
+</I>&gt;<i> defeats the point of websockets. Since things like access control and 
+</I>&gt;<i> sessions can be readily implemented via CGI interfaces it seems implied 
+</I>&gt;<i> that the whole point of websockets is to provide &quot;lightweight&quot; services. 
+</I>&gt;<i> If the service actually needs something like this then the author can 
+</I>&gt;<i> perform the check post-handshake using any method they feel like. I 
+</I>&gt;<i> don't really feel strongly one way or the other about this particular 
+</I>&gt;<i> header but I'm concerned about the slippery-slope of complicating the 
+</I>&gt;<i> HTTP handshake to the point where you might as well be using CGI. Maybe 
+</I>&gt;<i> the standard should simply recommend sending the header but make no 
+</I>&gt;<i> requirement about how it is parsed. That way the service itself can 
+</I>&gt;<i> decide whether the check is even necessary and if so whether it should 
+</I>&gt;<i> be strict or loose or regex-based without the client automatically 
+</I>&gt;<i> hanging up the connection.
+</I>
+I don't really know what you're asking for here.
+
+
+On Tue, 30 Sep 2008, Shannon wrote:
+&gt;<i>
+</I>&gt;<i> It occurred to me the other day when musing on WebSockets that the 
+</I>&gt;<i> handshake is more complicated than required to achieve its purpose and 
+</I>&gt;<i> still allows potential exploits. I'm going to assume for now the purpose 
+</I>&gt;<i> of the handshake is to:
+</I>&gt;<i> 
+</I>&gt;<i> * Prevent unsafe communication with a non-websocket service.
+</I>&gt;<i>
+</I>&gt;<i> * Provide just enough HTTP compatibility to allow proxying and virtual 
+</I>&gt;<i> hosting.
+</I>&gt;<i> 
+</I>&gt;<i> I think the case has been successfully put that DDOS or command 
+</I>&gt;<i> injection are possible using IMG tags or existing javascript methods - 
+</I>&gt;<i> however the counter-argument has been made that the presence of legacy 
+</I>&gt;<i> issues is not an argument for creating new ones. So with that in mind we 
+</I>&gt;<i> should implement WebSockets as robustly as we can.
+</I>&gt;<i> 
+</I>&gt;<i> Since we don't at first know what the service is we really need to 
+</I>&gt;<i> assume that:
+</I>&gt;<i> 
+</I>&gt;<i> * Long strings or certain characters may crash the service.
+</I>&gt;<i>
+</I>&gt;<i> * The service may not be line orientated.
+</I>&gt;<i>
+</I>&gt;<i> * The service may use binary data for communications, rather than text.
+</I>&gt;<i>
+</I>&gt;<i> * Characters outside the ASCII printable range may have special meaning 
+</I>&gt;<i>   (ie, 'bell' or control characters).
+</I>&gt;<i>
+</I>&gt;<i> * No string is safe, since the service may use string commands and 
+</I>&gt;<i>   non-whitespace separators.
+</I>&gt;<i> 
+</I>&gt;<i> For the sake of argument we'll assume the existence of a service that 
+</I>&gt;<i> accepts commands as follows (we'll also assume the service ignores bad 
+</I>&gt;<i> commands and continues processing):
+</I>&gt;<i> 
+</I>&gt;<i> AUTHENTICATE(user,password);GRANT(user,ALL);DELETE(/some/record);LOGOUT;
+</I>&gt;<i> 
+</I>&gt;<i> To feed this command set to the service via WebSockets we use:
+</I>&gt;<i> 
+</I>&gt;<i> var ws = new
+</I>&gt;<i> WebSocket(&quot;<A HREF="http://server:1024/?;AUTHENTICATE(user,password">http://server:1024/?;AUTHENTICATE(user,password</A>);GRANT(user,ALL);DELETE(/some/record);LOGOUT;&quot;)
+</I>&gt;<i> 
+</I>&gt;<i> I have already verified that none of these characters require escaping 
+</I>&gt;<i> in URLs. The current proposal is fairly strict about allowed URIs but in 
+</I>&gt;<i> my opinion it is not strict enough. We really need to verify we are 
+</I>&gt;<i> talking to a WebSocket service before we start sending anything under 
+</I>&gt;<i> the control of a malicious author.
+</I>
+I agree that this is a plausible attack.
+
+However, such a service is already vulnerable, one need just do:
+
+   &lt;img src=&quot;<A HREF="http://server:1024/?;AUTHENTICATE(user,password">http://server:1024/?;AUTHENTICATE(user,password</A>);GRANT(user,ALL);DELETE(/some/record);LOGOUT;&quot;&gt;
+
+So I'm not sure it's really a problem.
+
+
+&gt;<i> Now given the huge variety of non-HTTP sub-systems we'll be talking to I 
+</I>&gt;<i> don't think a full URL or path is actually a useful part of the 
+</I>&gt;<i> handshake. What does path mean to a mail server for instance?
+</I>
+URLs are a useful part of the Web architecture; I don't see a reason to 
+_not_ allow services to be based on paths. It seems useful to be able to 
+have multiple services on one port.
+
+
+&gt;<i> Here is my proposal:
+</I>&gt;<i> 
+</I>&gt;<i> C = client
+</I>&gt;<i> S = service
+</I>&gt;<i> 
+</I>&gt;<i> # First we talk to our proxy, if configured. We know we're talking to a proxy
+</I>&gt;<i> because it's set on the client.
+</I>&gt;<i> 
+</I>&gt;<i> C&gt; CONNECT server.example.com:1024 HTTP/1.1
+</I>&gt;<i> C&gt; Host: server.example.com:1024
+</I>&gt;<i> C&gt; Proxy-Connection: Keep-Alive
+</I>&gt;<i> C&gt; Upgrade: WebSocket/1.0
+</I>&gt;<i> 
+</I>&gt;<i> # Without a proxy we send
+</I>&gt;<i> 
+</I>&gt;<i> C&gt; HEAD server.example.com:1024 HTTP/1.1
+</I>&gt;<i> C&gt; Host: server.example.com:1024
+</I>&gt;<i> C&gt; Connection: Keep-Alive
+</I>&gt;<i> C&gt; Upgrade: WebSocket/1.0
+</I>
+The above appears to be a mis-use of HTTP (shouldn't the string after the 
+HEAD be the path rather than the server hostname and port?). But that 
+not-withstanding, let's consider the above proposal anyway:
+
+Imagine a server whose commands are delimited by full stops, such that the 
+following is a bad command to send the server:
+
+   reboot.logout.
+
+Now, say that evil.example.com sets up a CNAME DNS entry:
+
+   x.reboot.logout.evil.example.com
+
+...pointing to victim.example.org. Now you set up a WebSocket connection 
+with x.reboot.logout.evil.example.com:1024, and the client sends:
+
+   HEAD x.reboot.logout.evil.example.com:1024 HTTP/1.1
+
+...and the server reboots.
+
+How is this different to what we have now?
+
+
+&gt;<i> The client and server can now exchange any authentication tokens, access 
+</I>&gt;<i> conditions, cookies, etc according to service requirements. eg:
+</I>&gt;<i> 
+</I>&gt;<i> ws.Send( 'referrer=' + window.location + '\r\n' );
+</I>
+The whole point is that the origin must be sent in a manner that the page 
+cannot spoof, so that the server knows that if it is talking to a web 
+browser, it can trust the Origin header. So having the page send the 
+origin is not very useful. (If it's not talking to a web browser, it 
+doesn't matter, since the user is the attacker.)
+
+
+&gt;<i> The key advantages of this method are: [...]
+</I>&gt;<i> 
+</I>&gt;<i> * Security (No page author control over initial handshake beyond the server
+</I>&gt;<i> name or IP. Removes the risk of command injection via URI.)
+</I>
+Server name seems like just as much of a problem. Command injection via 
+URI is already possible, so seems equally moot.
+
+
+On Tue, 14 Oct 2008, Shannon wrote:
+&gt;<i>
+</I>&gt;<i> In the process of testing my WebSocket proposal I discovered the CONNECT 
+</I>&gt;<i> method has a major restriction. Most proxies disable CONNECT to anything 
+</I>&gt;<i> but port 443.
+</I>
+Indeed. Tunnelling WebSocket over 443 is the expected implementation in 
+most cases.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="059637.html">[whatwg] [rest-discuss] HTML5 and RESTful HTTP in browsers
+</A></li>
+	<LI>Next message: <A HREF="059549.html">[whatwg] JSON support for worker postMessage
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#59514">[ date ]</a>
+              <a href="thread.html#59514">[ thread ]</a>
+              <a href="subject.html#59514">[ subject ]</a>
+              <a href="author.html#59514">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

@@ -1,0 +1,158 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Script preloading
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Script%20preloading&In-Reply-To=%3CCABirCh_Rp2BBVzgD%3DUHLOwQYAxjeWbYWnMcG2%3DmhGaziy%2BZurA%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="040641.html">
+   <LINK REL="Next"  HREF="040659.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Script preloading</H1>
+<!--htdig_noindex-->
+    <B>Glenn Maynard</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Script%20preloading&In-Reply-To=%3CCABirCh_Rp2BBVzgD%3DUHLOwQYAxjeWbYWnMcG2%3DmhGaziy%2BZurA%40mail.gmail.com%3E"
+       TITLE="[whatwg] Script preloading">glenn at zewt.org
+       </A><BR>
+    <I>Thu Aug 29 17:02:44 PDT 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="040641.html">[whatwg] Script preloading
+</A></li>
+        <LI>Next message: <A HREF="040659.html">[whatwg] Script preloading
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#40655">[ date ]</a>
+              <a href="thread.html#40655">[ thread ]</a>
+              <a href="subject.html#40655">[ subject ]</a>
+              <a href="author.html#40655">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Tue, Aug 27, 2013 at 4:55 PM, Ian Hickson &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">ian at hixie.ch</A>&gt; wrote:
+
+&gt;<i> IMHO, if you have to write a script to solve use cases like these, you
+</I>&gt;<i> haven't really solved the use cases. It seems that the opportunity we have
+</I>&gt;<i> here is to provide a feature or set of features that addresses these use
+</I>&gt;<i> cases directly, so that anyone can use them without much work.
+</I>&gt;<i>
+</I>
+This is especially true for a module loader, which will be used to deal
+with interactions between scripts written by different parties.  If the
+platform doesn't provide a standard, universal way to do this, then people
+will keep rolling their own incompatible solutions.  That's bearable for
+self-contained code used by a module, but it doesn't make sense for the
+piece that handles the cross-vendor interactions.
+
+Anyway, the idea of only providing basic building blocks and making people
+roll their own solutions isn't the web's design philosophy at all, so I
+don't think it's a valid objection.
+
+
+&gt;<i>  &lt;script whenneeded=&quot;jit&quot;&gt; is a special mode where instead of running once
+</I>&gt;<i>  the script's dependencies are met, it additionally waits until all the
+</I>&gt;<i>  scripts that depend on _it_ are ready to run. (&quot;Just in time&quot; exection.)
+</I>&gt;<i>  (The default is whenneeded=asap, &quot;as soon as possible&quot; exection.)
+</I>&gt;<i>
+</I>
+This mode seems to be specifically for this use case:
+
+&gt;<i> [Use-case U:] I have a set of script &quot;A.js&quot;, &quot;B.js&quot;, and &quot;C.js&quot;. B
+</I>&gt;<i> relies on A, and C relies on B. So they need to execute strictly in that
+</I>&gt;<i> order. [Now], imagine they progressively render different parts of a
+</I>&gt;<i> widget. [...] I only want to execute A, B and C once all 3 are preloaded
+</I>&gt;<i> and ready to go. It's [...] about minimizing delays between them, for
+</I>&gt;<i> performance PERCEPTION.
+</I>
+This one seems uncommon, and less like a dependency use case than the
+others.  How often is this wanted?  Is it too inconvenient to just mark
+them all @whenneeded, and say something like:
+
+document.querySelector(&quot;#C&quot;).execute(function() {
+    A.render();
+    B.render();
+    C.render();
+});
+
+That does require the modules render in a function, and not when the script
+is first executed.  I don't know how much of a burden that is for this
+case.
+
+Alternatively, if an event is fired when a script's dependencies have been
+met, then you could mark all three scripts @whenneeded, and call
+(#C).execute() once C's dependencies have been met.
+
+Maybe the &quot;jit&quot; feature isn't a big deal, but it seems like a bit of an
+oddball for a narrow use case.
+
+ You can manually increase or decrease a dependency count on &lt;script&gt;
+&gt;<i>  elements by calling incDependencies() and decDependencies().
+</I>&gt;<i>
+</I>
+Will a @defer dependency effectively defer all scripts that depend on it?
+
+incDependencies() and decDependencies() may be hard to debug, since if
+somebody messes up the counter, it's hard to tell whose fault it is.  A
+named interface could help with this: script.addDependency(&quot;thing&quot;); /*
+script.dependencies is now [&quot;thing&quot;] */ script.removeDependency(&quot;thing&quot;);
+
+
+On Thu, Aug 29, 2013 at 10:37 AM, Nicholas Zakas &lt;
+<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">standards at nczconsulting.com</A>&gt; wrote:
+
+&gt;<i> The question of dependency management is, in my mind, a separate issue and
+</I>&gt;<i> one that doesn't belong in this layer of the web platform. HTML isn't the
+</I>&gt;<i> right spot for a dependency tree to be defined for scripts (or anything
+</I>&gt;<i> else). To me, that is a problem to be solved within the ECMAScript world
+</I>&gt;<i> much the way CSS has @import available from within CSS code.
+</I>&gt;<i>
+</I>
+This would serialize script loading, because you wouldn't know a script's
+dependencies until you've actually fetched the script.  That would make
+page loads very slow.
+
+I think the use cases other than the initial one (preload/execute later)
+&gt;<i> are best relegated to script loaders
+</I>
+
+I disagree.  See above.
+
+(Please remember to trim quotes.)
+
+-- 
+Glenn Maynard
+</PRE>
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="040641.html">[whatwg] Script preloading
+</A></li>
+	<LI>Next message: <A HREF="040659.html">[whatwg] Script preloading
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#40655">[ date ]</a>
+              <a href="thread.html#40655">[ thread ]</a>
+              <a href="subject.html#40655">[ subject ]</a>
+              <a href="author.html#40655">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

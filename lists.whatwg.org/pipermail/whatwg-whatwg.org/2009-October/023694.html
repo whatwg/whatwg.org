@@ -1,0 +1,153 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Issues with Web Sockets API
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Issues%20with%20Web%20Sockets%20API&In-Reply-To=%3CPine.LNX.4.62.0910171007440.9145%40hixie.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023613.html">
+   <LINK REL="Next"  HREF="023794.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Issues with Web Sockets API</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Issues%20with%20Web%20Sockets%20API&In-Reply-To=%3CPine.LNX.4.62.0910171007440.9145%40hixie.dreamhostps.com%3E"
+       TITLE="[whatwg] Issues with Web Sockets API">ian at hixie.ch
+       </A><BR>
+    <I>Sat Oct 17 03:20:55 PDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023613.html">[whatwg] Issues with Web Sockets API
+</A></li>
+        <LI>Next message: <A HREF="023794.html">[whatwg] Issues with Web Sockets API
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23694">[ date ]</a>
+              <a href="thread.html#23694">[ thread ]</a>
+              <a href="subject.html#23694">[ subject ]</a>
+              <a href="author.html#23694">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Wed, 14 Oct 2009, Alexey Proskuryakov wrote:
+&gt;<i> 13.10.2009, &#1074; 4:11, Ian Hickson &#1085;&#1072;&#1087;&#1080;&#1089;&#1072;&#1083;(&#1072;):
+</I>&gt;<i> &gt; &gt; 
+</I>&gt;<i> &gt; &gt; Is this meant to mimic some behavior that existing clients have for 
+</I>&gt;<i> &gt; &gt; HTTP already?
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; Yes, as it says, the idea is for UAs to send the same headers they 
+</I>&gt;<i> &gt; would send if the protocol had been HTTP.
+</I>&gt;<i> 
+</I>&gt;<i> For HTTP, this depends on authentication scheme in use. For Basic and 
+</I>&gt;<i> Digest authentication in particular, clients are allowed to make certain 
+</I>&gt;<i> assumptions about protection spaces: &quot;A client MAY preemptively send the 
+</I>&gt;<i> corresponding Authorization header with requests for resources in that 
+</I>&gt;<i> space without receipt of another challenge from the server.&quot;
+</I>&gt;<i> 
+</I>&gt;<i> I don't think the Web Sockets protocol is sufficiently similar to HTTP 
+</I>&gt;<i> to defer to RFC 2617 or other HTTP specs here. Also, implementing &quot;just 
+</I>&gt;<i> support the same authentication mechanisms you do for HTTP&quot; is a tall 
+</I>&gt;<i> order, since HTTP back-ends don't (always?) expose the necessary APIs 
+</I>&gt;<i> for encryption.
+</I>
+I'm not really sure what else to say to be honest. Should I just leave it 
+at cookies and nothing else? Really I just want to support Basic (and I 
+guess Digest) authentication (primarily for over-TLS connections), so that 
+sites that use Basic auth, like, say, porn sites, or the W3C, can also use 
+it for their Web Socket connections. I could just limit it that way; would 
+that work?
+
+
+&gt;<i> &gt; &gt; &gt; If /code/, interpreted as ASCII, is &quot;401&quot;, then let /mode/ be 
+</I>&gt;<i> &gt; &gt; &gt; _authenticate_. Otherwise, fail the Web Socket connection and 
+</I>&gt;<i> &gt; &gt; &gt; abort these steps.
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; 407 (proxy authenticate) also likely needs to be supported.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; Proxies wouldn't work with WebSockets in general.
+</I>&gt;<i> 
+</I>&gt;<i> Could you please elaborate? I thought there was a setup that could work 
+</I>&gt;<i> with most deployed HTTPS proxies - one could run WebSockets server on 
+</I>&gt;<i> port 443.
+</I>
+Oh, I see what you're saying. Proxy authentication of this nature is 
+covered by step 2 of the handshake algorithm, as part of &quot;connect to that 
+proxy and ask it to open a TCP/IP connection to the host given by /host/ 
+and the port given by /port/&quot;. There's even an example showing auth 
+headers being sent to the proxy. By the time we get down to parsing the 
+response, we're long past the point where we might be authenticating to a 
+proxy. Is that a problem? I could add support for 407 here and just say 
+that you jump back to step 2 and include the authentication this time, 
+would that work?
+
+
+&gt;<i> &gt; &gt; Some authentication schemes (e.g. NTLM) work on connection basis, so 
+</I>&gt;<i> &gt; &gt; I don't think that closing the connection right after receiving a 
+</I>&gt;<i> &gt; &gt; challenge can work with them.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; Yeah, that's quite possible.
+</I>&gt;<i> 
+</I>&gt;<i> Is this something you plan to correct in the spec?
+</I>
+Is there much to correct? I don't understand what would need to change 
+here. Does NTLM not work with HTTP without pipelining? Or do you mean that 
+you would rather have authentication be a first-class primitive operation 
+in Web Socket, instead of relying on the HTTP features? We could do that:
+instead of faking an HTTP communication, we could have a header in the 
+handshake that means &quot;after this, the client must send one more handshake 
+consisting of an authentication token&quot;, and if the UA fails to send the 
+right extra bit, then fail. I think if we did this, we'd want to punt 
+until version 2, though.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023613.html">[whatwg] Issues with Web Sockets API
+</A></li>
+	<LI>Next message: <A HREF="023794.html">[whatwg] Issues with Web Sockets API
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23694">[ date ]</a>
+              <a href="thread.html#23694">[ thread ]</a>
+              <a href="subject.html#23694">[ subject ]</a>
+              <a href="author.html#23694">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

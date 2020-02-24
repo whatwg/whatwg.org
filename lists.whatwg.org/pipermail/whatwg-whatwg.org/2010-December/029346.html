@@ -1,0 +1,396 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Should events be paused on detached iframes?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Should%20events%20be%20paused%20on%20detached%20iframes%3F&In-Reply-To=%3CPine.LNX.4.64.1012012104380.26618%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="071851.html">
+   <LINK REL="Next"  HREF="071620.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Should events be paused on detached iframes?</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Should%20events%20be%20paused%20on%20detached%20iframes%3F&In-Reply-To=%3CPine.LNX.4.64.1012012104380.26618%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg] Should events be paused on detached iframes?">ian at hixie.ch
+       </A><BR>
+    <I>Mon Dec  6 16:45:41 PST 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="071851.html">[whatwg] Timed tracks: feedback compendium
+</A></li>
+        <LI>Next message: <A HREF="071620.html">[whatwg] Should events be paused on detached iframes?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#29346">[ date ]</a>
+              <a href="thread.html#29346">[ thread ]</a>
+              <a href="subject.html#29346">[ subject ]</a>
+              <a href="author.html#29346">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Tue, 24 Aug 2010, Ben Lerner wrote:
+&gt;<i>
+</I>&gt;<i> There seems to be a bit of disagreement among browsers about how event 
+</I>&gt;<i> loops and iframes interact when an iframe is removed and then reinserted 
+</I>&gt;<i> into its parent document.  Consider the following two documents: the 
+</I>&gt;<i> parent document has a button that removes or reattaches an iframe to the 
+</I>&gt;<i> document, while the second simply sets an interval to update the page 
+</I>&gt;<i> content.
+</I>&gt;<i> 
+</I>&gt;<i> Page1.html:
+</I>&gt;<i> &lt;p&gt;&lt;button onclick=&quot;toggleInDoc();&quot;&gt;Show/hide&lt;/button&gt;&lt;/p&gt;
+</I>&gt;<i> &lt;iframe id=&quot;test&quot; src=&quot;page2.html&quot;&gt;&lt;/iframe&gt;
+</I>&gt;<i> &lt;script&gt;
+</I>&gt;<i>     var test = document.getElementById(&quot;test&quot;);
+</I>&gt;<i>     function toggleInDoc() {
+</I>&gt;<i>       if (test.parentNode == null)
+</I>&gt;<i>         document.body.appendChild(test);
+</I>&gt;<i>       else
+</I>&gt;<i>         document.body.removeChild(test);
+</I>&gt;<i>     }
+</I>&gt;<i> &lt;/script&gt;
+</I>&gt;<i> 
+</I>&gt;<i> Page2.html:
+</I>&gt;<i> &lt;p id=&quot;test&quot;&gt;&lt;/p&gt;
+</I>&gt;<i> &lt;script&gt;
+</I>&gt;<i>     window.setInterval(function() { document.getElementById(&quot;test&quot;).innerHTML
+</I>&gt;<i> += &quot;.&quot;; }, 500);
+</I>&gt;<i> &lt;/script&gt;
+</I>&gt;<i> 
+</I>&gt;<i> Assume the user waits until the interval has fired several times, then 
+</I>&gt;<i> presses the button, waits a while, and presses it again.  There are 
+</I>&gt;<i> three possible outcomes:
+</I>&gt;<i>
+</I>&gt;<i> 1. When the iframe is reattached, the inner page reloads.  This seems to 
+</I>&gt;<i> go beyond the wording of the spec, which says only &quot;When an iframe 
+</I>&gt;<i> element is first inserted into a document, the user agent must create a 
+</I>&gt;<i> nested browsing context, and then process the iframe attributes for the 
+</I>&gt;<i> first time.&quot;  (This isn't the first time the iframe is inserted into the 
+</I>&gt;<i> document, so we shouldn't process the iframe attributes again.)
+</I>
+Agreed that this contradicts the spec currently.
+
+
+&gt;<i> 2. The interval (and presumably, all events) in the iframe is paused 
+</I>&gt;<i> while it's been detached (since the document is no longer fully active, 
+</I>&gt;<i> but it also has not been discarded because of the global reference to 
+</I>&gt;<i> its container element).
+</I>
+The timeout is paused. Events in general aren't necessarily paused; for 
+example you can synchronously dispatch an event using dispatchEvent() on a 
+document in an inactive browsing context. Tasks are paused though (so most 
+events don't fire).
+
+Actually, the spec wasn't really clear about the status of the browsing 
+context of an iframe that was taken out of a document. I've made the spec 
+clearer on this matter.
+
+
+&gt;<i> 3. The interval (and presumably, all events) continues to fire while 
+</I>&gt;<i> it's been detached, and the content of page2 will have changed while 
+</I>&gt;<i> it's been detached from page1.
+</I>
+That doesn't match the spec.
+
+
+&gt;<i> So far, Chrome 6, Opera 10.6 and Firefox 3.6 follow #1, and IE 8 follows 
+</I>&gt;<i> #3. My reading of the &quot;fully active&quot; clause of the spec leads me to 
+</I>&gt;<i> expect #2. Which of these behaviors is the desired one?  And/or, would 
+</I>&gt;<i> it be desirable to permit authors to specify which behavior they intend?
+</I>
+The spec is #2; it is an attempt to get as close to most existing browsers 
+as is probably necessary for compatibility, while still allowing the 
+iframe to be useful (e.g. for the regrafted-iframe trick used by GMail).
+
+
+On Tue, 24 Aug 2010, Dmitry Titov wrote:
+&gt;<i> 
+</I>&gt;<i> So it seems the right behavior is to keep the content alive. It's not 
+</I>&gt;<i> clear why the events would not fire during DOM operations though. 
+</I>&gt;<i> Perhaps they should, since nothing is changing from the perspective of 
+</I>&gt;<i> the document loaded into iframe - for example, XHR probably should 
+</I>&gt;<i> continue loading content if it was doing so before iframe was 
+</I>&gt;<i> disconnected from its parent node. Doing some suspension (as for example 
+</I>&gt;<i> is done when a page goes into back-forward cache?) would be way more 
+</I>&gt;<i> complex mechanism to have, with necessary events on pause/unpause so the 
+</I>&gt;<i> live document could re-start async operations correctly.
+</I>
+All that currently happens with respect to pausing is that tasks for the 
+document don't get processed (they remain in the queue). It's actually the 
+same mechanism that's used for back-forward interactions; per spec, 
+currently, if you grab a reference (from another Window) to a document 
+that you then send into session history (bfcache), you can still mutate 
+that document, call dispatchEvent() on it, run scripts in it, etc. Since 
+you have a reference to it, it won't get automatically evicted, and when 
+you traverse the history back to it the changes will be visible (and 
+queued events and other tasks, e.g. parsing, will start firing again).
+
+The one difference between session history and moving an iframe out of a 
+document is that with the session history when you send a document into 
+the &quot;back&quot; history, it gets unload/pagehide events (and pageshow when it 
+comes back), whereas the iframe doesn't get any notification at all.
+
+
+On Tue, 24 Aug 2010, Dirk Pranke wrote:
+&gt;<i>
+</I>&gt;<i> On a related note, the behavior of onUnload in this situation is quite 
+</I>&gt;<i> unclear. Should onUnload() fire if an iframe is detached from the DOM?
+</I>
+Not per spec.
+
+
+On Tue, 24 Aug 2010, Dmitry Titov wrote:
+&gt;<i>
+</I>&gt;<i> At least spec tells that if an iframe is detached from the DOM and then 
+</I>&gt;<i> becomes eligible for GC (not hold via JS reference not DOM connection) - 
+</I>&gt;<i> it gets unloaded w/o onunload firing (4.8.2)
+</I>
+Right. This is intended to avoid exposing the specifics of GC.
+
+
+On Tue, 24 Aug 2010, Ben Lerner wrote:
+&gt;<i>
+</I>&gt;<i> The history navigation analogy is a good one: pages presumably already 
+</I>&gt;<i> have to handle the pageshow event to deal with being revived from the 
+</I>&gt;<i> history, and the browser already needs to know how to fire that event.  
+</I>
+Pages don't _have_ to handle it; there's a number of cases, e.g. if they 
+have any 'unload' event handlers, that result in a document being 
+classified a lost cause. Search for &quot;salvageable&quot; in the spec.
+
+
+&gt;<i> Why not reuse those mechanisms?  A strawman claim: Nothing may be 
+</I>&gt;<i> changing from the perspective of the iframe, but it certainly is 
+</I>&gt;<i> changing from the perspective of the container or the user: detaching an 
+</I>&gt;<i> iframe from a page is like navigating a browsing context away from a 
+</I>&gt;<i> page, putting it into hibernation until it's reattached to an active 
+</I>&gt;<i> document/browsing context.  What subtle or important facet of the web am 
+</I>&gt;<i> I missing that breaks this analogy? (It wouldn't surprise me if I missed 
+</I>&gt;<i> something obvious, either... :)
+</I>
+It's very rare, and done only by the author intentionally, so I'm not sure 
+there's any reason to really provide a lot of infrastructure to support 
+it. Just having the behaviour be whatever falls out of the way more 
+important things are specced seems simpler and sufficient.
+
+
+&gt;<i> Another reason to consider suspending detached iframes: suppose that in 
+</I>&gt;<i> the chat window example below, the iframe wasn't just a same-origin 
+</I>&gt;<i> place to store global state, but also had its own UI, with callbacks and 
+</I>&gt;<i> event handlers and whatnot.  If, during the interim while the iframe was 
+</I>&gt;<i> being detached, adopted and reattached, that frame executed a timer that 
+</I>&gt;<i> popped up a modal alert or prompt to the user, how would the user 
+</I>&gt;<i> reasonably know where that alert came from?  And what document(s?) 
+</I>&gt;<i> should be paused while the alert is shown?
+</I>
+Per spec, it can't get a timer or any callback or asynchronous event or 
+network task while it is detached, so nothing could trigger the alert.
+
+
+&gt;<i> Regarding XHR and such -- I guess what I'm suggesting is suspending the 
+</I>&gt;<i> event loop, but not necessarily suspending asynch processes.  So XHR can 
+</I>&gt;<i> continue to queue tasks; media can continue to buffer; resources can 
+</I>&gt;<i> continue to load.
+</I>
+That's what the spec currently requires (though the browser is of course 
+entirely entitled to throttle any network traffic, etc).
+
+
+On Tue, 24 Aug 2010, Boris Zbarsky wrote:
+&gt;<i> 
+</I>&gt;<i> At least in the case of Gecko, there are at least the following things to keep
+</I>&gt;<i> in mind:
+</I>&gt;<i> 
+</I>&gt;<i> 1) &quot;hibernating&quot; documents are very limited in what one can do with
+</I>&gt;<i>    them (e.g. attempting to mutate the document in any way while
+</I>&gt;<i>    hibernating will throw it away).
+</I>
+On Wed, 25 Aug 2010, Boris Zbarsky wrote:
+&gt;<i> 
+</I>&gt;<i> &quot;throw away&quot; in this context means throw away from the back/forward 
+</I>&gt;<i> cache. The document is still there, and can still be mutated, etc, but 
+</I>&gt;<i> can no longer become live again.
+</I>
+Ah, interesting. Ok. That doesn't really affect the iframe case, since in 
+the iframe case the document doesn't stop being the active doc of its 
+browsing context, it just stops being fully active (since it stops 
+having a parent browsing context).
+
+
+On Tue, 24 Aug 2010, Boris Zbarsky wrote:
+&gt;<i> 
+</I>&gt;<i> 2) Documents have security policies applied to them based on the
+</I>&gt;<i>    toplevel content window (or browser tab, if you prefer to think
+</I>&gt;<i>    about it) they're associated with.  Which means that allowing
+</I>&gt;<i>    documents not immediately associated with any toplevel window,
+</I>&gt;<i>    which would be the case right now in Gecko for an &lt;iframe&gt; not in
+</I>&gt;<i>    a document, leads to security problems.  This could be changed by
+</I>&gt;<i>    redoing how the association is implemented, but there's some
+</I>&gt;<i>    touchy code involved that we'd rather not get wrong.  ;)
+</I>
+It's not clear to me what permissions would be based on the top-level 
+browsing context rather than on the Window itself.
+
+
+&gt;<i> Note that in Gecko documents with active network requests never go into 
+</I>&gt;<i> hibernation right now, precisely because we don't want to have to buffer 
+</I>&gt;<i> potentially-arbitrary amounts of data (see JPEG push) for arbitrary 
+</I>&gt;<i> lengths of time.  We still wouldn't want to do so in this case...
+</I>
+Currently the spec doesn't use &quot;has pending network activity&quot; as a flag to 
+make a document non-salvageable, but allows documents to which nobody has 
+a reference (excluding the reference from the session history) to be 
+discarded arbitrarily, which is intended to handle this case (it's 
+presumed that if you have a reference to a document then you want it to 
+survive and will be using any buffering data).
+
+I guess we could also allow browsers to even discard things in the session 
+history that do have references to them, but long-term it might be better 
+just to have the browsers support that, since it doesn't seem 
+intrinsically impossible to do -- it's just something that is typically in 
+a hairy part of code, because it's never been specced before. There's 
+bound to be other things that need changing as we move all the browsers to 
+a convergence point in this area, regardless of what we make the spec say.
+
+
+On Thu, 26 Aug 2010, Boris Zbarsky wrote:
+&gt;<i> 
+</I>&gt;<i> Elements behave fine.  The question is what the Window should do.  What 
+</I>&gt;<i> should window.parent return in the iframe while detached?  window.top? 
+</I>&gt;<i> What should window.resizeTo do?  That sort of thing.
+</I>
+I've fixed window.parent and window.top to return window.self, and made a 
+few other fixes for things I'd overlooked.
+
+
+On Thu, 26 Aug 2010, Boris Zbarsky wrote:
+&gt;<i> 
+</I>&gt;<i> Again, nothing insurmountable, but there's a bunch of code in Gecko that 
+</I>&gt;<i> makes assumptions about when windows can and can't exist that would need 
+</I>&gt;<i> auditing.
+</I>
+Indeed, the spec had the same problem!
+
+
+&gt;<i> I can't speak to the web compat aspects.
+</I>
+Yeah, that's the real question.
+
+
+&gt;<i> [...] this does raise the question of when it's OK to gc the iframe.
+</I>
+This is defined. In particular, since the event loop stops processing 
+tasks for the ungrafted nested browsing context, there's no risk of 
+scripts suddenly running in its context, and there's no browser-managed 
+strong reference to the browsing context (much like when a document goes 
+into session history).
+
+
+On Fri, 27 Aug 2010, James May wrote:
+&gt;<i>
+</I>&gt;<i> Could the iframe be hoisted to the top level of its parent browsing 
+</I>&gt;<i> context?
+</I>
+This would be scary; top-level browsing contexts have various privileges 
+that subframes don't have, and we wouldn't want to give them to a window 
+that was invisible to the user.
+
+
+On Thu, 26 Aug 2010, Boris Zbarsky wrote:
+&gt;<i> 
+</I>&gt;<i> I don't think it's reasonable to gc the &lt;iframe&gt; element while leaving 
+</I>&gt;<i> the window inside alive due to it being referenced.  That introduces 
+</I>&gt;<i> races where frameElement could suddenly become null at some point 
+</I>&gt;<i> (possibly between two lines of the same script, or even partway through 
+</I>&gt;<i> some operation; for example GC can happen, even multiple times, during a 
+</I>&gt;<i> property get or set).  That would be pretty broken behavior.
+</I>
+The spec says that basically anything you can observe in the DOM is a 
+strong reference, including e.g. frameElement. So there's no race 
+condition here.
+
+
+On Fri, 27 Aug 2010, Olli Pettay wrote:
+&gt;<i>
+</I>&gt;<i> One thing not too clear in the &quot;magic iframe&quot; approach is that how 
+</I>&gt;<i> session history works; how is the session history from the iframe merged 
+</I>&gt;<i> to the new one, especially if the iframe moves to a new document.
+</I>
+This is as well-defined in the spec as it is for the case of sibling 
+iframes that aren't ungrafted, actually.
+
+
+&gt;<i> Another thing, which is more implementation depended problem, is that 
+</I>&gt;<i> how the plugin native widget reparenting works, in case the iframe uses 
+</I>&gt;<i> plugins.
+</I>
+This is already a problem since you can move an &lt;embed&gt; around directly.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="071851.html">[whatwg] Timed tracks: feedback compendium
+</A></li>
+	<LI>Next message: <A HREF="071620.html">[whatwg] Should events be paused on detached iframes?
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#29346">[ date ]</a>
+              <a href="thread.html#29346">[ thread ]</a>
+              <a href="subject.html#29346">[ subject ]</a>
+              <a href="author.html#29346">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

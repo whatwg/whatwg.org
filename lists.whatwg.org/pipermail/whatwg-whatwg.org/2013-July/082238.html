@@ -1,0 +1,149 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Script preloading
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Script%20preloading&In-Reply-To=%3CCE04BF2F-16CE-42C7-B506-6E1BE6C2BBB0%40gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="082237.html">
+   <LINK REL="Next"  HREF="082244.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Script preloading</H1>
+<!--htdig_noindex-->
+    <B>Kyle Simpson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Script%20preloading&In-Reply-To=%3CCE04BF2F-16CE-42C7-B506-6E1BE6C2BBB0%40gmail.com%3E"
+       TITLE="[whatwg] Script preloading">getify at gmail.com
+       </A><BR>
+    <I>Tue Jul  9 19:09:35 PDT 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="082237.html">[whatwg] Script preloading
+</A></li>
+        <LI>Next message: <A HREF="082244.html">[whatwg] Script preloading
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#82238">[ date ]</a>
+              <a href="thread.html#82238">[ thread ]</a>
+              <a href="subject.html#82238">[ subject ]</a>
+              <a href="author.html#82238">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>&gt;<i> I have been wrestling pretty hard with script loading issues lately. I'd
+</I>&gt;<i> say that having the browser manage script interdependency is probably a
+</I>&gt;<i> bad and cumbersome way to solve these issues.
+</I>
+What do you mean by &quot;having the browser manage script interdependency&quot;? As far as I am aware, this thread and these feature requests are not about the browser managing script interdependencies&#8230; in fact, quite the opposite. What we're asking and hoping for is a facility that allows the app code to manage the dependencies and the loading order, while only relying on the browser to do the actual loading for us the way it always has.
+
+The only part of that puzzle that's missing is a way to tell the browser to pause between finishing-loading and starting-executing. Asking for such a mechanism has really nothing to do with offloading dependency management to the browser to handle. It's empowering the app code to be more in control, not less.
+
+
+
+&gt;<i> I think one of the reason that people may ask for this Interdependency
+</I>&gt;<i> feature,
+</I>&gt;<i> is due to the weakness of the platform they use,
+</I>
+Again, I think you may possibly be misunderstanding the goal of what's being asked for. But I'll agree with you that there's a weakness. The weakness, IMO, is in the web platform itself, in not giving us more fine-grained control over script loading. That is why we keep having this discussion every 6 months or so for the least several years. The use-cases never go away, and the hacks we use to deal with them never get any less ugly.
+
+
+
+&gt;<i> And 'async', while good for independent scripts such as social media apis,
+</I>&gt;<i> is not really a good tools for dependency management.
+</I>
+Again, possibly a case of misunderstanding or missed context from previous conversations. When I bring up &quot;async&quot;, I'm not talking about &lt;script async&gt; in markup as you suggest, but actually `script.async = false` being set on dynamcially created script elements (in code). &quot;async=false&quot; (aka &quot;ordered async&quot;) is a relatively &quot;new&quot; feature added to the platform about 2.5 years ago that gives us async parallel loading, but the browser automatically enforces execution order to be request order, instead of ASAP order.
+
+&quot;async=false&quot; is actually a good feature. The problem is not the feature itself, but that it's only part of what we needed.
+
+
+
+&gt;<i> My main issue against using external script loaders like LABjs and others,
+</I>&gt;<i> has always been that if the browser must download a script first, before
+</I>&gt;<i> starting to download the dependencies. It presents a drawback already, for
+</I>&gt;<i> delayed the scripts by the script loader's latency and download time (at
+</I>&gt;<i> least for the first uncached page load) similarly to having scripts at the
+</I>&gt;<i> bottoms.
+</I>
+For LABjs' part, I never suggest to people to load LABjs in a separate file. I suggest that people use a &quot;bootstrap&quot; type code file, which would be a single .js file they load with a single &lt;script&gt; tag in their markup, and it contains all the bare-minimum code necessary to bootstrap the page/app. It would include the code for LABjs, also the $LAB chains for loading other scripts, even basic event handling or other bootstrap type logic.
+
+Moreover, the extra ~2k of gzip-bytes that LABjs &quot;costs&quot; (even if it's a separate file, but especially if it's included in another bootstrap file) is almost always made up for in savings by being able to take advantage of consistent parallel loading of scripts.
+
+If your page only has 3-5k of JS on it, then you shouldn't use a script loader. But if you're like most sites, and you're loading 100-300k of JS, then a tiny 2k of JS for loading optimization is not even a drop in the ocean.
+
+Lastly, I advocate the techniques of deferring certain parts of your scripts to not loading during page-load at all, but instead post-loading or on-demand loading at later times. This amounts to needing to have the ability to do dynamic loading during the lifetime of the page. Markup alone is never enough for that. You have to have a script loader of some sort.
+
+So, I advocate that a tiny but powerful script loader that you use for BOTH uses is a win. You use the same script loading techniques for page-load loading as you do for on-demand loading. Consistency of toolset here makes coding and maintenance easier in the long run.
+
+
+&gt;<i> Why not simply load all such scripts early in the &lt;head&gt; with 'defer',
+</I>
+As you mention below, defer is horribly buggy and unreliable. The chances of IE8+ (not to mention IE6-8) being patched to have better defer are roundable to zero.
+
+
+
+&gt;<i> 'defer' in head scripts is actually a very good way to preserve script
+</I>&gt;<i> order with non-blocking scripts.
+</I>
+But it only works for external scripts (as you note below), and it only works for markup loading during page-load, and gives no answer for dynamic/on-demand loading later. As such, by design, it's insufficient for the use-cases presented.
+
+
+
+&gt;<i> I would actually advocate to petition Microsoft to release patches for
+</I>&gt;<i> IE8, IE9 and IE10 for these particular stupid overlooked bugs
+</I>
+While this sounds nice in theory, it would actually be MUCH worse if they ever did that. Most of the people locked on those older browsers are locked down and not getting any updates. But not all of them. Some people WOULD get the update. So then we'd be left with a lot of inconsistency where everyone says &quot;we support IE8&quot;, but then there's this big difference with IE8 between IE8.0 and IE8.0.1 or whatever.
+
+That kind of nuance would significantly complicate and make this stuff MUCH harder to deal with predictably. They almost certainly would NOT be able to patch those browsers in a feature-testable way (and what does feature-testable even mean when we're talking purely about markup!?!?), so then we'd have to do crazy crap like UA version parsing on the server, etc.
+
+
+
+&gt;<i> Back to the initial question from my rant. While there is a use case for
+</I>&gt;<i> not downloading or executing scripts until needed, this can somewhat
+</I>&gt;<i> already be dealt with using ajax or the post-eval method google uses. Or
+</I>&gt;<i> perhaps this script execution hold could be an ajax only solution, with a
+</I>&gt;<i> no-execute-yet property and a pure javascript behavior, rather than also
+</I>&gt;<i> implicate DOM attributes into this.
+</I>
+Unfortunately, the death of XHR based loading is still that scripts are often loaded cross-domain. The older browsers IE&gt;=7 didn't support CORS at all, so total deal breaker. IE8 and IE9 supported a bastardized version of CORS, but few devs ever supported XDomainRequest instead of the standardized CORS on XHR. Also, eval'd or script-injected code loaded via XHR is significantly less debuggable than normal &lt;script&gt; loaded code.
+
+
+
+
+
+--Kyle
+
+
+
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="082237.html">[whatwg] Script preloading
+</A></li>
+	<LI>Next message: <A HREF="082244.html">[whatwg] Script preloading
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#82238">[ date ]</a>
+              <a href="thread.html#82238">[ thread ]</a>
+              <a href="subject.html#82238">[ subject ]</a>
+              <a href="author.html#82238">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

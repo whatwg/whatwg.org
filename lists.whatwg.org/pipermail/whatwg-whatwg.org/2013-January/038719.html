@@ -1,0 +1,263 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Adding winding rules to Canvas
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Adding%20winding%20rules%20to%20Canvas&In-Reply-To=%3CCAGN7qDBqmACF19X7JcNHfGtB%2BNUYW-%3DgfFxqFU1B4x7MdaoqHA%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="038718.html">
+   <LINK REL="Next"  HREF="038726.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Adding winding rules to Canvas</H1>
+<!--htdig_noindex-->
+    <B>Rik Cabanier</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Adding%20winding%20rules%20to%20Canvas&In-Reply-To=%3CCAGN7qDBqmACF19X7JcNHfGtB%2BNUYW-%3DgfFxqFU1B4x7MdaoqHA%40mail.gmail.com%3E"
+       TITLE="[whatwg] Adding winding rules to Canvas">cabanier at gmail.com
+       </A><BR>
+    <I>Thu Jan 17 15:04:19 PST 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="038718.html">[whatwg] Magic alignment issues
+</A></li>
+        <LI>Next message: <A HREF="038726.html">[whatwg] &lt;input&gt; value sanitization algorithm
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#38719">[ date ]</a>
+              <a href="thread.html#38719">[ thread ]</a>
+              <a href="subject.html#38719">[ subject ]</a>
+              <a href="author.html#38719">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>All,
+
+so after talking to Dirk, maybe it's better to rename the classes so Path
+is the one that has the geometry and StyledPath contains the region.
+Prototype IDL:
+
+[Constructor,
+
+Constructor(path), // creates a copy
+
+Constructor(DOMString)] //takes SVG path syntax
+
+interface Path {
+};
+Path implements CanvasPathMethods;
+
+[Constructor,
+Constructor(Path, CanvasWindingRule = &quot;nonzero&quot;), // creates a copy of path
+Constructor(DomString text, CanvasDrawingSTyles, SVGMatrix?, unrestricted
+double , unrestricted double , optional unrestricted double)]
+
+interface StyledPath {
+
+StyledPath Transform(matrix); // returns a transformed path
+StyledPath Stroke(CanvasDrawingStyles); // returns a stroked path
+StyledPath Add(StyledPath); // returns a path that is the union of the 2
+paths
+
+boolean isPointInPath(unrestricted double x, unrestricted double y);
+
+};
+
+interface CanvasRenderingContext2D {
+
+....
+void Fill(StyledPath);
+
+}
+
+dictionary HitRegionOptions {
+
+StyledPath? path = null;
+....
+
+}
+
+
+
+Any comments?
+
+On Tue, Jan 15, 2013 at 1:49 PM, Rik Cabanier &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">cabanier at gmail.com</A>&gt; wrote:
+
+&gt;<i> Hi Simon,
+</I>&gt;<i>
+</I>&gt;<i> I completely agree with you.
+</I>&gt;<i> As specified today, hit regions don't have support for winding. In fact,
+</I>&gt;<i> it is even worse: if you have a set of drawing commands, you can't get
+</I>&gt;<i> their region.
+</I>&gt;<i> The reason for this is that the path object (as currently defined) simply
+</I>&gt;<i> accumulates path segments. This will wreak havoc with shapes that touch or
+</I>&gt;<i> that have strokes.
+</I>&gt;<i>
+</I>&gt;<i> I have stated this a couple of times already on whatwg...
+</I>&gt;<i> What I would like to see is more like this:
+</I>&gt;<i>
+</I>&gt;<i> class PathSink implements CanvasPathMethods {
+</I>&gt;<i>   PathSink();
+</I>&gt;<i>   PathSink(DOMString); //takes SVG path syntax
+</I>&gt;<i> }
+</I>&gt;<i>
+</I>&gt;<i> class Path {
+</I>&gt;<i>   Path();
+</I>&gt;<i>   Path(PathSink, CanvasWindingRule = &quot;nonzero&quot;);
+</I>&gt;<i>   Path(DomString text, CanvasDrawingSTyles...); // to get text outline
+</I>&gt;<i>
+</I>&gt;<i>   Path Transform(matrix Transformation);
+</I>&gt;<i>   Path Stroke(...);
+</I>&gt;<i>
+</I>&gt;<i>   Path Add(Path); // &lt;----
+</I>&gt;<i> }
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> The 'Add' method would not simply aggregate path segments. Instead, the
+</I>&gt;<i> area of resulting path will be a union.
+</I>&gt;<i>
+</I>&gt;<i> So, for example, if you want to create a region with a stroke rectangle:
+</I>&gt;<i>
+</I>&gt;<i> var h = new PathSink();
+</I>&gt;<i> h.rect(100, 100, 200, 200);
+</I>&gt;<i> var P = new Path(h);
+</I>&gt;<i> P = P.Add(P.Stroke({'lineWidth': 10}));
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> On Tue, Jan 15, 2013 at 1:23 PM, Simon Sarris &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">simon.sarris at gmail.com</A>&gt;wrote:
+</I>&gt;<i>
+</I>&gt;&gt;<i> Before we comment on your proposal I have some notes I'd like to share
+</I>&gt;&gt;<i> because the current *fillRule *rules in the specification seem
+</I>&gt;&gt;<i> incomplete or at least ill-defined.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> The new hit regions use a *Path* in the *HitRegionOptions* (the argument
+</I>&gt;&gt;<i> to *addHitRegion*) in order to function, but its not clear what fill
+</I>&gt;&gt;<i> rule these *Path* objects are using for hit-testing. Even-odd and
+</I>&gt;&gt;<i> winding fill rules create different holes in a path, so it matters a good
+</I>&gt;&gt;<i> deal for hit testing.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> There seem to be three possibilities as implemented:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>    1. HitRegions only ever use winding paths. This seems like a bad idea.
+</I>&gt;&gt;<i>    2. Whichever *fillRule* is defined when *context.addHitRegion* is
+</I>&gt;&gt;<i>    called determines the *fillRule *for that hit region's *Path *permanently.
+</I>&gt;&gt;<i>    This seems acceptable but confusing and should be clarified if it is
+</I>&gt;&gt;<i>    currently the case.
+</I>&gt;&gt;<i>    3. The fillRule of a hit region changes dynamically as *
+</I>&gt;&gt;<i>    context.fillRule* changes. This would be a nightmare.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> I hope it is #2, but the specification makes no mention of this.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Actually, I'd prefer that either *HitRegionOptions *or the *Path *object
+</I>&gt;&gt;<i> would need to have a *fillRule *attribute.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> If the specification does adopt something similar to Cabanier's
+</I>&gt;&gt;<i> suggestions then that would need to be done anyway.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> In short, if *isPointInPath *is changed to specify *fillRule*, *
+</I>&gt;&gt;<i> HitRegionOptions* (the argument to *addHitRegion*) or the *Path* given
+</I>&gt;&gt;<i> in the options needs to change too.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Simon Sarris
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> On Tue, Jan 15, 2013 at 3:42 PM, Rik Cabanier &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">cabanier at gmail.com</A>&gt; wrote:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> All,
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> there was a recent discussion on adding winding rules to canvas. As you
+</I>&gt;&gt;&gt;<i> may know until now, canvas only supported even-odd winding.
+</I>&gt;&gt;&gt;<i> Maybe graphics libraries and SVG also support non-zero winding.[1][2]
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> Mozilla exposes this currently with 'mozFillRule'. Making this part of
+</I>&gt;&gt;&gt;<i> the graphics state has several drawbacks.
+</I>&gt;&gt;&gt;<i> The biggest is that fill/clip will now have to check the state every
+</I>&gt;&gt;&gt;<i> time, or set/reset it. Winding is also part of path geometry.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> I have the following proposal:
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> enum CanvasWindingRule { &quot;nonzero&quot;, &quot;evenodd&quot; };
+</I>&gt;&gt;&gt;<i> void fill(optional CanvasWindingRule w = &quot;nonzero&quot;);
+</I>&gt;&gt;&gt;<i> void clip(optional CanvasWindingRule w = &quot;nonzero&quot;);
+</I>&gt;&gt;&gt;<i> boolean isPointInPath(unrestricted double x, unrestricted double y,
+</I>&gt;&gt;&gt;<i> optional CanvasWindingRule w = &quot;nonzero&quot;);
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> proposed patches for this API can be found here:
+</I>&gt;&gt;&gt;<i> <A HREF="https://bugs.webkit.org/show_bug.cgi?id=105508">https://bugs.webkit.org/show_bug.cgi?id=105508</A>
+</I>&gt;&gt;&gt;<i> <A HREF="https://bugzilla.mozilla.org/show_bug.cgi?id=827053">https://bugzilla.mozilla.org/show_bug.cgi?id=827053</A>
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> What do people think?
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> 1: <A HREF="http://www.w3.org/TR/SVG/painting.html#FillRuleProperty">http://www.w3.org/TR/SVG/painting.html#FillRuleProperty</A>
+</I>&gt;&gt;&gt;<i> 2: <A HREF="http://en.wikipedia.org/wiki/Nonzero-rule">http://en.wikipedia.org/wiki/Nonzero-rule</A>
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;<i>
+</I></PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="038718.html">[whatwg] Magic alignment issues
+</A></li>
+	<LI>Next message: <A HREF="038726.html">[whatwg] &lt;input&gt; value sanitization algorithm
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#38719">[ date ]</a>
+              <a href="thread.html#38719">[ thread ]</a>
+              <a href="subject.html#38719">[ subject ]</a>
+              <a href="author.html#38719">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

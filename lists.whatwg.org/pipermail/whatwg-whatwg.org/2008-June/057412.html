@@ -1,0 +1,184 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Suggestion of an alternative TCPConnection implementation
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Suggestion%20of%20an%20alternative%20TCPConnection%20implementation&In-Reply-To=%3C31fb000f0806181553k624c3a67o16e79c781d3168cb%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="057410.html">
+   <LINK REL="Next"  HREF="057415.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Suggestion of an alternative TCPConnection implementation</H1>
+<!--htdig_noindex-->
+    <B>Frode B&#248;rli</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Suggestion%20of%20an%20alternative%20TCPConnection%20implementation&In-Reply-To=%3C31fb000f0806181553k624c3a67o16e79c781d3168cb%40mail.gmail.com%3E"
+       TITLE="[whatwg] Suggestion of an alternative TCPConnection implementation">frode at seria.no
+       </A><BR>
+    <I>Wed Jun 18 15:53:04 PDT 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="057410.html">[whatwg] Making it possible to do an anchor link to any DOM node
+</A></li>
+        <LI>Next message: <A HREF="057415.html">[whatwg] Suggestion of an alternative TCPConnection	implementation
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#57412">[ date ]</a>
+              <a href="thread.html#57412">[ thread ]</a>
+              <a href="subject.html#57412">[ subject ]</a>
+              <a href="author.html#57412">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>&gt;<i> I think a major problem with raw TCP connections is that they would be
+</I>&gt;<i> the nightmare of every administrator. If web pages could use every
+</I>&gt;<i> sort of homebrew protocol on all possible ports, how could you still
+</I>&gt;<i> sensibly configure a firewall without the danger of accidentally
+</I>&gt;<i> disabling mary sue grandmother's web application?
+</I>
+I dont think so, as long as the web page could only connect to its origin
+server. I am certain that this problem was discussed when Java applets
+were created also.
+
+Web pages should only be allowed to access other servers when the
+script has been digitally signed, and when the user has agreed to
+giving the script elevated privileges - or there should be a
+certificate on the origin server which is checked against DNS records
+for each server that the script attempts to connect to.
+
+&gt;<i> Also keep in mind the issue list Ian brought up in the other mail.
+</I>&gt;<i> Things like URI based adressing and virtual hosting would not be
+</I>&gt;<i> possible with raw TCP. That would make this feature a lot less useable
+</I>&gt;<i> for authors that do not have full access over their server, like in
+</I>&gt;<i> shared hosting situations, for example.
+</I>
+Hmm.. There are good arguments both ways. I would like both please :)
+
+So what we want is a http based protocol which allow the client to
+continue communicating with the script that handles the initial
+request. I believe that a great way to implement this would be to
+extend the http protocol (and by using the Connection: Keep-Alive
+header).
+
+It should be the script on the server that decides if the connection
+is persistent. This will avoid most problems with cross domain
+connections, i believe. Lets imagine two php-scripts on a web server:
+
+/index.php (PHP script)
+/persistent.pphp (persistent PHP script)
+
+If the user types in the address <A HREF="http://host.com/persistent.pphp">http://host.com/persistent.pphp</A> -
+then this use case is followed:
+
+1. Client sends GET /persistent.pphp and its headers (including domain
+name and cookies etc). After all headers are sent, it expects a
+standard http compliant response.
+2. Server checks the Accept: header for HTML 5 support.
+3 (alternative flow): If no support is found in the Accept headers, a
+HTTP 406 Not Acceptable header is sent with an error message saying
+that a HTML 5 browser is required.
+4 (alternative flow). Server checks the (new) SessionID header if it
+should reconnect the client to an existing server side instance.
+4. Server side script processes the request and may reply with a
+complete html page (or with simply a Hello message - it is the server
+side script that decides). Server must send Connection: Keep-Alive and
+Connection-Type: Persistent headers.
+4. The browser renders the response - but a singleton object is
+magically available from javascript; document.defaultHTMLSocket. This
+object allows the client to continue communicating with the script
+that generated the page by sending either serialized data in the same
+form as GET/POST data or single text lines.
+
+Other use case: User visits /index.php - which will connect to
+/persistent.pphp using javascript.
+
+1. Javascript: mySocket = new HTTPSocket(&quot;/persistent.php&quot;);
+2. Exactly the same use case as the previous is followed, except that
+the HTTPSocket-object is returned. The initial data sent by the server
+must be read using the read() method of the HTTPSocket object.
+
+
+Of course, I have not had time to validate that everything I have
+suggested can be used and I would like more people to review this
+suggestion - but I think it looks very viable at first glance.
+
+
+I see one problem, and that is if the connection is lost (for example
+because of a proxy server):
+
+This could be fixed creating a new header ment for storing a client
+session id. If we standardize on that, the web server could
+automatically map the client back to the correct instance of the
+server application and neither the client, nor the server application
+need to know that the connection was lost.
+
+
+Any feedback will be appreciated.
+
+&gt;<i> Couldn't this already be done today, though? You can already today
+</I>&gt;<i> connect to an arbitrary server on an arbitrary port using forms,
+</I>&gt;<i> &lt;img&gt;, &lt;script src=&quot;&quot;&gt; and all other references that cannot be
+</I>&gt;<i> cross-domain protected for backwards compatibillity reasons. The whole
+</I>&gt;<i> hotlinking issue is basically the result of that.
+</I>&gt;<i> How would WebSocket connections be more harmful than something like
+</I>&gt;<i>
+</I>&gt;<i> setInterval(function(){
+</I>&gt;<i>   var img = new Image();
+</I>&gt;<i>   img.src = &quot;<A HREF="http://victim.example.com/">http://victim.example.com/</A>&quot; + generateLongRandomString();
+</I>&gt;<i> }, 1000);
+</I>&gt;<i>
+</I>&gt;<i> for example would?
+</I>&gt;<i>
+</I>
+Yes, that could be done - but I think that it would be a lot more
+painful for the server if the connection was made to some port, and
+kept open. Handling a request for a non-existing url can be finished
+in microseconds, but if the client just opens a port without being
+disconnected, then the server will quickly be overloaded overloaded by
+too many incoming connections.
+--
+Best regards / Med vennlig hilsen
+Frode B&#248;rli
+Seria.no
+
+Mobile:
++47 406 16 637
+Company:
++47 216 90 000
+Fax:
++47 216 91 000
+
+
+Think about the environment. Do not print this e-mail unless you really need to.
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="057410.html">[whatwg] Making it possible to do an anchor link to any DOM node
+</A></li>
+	<LI>Next message: <A HREF="057415.html">[whatwg] Suggestion of an alternative TCPConnection	implementation
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#57412">[ date ]</a>
+              <a href="thread.html#57412">[ thread ]</a>
+              <a href="subject.html#57412">[ subject ]</a>
+              <a href="author.html#57412">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

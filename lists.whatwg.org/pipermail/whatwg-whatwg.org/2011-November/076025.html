@@ -1,0 +1,170 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Feedback on UndoManager spec
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Feedback%20on%20UndoManager%20spec&In-Reply-To=%3CCAKA%2BAx%3DMj1zfXJQxa17bQeCzeN2vFZPdfi-2FoaQyXbspXwMPg%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="076024.html">
+   <LINK REL="Next"  HREF="076031.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Feedback on UndoManager spec</H1>
+<!--htdig_noindex-->
+    <B>Aryeh Gregor</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Feedback%20on%20UndoManager%20spec&In-Reply-To=%3CCAKA%2BAx%3DMj1zfXJQxa17bQeCzeN2vFZPdfi-2FoaQyXbspXwMPg%40mail.gmail.com%3E"
+       TITLE="[whatwg] Feedback on UndoManager spec">ayg at aryeh.name
+       </A><BR>
+    <I>Mon Nov  7 12:26:23 PST 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="076024.html">[whatwg] Feedback on UndoManager spec
+</A></li>
+        <LI>Next message: <A HREF="076031.html">[whatwg] Feedback on UndoManager spec
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#76025">[ date ]</a>
+              <a href="thread.html#76025">[ thread ]</a>
+              <a href="subject.html#76025">[ subject ]</a>
+              <a href="author.html#76025">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Okay, I created a wiki page with use-cases and requirements for them:
+
+<A HREF="http://wiki.whatwg.org/wiki/UndoManager_Problem_Descriptions">http://wiki.whatwg.org/wiki/UndoManager_Problem_Descriptions</A>
+
+I based it off <A HREF="http://rniwa.com/editing/undomanager-usecases.html,">http://rniwa.com/editing/undomanager-usecases.html,</A>
+plus posts in this thread.  I think that the current spec does not
+fulfill the following requirements that I suggest on that page:
+
+* &quot;The author must not be forced to deal with manually handling DOM
+state just because they want to handle non-DOM state.&quot;  Currently, if
+I want the UA to automatically handle DOM state, I cannot provide
+unapply or reapply methods.  This means that if I need to handle
+non-DOM state, like for a canvas editor, then I have to keep track of
+all my DOM changes too.  I should be able to write a canvas editor and
+still let the UA handle all DOM state.  This would mean allowing
+unapply/reapply methods to be provided for automatic transactions,
+with the UA undoing any DOM changes they cause.
+
+* &quot;If browsers try to merge changes themselves, the algorithm should
+be well-defined if possible. Otherwise it will just confuse authors
+and not be useful, because it will succeed in some browsers and fail
+in others, or have unpredictable results.&quot;  The current spec doesn't
+solve this requirement, but it might not be solvable.  I discuss that
+further below.
+
+Does anyone disagree with any of the requirements on that page, or
+think that there are any more requirements that need to be added?  I
+think all that should happen at this point is allowing unapply/reapply
+to be supplied for automatic transactions, but make sure that any DOM
+changes they make are undone immediately so that the DOM doesn't fall
+out of sync.  That solves one of the two requirements that (IMO) the
+current spec doesn't meet.
+
+On Mon, Nov 7, 2011 at 11:55 AM, Ryosuke Niwa &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">rniwa at webkit.org</A>&gt; wrote:
+&gt;<i> I don't understand what problem(s) you're trying to solve here. Even if we
+</I>&gt;<i> introduced noundo content attribute, there's nothing that prevents authors
+</I>&gt;<i> from not using that content attribute and modifying DOM directly.
+</I>
+Okay, thanks.  This is the key point I was missing.  Just so I
+understand, what's supposed to happen here:
+
+* Some changes get made in an automatic transaction.
+* Some changes get made in no transaction at all, just a script
+calling DOM methods.
+* execCommand(&quot;undo&quot;)
+
+Is the resulting DOM just undefined?  Why isn't it defined to be
+whatever the state was before the automatic transaction, so any
+intervening changes just get undone too?  This seems to be what Gecko
+does.  E.g.:
+
+data:text/html,&lt;!doctype html&gt;
+&lt;div contenteditable&gt;Foo&lt;/div&gt;
+&lt;script&gt;
+var div = document.querySelector(&quot;div&quot;);
+getSelection().selectAllChildren(div);
+document.execCommand(&quot;bold&quot;);
+div.innerHTML = &quot;bar&quot;;
+document.execCommand(&quot;undo&quot;);
+&lt;/script&gt;
+
+Firefox 9.0a2 produces the results I expected, i.e., &quot;Foo&quot; selected
+and not bolded.  Chrome 16 dev re-adds the removed &quot;Foo&quot;, then unbolds
+and selects it, so you get &quot;bar[Foo]&quot;.  Opera Next 11.50 just ignores
+the undo.
+
+Now consider this:
+
+data:text/html,&lt;!doctype html&gt;
+&lt;div contenteditable&gt;Foo&lt;/div&gt;
+&lt;script&gt;
+var div = document.querySelector(&quot;div&quot;);
+getSelection().selectAllChildren(div);
+document.execCommand(&quot;bold&quot;);
+document.body.appendChild(document.createTextNode(&quot;bar&quot;));
+document.execCommand(&quot;undo&quot;);
+&lt;/script&gt;
+
+Opera seems to just ignore the undo.  Chrome tries to cleverly merge
+it, and in this case succeeds, unbolding &quot;Foo&quot; without removing the
+&quot;bar&quot;.  Firefox removes &quot;bar&quot; and also unbolds &quot;Foo&quot;, so again, it
+just restores the whole page's DOM state to what it was before the
+transaction it undoes.
+
+It looks like what Gecko does is include *any* DOM changes anywhere in
+the page automatically in the previous transaction.  This makes sense
+to me, and it guarantees that changes can always be undone reliably.
+Is Gecko's behavior here bad?  What disadvantages does it have?  Can
+we work around those disadvantages while still meeting all use-cases,
+and keeping behavior performant *and* well-defined?
+
+&gt;<i> Also, this noundo content attribute will be problematic inside
+</I>&gt;<i> contenteditable region because random elements that need to removed/moved
+</I>&gt;<i> may have this attribute.
+</I>
+Yes, we'd have to be careful about what happens if the attribute is
+added/removed.  However, it should be possible to do that, and then
+behavior will be well-defined, which is a big plus.  Obviously, as you
+point out, this attribute is only really useful if the UA tracks *all*
+DOM changes as part of the last transaction, as Gecko seems to do.
+Otherwise it doesn't simplify anything.
+
+&gt;<i> There's out-dated list at&#160;<A HREF="http://rniwa.com/editing/undomanager-usecases.html">http://rniwa.com/editing/undomanager-usecases.html</A>
+</I>
+Thanks.
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="076024.html">[whatwg] Feedback on UndoManager spec
+</A></li>
+	<LI>Next message: <A HREF="076031.html">[whatwg] Feedback on UndoManager spec
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#76025">[ date ]</a>
+              <a href="thread.html#76025">[ thread ]</a>
+              <a href="subject.html#76025">[ subject ]</a>
+              <a href="author.html#76025">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

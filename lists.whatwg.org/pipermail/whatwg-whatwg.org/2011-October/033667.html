@@ -1,0 +1,173 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Feedback on UndoManager spec
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Feedback%20on%20UndoManager%20spec&In-Reply-To=%3CCAKA%2BAx%3DOrNrhdc3YAXX8%2BgwtewBQsnNNx81f_LqJmRXOOnUkZw%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="033653.html">
+   <LINK REL="Next"  HREF="033668.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Feedback on UndoManager spec</H1>
+<!--htdig_noindex-->
+    <B>Aryeh Gregor</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Feedback%20on%20UndoManager%20spec&In-Reply-To=%3CCAKA%2BAx%3DOrNrhdc3YAXX8%2BgwtewBQsnNNx81f_LqJmRXOOnUkZw%40mail.gmail.com%3E"
+       TITLE="[whatwg] Feedback on UndoManager spec">ayg at aryeh.name
+       </A><BR>
+    <I>Thu Oct 27 10:48:14 PDT 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="033653.html">[whatwg] Feedback on UndoManager spec
+</A></li>
+        <LI>Next message: <A HREF="033668.html">[whatwg] Feedback on UndoManager spec
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#33667">[ date ]</a>
+              <a href="thread.html#33667">[ thread ]</a>
+              <a href="subject.html#33667">[ subject ]</a>
+              <a href="author.html#33667">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Wed, Oct 26, 2011 at 2:39 PM, Ryosuke Niwa &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">rniwa at webkit.org</A>&gt; wrote:
+&gt;<i> I meant properties authors added to nodes. e.g.
+</I>&gt;<i> span.myProperty = true;
+</I>&gt;<i> Should span be removed by some automatic transaction, authors may expect it
+</I>&gt;<i> to be restored on undo.
+</I>
+That sounds like the ideal behavior, unless it's too difficult to
+implement.  If authors just used Node.dataset, that would solve their
+problem, but it would be better to behave as expected to start with.
+
+&gt;<i> The assumption is transaction works like a regular object unless otherwise
+</I>&gt;<i> stated. I guess I can cite your example though.
+</I>
+Some APIs copy objects in some way instead of maintaining a reference.
+ For instance, in WebKit, Selection.getRangeAt() doesn't return the
+same object you added with Selection.addRange() (although the spec
+currently says it should).  It seems best to be explicit.
+
+&gt;&gt;<i> But this doesn't define what happens in the face of manual
+</I>&gt;&gt;<i> transactions. &#160;Also, it's not precise even if there are no manual
+</I>&gt;&gt;<i> transactions.
+</I>&gt;<i>
+</I>&gt;<i> UAs don't do anything for manual transactions. They just call
+</I>&gt;<i> unapply/reapply.
+</I>
+I mean, if there's a mix of automatic and manual transactions, and the
+manual transactions don't restore the exact same DOM, nothing says how
+the UA should unapply/reapply the automatic transactions.  It just
+says &quot;the user agent still must do its best effort to restore the DOM
+state.&quot;
+
+What's the use-case for manual transactions anyway?  I'm sure it's
+been discussed, but your spec doesn't say.  It could use an example.
+
+&gt;<i> This is well defined in terms of DOM state. The spec says UAs should restore
+</I>&gt;<i> the DOM state
+</I>&gt;<i> so it all depends on how DOM state is defined.
+</I>&gt;<i> I also vaguely remember Ehsan telling me Gecko might have a trouble
+</I>&gt;<i> restoring the exactly same object
+</I>&gt;<i> on undo/redo&#160;because of the way its undo and redo are implemented.
+</I>
+Well, at some point we want to make sure we have interop if possible,
+unless it's really performance-critical that this be UA-dependent.
+
+&gt;<i> The same is true for having apply and reapply. Jonas wanted to get rid of
+</I>&gt;<i> reapply altogether and just have
+</I>&gt;<i> void apply(in boolean isReapply)
+</I>&gt;<i> In this world, you could do
+</I>&gt;<i> { apply: function(isReapply) { return isReapply ? this.doApply() :
+</I>&gt;<i> this.doReapply(); } }.
+</I>&gt;<i> I didn't want this API because I'd expect apply and reapply to be
+</I>&gt;<i> substantially different.
+</I>
+I think either one of those two APIs would be fine.  I don't think the
+compromise is good, because it gives authors two ways to do the same
+thing, which is confusing.  I don't know which API is better without
+knowing the use-cases for manual transactions.  But Jonas' version is
+more flexible, because if the two are substantially different you can
+always just do
+
+  { apply: function(isReapply) {
+      if (isReapply) {
+          // reapply logic
+      } else {
+          // totally separate apply logic
+      }
+  }, . . . }
+
+which is really no harder to write than
+
+  { apply: function() {
+      // apply logic
+  }, reapply: function() {
+      // totally separate reapply logic
+  }, . . . }
+
+It's only one or two lines longer, and one level of indent greater.
+So I don't think a separate reapply member of the dictionary is
+useful.  It just makes things more complicated, even if most of the
+time the logic will be totally separate.
+
+On Thu, Oct 27, 2011 at 2:44 AM, Ryosuke Niwa &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">rniwa at webkit.org</A>&gt; wrote:
+&gt;<i> Interesting. I've done some quick testing but maybe problems I had in mind
+</I>&gt;<i> no longer exist in WebKit. We do a poor job on node adoption and lifetime
+</I>&gt;<i> control so this might be a good opportunity to sort them out anyway.
+</I>
+FWIW, I've noticed WebKit doesn't always do adoptions correctly.  For
+instance, Range.setStart() will throw if the node you pass is from a
+different document than the range, when the spec says it should
+succeed.  I think I've noticed this for some Node methods too.  The
+general rule in the specs these days is anytime you reparent a node to
+another document, it gets silently adopted.
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="033653.html">[whatwg] Feedback on UndoManager spec
+</A></li>
+	<LI>Next message: <A HREF="033668.html">[whatwg] Feedback on UndoManager spec
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#33667">[ date ]</a>
+              <a href="thread.html#33667">[ thread ]</a>
+              <a href="subject.html#33667">[ subject ]</a>
+              <a href="author.html#33667">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

@@ -1,0 +1,155 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Offline Web Apps
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Offline%20Web%20Apps&In-Reply-To=%3C278fd46c0709131052t67610675j16a1345de9d41f40%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="012465.html">
+   <LINK REL="Next"  HREF="012524.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Offline Web Apps</H1>
+<!--htdig_noindex-->
+    <B>Aaron Boodman</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Offline%20Web%20Apps&In-Reply-To=%3C278fd46c0709131052t67610675j16a1345de9d41f40%40mail.gmail.com%3E"
+       TITLE="[whatwg] Offline Web Apps">aa at google.com
+       </A><BR>
+    <I>Thu Sep 13 10:52:07 PDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="012465.html">[whatwg] Offline Web Apps
+</A></li>
+        <LI>Next message: <A HREF="012524.html">[whatwg] Offline Web Apps
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#12494">[ date ]</a>
+              <a href="thread.html#12494">[ thread ]</a>
+              <a href="subject.html#12494">[ subject ]</a>
+              <a href="author.html#12494">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Sep 6, 2007 5:46 PM, Ian Hickson &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">ian at hixie.ch</A>&gt; wrote:
+&gt;<i> We provide an API that can add files to the cache, and that can be queried
+</I>&gt;<i> to determine if we are in upgrader mode or not, and that can swap in a
+</I>&gt;<i> new cache without reloading the page, during the 'upgrading' event.
+</I>
+Given this, and the hidden context that is used while upgrading (not
+the 'upgrader context', just the one that the page you are viewing is
+loaded into), isn't it possible to simplify by just doing something
+like this?
+
+addFileToCache(&quot;otherTopLevelPage.html&quot;);
+addFileToCache(&quot;yetAnotherTopLevelPage.html&quot;);
+addFileToCache(&quot;imageThatWasntReferenced.png&quot;);
+
+Then you don't need the manifest anymore, do you?
+
+&gt;<i> Upgrader:
+</I>&gt;<i>  Create a hidden browsing context.
+</I>&gt;<i>  Load the upgrader in it.
+</I>&gt;<i>  Just before onload, fire an 'upgrading' event to every instance of a
+</I>&gt;<i>   top-level page using a cache with the same identifier.
+</I>&gt;<i>  The event has a handle to the Window object of the hidden browsing
+</I>&gt;<i>   context.
+</I>&gt;<i>  After every 'upgrading' event has been fired, the 'load' event must be
+</I>&gt;<i>   fired on the upgrader.
+</I>&gt;<i>  After that happens, if any of the aforementioned instances are still
+</I>&gt;<i>   using old versions of the cache, then the user agent may inform user
+</I>&gt;<i>   they can reload to update.
+</I>&gt;<i>
+</I>&gt;<i> The Upgrader can do such things as updating the database schema between
+</I>&gt;<i> versions, and when there are multiple instances running, it allows them to
+</I>&gt;<i> negotiate who will do that work instead of it happening several times.
+</I>
+I've been thinking about this, and it seems like an interesting idea,
+but to me it creates more complexity than it's worth. Here are some of
+the questions around it:
+
+* Is an update marked as successful before or after an update runs?
+  &gt; If before, the new version of the app must be prepared for the
+scenario that the updater did not run completely, in which case you
+may as well put the upgrade logic in the new version and be done with
+it.
+  &gt; If after, how do you track success/failure of the update? Keep in
+mind that an update may require asynchronous server access to retrieve
+data. If you allow for this, you just add lots of API for a relatively
+small case. If you don't allow for it, then in some cases upgrading
+will have to be done by the new version of the app.
+* I like the idea of app instances being able to talk to each other
+during upgrade, but it seems to conflate several goals:
+  &gt; Prevent two apps from trying to upgrade at the same time
+  &gt; Prevent instances of an app that are old from accessing a newer local schema
+  &gt; Allow multiple instances of an app to talk to each other
+  &gt; Separate application logic from UI logic and share the application
+logic between multiple views (Dimitri and Alex Russell's point)
+
+For the first two problems in gears, we have been kicking around the
+idea of versioning the database connections. So you could do:
+
+db.open(&quot;mydb&quot;, 1);
+db.execute(...);
+db.execute(...);
+..etc..
+
+But as soon as somebody in another window did:
+
+var db.open(&quot;mydb&quot;, 1);
+db.setVersion(2);
+
+The previous connection starts throwing errors. This assumes that the
+database has transaction support and a few other things though. From
+my point of view this is simpler, but I understand that it relies on
+some bits that are not in whatwg's current database proposal.
+
+
+For the long term, I agree with Dimitri that what is really needed is
+a shared JS context between all instances of an application.
+Otherwise, anybody that is doing significant synchronization, for
+example, will have to somehow organize through all the instances of an
+app which page is doing the work. It's silly. We need the ability to
+separate an app into the ui bits and the application bit, and have a
+one-to-many relationship between them.
+
+If a future version of the spec had something like a gears worker, one could do:
+
+// If the named worker already exists (namespaced to the current
+origin I suppose), then a
+// reference to it will be retrieved. Otherwise, one will be created.
+var worker = getOrCreateWorker(&quot;app-logic&quot;, &quot;app.js&quot;);
+worker.sendMessage(&quot;load_customers&quot;, {account_id: 42}, function(result) {
+  result.customers.forEach(function(customer) {
+    console.log(&quot;Got customer name: %s, id: %d&quot;, customer.name, customer.id);
+  });
+});
+
+- a
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="012465.html">[whatwg] Offline Web Apps
+</A></li>
+	<LI>Next message: <A HREF="012524.html">[whatwg] Offline Web Apps
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#12494">[ date ]</a>
+              <a href="thread.html#12494">[ thread ]</a>
+              <a href="subject.html#12494">[ subject ]</a>
+              <a href="author.html#12494">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

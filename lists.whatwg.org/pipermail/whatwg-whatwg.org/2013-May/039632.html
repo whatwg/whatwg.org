@@ -1,0 +1,114 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] pagehide vs pagevis
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20pagehide%20vs%20pagevis&In-Reply-To=%3CC94A5DBB-DDF5-4123-97D0-E50C5223EB8E%40apple.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="081909.html">
+   <LINK REL="Next"  HREF="081907.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] pagehide vs pagevis</H1>
+<!--htdig_noindex-->
+    <B>Brady Eidson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20pagehide%20vs%20pagevis&In-Reply-To=%3CC94A5DBB-DDF5-4123-97D0-E50C5223EB8E%40apple.com%3E"
+       TITLE="[whatwg] pagehide vs pagevis">beidson at apple.com
+       </A><BR>
+    <I>Tue May 28 11:02:01 PDT 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="081909.html">[whatwg] [mimesniff] Complete MIME type parsing algorithm for section 5
+</A></li>
+        <LI>Next message: <A HREF="081907.html">[whatwg] pagehide vs pagevis
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#39632">[ date ]</a>
+              <a href="thread.html#39632">[ thread ]</a>
+              <a href="subject.html#39632">[ subject ]</a>
+              <a href="author.html#39632">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>While looking at page visibility, we noticed a couple of problems.
+
+***First***
+
+The &#8220;unload a document&#8221; steps apparently don&#8217;t allow for the pagehide event to have &#8220;persisted&#8221; set to false.  Step 5 states:
+&quot;Fire a trusted event with the name pagehide at the Window object of the Document, but with its target set to the Document object (and the currentTarget set to the Window object), using the PageTransitionEvent interface, with the persisted attribute initialized to true.&#8221;
+
+There is no affordance in any steps for the pagehide event to have persisted set to &#8220;false&#8221;.
+
+In the original design of these events and in WebKit&#8217;s implementation, pagehide with persisted &#8220;true&#8221; means the page is being suspended into the page cache, and it might be restored later.  In these cases, the page does not receive a traditional unload event, as it&#8217;s being suspended, not unloaded.
+
+pagehide with persisted &#8220;false&#8221; means the page is is being traditionally torn down.
+
+The spec&#8217;s description of PageTransitionEvent.persisted says &quot;Returns false if the page is newly being loaded (and the load event will fire). Otherwise, returns true.&#8221;
+
+That text is geared towards pageshow and completely neglects pagehide.
+
+WebKit has been behaving this way for years and will not change.
+
+***Second***
+
+The &#8220;pagehide&quot; and &#8220;pageshow&quot; events were originally intended to be drop-in replacements for &#8220;load&#8221; and &#8220;unload&#8221;, just with more information to support page caching features.
+
+For the &#8220;unload a document&#8221; steps, multiple implementors historically had the behavior of &#8220;fire pagehide, fire unload, and now no more events will be fired.&#8221;  That behavior was supported by the spec.
+
+Additionally, multiple groups had evangelized that pagehide was literally a drop-in replacement for unload: &#8220;If you use pagehide instead of unload, the behavior will be exactly the same&#8221;
+
+&#8212;
+
+Unfortunately the spec has now broken this assumption.  The &#8220;unload a document&#8221; steps now call for firing pagehide, then giving pagevis a swipe at firing a visibilitychanged event, then firing unload.
+
+Using pagehide as a drop-in replacement for unload now no longer works; After you&#8217;ve received pagehide you still might receive a visibilitychanged event, whereas you will receive no such event after unload.
+
+In addition to breaking &#8220;pagehide as a replacement for unload&#8221; this doesn&#8217;t make sense to me on its own.  If a page receives &#8220;pagehide&#8221; with persisted set to true, it correctly assumes that it might be revived at a later date with a pageshow event.  These pages do not expect any event dispatch between the pagehide and the pageshow...  yet now it might get such events.
+
+I didn&#8217;t closely follow pagevis when originally discussed (I now wish I had), but is there any motivation for this?
+
+Short of a good reason for the current behavior I strongly urge the spec to move the pagevis steps to immediately *before* the dispatch of pagehide.
+
+~Brady
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="081909.html">[whatwg] [mimesniff] Complete MIME type parsing algorithm for section 5
+</A></li>
+	<LI>Next message: <A HREF="081907.html">[whatwg] pagehide vs pagevis
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#39632">[ date ]</a>
+              <a href="thread.html#39632">[ thread ]</a>
+              <a href="subject.html#39632">[ subject ]</a>
+              <a href="author.html#39632">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

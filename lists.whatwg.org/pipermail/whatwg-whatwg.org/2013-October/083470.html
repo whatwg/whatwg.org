@@ -1,0 +1,249 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Counterproposal for canvas in workers
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Counterproposal%20for%20canvas%20in%20workers&In-Reply-To=%3CCABpaAqTR-OT2GaCJ89FPc4dRCjDbXH9GuBHa9sn%2BTm8evjjxsw%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="083459.html">
+   <LINK REL="Next"  HREF="083472.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Counterproposal for canvas in workers</H1>
+<!--htdig_noindex-->
+    <B>Justin Novosad</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Counterproposal%20for%20canvas%20in%20workers&In-Reply-To=%3CCABpaAqTR-OT2GaCJ89FPc4dRCjDbXH9GuBHa9sn%2BTm8evjjxsw%40mail.gmail.com%3E"
+       TITLE="[whatwg] Counterproposal for canvas in workers">junov at google.com
+       </A><BR>
+    <I>Fri Oct 18 06:48:15 PDT 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="083459.html">[whatwg] Counterproposal for canvas in workers
+</A></li>
+        <LI>Next message: <A HREF="083472.html">[whatwg] Counterproposal for canvas in workers
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#83470">[ date ]</a>
+              <a href="thread.html#83470">[ thread ]</a>
+              <a href="subject.html#83470">[ subject ]</a>
+              <a href="author.html#83470">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Rik, I don't think the nested tasks in your example are a good use case.
+ That workflow adds a frame of latency to the sub tasks. This is a problem
+because the drawImage call would be drawing from a source canvas that it
+out of phase with the mainscene context.  To synchronize the content, I
+think the drawImage calls would have to be placed in a Promise resolution
+handler that gets invoked once all the executeTask Promises for the
+subtasks are resolved.  That means that the drawImage calls necessary for
+drawing &quot;mainscene&quot; would end-up executing asynchronously, therefore
+outside the scope of the &quot;mainscene&quot; task function, which is a problem.  So
+I don't think the executeTask proposal is well suited for sharding
+rendering jobs, at least not the way you illustrated it with that example.
+
+
+On Fri, Oct 18, 2013 at 12:50 AM, Rik Cabanier &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">cabanier at gmail.com</A>&gt; wrote:
+
+&gt;<i> Extra methods on the canvas API:
+</I>&gt;<i>
+</I>&gt;<i> Promise setTaskScript(DOMString script); // can error be in promise?
+</I>&gt;<i> Promise executeTask(DOMString id, dictionary json, boolean synchronized =
+</I>&gt;<i> true); // Transferable elements allowed in dictionary
+</I>&gt;<i>
+</I>&gt;<i> Object that is active in the task:
+</I>&gt;<i>
+</I>&gt;<i> interface CanvasTask {
+</I>&gt;<i>
+</I>&gt;<i> HTMLCanvasElement createCanvas(unsigned long width, unsigned long height);
+</I>&gt;<i> attribute Function onTask;
+</I>&gt;<i>
+</I>&gt;<i> }
+</I>&gt;<i>
+</I>&gt;<i> CanvasTask implements HTMLCanvasElement;
+</I>&gt;<i>
+</I>&gt;<i> Example code:
+</I>&gt;<i>
+</I>&gt;<i> var c = document.getElementById(&quot;gameCanvas&quot;);
+</I>&gt;<i>
+</I>&gt;<i> var gameState = {};
+</I>&gt;<i>
+</I>&gt;<i> window.addEventListener(&quot;load&quot;, function(){
+</I>&gt;<i>
+</I>&gt;<i> c.setTaskScript(&quot;gameLogic.js&quot;).then(function(){
+</I>&gt;<i>
+</I>&gt;<i> c.executeTask(&quot;mainscene&quot;, gameState);
+</I>&gt;<i>
+</I>&gt;<i> });
+</I>&gt;<i>
+</I>&gt;<i> });
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> window.requestAnimationFrame(function(){
+</I>&gt;<i>
+</I>&gt;<i> c.executeTask(&quot;mainscene&quot;, gameState);
+</I>&gt;<i>
+</I>&gt;<i> }
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> Example code for gameLogic.js:
+</I>&gt;<i>
+</I>&gt;<i> var ctx = getContext(&quot;2d&quot;);
+</I>&gt;<i>
+</I>&gt;<i> onTask = function(DOMString id, dictionary json) {
+</I>&gt;<i>
+</I>&gt;<i> if(id == &quot;mainscene&quot;) {
+</I>&gt;<i>
+</I>&gt;<i> if(typeof(MinionCanvas)==&quot;Undefined&quot;) {
+</I>&gt;<i>
+</I>&gt;<i> MinionCanvas = createCanvas(200, 300);
+</I>&gt;<i>
+</I>&gt;<i>  MinionCanvas.executeTask(&quot;drawMinion&quot;, {}) // creates promise under the
+</I>&gt;<i> hood
+</I>&gt;<i>
+</I>&gt;<i> }
+</I>&gt;<i>
+</I>&gt;<i> if(typeof(SpaceShipCanvas)==&quot;Undefined&quot;)
+</I>&gt;<i>
+</I>&gt;<i> SpaceShipCanvas = createCanvas(300, 300);
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> SpaceShipCanvas.executeTask(&quot;drawSpaceShip&quot;, gameState); // redraw
+</I>&gt;<i> spaceship
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> executeTask(&quot;drawBackDrop&quot;,  gameState); // in other task
+</I>&gt;<i>
+</I>&gt;<i> executeTask(&quot;drawBoss&quot;, gameState); // lots of js to draw the boss so
+</I>&gt;<i> better done in task
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> for(...) //for each minion {
+</I>&gt;<i>
+</I>&gt;<i>  ... // set the matrix
+</I>&gt;<i> ctx.drawImage(MinionCanvas, ...); // draw the minion &lt;- note that the
+</I>&gt;<i> minion might still be drawing in the other thread
+</I>&gt;<i>
+</I>&gt;<i>   }
+</I>&gt;<i> for(...) //for each spaceship {
+</I>&gt;<i>
+</I>&gt;<i> ..// set the matrix
+</I>&gt;<i>
+</I>&gt;<i> ctx.drawImage(SpaceShipCanvas); // draw the spaceship &lt;- it might still be
+</I>&gt;<i> drawing in the other task
+</I>&gt;<i>
+</I>&gt;<i> }
+</I>&gt;<i>
+</I>&gt;<i> .. // other drawing commands for score, controls, etc
+</I>&gt;<i>
+</I>&gt;<i> } else if(id == &quot;drawMinion&quot;) {
+</I>&gt;<i>
+</I>&gt;<i> ...
+</I>&gt;<i>
+</I>&gt;<i> }  else if(id == &quot;drawSpaceShip&quot;) {
+</I>&gt;<i>
+</I>&gt;<i> ... // set up tasks to draw parts of the ship?
+</I>&gt;<i>
+</I>&gt;<i> } ...
+</I>&gt;<i>
+</I>&gt;<i> }
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> On Thu, Oct 17, 2013 at 8:10 PM, Rik Cabanier &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">cabanier at gmail.com</A>&gt; wrote:
+</I>&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> On Thu, Oct 17, 2013 at 4:01 PM, Robert O'Callahan &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">robert at ocallahan.org</A>&gt;wrote:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> On Fri, Oct 18, 2013 at 10:56 AM, Justin Novosad &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">junov at google.com</A>&gt;wrote:
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> On Thu, Oct 17, 2013 at 5:50 PM, Rik Cabanier &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">cabanier at gmail.com</A>&gt;wrote:
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;&gt;<i> Creating temporary canvases is still possible. I'm unsure how it would
+</I>&gt;&gt;&gt;&gt;&gt;<i> be different from a worker.
+</I>&gt;&gt;&gt;&gt;&gt;<i> An advantage would be that you can draw to the temporary canvases in
+</I>&gt;&gt;&gt;&gt;&gt;<i> parallel to using them. Only PIXEL access is disallowed, you can still call
+</I>&gt;&gt;&gt;&gt;&gt;<i> drawImage using a canvas that has outstanding tasks.
+</I>&gt;&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;&gt;<i> Right. The write-only restriction would only apply to canvas contexts
+</I>&gt;&gt;&gt;&gt;<i> that commit (push their tasks) directly down to the compositor. You could
+</I>&gt;&gt;&gt;&gt;<i> still create a canvas that is local to the worker, rasterize it in the
+</I>&gt;&gt;&gt;&gt;<i> worker and do readbacks in the worker, create ImageBitmaps from it, etc.
+</I>&gt;&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> I'm not sure that you and Rik are talking about the same thing, since
+</I>&gt;&gt;&gt;<i> he's still talking about &quot;outstanding tasks&quot;. If you are talking about the
+</I>&gt;&gt;&gt;<i> same thing, I don't know what it is. I'd like to see some concrete details
+</I>&gt;&gt;&gt;<i> for what you'd change in the current WorkerCanvas proposal. For the sake of
+</I>&gt;&gt;&gt;<i> clarity I've put (my understand of) it here:
+</I>&gt;&gt;&gt;<i> <A HREF="https://wiki.mozilla.org/User:Roc/WorkerCanvasProposal">https://wiki.mozilla.org/User:Roc/WorkerCanvasProposal</A>
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> I'll work on drawing up an example of my proposal.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> With WorkerCanvas and transferToImageBitmap, you can draw multiple layers
+</I>&gt;&gt;&gt;<i> in parallel (and actually draw, not just queue drawing commands) by
+</I>&gt;&gt;&gt;<i> creating multiple workers, having them each produce an ImageBitmap, and
+</I>&gt;&gt;&gt;<i> compositing those ImageBitmaps together by stacking &lt;img&gt; elements or
+</I>&gt;&gt;&gt;<i> drawing them all to a single canvas. It uses more memory but you get more
+</I>&gt;&gt;&gt;<i> parallelism.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> They would still have to wait for each other so the images are composited
+</I>&gt;&gt;<i> in-order. If you don't care about that, the 'synchronized' option would let
+</I>&gt;&gt;<i> you draw as soon as you exit the task (which is how Chrome always draws
+</I>&gt;&gt;<i> since it's faster)
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> In fact, an implementation could choose to take the deferred-drawing
+</I>&gt;&gt;&gt;<i> approach instead. You would queue up drawing commands in the WorkerCanvas
+</I>&gt;&gt;&gt;<i> (or the drawing context), and then transferToImageBitmap would not
+</I>&gt;&gt;&gt;<i> immediately render but produce an ImageBitmap implementation encapsulating
+</I>&gt;&gt;&gt;<i> the list of drawing commands to be drawn later, wherever/whenever that
+</I>&gt;&gt;&gt;<i> ImageBitmap ended up being used. I think for commit() the implementation
+</I>&gt;&gt;&gt;<i> would always want to force rasterization on the worker (or possibly some
+</I>&gt;&gt;&gt;<i> dedicated canvas-rendering thread); you could forward a list of drawing
+</I>&gt;&gt;&gt;<i> commands to the compositor thread for rasterization but I don't think
+</I>&gt;&gt;&gt;<i> there's any reason to do that (and some good reasons not to).
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Can you tell me how you can ensure that you don't do too much work?
+</I>&gt;&gt;<i> Drawing in a continuous loop using 'Commit' would waste a lot of resources.
+</I>&gt;&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i>
+</I>
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="083459.html">[whatwg] Counterproposal for canvas in workers
+</A></li>
+	<LI>Next message: <A HREF="083472.html">[whatwg] Counterproposal for canvas in workers
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#83470">[ date ]</a>
+              <a href="thread.html#83470">[ thread ]</a>
+              <a href="subject.html#83470">[ subject ]</a>
+              <a href="author.html#83470">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

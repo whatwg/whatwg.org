@@ -1,0 +1,133 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Spec for handling runtime script errors doesn't seem to match reality
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Spec%20for%20handling%20runtime%20script%20errors%20doesn%27t%20seem%0A%20to%20match%20reality&In-Reply-To=%3Cop.wnrg3zv9idj3kv%40simons-macbook-pro-2.local%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="080174.html">
+   <LINK REL="Next"  HREF="080156.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Spec for handling runtime script errors doesn't seem to match reality</H1>
+<!--htdig_noindex-->
+    <B>Simon Pieters</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Spec%20for%20handling%20runtime%20script%20errors%20doesn%27t%20seem%0A%20to%20match%20reality&In-Reply-To=%3Cop.wnrg3zv9idj3kv%40simons-macbook-pro-2.local%3E"
+       TITLE="[whatwg] Spec for handling runtime script errors doesn't seem to match reality">simonp at opera.com
+       </A><BR>
+    <I>Wed Nov 14 03:34:37 PST 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="080174.html">[whatwg] Spec for handling runtime script errors doesn't seem to match reality
+</A></li>
+        <LI>Next message: <A HREF="080156.html">[whatwg] Spec for handling runtime script errors doesn't seem to match reality
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#80191">[ date ]</a>
+              <a href="thread.html#80191">[ thread ]</a>
+              <a href="subject.html#80191">[ subject ]</a>
+              <a href="author.html#80191">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Tue, 13 Nov 2012 18:19:18 +0100, Boris Zbarsky &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">bzbarsky at mit.edu</A>&gt; wrote:
+
+&gt;<i> On 11/13/12 3:31 AM, Simon Pieters wrote:
+</I>&gt;&gt;<i> onload=function(){
+</I>&gt;&gt;<i>    onerror=function(a,b,c){alert('parent: '+[a,b,c].join(' '));};
+</I>&gt;&gt;<i>    frames[0].onerror=function(){alert('child: '+[a,b,c].join(' '));};
+</I>&gt;&gt;<i>    frames[0].setTimeout(function(){ throw 'oops' }, 0);
+</I>&gt;&gt;<i> };
+</I>&gt;<i> ...
+</I>&gt;&gt;<i> Opera and Chrome use child and taint (alert says &quot;child: Script error.
+</I>&gt;&gt;<i> 0&quot;).
+</I>&gt;<i>
+</I>&gt;<i> OK.
+</I>&gt;<i>
+</I>&gt;&gt;<i> Firefox uses child taints the url and line arguments but not the message
+</I>&gt;&gt;<i> argument (alert says &quot;child: uncaught exception: oops  0&quot;).
+</I>&gt;<i>
+</I>&gt;<i> Actually, Firefox is not tainting anything here.  A manually thrown  
+</I>&gt;<i> string exception like that in Spidermonkey just seems to not have a url  
+</I>&gt;<i> and line number attached to it.
+</I>&gt;<i>
+</I>&gt;<i> I believe right now Gecko uses the effective script origin for  
+</I>&gt;<i> determining whether to taint, so in your case the two pages are actually  
+</I>&gt;<i> same-origin for tainting purposes in Gecko.
+</I>&gt;<i>
+</I>&gt;&gt;<i> IE8 uses parent and doesn't taint (alert says &quot;parent: Exception thrown
+</I>&gt;&gt;<i> and not caught <A HREF="http://example.org/001.html">http://example.org/001.html</A> 7&quot;).
+</I>&gt;<i>
+</I>&gt;<i> Indeed.  I'm working on switching Gecko to using the parent in this case  
+</I>&gt;<i> (and still not tainting, of course).
+</I>&gt;<i>
+</I>&gt;&gt;<i> I also tested the same as the above but with a string argument to
+</I>&gt;&gt;<i> setTimeout with a syntax error.
+</I>&gt;<i>
+</I>&gt;<i> This one is simpler in terms of which error handler to use, because the  
+</I>&gt;<i> string is compiled in the child to start with.  Though I agree it's very  
+</I>&gt;<i> interesting for tainting purposes!
+</I>&gt;<i>
+</I>&gt;<i> What does Opera base its tainting decision on here, exactly?  The actual  
+</I>&gt;<i> origin of the script that made the setTimeout call (as opposed to the  
+</I>&gt;<i> origin it has due to being loaded by some web page)?  Or just its page's  
+</I>&gt;<i> origin?  Or does it track origins on individual strings?
+</I>&gt;<i>
+</I>&gt;<i> -Boris
+</I>
+I asked our implementor to answer this.
+
+[[
+Opera compares teh script's URL (the string that gets sent as second  
+argument to onerror) with the security context of the document in which  
+the onerror handler runs (in my example, basically  
+frames[0].location.href).
+
+The script's URL is the URL from which the script's source was fetched  
+(the document for inline scripts or &lt;script src=&quot;...&quot;&gt;). The script's  
+source in question is the source that contains the row where the error  
+occurred (according to the information we'd send as argument to onerror).
+
+For the case where frames[0].setTimeout is called with a string argument,  
+we compile it in the frames[0] context, but send the called script's URL  
+as the new script's URL.
+]]
+
+HTH
+
+-- 
+Simon Pieters
+Opera Software
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="080174.html">[whatwg] Spec for handling runtime script errors doesn't seem to match reality
+</A></li>
+	<LI>Next message: <A HREF="080156.html">[whatwg] Spec for handling runtime script errors doesn't seem to match reality
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#80191">[ date ]</a>
+              <a href="thread.html#80191">[ thread ]</a>
+              <a href="subject.html#80191">[ subject ]</a>
+              <a href="author.html#80191">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

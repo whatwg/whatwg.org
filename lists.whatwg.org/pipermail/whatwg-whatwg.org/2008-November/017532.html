@@ -1,0 +1,165 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Solving the login/logout problem in HTML
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Solving%20the%20login/logout%20problem%20in%20HTML&In-Reply-To=%3C492DC96D.6080409%40degeneration.co.uk%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="017497.html">
+   <LINK REL="Next"  HREF="017540.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Solving the login/logout problem in HTML</H1>
+<!--htdig_noindex-->
+    <B>Martin Atkins</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Solving%20the%20login/logout%20problem%20in%20HTML&In-Reply-To=%3C492DC96D.6080409%40degeneration.co.uk%3E"
+       TITLE="[whatwg] Solving the login/logout problem in HTML">mart at degeneration.co.uk
+       </A><BR>
+    <I>Wed Nov 26 14:10:53 PST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="017497.html">[whatwg] Solving the login/logout problem in HTML
+</A></li>
+        <LI>Next message: <A HREF="017540.html">[whatwg] Solving the login/logout problem in HTML
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17532">[ date ]</a>
+              <a href="thread.html#17532">[ thread ]</a>
+              <a href="subject.html#17532">[ subject ]</a>
+              <a href="author.html#17532">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Julian Reschke wrote:
+&gt;<i> Martin Atkins wrote:
+</I>&gt;&gt;<i> This idea has promise, but is it compatible with existing browsers?
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> The case where the only challenge included is HTML is probably okay, 
+</I>&gt;&gt;<i> since browsers will at this point likely determine that they don't 
+</I>&gt;&gt;<i> support any of the given schemes and just display the entity body. The 
+</I>&gt;&gt;<i> only concern in this case is browser-provided default error pages for 
+</I>&gt;&gt;<i> the 401 response, which can hopefully be suppressed in much the same 
+</I>&gt;&gt;<i> way as sites suppress IE's default 404 error page by padding the 
+</I>&gt;&gt;<i> response to take it above a certain filesize.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> More bothersome is this case:
+</I>&gt;&gt;<i> HTTP/1.1 401 Unauthorized
+</I>&gt;&gt;<i> ...
+</I>&gt;&gt;<i> WWW-Authenticate: HTML form=&quot;login&quot;
+</I>&gt;&gt;<i> WWW-Authenticate: Basic realm=&quot;...&quot;
+</I>&gt;&gt;<i> ...
+</I>&gt;<i> 
+</I>&gt;<i> Is that case relevant? Today, those sites do not support Basic (or 
+</I>&gt;<i> Digest) at all, or only send the 401 for certain user agents and/or 
+</I>&gt;<i> methods. So I wouldn't expect them to start adding the non-HTMLL auth 
+</I>&gt;<i> challenge...
+</I>&gt;<i> 
+</I>
+By that line of reasoning, you could equally argue that sites don't need 
+this authentication scheme at all since they do just fine without it today.
+
+I think this new authentication scheme is most interesting when used in 
+conjunction with other schemes, because it allows the same endpoint to 
+be used for both browsers and other non-browser agents.
+
+One use-case, which I hinted at in my message, is pages that contain 
+data annotated with microformats. These are useful both to browsers and 
+non-browser agents, but today it's cumbersome to use microformats on 
+pages that require authentication to view, since it is difficult for a 
+non-browser agent to figure out how to log in to an arbitrary site 
+without human intervention.
+
+I went ahead and did some basic testing of this case, anyway.
+
+For my initial test, I arranged for my server to send a response like this:
+
+---------------------------------------------------
+HTTP/1.0 401 Unauthorized
+Content-type: text/html
+WWW-Authenticate: HTML form=&quot;login&quot;
+WWW-Authenticate: Basic realm=&quot;test thing&quot;
+
+&lt;html&gt;
+&lt;head&gt;
+&lt;title&gt;Log in&lt;/title&gt;
+&lt;/head&gt;
+&lt;body&gt;
+
+&lt;h1&gt;Log in&lt;/h1&gt;
+
+&lt;form name=&quot;login&quot; action=&quot;/login.cgi?return_to=/testauth.cgi&quot;&gt;
+&lt;div&gt;Username: &lt;input type=&quot;text&quot; name=&quot;u&quot; /&gt;&lt;/div&gt;
+&lt;div&gt;Password: &lt;input type=&quot;text&quot; name=&quot;p&quot; /&gt;&lt;/div&gt;
+&lt;/form&gt;
+
+&lt;/body&gt;
+&lt;/html&gt;
+---------------------------------------------------
+
+This case didn't turn out so well:
+* IE7: Displayed Basic login dialog
+* F3: Displayed Basic login dialog
+* O9.5: Displayed Basic login dialog
+
+In all cases, hitting Cancel on the login dialog caused the body to be 
+rendered as a normal page, which is better than nothing but not really 
+ideal.
+
+I swapped the ordering so that Basic came before HTML, but the results 
+were the same. (as you'd expect.)
+
+I figured though that in most cases if your two types of clients are 
+browsers and non-browser clients, it's quite likely that the non-browser 
+clients will be using OAuth rather than Basic authentication, since that 
+seems to be the &quot;big thing&quot; right now. I swapped out &quot;Basic&quot; for &quot;OAuth&quot; 
+in my second WWW-Authenticate header above, and the results were more 
+promising:
+
+* IE7: Rendered the response body as a normal page
+* F3: Rendered the response body as a normal page
+* O9.5: Displayed an error: &quot;The server requested an authentication 
+method that is not supported.&quot;
+
+I find Opera's error in this case to be strange since in the 
+supported-but-cancelled case it quite happily rendered my provided form, 
+yet in this case I can find no way at all to get my provided form to 
+show up.
+
+Once Opera adds &quot;support&quot; for the HTML scheme -- even if that support 
+involves nothing more than just rendering the response body as-is -- 
+then supporting HTML and OAuth at the same endpoint should sensibly 
+across all three of these browsers. (I don't have Safari available to me 
+for testing.)
+
+Of course, this is only working because current browsers support neither 
+OAuth or HTML; it works equally well if you include only the OAuth 
+header and omit the HTML header, since the result is the same.
+
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="017497.html">[whatwg] Solving the login/logout problem in HTML
+</A></li>
+	<LI>Next message: <A HREF="017540.html">[whatwg] Solving the login/logout problem in HTML
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#17532">[ date ]</a>
+              <a href="thread.html#17532">[ thread ]</a>
+              <a href="subject.html#17532">[ subject ]</a>
+              <a href="author.html#17532">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

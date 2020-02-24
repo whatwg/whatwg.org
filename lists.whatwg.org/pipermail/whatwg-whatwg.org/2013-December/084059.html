@@ -1,0 +1,173 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] onclose events for MessagePort
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20onclose%20events%20for%20MessagePort&In-Reply-To=%3CCA%2Bc2ei_9UU0JKNv8-_V3ae04StgmcjG-Xrcgw_LdTJ8go%3DNikw%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="084058.html">
+   <LINK REL="Next"  HREF="084039.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] onclose events for MessagePort</H1>
+<!--htdig_noindex-->
+    <B>Jonas Sicking</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20onclose%20events%20for%20MessagePort&In-Reply-To=%3CCA%2Bc2ei_9UU0JKNv8-_V3ae04StgmcjG-Xrcgw_LdTJ8go%3DNikw%40mail.gmail.com%3E"
+       TITLE="[whatwg] onclose events for MessagePort">jonas at sicking.cc
+       </A><BR>
+    <I>Fri Dec 13 23:06:07 PST 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="084058.html">[whatwg] onclose events for MessagePort
+</A></li>
+        <LI>Next message: <A HREF="084039.html">[whatwg] onclose events for MessagePort
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#84059">[ date ]</a>
+              <a href="thread.html#84059">[ thread ]</a>
+              <a href="subject.html#84059">[ subject ]</a>
+              <a href="author.html#84059">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Fri, Dec 13, 2013 at 3:29 PM, Ian Hickson &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">ian at hixie.ch</A>&gt; wrote:
+&gt;<i> On Wed, 11 Dec 2013, Jonas Sicking wrote:
+</I>&gt;&gt;<i> No sync IPC needed. When a port is pinned, you send an async message to
+</I>&gt;&gt;<i> the process which contains the page for the &quot;other side&quot;. When that
+</I>&gt;&gt;<i> process receives the message you check if the page is currently being
+</I>&gt;&gt;<i> displayed.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> If the page has been completely torn down then you send a message back
+</I>&gt;&gt;<i> saying that the page is dead and that the promise created during pinning
+</I>&gt;&gt;<i> should be rejected.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> If the page is sitting in the bfcache, you remove it from the bfcache
+</I>&gt;&gt;<i> and send a message back saying that the page is dead and that the
+</I>&gt;&gt;<i> promise created during pinning should be rejected.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> If the page is displayed, then you add a flag indicating that if the
+</I>&gt;&gt;<i> page is navigated away from, it should not go into the bfcache and that
+</I>&gt;&gt;<i> we should send a signal to reject the promise.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Obviously if the process had crashed before we were able to process the
+</I>&gt;&gt;<i> event, you send a message back to reject the promise.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> The same thing is done when unpinning. You send a message to the other
+</I>&gt;&gt;<i> side saying that it's getting unpinned.
+</I>&gt;<i>
+</I>&gt;<i> This means that it's possible to get a lock, have the other side navigate
+</I>&gt;<i> then go back, then have the other side receive the notification for the
+</I>&gt;<i> lock. It's this that you need blocking IPC to prevent. But I guess we
+</I>&gt;<i> could live with that just being possible.
+</I>
+Indeed. The idea with bfcache is that going back/forward should be
+largely transparent to the page itself. So I think it's fine that it's
+transparent also to the page that's talking to it in this instance.
+
+Kicking the page out of bfcache isn't a goal in and of itself. The
+goal is to prevent other pages from waiting unduly long for a message.
+
+&gt;<i> If we do want to address use cases 3 and 4 above, then I agree that the
+</I>&gt;<i> event in the spec today isn't sufficient.
+</I>&gt;<i>
+</I>&gt;<i> I'm not sure a promise makes a lot of sense as an alternative, though. To
+</I>&gt;<i> make that work, you'd need to have the UA reject the promise but the
+</I>&gt;<i> author resolve it, which seems kind of unusual for promise-based APIs. You
+</I>&gt;<i> also end up, as author, being simultaneously the consumer of the promise
+</I>&gt;<i> and the resolver, which is a bit weird too.
+</I>
+I think this is a matter of taste in how to use promises. I'm happy to
+confer with people that have more experiences with APIs that use
+promises to see if we're abusing the Promise API here.
+
+&gt;<i> Also, I'm not sure it really solves all the use cases. As an author, one
+</I>&gt;<i> of the ways in which I use channels (in any environment, so not just those
+</I>&gt;<i> that use MessagePorts, but also e.g. linux pipes, WebSockets, etc) is as a
+</I>&gt;<i> notification mechanism. As David Barrett-Kahn implied earlier, it's no
+</I>&gt;<i> good if you're listening to notifications, and then they stop, but you
+</I>&gt;<i> never get told that they've stopped. The pinning mechanism would basically
+</I>&gt;<i> require authors who are consuming such streams from other tabs to pin when
+</I>&gt;<i> they opened the channel, and leave it pinned forever. To detect when the
+</I>&gt;<i> channel is dead, they'd have to listen for rejection on the promise, an
+</I>&gt;<i> object separate from the port. This seems unintuitive.
+</I>
+I don't see how it doesn't solve the use case? Whether the use of
+Promises here is awkward or not I agree is a matter of taste.
+
+&gt;<i> But in such a scenario, would you even _want_ to block bfcaching? You'd
+</I>&gt;<i> want to know when it was _never_ coming back, as in worker.terminate().
+</I>&gt;<i> But if it went into the bfcache, don't you really just want to receive a
+</I>&gt;<i> message saying &quot;I'm actually not around right now&quot;?
+</I>
+We could allow bfcaching here by introducing the discussed separate
+features which allow the page to signal that it's fine with being
+bfcached even though the error was signaled. That way if the page is
+revived from bfcache it can send a message on the channel saying &quot;I'm
+back now&quot; at which point they can resume communicating.
+
+&gt;<i> Maybe, and I'm just brainstorming here, we should deal with the bfcache
+</I>&gt;<i> differently than termination/oom/crash. How about we provide an API that
+</I>&gt;<i> defines an &quot;autoresponder&quot; message that gets sent when a port receives a
+</I>&gt;<i> message but isn't around to handle it? Or maybe an API that defines a
+</I>&gt;<i> message to send when the worker is suspended / tab is navigated away from,
+</I>&gt;<i> and another that sends a message when the worker/port is resumed. Or maybe
+</I>&gt;<i> instead of an API that defines a prerecorded message, we just fire a
+</I>&gt;<i> different event. So you'd have:
+</I>&gt;<i>
+</I>&gt;<i>    port.onmessage - received a message
+</I>&gt;<i>    port.onerror - other side crashed or was terminate()d
+</I>&gt;<i>    port.onsuspend - other side went to sleep
+</I>&gt;<i>    port.onresume - other side came back
+</I>
+Wouldn't this expose GC behavior? If an unreferenced channel is GCed
+before the page navigates then port.onsuspend is not fired. If the
+same unreferenced channel is not GCed before the page navigates then
+port.onsuspend is fired.
+
+Basically you'd have to prevent GCing of a channel where either side
+has a onsuspend listener.
+
+Additionally as the only implementation of a bfcaching browser this is
+a risky API. In all other browsers, once onsuspend has fired the
+channel is dead and no events will fire.
+
+However in Gecko once the page is revived from bfcache it would now
+start sending messages to the other side again.
+
+I'm happy to enable this behavior, but it's something that I'd want
+pages to opt in to very explicitly.
+
+/ Jonas
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="084058.html">[whatwg] onclose events for MessagePort
+</A></li>
+	<LI>Next message: <A HREF="084039.html">[whatwg] onclose events for MessagePort
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#84059">[ date ]</a>
+              <a href="thread.html#84059">[ thread ]</a>
+              <a href="subject.html#84059">[ subject ]</a>
+              <a href="author.html#84059">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

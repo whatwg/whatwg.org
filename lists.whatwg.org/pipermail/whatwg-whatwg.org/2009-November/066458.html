@@ -1,0 +1,114 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Canvas pixel manipulation and performance
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Canvas%20pixel%20manipulation%20and%20performance&In-Reply-To=%3C70CDC6CB-6BD2-4D1A-AA87-9B7D25F217D4%40kodewerx.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="066472.html">
+   <LINK REL="Next"  HREF="066460.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Canvas pixel manipulation and performance</H1>
+<!--htdig_noindex-->
+    <B>Jason Oster</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Canvas%20pixel%20manipulation%20and%20performance&In-Reply-To=%3C70CDC6CB-6BD2-4D1A-AA87-9B7D25F217D4%40kodewerx.org%3E"
+       TITLE="[whatwg] Canvas pixel manipulation and performance">parasyte at kodewerx.org
+       </A><BR>
+    <I>Thu Nov 26 11:45:21 PST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="066472.html">[whatwg] Use cases for the time element
+</A></li>
+        <LI>Next message: <A HREF="066460.html">[whatwg] Canvas pixel manipulation and performance
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#66458">[ date ]</a>
+              <a href="thread.html#66458">[ thread ]</a>
+              <a href="subject.html#66458">[ subject ]</a>
+              <a href="author.html#66458">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Hello Group,
+
+I've been using canvas to draw pixel art (NES/SNES game screens and sprites) similar to what an emulator would do.  Doing this kind of drawing requires direct access to the pixel buffer.
+
+My problem with the canvas spec (as it is now) is that it tends to artificially bounds pixel drawing performance to JavaScript when doing any sort of pixel access.  Setting four unsigned 8-bit array elements (R, G, B, and A) is a slower operation that setting just one unsigned 32-bit array element (RGBA or ABGR).  Sadly, we don't have this latter option for canvas.
+
+My comment is a request for a new set of pixel access methods on the CanvasRenderingContext2D object.  Specifically, alternatives to createImageData(), getImageData(), and putImageData() methods for providing an array of unsigned 32-bit elements for pixel manipulation.
+
+One proposal is the reuse of the CanvasArrayBuffer introduced by WebGL[1].  The reference explains the use of CanvasArrayBuffer in the context of RGBA color space: &quot;... RGBA colors, with each component represented as an unsigned byte.&quot;  This appears to be a useful solution, with an existing implementation to build from (at least in Mozilla).  The single concern here is that it neglects any mention of support for hardware utilizing native-ABGR (eg. &quot;little endian&quot;) byte order, or more &quot;obscure&quot; formats.  I assume the idea was to handle any necessary conversions in the back-end.  Including 32-bit color depth-&gt;16-bit color depth, for example.
+
+A second option is allowing the web developer to handle byte order issues, similar in concept to SDL[2].  In addition to general endian handling, SDL also supports &quot;mapping&quot; color components to an unsigned 32-bit integer[3].  It seems to me this is the best way to cover hardware byte order/color depth independence while achieving the best &quot;user land&quot; performance possible.
+
+Take for instance, the following pseudo code:
+
+  var canvas = document.getElementById(&quot;canvas&quot;);
+  var ctx = canvas.getContext(&quot;2d&quot;);
+  var pixels = ctx.createUnsignedByteArray(8, 8);
+  // Fill with medium gray
+  for (var i = 0; i &lt; 8 * 8; i++) {
+    pixels.data[i] = ctx.mapRGBA(128, 128, 128, 255);
+  }
+  ctx.putUnsignedByteArray(pixels, 0, 0);
+
+That appears more sane than the current method:
+
+  var canvas = document.getElementById(&quot;canvas&quot;);
+  var ctx = canvas.getContext(&quot;2d&quot;);
+  var pixels = ctx.createImageData(8, 8);
+  // Fill with medium gray
+  for (var i = 0; i &lt; 8 * 8; i++) {
+    pixels.data[i * 4 + 0] = 128;
+    pixels.data[i * 4 + 1] = 128;
+    pixels.data[i * 4 + 2] = 128;
+    pixels.data[i * 4 + 3] = 255;
+  }
+  ctx.putImageData(pixels, 0, 0);
+
+I understand this a bad way to fill a portion of a canvas with a solid color; this is for illustration purposes only.  The overall idea is that setting fewer array elements per pixel will perform better.
+
+We've already seen the emergence of emulators written in JavaScript/Canvas.  In fact, there are loads of them[4], and they would all benefit from having a better way to interact directly with canvas pixels.  Of course, the use cases are not limited to emulation; my NES/SNES level editor projects would enjoy faster pixel manipulation as well.  These kinds of projects can use arbitrarily sized canvases (up to 4864px &#215; 3072px in one case[5]) and can take a good deal of time to fully render, even with several off-ImageData optimization tricks.
+
+Looking to discuss more options!
+Jason Oster
+
+
+[1] <A HREF="http://blog.vlad1.com/2009/11/06/canvasarraybuffer-and-canvasarray/">http://blog.vlad1.com/2009/11/06/canvasarraybuffer-and-canvasarray/</A>
+[2] <A HREF="http://www.libsdl.org/intro.en/usingendian.html">http://www.libsdl.org/intro.en/usingendian.html</A>
+[3] <A HREF="http://www.libsdl.org/cgi/docwiki.cgi/SDL_MapRGBA">http://www.libsdl.org/cgi/docwiki.cgi/SDL_MapRGBA</A>
+[4] <A HREF="http://www.google.com/search?q=javascript+emulator">http://www.google.com/search?q=javascript+emulator</A>
+[5] <A HREF="http://parasyte.kodewerx.org/projects/syndrome/stages/2009-07-05/12_wily3.png">http://parasyte.kodewerx.org/projects/syndrome/stages/2009-07-05/12_wily3.png</A>
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="066472.html">[whatwg] Use cases for the time element
+</A></li>
+	<LI>Next message: <A HREF="066460.html">[whatwg] Canvas pixel manipulation and performance
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#66458">[ date ]</a>
+              <a href="thread.html#66458">[ thread ]</a>
+              <a href="subject.html#66458">[ subject ]</a>
+              <a href="author.html#66458">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

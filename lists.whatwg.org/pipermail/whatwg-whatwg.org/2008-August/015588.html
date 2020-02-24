@@ -1,0 +1,194 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Web Workers and MessagePort feedback
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Web%20Workers%20and%20MessagePort%20feedback&In-Reply-To=%3C278fd46c0808051329q7fdbb794v5ae26ebd44cb0778%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="015595.html">
+   <LINK REL="Next"  HREF="015593.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Web Workers and MessagePort feedback</H1>
+<!--htdig_noindex-->
+    <B>Aaron Boodman</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Web%20Workers%20and%20MessagePort%20feedback&In-Reply-To=%3C278fd46c0808051329q7fdbb794v5ae26ebd44cb0778%40mail.gmail.com%3E"
+       TITLE="[whatwg] Web Workers and MessagePort feedback">aa at google.com
+       </A><BR>
+    <I>Tue Aug  5 13:29:52 PDT 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="015595.html">[whatwg] document.readyState and its initial value
+</A></li>
+        <LI>Next message: <A HREF="015593.html">[whatwg] Web Workers and MessagePort feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#15588">[ date ]</a>
+              <a href="thread.html#15588">[ thread ]</a>
+              <a href="subject.html#15588">[ subject ]</a>
+              <a href="author.html#15588">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>I'm still digesting the Web Worker proposal, but here is some
+feedback. Sorry it is a bit long.
+
+
+Structural API stuff:
+
+- I still haven't really internalized the need to either have workers
+speak directly to anyone other than the person who created them, or
+the other use cases that MessageChannels are intended for. There is a
+lot of complexity here. I think we need to add some requirements and
+motivations to the top of the doc, and some code samples showing the
+intended usage before implementors can really decide whether it's
+worth taking on.
+
+- It seems like we might want an object that represents workers. This
+would allow us put the 'onload' and 'onerror' events from MessagePort
+there, instead of on MessagePort, which makes more sense to me (I
+don't know what it means for a MessagePort to 'load' or 'error'
+outside of the context of a worker). MessagePort.onunload could then
+change to 'onclose' to go with the close() method.
+
+It seems like over time, we might want to be able to perform other
+operations on a worker and having the worker object might be handy.
+
+I know this is weird wrt GC when combined with MessagePorts, and I
+don't have a proposed solution.
+
+
+- It's odd to me that the way to establish a channel to a worker
+depends on whether you are the creator of the worker or not. The
+creator gets a MessagePort to a new channel back from createWorker(),
+but any other function must pass a new MessagePort over the original
+one, and the worker must know to use that secondary port to talk back.
+
+I would prefer to see something like:
+
+void Worker.postMessage(DOMString message)
+void Worker.postMessage(DOMString message, MessagePort port)
+
+That way the way to establish a new channel is the same for all
+callers. It also has the advantage of looking similar to a window's
+postMessage API.
+
+
+Here is how the previous two suggestions would look together:
+
+var worker = new Worker(&quot;foo.js&quot;);
+worker.onload = function() { ... }
+worker.onerror = function() { ... }
+worker.onunload = function() { ... }  // called when the worker shuts down
+worker.sendMessage(&quot;hello!&quot;);
+
+var channel = new MessageChannel();
+channel.port1.onmessage = function(e) { ... }
+worker.sendMessage(&quot;please return my call&quot;, channel.port2);
+
+// called when the channel is closed, either because the worker shut down taking
+// the other end of the port with it, or because the other end of the
+port was GC'd,
+// or because the other port was explicitly closed.
+channel.port1.onclose = function() { ... }
+
+
+semantics questions
+
+- The spec doesn't seem to say what happens if you send a worker a
+message before it has finished loading. I think that the message
+should be queued and delivered when the worker load is complete. This
+makes waiting for onload unnecessary, unless preparing the message you
+want to send is somehow expensive.
+
+
+- The spec says that as soon as a worker is not reachable (determined
+via GC) from any MessagePort, it is eligible for shutdown. Shutdown
+would attempt to finish all queued messages, but not allow any new
+ones.
+
+This concerns me because it means that workers will have different
+behavior depending on GC timing. If a worker is not referenced from
+any port, and it sends an XHR, that XHR may or may not be sent
+depending on when GC runs. This is different than how XHR behaves
+normally. Typically, XHR objects that have outstanding IO but no
+referers will not be GC'd until they complete or fail.
+
+Finally this does not allow use cases such as creating a worker to
+synchronize a local database with the network without ever sending
+notifications back to the parent.
+
+Maybe workers should stay alive as long as any of the following are true:
+
+- There is script running in them
+- There are messages to them queued
+- There is a messageport alive anywhere that could send messages to them
+- There are &quot;asynchronous operations&quot; (xhr, timers, database
+operations) inside them outstanding
+
+
+API nitpickery
+
+- Why is there an ownerWindow property on MessagePort? If I understand
+correctly, this is just a synonym for the 'window' object of the
+currently executing script context.  I think it should go away.
+
+
+- I'm curious as to why MessagePort and WindowWorker do not implement
+EventTarget. It seems like we may as well reuse it. And at least for
+WindowWorker, it seems like the same problems of having multiple
+functions clobber each other that motivated EventTarget would apply.
+
+
+- The purpose of 'import()' on WindowWorker was not immediately
+obvious to me from its name. Should it be 'importScript()'? or
+'includeScript()' maybe?
+
+
+- Should import() accept an array of URLs, so that the UA can fetch
+them in parallel if it has the ability to do that?
+
+
+- The string URL property on the WindowWorker interface is less useful
+than the parsed structure that window.location has. Can we use
+something like this instead, except making it read-only?
+
+
+- The &quot;front-line&quot; nomenclature was a bit weird to me. How about &quot;top-level&quot;?
+
+
+- Would it be too weird to have createWorker overloaded to take an
+optional name parameter? This would make the behavior similar to
+window.open(), which either opens a new window or reuses an existing
+window with the same name.
+
+
+- a
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="015595.html">[whatwg] document.readyState and its initial value
+</A></li>
+	<LI>Next message: <A HREF="015593.html">[whatwg] Web Workers and MessagePort feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#15588">[ date ]</a>
+              <a href="thread.html#15588">[ thread ]</a>
+              <a href="subject.html#15588">[ subject ]</a>
+              <a href="author.html#15588">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

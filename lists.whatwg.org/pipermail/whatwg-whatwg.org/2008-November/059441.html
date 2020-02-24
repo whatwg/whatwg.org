@@ -1,0 +1,148 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Sending MessagePorts after they have started
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Sending%20MessagePorts%20after%20they%20have%20started&In-Reply-To=%3C63df84f0811132150vfc7a9acm600a6185680b3f2c%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="059891.html">
+   <LINK REL="Next"  HREF="059470.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Sending MessagePorts after they have started</H1>
+<!--htdig_noindex-->
+    <B>Jonas Sicking</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Sending%20MessagePorts%20after%20they%20have%20started&In-Reply-To=%3C63df84f0811132150vfc7a9acm600a6185680b3f2c%40mail.gmail.com%3E"
+       TITLE="[whatwg] Sending MessagePorts after they have started">jonas at sicking.cc
+       </A><BR>
+    <I>Thu Nov 13 21:50:34 PST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="059891.html">[whatwg] video tag: pixel aspect ratio
+</A></li>
+        <LI>Next message: <A HREF="059470.html">[whatwg] Sending MessagePorts after they have started
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#59441">[ date ]</a>
+              <a href="thread.html#59441">[ thread ]</a>
+              <a href="subject.html#59441">[ subject ]</a>
+              <a href="author.html#59441">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Hi All,
+
+It is currently possible (I think) to send a port through postMessage
+after the port was started. This makes sending ports across processes
+(such as to an iframe or worker living in a different process) pretty
+painful to implement. It also makes it hard to define without causing
+race conditions.
+
+What you have to do:
+Say that port B and port C are entangled and live in separate
+processes, lets call the processes 2 and 3. Both ports are started. A
+message is posted to port B which means that it should arrive to port
+C.
+
+The implementation sends a IPC message from process 2 to process 3
+that says that a message should be fired on C.
+
+However before that IPC message is processed, script decides to
+forward port C to another iframe, this iframe is running in process 4.
+
+The implementation sends a IPC message to process 4 saying that a new
+port should be created, port D, and that it should be entangled with
+port B living in process 2. It also sends a IPC message to process 2
+saying that port B is now entangled with port D in process 4.
+
+Process 3 now receives the IPC message from process 2 saying that a
+message should be fired on port C.
+
+The implementation now has to send an IPC message to process 4 saying
+to fire the message to port D instead.
+
+Process 2 now receives the IPC message from process 3 saying that port
+B is now entangled with port D in process 4 and updates its data
+structures to reflect that.
+
+The script in process 2 now calls postMessage on port B to send a
+second message.
+
+The implementation sends an IPC message to process 4 saying that a
+message event should be fired on port D.
+
+This IPC message arrives immediately to process 4 saying that port D
+should fire a message event. However the implementation must now
+detect that this message was received out-of-order (through for
+example a ID counter in the sending port) and queue it.
+
+Finally the IPC message from process 3 to process 4 arrives about the
+first message event and both message events can be fired in order.
+
+
+Things get hairier if somewhere along this the scripts decided to
+forward port B in process 2 to an iframe run by process 1. Then you
+have to proxy the 'port B is now entangled with port D in process 4'
+message on to process 1 which means that even more messages can go to
+the wrong place and be proxied to the correct process and port.
+
+There are alternative implementation strategies. The simplest one is
+probably to never tell the other end when a port is moved, instead set
+up a permanent proxy and forward all message through the full chain of
+processes that the ports have passed through. Another strategy is to
+require that each message is acknowledged and resend messages if a
+port end was retangled before the message got processed.
+
+
+It's also hard to specify this without race conditions since you have
+to deal with the situation that a port has been retangled after a
+message was queued for it to fire against the port.
+
+
+To fix all this I propose that if a port has been started, we don't
+allow it to be passed to postMessage. If that is done an exception is
+thrown.
+
+This way ports can queue all outgoing messages until they receive word
+that the other port has been opened. Then messages can always be sent
+to a known address that will never move. I can't think of any use case
+that this would disable.
+
+You still have to deal with getting the information about that a port
+has been opened and where it lives to the other port. But this is
+somewhat simpler.
+
+/ Jonas
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="059891.html">[whatwg] video tag: pixel aspect ratio
+</A></li>
+	<LI>Next message: <A HREF="059470.html">[whatwg] Sending MessagePorts after they have started
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#59441">[ date ]</a>
+              <a href="thread.html#59441">[ thread ]</a>
+              <a href="subject.html#59441">[ subject ]</a>
+              <a href="author.html#59441">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

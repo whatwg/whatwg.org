@@ -1,0 +1,187 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Canvas ImageData comments
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Canvas%20ImageData%20comments&In-Reply-To=%3Cea09c0d10706152045y152c42f5n49ad07c0f1cd637c%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="054092.html">
+   <LINK REL="Next"  HREF="054094.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Canvas ImageData comments</H1>
+<!--htdig_noindex-->
+    <B>Philip Taylor</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Canvas%20ImageData%20comments&In-Reply-To=%3Cea09c0d10706152045y152c42f5n49ad07c0f1cd637c%40mail.gmail.com%3E"
+       TITLE="[whatwg] Canvas ImageData comments">excors+whatwg at gmail.com
+       </A><BR>
+    <I>Fri Jun 15 20:45:47 PDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="054092.html">[whatwg] file URL is overspecified
+</A></li>
+        <LI>Next message: <A HREF="054094.html">[whatwg] EOF in before attribute value state
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#54087">[ date ]</a>
+              <a href="thread.html#54087">[ thread ]</a>
+              <a href="subject.html#54087">[ subject ]</a>
+              <a href="author.html#54087">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Some minor comments from looking again at the ImageData section:
+
+
+Colour spaces are not dealt with at all, but are particularly relevant
+for getImageData (else you have no idea what the values mean). It's
+probably easiest if no conversions happen at all in the canvas, so you
+could have:
+  ctx.fillStyle = 'rgb(123, 45, 67)';
+  ctx.fillRect(0, 0, 1, 1);
+  var img = new Image();
+  img.src = canvas.toDataURL();
+  img.onload = function () {
+    ctx.drawImage(img, 0, 0);
+    ctx.putImageData(ctx.getImageData(0, 0, 1, 1), 0, 0);
+    var imgdata = ctx.getImageData(0, 0, 1, 1);
+    assert(imgdata.data[0:4] == [123, 45, 67, 255]); // (except it
+should accept quantisation errors, e.g. if you're using a 16-bit
+buffer)
+  };
+which I think covers most of the cases where colour conversions might
+be relevant (though there are others, like linear interpolation of
+gradients, where colour space matters too), and which I think matches
+current implementations (but I've not checked that). It seems CSS is
+defined to use sRGB, but I don't know if that is true in reality, so
+maybe it's safest to just say that all colours throughout the canvas
+API must be handled consistently in the same colour space (without
+saying exactly which it is).
+
+
+
+&quot;The putImageData(image, dx, dy) method must take the given ImageData
+structure, and draw it at the specified location dx,dy in the canvas
+coordinate space, mapping each pixel represented by the ImageData
+structure into one device pixel.&quot; - how should it 'draw it'? Given the
+requirement on putImageData(getImageData(...)), it has to be replacing
+the pixels in that area rather than doing anything like normal
+drawing, but that isn't explicit.
+
+Perhaps it should say &quot;The putImageData(image, dx, dy) method must
+take the given ImageData structure, and replace the device pixels in
+the rectangle with top left corner (dx, dy) and width and height as
+given in the ImageData structure, by the pixel data in the ImageData
+structure with each pixel mapped onto one device pixel.&quot;
+
+
+
+&quot;an integer array&quot; - what is that? Does { 0:0, 1:0, 2:0, 3:0, length:4
+} count, since it looks quite like an array? Why can't I use a
+non-integer array like [ 255*(0.5 + 0.5*Math.sin(x/100)) for (x in [0,
+1, 2, 3, ... ]) ] and have putImageData round to integers, and clamp
+to the range [0, 255], since that would be closer to what I wanted
+than an exception would be?
+
+Given the quite disgusting code like &quot;[i for (i in function (n) { for
+(let i = 0; i &lt; n; i += 1) yield 0 }(w*h*4)) ]&quot; to generate an array
+of zeros, maybe it would be nice to accepted 'undefined' element
+values and treat them as zero, so that people don't have to bother
+filling in parts of the array they don't care about.
+
+(For Firefox 2 / Minefield, it throws NS_ERROR_DOM_SYNTAX_ERR if .data
+is not an actual JS array, or if .data.length &lt; w*h*4. For each of the
+first w*h*4 elements, if it is not a number then it throws
+NS_ERROR_DOM_SYNTAX_ERR. Otherwise it gets rounded towards zero: if
+the result is an integer in the range [-2^30, 2^30), or if you're
+running on Windows instead of Linux (?!), then it gets wrapped to the
+range [0, 256), else it gets treated as 0. Elements after the first
+w*h*4 are completely ignored. See
+&lt;<A HREF="http://canvex.lazyilluminati.com/misc/imagedata.html">http://canvex.lazyilluminati.com/misc/imagedata.html</A>&gt;, but not in
+FF2-on-Linux because that's totally broken.)
+
+
+
+In the example code:
+&quot;var could&quot; - should be &quot;var cloud&quot;.
+&quot;function FillPlasma(data) { ... }&quot; - should be &quot;function
+FillPlasma(data, color) { ... }&quot;.
+&quot;function FillCload(data, x, y) { ... }&quot; - should be &quot;function
+FillCloud(data, x, y) { ... }&quot;.
+
+The example creates two ImageDatas of the same size, the putImageDatas
+one on top of the other at the same position. That seems pointless,
+since the second will completely overwrite the first.
+
+
+
+&quot;The current transformation matrix must not affect the getImageData()
+and putImageData() methods.&quot; - nor must the composite operation,
+global alpha, shadow, clip region ( ? In FF it does get clipped), ...
+
+&quot;the rectangle which has one corner at the (sx, sy) coordinate&quot; -
+s/one/its top left/
+
+&quot;Each component of each device pixel represented in this array must be
+in the range 0..255&quot; vs &quot;The ImageData object's data array only
+contains entries that are in the range 0 to 255 inclusive&quot; -
+inconsistent way of referring to ranges.
+
+&quot;the specified location dx,dy in the canvas coordinate space&quot; - should
+be &quot;(dx, dy)&quot; for consistent notation.
+
+&quot;ImageData objects must be initialised so that their height attribute
+is set to h, [...] their width attribute is set to w, [...] and the
+data attribute is initialised to an array of h&#215;w&#215;4 integers.&quot; -
+height/h are written before width/w here, whereas everywhere else in
+the document has widths before heights.
+
+&quot;The width and height (w and h) might be different than the sw and sh
+arguments to the function&quot; - 'different than' sounds a bit odd to me
+here; maybe I'd prefer 'different from'.
+
+&quot;putImageData(image, dx, dy)&quot; - maybe s/image/imagedata/, because it's
+not at all the same as the 'image' parameter in drawImage.
+
+&quot;If getContext() is called with that exact string for tis contextId
+argument ...&quot; - s/tis/its/
+
+&quot;while one could create an ImageData object, one would net necessarily
+know what resolution the canvas expected&quot; - s/net/not/
+
+-- 
+Philip Taylor
+<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">excors at gmail.com</A>
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="054092.html">[whatwg] file URL is overspecified
+</A></li>
+	<LI>Next message: <A HREF="054094.html">[whatwg] EOF in before attribute value state
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#54087">[ date ]</a>
+              <a href="thread.html#54087">[ thread ]</a>
+              <a href="subject.html#54087">[ subject ]</a>
+              <a href="author.html#54087">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

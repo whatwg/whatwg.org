@@ -1,0 +1,167 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] PeerConnection: encryption feedback
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20PeerConnection%3A%20encryption%20feedback&In-Reply-To=%3C4D8A7177.7090008%40alvestrand.no%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="031013.html">
+   <LINK REL="Next"  HREF="030994.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] PeerConnection: encryption feedback</H1>
+<!--htdig_noindex-->
+    <B>Harald Alvestrand</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20PeerConnection%3A%20encryption%20feedback&In-Reply-To=%3C4D8A7177.7090008%40alvestrand.no%3E"
+       TITLE="[whatwg] PeerConnection: encryption feedback">harald at alvestrand.no
+       </A><BR>
+    <I>Wed Mar 23 15:17:27 PDT 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="031013.html">[whatwg] PeerConnection: encryption feedback
+</A></li>
+        <LI>Next message: <A HREF="030994.html">[whatwg] PeerConnection: encryption feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#30989">[ date ]</a>
+              <a href="thread.html#30989">[ thread ]</a>
+              <a href="subject.html#30989">[ subject ]</a>
+              <a href="author.html#30989">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>Is there really an advantage to not using SRTP and reusing the RTP 
+format for the data messages?
+This is a well-known and well-analyzed encryption format, with 
+reasonably known security properties and library support (from libraries 
+that already have to be included in order to support audio/video).
+
+I also fail to see the requirement for the masking, given that the 
+requirement for ICE (at least once the bug of not using passwords in ICE 
+is fixed) protects against cross-socket attacks.
+
+But I may be missing something.
+
+                    Harald
+
+
+On 03/17/11 22:44, Glenn Maynard wrote:
+&gt;<i> PeerConnection defines packet encryption, but it uses AES-128-CTR
+</I>&gt;<i> without actually defining the counter.  It also generates a new AES
+</I>&gt;<i> key for each packet.  A major point of using CTR is to not have to do
+</I>&gt;<i> that; you have a single key and vary the counter.
+</I>&gt;<i>
+</I>&gt;<i> The inputs to AES-128-CTR are a key, a counter and a message.  A
+</I>&gt;<i> single key is used for the whole connection[1].  Each counter value
+</I>&gt;<i> can only be used once.  A nonce isn't created for each packet; only
+</I>&gt;<i> once for the entire connection, as part of the key.  A hash should
+</I>&gt;<i> also be included in each packet, to prevent semi-random tampering with
+</I>&gt;<i> packets on the wire.
+</I>&gt;<i>
+</I>&gt;<i> The mechanism I'd recommend is:
+</I>&gt;<i>
+</I>&gt;<i> * The encryption key for the connection is negotiated over the
+</I>&gt;<i> signalling connection, defined as the HMAC-SHA1 of the concatenation
+</I>&gt;<i> of the media stream key and a random 16-byte PeerConnection-wide
+</I>&gt;<i> nonce.
+</I>&gt;<i> * Each PeerConnection has an associated 48-bit counter value[2], which
+</I>&gt;<i> starts at 0.
+</I>&gt;<i> * To transmit a data packet to a peer, do the following:
+</I>&gt;<i>   1: Let connection-key be the value of the PeerConnection's encryption key.
+</I>&gt;<i>   2: Let packet-counter be the value of the PeerConnection's counter.
+</I>&gt;<i>   3: Increment PeerConnection's counter value by 1.
+</I>&gt;<i>   4: Let signature be the HMAC-SHA1 of the raw message.
+</I>&gt;<i>   5: Let signed raw message be the concatenation of signature and raw message.
+</I>&gt;<i>   6: Let masked message be the result of encrypting signed raw message
+</I>&gt;<i> using AES-128-CTR, with a key of connection-key and a counter value of
+</I>&gt;<i> packet-counter.
+</I>&gt;<i>
+</I>&gt;<i> This is 6 bytes larger than the current packet: a 20-byte hash and a
+</I>&gt;<i> 6-byte counter, replacing the 00 00 00 01 magic and the 16-byte random
+</I>&gt;<i> block.  It prevents packet tampering and replay.
+</I>&gt;<i>
+</I>&gt;<i> On receiving a packet, the HMAC-SHA1 must be checked (replacing the 00
+</I>&gt;<i> 00 00 01 check), and the counter value must be checked to prevent
+</I>&gt;<i> replay and excessively delayed packets.  See RFC 4347 sections 3.3
+</I>&gt;<i> (&quot;Replay Detection&quot;) and 4.1.2.5 (&quot;Anti-replay&quot;) for an algorithm to
+</I>&gt;<i> do this.  In short, you keep track of which counter values have been
+</I>&gt;<i> seen recently, reject repeated counters, and reject counter values
+</I>&gt;<i> which are too old.
+</I>&gt;<i>
+</I>&gt;<i> The magic PeerConnection &quot;salt&quot; (DB 68 B5 FD 17 0E 15 77 56 AF 7A 3A
+</I>&gt;<i> 1A 57 75 02) seems unnecessary, replaced with the connection nonce,
+</I>&gt;<i> but could still be appended to the connection key if desired.
+</I>&gt;<i>
+</I>&gt;<i> There should also be a mechanism to support new hashes and ciphers in
+</I>&gt;<i> the future.  There's no need to actually specify other hashes at this
+</I>&gt;<i> point (except perhaps for testing purposes), just
+</I>&gt;<i> forward-compatibility for when AES and/or SHA-1 need to be replaced.
+</I>&gt;<i>
+</I>&gt;<i> This protocol is reinventing the wheel, and I'm sure a cryptography
+</I>&gt;<i> expert will find many more issues.  Can anyone more familiar with DTLS
+</I>&gt;<i> say whether it fits here?  In particular, it's important to note that
+</I>&gt;<i> users don't have signed SSL certificates; only webservers have those,
+</I>&gt;<i> in practice.  Peers can't safely establish a connection to each other
+</I>&gt;<i> directly: they depend on their mutual trust of the webserver, sending
+</I>&gt;<i> the connection key over the trusted signalling channel to prevent MITM
+</I>&gt;<i> attacks between peers.  I don't know if TLS can support that model, or
+</I>&gt;<i> if there are other problems with it (eg. too much packet overhead for
+</I>&gt;<i> UDP?).
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> [1] Assuming no mechanism exists to negotiate nonce changes for
+</I>&gt;<i> long-lived connections.
+</I>&gt;<i> [2] 48 bits matches DTLS.  This is big enough to avoid problems with
+</I>&gt;<i> long-lived connections, but not so big as to waste space in the
+</I>&gt;<i> packet.
+</I>&gt;<i>
+</I>
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="031013.html">[whatwg] PeerConnection: encryption feedback
+</A></li>
+	<LI>Next message: <A HREF="030994.html">[whatwg] PeerConnection: encryption feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#30989">[ date ]</a>
+              <a href="thread.html#30989">[ thread ]</a>
+              <a href="subject.html#30989">[ subject ]</a>
+              <a href="author.html#30989">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

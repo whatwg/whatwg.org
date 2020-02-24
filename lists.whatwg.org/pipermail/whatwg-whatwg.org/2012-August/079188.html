@@ -1,0 +1,164 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Archive API - proposal
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Archive%20API%20-%20proposal&In-Reply-To=%3CCABirCh870HS_wDyS2DFHxiiAjVgzZSfijhFGa4%2BtibAvvKJKcw%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="036908.html">
+   <LINK REL="Next"  HREF="079189.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Archive API - proposal</H1>
+<!--htdig_noindex-->
+    <B>Glenn Maynard</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Archive%20API%20-%20proposal&In-Reply-To=%3CCABirCh870HS_wDyS2DFHxiiAjVgzZSfijhFGa4%2BtibAvvKJKcw%40mail.gmail.com%3E"
+       TITLE="[whatwg] Archive API - proposal">glenn at zewt.org
+       </A><BR>
+    <I>Tue Aug 14 13:20:48 PDT 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="036908.html">[whatwg] Archive API - proposal
+</A></li>
+        <LI>Next message: <A HREF="079189.html">[whatwg] Archive API - proposal
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#79188">[ date ]</a>
+              <a href="thread.html#79188">[ thread ]</a>
+              <a href="subject.html#79188">[ subject ]</a>
+              <a href="author.html#79188">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>(I've reordered my responses to give a more logical progression.)
+
+On Tue, Jul 17, 2012 at 9:23 PM, Andrea Marchesini &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">baku at mozilla.com</A>&gt; wrote:
+
+&gt;<i> // The getFilenames handler receives a list of DOMString:
+</I>&gt;<i> var handle = this.reader.getFile(this.result[i]);
+</I>&gt;<i>
+</I>
+This interface is problematic.  Since ZIP files don't have a standard
+encoding, filenames in ZIPs are often garbage.  This API requires that
+filenames round-trip uniquely, or else files aren't accessible t all.  For
+example, if you have two filenames in CP932, &quot;&#26085;&quot; and &quot;&#26412;&quot;, but the encoding
+isn't determined correctly, you may end up with two files both with a
+filename of &quot;??&quot;.  Either you can't open either file, or you can only open
+one of them.  This isn't theoretical; I hit ZIP files like this in the wild
+regularly.
+
+Instead, I'd recommend that the primary API simply returns File objects
+directly from the ZIP.  For example:
+
+var reader = archive.getFiles();
+reader.onsuccess = function(result) {
+    // result = [File, File, File, File...];
+
+    console.log(result[0].name);
+    // read the file
+    new FileReader(result[0]);
+}
+
+This allows opening files without any dependency on the filename.  Since
+File objects are by design lightweight--no decompression should happen
+until you actually read from the file--this isn't expensive and won't
+perform any extra I/O.  All the information you need to expose a File
+object is in the central directory (filename, mtime, decompressed size).
+
+I would like to receive feedback about this.. In particular:
+&gt;<i> . Do you think it can be useful?
+</I>&gt;<i> . Do you see any limitation, any feature missing?
+</I>&gt;<i>
+</I>
+It should be possible to get the CRC32 of files, which ZIP stores in the
+central directory.  This both allows the user to perform checksum
+verification himself if wanted, and all the other variously useful things
+about being able to get a file's checksum without having to read the whole
+file.
+
+(I don't think CRC32 checks should be performed automatically, since it's
+too hard for that to make sense when random access is involved.)
+
+  // The ArchiveReader object works with Blob objects:
+&gt;<i>   var archiveReader = new ArchiveReader(file);
+</I>&gt;<i>
+</I>&gt;<i>   // Any request is asynchronous:
+</I>&gt;<i>
+</I>
+The only operation that needs to be asynchronous is creating the
+ArchiveReader itself.  It should parse the ZIP central record before before
+returning a result.  Once you've done that you can do the rest
+synchronously, because no further I/O is necessary until you actually read
+data from a file.
+
+This gives the following, simpler interface:
+
+var opener = new ZipOpener(file);
+opener.onerror = function() { console.error(&quot;Loading failed&quot;); }
+opener.onsuccess = function(zipFile)
+{
+    // .files is a FileList, representing each file in the archive.
+    if(zipFile.files.length == 0) { console.error(&quot;ZIP file is empty&quot;);
+return; }
+
+    var example_file = zipFile.files[0];
+    console.log(&quot;The first filename is&quot;, example_file.name, &quot;with an
+expected CRC of&quot;, example_file.expectedCRC);
+
+    // Read from the file:
+    var reader = new FileReader(example_file);
+
+    // For convenience, add &quot;getter File? (DOMString name)&quot; to FileList, to
+find a file by name.  This is equivalent
+    // to iterating through files[] and comparing .name.  If no match is
+found, return null.  This could be a function
+    // instead of a getter.
+    var example_file2 = zipFile.files[&quot;file.txt&quot;];
+    if(example_file2 == null) { console.error(&quot;file.txt not found in ZIP&quot;;
+return; }
+}
+
+(To fit expectedCRC in there, it would actually need to use a subclass of
+File, not File itself.)
+
+This also eliminates an error condition (no getFile error callback), and
+since .files looks just like HTMLInputElement.files, it can be used
+directly with code written for it.  For example, if you have a function
+&quot;uploadAllFiles(files)&quot;, you can pass in both an &lt;input type=file
+multiple&gt;'s .input or a zipFile.files, and they'll both work.
+
+-- 
+Glenn Maynard
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="036908.html">[whatwg] Archive API - proposal
+</A></li>
+	<LI>Next message: <A HREF="079189.html">[whatwg] Archive API - proposal
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#79188">[ date ]</a>
+              <a href="thread.html#79188">[ thread ]</a>
+              <a href="subject.html#79188">[ subject ]</a>
+              <a href="author.html#79188">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

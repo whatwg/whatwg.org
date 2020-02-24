@@ -1,0 +1,218 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Namespaces and tag names in the HTML parser
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Namespaces%20and%20tag%20names%20in%20the%20HTML%20parser&In-Reply-To=%3CPine.LNX.4.64.1305292028010.2932%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="039645.html">
+   <LINK REL="Next"  HREF="081922.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Namespaces and tag names in the HTML parser</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Namespaces%20and%20tag%20names%20in%20the%20HTML%20parser&In-Reply-To=%3CPine.LNX.4.64.1305292028010.2932%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg] Namespaces and tag names in the HTML parser">ian at hixie.ch
+       </A><BR>
+    <I>Wed May 29 15:19:35 PDT 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="039645.html">[whatwg] HTML Namespace Elements
+</A></li>
+        <LI>Next message: <A HREF="081922.html">[whatwg] Namespaces and tag names in the HTML parser
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#39648">[ date ]</a>
+              <a href="thread.html#39648">[ thread ]</a>
+              <a href="subject.html#39648">[ subject ]</a>
+              <a href="author.html#39648">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Wed, 27 Feb 2013, Adam Klein wrote:
+&gt;<i>
+</I>&gt;<i> Consider the following script:
+</I>&gt;<i> 
+</I>&gt;<i> tr = document.createElement('tr')
+</I>&gt;<i> tr.innerHTML = '&lt;math&gt;&lt;tr&gt;&lt;mo&gt;&lt;td&gt;';
+</I>&gt;<i> 
+</I>&gt;<i> That is, the fragment is parsed with tr as the context element. What 
+</I>&gt;<i> should the generated DOM be?
+</I>
+Up to the &lt;td&gt; it's unambiguous and uncontroversial, I hope; and should 
+be:
+
+   &lt;html:tr&gt;
+    &lt;math:math&gt;
+     &lt;math:tr&gt;
+      &lt;math:mo&gt;
+
+At the &quot;&lt;td&gt;&quot;, you clear the stack back to a table row context, which pops 
+all the nodes from the stack except the root one (the &lt;html&gt; one, 
+representing the original &lt;tr&gt; element on which innerHTML was invoked).
+
+It thus results in:
+
+   &lt;html:tr&gt;
+    &lt;math:math&gt;
+     &lt;math:tr&gt;
+      &lt;math:mo&gt;
+    &lt;html:td&gt;
+
+
+&gt;<i> Note that &lt;mo&gt; is a &quot;MathML text integration point&quot;, which causes the 
+</I>&gt;<i> &lt;td&gt; to be processed not as foreign content but as a normal HTML token. 
+</I>&gt;<i> This leads to the following DOM in WebKit:
+</I>&gt;<i> 
+</I>&gt;<i> &lt;tr&gt;
+</I>&gt;<i>     &lt;math math&gt;
+</I>&gt;<i>         &lt;math tr&gt;
+</I>&gt;<i>             &lt;math mo&gt;
+</I>&gt;<i>     &lt;td&gt;
+</I>&gt;<i> 
+</I>&gt;<i> (the &quot;math&quot; prefixes denote that these are elements with the MathML 
+</I>&gt;<i> namespace.)
+</I>
+That is correct.
+
+
+&gt;<i> In Gecko, I instead get:
+</I>&gt;<i>
+</I>&gt;<i> &lt;tr&gt;
+</I>&gt;<i>     &lt;math math&gt;
+</I>&gt;<i>         &lt;math tr&gt;
+</I>&gt;<i>             &lt;math mo&gt;
+</I>&gt;<i>             &lt;td&gt;
+</I>
+That is not.
+
+
+&gt;<i> The spec for what should happen to that &lt;td&gt; is the first step of 
+</I>&gt;<i> <A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/tree-construction.html#parsing-main-intr">http://www.whatwg.org/specs/web-apps/current-work/multipage/tree-construction.html#parsing-main-intr</A>
+</I>&gt;<i> 
+</I>&gt;<i> This case clearly seems like a bug in Gecko: it's treating the &lt;math tr&gt; 
+</I>&gt;<i> as if it's an HTML &lt;tr&gt;. That is, it's comparing only the local name (or 
+</I>&gt;<i> &quot;tag name&quot; as the spec usually refers to it).
+</I>
+Right, that's wrong. The spec isn't ambiguous here, it explicitly says 
+that the current node must be a &lt;tr&gt; or &lt;html&gt; element, not an element 
+with a &quot;tr&quot; or &quot;html&quot; tag name, and &lt;tr&gt; and &lt;html&gt; elements are in the 
+HTML namespace (they're even hyperlinked to their definitions).
+
+
+&gt;<i> But this same ambiguity exists elsewhere in the spec. For example, the 
+</I>&gt;<i> very next item under &quot;in row&quot; says &quot;If the stack of open elements does 
+</I>&gt;<i> not have an element in table scope with the same tag name as the token&quot; 
+</I>&gt;<i> (in this case, it's looking for a &lt;tr&gt;).
+</I>
+Yeah, that text is wrong, because part of the rules look for &lt;*:tr&gt;, and 
+part assume that only &lt;html:tr&gt; was matched. In fact, it means that 
+tr.innerHTML = '&lt;math&gt;&lt;tr&gt;&lt;mo&gt;&lt;/tr&gt;' has no parse error and pops the root 
+&lt;html&gt; off the tree! That's clearly bogus.
+
+
+&gt;<i> I think the HTML parser ought to specify more precisely how to deal with 
+</I>&gt;<i> namespaces in the stack of open elements, given that that stack can 
+</I>&gt;<i> contain elements of varying namespaces.
+</I>
+It's not so much that it has to do it precisely (it does), it's that it 
+has to do it accurately...
+
+There's a huge number of places in the spec that do tag name comparisons 
+rather than element identity (tag+namespace) comparisons, and it's not at 
+all clear to me that they should all change. Consider:
+
+On Fri, 15 Mar 2013, Rafael Weinstein wrote:
+&gt;<i>
+</I>&gt;<i> I just opened another similar bug: 
+</I>&gt;<i> <A HREF="https://www.w3.org/Bugs/Public/show_bug.cgi?id=21292">https://www.w3.org/Bugs/Public/show_bug.cgi?id=21292</A> which has a similar 
+</I>&gt;<i> root cause.
+</I>&gt;<i> 
+</I>&gt;<i> I agree with Adam that it seems wrong that the stack of open elements 
+</I>&gt;<i> can contain elements in disparate namespaces, but its operation (at 
+</I>&gt;<i> times) only examines the local name (e.g. checking if an element is in a 
+</I>&gt;<i> specific scope, popping elements from the stack of open elements until 
+</I>&gt;<i> an element with the same tag name...)
+</I>
+Well, as noted in the bug, I don't think we should check the namespace in 
+_every_ case. The case in the bug is this:
+
+   &lt;body&gt;&lt;table&gt;&lt;tr&gt;&lt;td&gt;&lt;svg&gt;&lt;td&gt;&lt;foreignObject&gt;&lt;/td&gt;Foo&lt;foo&gt;
+
+This is clearly invalid; the question is, what &lt;td&gt; did the author mean to 
+match, if any? It makes sense to me to match the most recently one. In 
+particular, consider these variations:
+
+   &lt;body&gt;&lt;table&gt;&lt;tr&gt;&lt;td&gt;&lt;svg&gt;&lt;zz&gt;&lt;foreignObject&gt;&lt;/td&gt;Foo&lt;foo&gt;
+   &lt;body&gt;&lt;table&gt;&lt;tr&gt;&lt;td&gt;&lt;svg&gt;&lt;zz&gt;&lt;foreignObject&gt;&lt;/zz&gt;Foo&lt;foo&gt;
+   &lt;body&gt;&lt;table&gt;&lt;tr&gt;&lt;zz&gt;&lt;svg&gt;&lt;zz&gt;&lt;foreignObject&gt;&lt;/zz&gt;Foo&lt;foo&gt;
+
+
+
+The cases in the spec now that are bogus are the cases where I mix one and 
+the other. That actually means the opposite kind of change as is being 
+proposed above: for example, it would mean changing the &quot;table&quot; end tag 
+steps from what they say now (popping an HTML &lt;table&gt; element), to popping 
+any &quot;table&quot; element regardless of namespace. This would make the algorithm 
+more consistent, and remove the bugs mentioned above.
+
+Is this what people want to do? It's not what you (Adam) implemented, as I 
+understand it.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="039645.html">[whatwg] HTML Namespace Elements
+</A></li>
+	<LI>Next message: <A HREF="081922.html">[whatwg] Namespaces and tag names in the HTML parser
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#39648">[ date ]</a>
+              <a href="thread.html#39648">[ thread ]</a>
+              <a href="subject.html#39648">[ subject ]</a>
+              <a href="author.html#39648">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

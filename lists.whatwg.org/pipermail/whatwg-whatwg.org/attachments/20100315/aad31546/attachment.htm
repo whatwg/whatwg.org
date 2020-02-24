@@ -1,0 +1,41 @@
+<tt>
+Agreed,&nbsp;there&amp;#39;s&nbsp;not&nbsp;a&nbsp;good&nbsp;way&nbsp;to&nbsp;determine&nbsp;that&nbsp;a&nbsp;port&nbsp;is&nbsp;disentangled. Currently&nbsp;the&nbsp;main&nbsp;solution&nbsp;I&nbsp;know&nbsp;of&nbsp;is&nbsp;to&nbsp;have&nbsp;your&nbsp;document&nbsp;post&nbsp;a&nbsp;message&nbsp;to&nbsp;your&nbsp;shared&nbsp;worker&nbsp;in&nbsp;their&nbsp;onunload&nbsp;handler.&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;<br>
+I&nbsp;think&nbsp;some&nbsp;kind&nbsp;of&nbsp;MessagePort.onclose&nbsp;event&nbsp;or&nbsp;&amp;quot;entangled&amp;quot;&nbsp;attribute&nbsp;could&nbsp;be&nbsp;useful&nbsp;-&nbsp;this&nbsp;was&nbsp;originally&nbsp;part&nbsp;of&nbsp;the&nbsp;spec,&nbsp;and&nbsp;the&nbsp;issue&nbsp;with&nbsp;that&nbsp;was&nbsp;that&nbsp;it&amp;#39;s&nbsp;hard&nbsp;to&nbsp;define&nbsp;onclose&nbsp;in&nbsp;such&nbsp;a&nbsp;way&nbsp;that&nbsp;doesn&amp;#39;t&nbsp;make&nbsp;it&nbsp;highly&nbsp;dependent&nbsp;on&nbsp;garbage&nbsp;collection.&lt;/div&gt;<br>
+&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;As&nbsp;an&nbsp;example:&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;var&nbsp;channel&nbsp;=&nbsp;new&nbsp;MessageChannel();&lt;/div&gt;&lt;div&gt;channel.port1.onclose&nbsp;=&nbsp;channel.port2.onclose&nbsp;=&nbsp;function()&nbsp;{alert(&amp;quot;port&nbsp;closed&amp;quot;);};&lt;/div&gt;&lt;div&gt;channel&nbsp;=&nbsp;null;&lt;/div&gt;<br>
+&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;What&nbsp;should&nbsp;happen&nbsp;in&nbsp;this&nbsp;case?&nbsp;At&nbsp;what&nbsp;point&nbsp;(if&nbsp;ever)&nbsp;should&nbsp;the&nbsp;onclose&nbsp;handler&nbsp;be&nbsp;invoked?&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;I&amp;#39;m&nbsp;just&nbsp;leery&nbsp;of&nbsp;any&nbsp;situation&nbsp;where&nbsp;the&nbsp;garbage&nbsp;collected&nbsp;state&nbsp;of&nbsp;an&nbsp;unreferenced&nbsp;object&nbsp;is&nbsp;exposed&nbsp;to&nbsp;script,&nbsp;as&nbsp;it&nbsp;seems&nbsp;like&nbsp;this&nbsp;causes&nbsp;interoperability&nbsp;issues.&nbsp;For&nbsp;example,&nbsp;if&nbsp;you&nbsp;ran&nbsp;the&nbsp;script&nbsp;above&nbsp;in&nbsp;Chrome,&nbsp;the&nbsp;onclose&nbsp;handler&nbsp;would&nbsp;likely&nbsp;not&nbsp;be&nbsp;invoked&nbsp;until&nbsp;the&nbsp;parent&nbsp;Document&nbsp;was&nbsp;closed.&nbsp;In&nbsp;Safari,&nbsp;it&nbsp;would&nbsp;get&nbsp;invoked&nbsp;when&nbsp;the&nbsp;JS&nbsp;heap&nbsp;is&nbsp;next&nbsp;garbage&nbsp;collected.&nbsp;An&nbsp;application&nbsp;that&nbsp;relied&nbsp;on&nbsp;onclose()&nbsp;being&nbsp;called&nbsp;in&nbsp;a&nbsp;timely&nbsp;manner&nbsp;would&nbsp;break&nbsp;on&nbsp;Chrome.&lt;/div&gt;<br>
+&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;The&nbsp;only&nbsp;option&nbsp;that&nbsp;comes&nbsp;to&nbsp;mind&nbsp;that&nbsp;doesn&amp;#39;t&nbsp;expose&nbsp;compatibility&nbsp;issues&nbsp;would&nbsp;be&nbsp;to&nbsp;only&nbsp;issue&nbsp;onclose&nbsp;events&nbsp;if&nbsp;close()&nbsp;is&nbsp;explicitly&nbsp;called&nbsp;on&nbsp;the&nbsp;entangled&nbsp;port,&nbsp;but&nbsp;if&nbsp;you&amp;#39;re&nbsp;doing&nbsp;that&nbsp;you&nbsp;might&nbsp;as&nbsp;well&nbsp;just&nbsp;have&nbsp;the&nbsp;code&nbsp;calling&nbsp;close()&nbsp;post&nbsp;a&nbsp;&amp;quot;I&amp;#39;m&nbsp;closing&amp;quot;&nbsp;message&nbsp;first.&lt;/div&gt;<br>
+&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;-atw&lt;/div&gt;&lt;div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;div&nbsp;class=&quot;gmail_quote&quot;&gt;On&nbsp;Mon,&nbsp;Mar&nbsp;15,&nbsp;2010&nbsp;at&nbsp;5:13&nbsp;PM,&nbsp;ATSUSHI&nbsp;TAKAYAMA&nbsp;&lt;span&nbsp;dir=&quot;ltr&quot;&gt;&amp;lt;&lt;a&nbsp;href=&quot;mailto:taka.atsushi@googlemail.com&quot;&gt;taka.atsushi@googlemail.com&lt;/a&gt;&amp;gt;&lt;/span&gt;&nbsp;wrote:&lt;br&gt;<br>
+&lt;blockquote&nbsp;class=&quot;gmail_quote&quot;&nbsp;style=&quot;margin:0&nbsp;0&nbsp;0&nbsp;.8ex;border-left:1px&nbsp;#ccc&nbsp;solid;padding-left:1ex;&quot;&gt;Hi&nbsp;all,&lt;br&gt;<br>
+&lt;br&gt;<br>
+Consider&nbsp;a&nbsp;case&nbsp;where&nbsp;I&nbsp;have&nbsp;a&nbsp;SharedWorker&nbsp;script&nbsp;like&nbsp;below,&nbsp;and&nbsp;I&lt;br&gt;<br>
+open&nbsp;two&nbsp;tabs&nbsp;that&nbsp;use&nbsp;this&nbsp;SharedWorker.&nbsp;Now&nbsp;myPorts.length&nbsp;is&nbsp;2.&nbsp;If&lt;br&gt;<br>
+I&nbsp;reload&nbsp;one&nbsp;of&nbsp;the&nbsp;two&nbsp;tabs,&nbsp;then&nbsp;myPorts.length&nbsp;is&nbsp;3,&nbsp;isn&amp;#39;t&nbsp;it?&nbsp;But&lt;br&gt;<br>
+one&nbsp;of&nbsp;the&nbsp;three&nbsp;ports&nbsp;is&nbsp;already&nbsp;disconnected&nbsp;from&nbsp;the&nbsp;counterpart,&lt;br&gt;<br>
+so&nbsp;postMessage&amp;#39;ing&nbsp;to&nbsp;the&nbsp;port&nbsp;is&nbsp;meaningless&nbsp;and&nbsp;I&nbsp;want&nbsp;to&nbsp;discard&lt;br&gt;<br>
+reference&nbsp;to&nbsp;that&nbsp;port.&lt;br&gt;<br>
+&lt;br&gt;<br>
+===&nbsp;&amp;lt;JS&amp;gt;&nbsp;===&lt;br&gt;<br>
+var&nbsp;myPorts&nbsp;=&nbsp;[];&lt;br&gt;<br>
+&lt;br&gt;<br>
+onconnect&nbsp;=&nbsp;function(e)&nbsp;{&lt;br&gt;<br>
+&nbsp; var&nbsp;port&nbsp;=&nbsp;e.ports[0];&lt;br&gt;<br>
+&nbsp; myPorts.push(port);&lt;br&gt;<br>
+&lt;br&gt;<br>
+&nbsp; port.onmessage&nbsp;=&nbsp;function(e)&nbsp;{&lt;br&gt;<br>
+&nbsp; &nbsp; myPorts.forEach(function(p)&nbsp;{&lt;br&gt;<br>
+&nbsp; &nbsp; &nbsp; if&nbsp;(p&nbsp;!==&nbsp;port)&lt;br&gt;<br>
+&nbsp; &nbsp; &nbsp; &nbsp; p.postMessage&nbsp;=&nbsp;e.data;&lt;br&gt;<br>
+&nbsp; &nbsp; });&lt;br&gt;<br>
+&nbsp; }&lt;br&gt;<br>
+}&lt;br&gt;<br>
+===&nbsp;&amp;lt;/JS&amp;gt;&nbsp;===&lt;br&gt;<br>
+&lt;br&gt;<br>
+It&nbsp;seems&nbsp;like&nbsp;the&nbsp;only&nbsp;way&nbsp;to&nbsp;know&nbsp;if&nbsp;a&nbsp;MessagePort&nbsp;is&nbsp;connected&nbsp;is&nbsp;to&lt;br&gt;<br>
+actually&nbsp;send&nbsp;a&nbsp;message&nbsp;and&nbsp;wait&nbsp;for&nbsp;a&nbsp;reply.&nbsp;So&lt;br&gt;<br>
+MessagePort.isConnected&nbsp;or&nbsp;MessagePort.ondisconnect&nbsp;would&nbsp;be&nbsp;nice&nbsp;to&lt;br&gt;<br>
+have.&lt;br&gt;<br>
+&lt;br&gt;<br>
+A.&nbsp;TAKAYAMA&lt;br&gt;<br>
+&lt;/blockquote&gt;&lt;/div&gt;&lt;br&gt;&lt;/div&gt;&lt;/div&gt;<br>
+
+</tt>

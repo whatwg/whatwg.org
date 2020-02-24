@@ -1,0 +1,170 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Polling APIs in JavaScript vs Callbacks
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Polling%20APIs%20in%20JavaScript%20vs%20Callbacks&In-Reply-To=%3CCAKZ%2BBNowkrkuHByMWxW9XB5BVhkyc9%2BNQ%3DXq3n_vKyWdas-LjQ%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="081154.html">
+   <LINK REL="Next"  HREF="081144.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Polling APIs in JavaScript vs Callbacks</H1>
+<!--htdig_noindex-->
+    <B>Gregg Tavares</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Polling%20APIs%20in%20JavaScript%20vs%20Callbacks&In-Reply-To=%3CCAKZ%2BBNowkrkuHByMWxW9XB5BVhkyc9%2BNQ%3DXq3n_vKyWdas-LjQ%40mail.gmail.com%3E"
+       TITLE="[whatwg] Polling APIs in JavaScript vs Callbacks">gman at google.com
+       </A><BR>
+    <I>Thu Feb  7 16:24:18 PST 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="081154.html">[whatwg] [URL] Cargo-cult naming in URL and matching
+</A></li>
+        <LI>Next message: <A HREF="081144.html">[whatwg] Polling APIs in JavaScript vs Callbacks
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#38870">[ date ]</a>
+              <a href="thread.html#38870">[ thread ]</a>
+              <a href="subject.html#38870">[ subject ]</a>
+              <a href="author.html#38870">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE> Anyone have time to give me some advice, tips, pointers?
+
+In the next WebGL we have Query/Sync objects. In C/C++ land the user can
+insert some drawing commands that will happen asynchronously on the GPU.
+They can also insert a query. They can then poll that query (did this
+finish?).
+
+We'd like to expose that to JavaScript. I've been pushing to making it a
+callback in JavaScript rather than polling. Most graphics developers I talk
+to hate this idea.
+
+My assumptions have been
+
+(a) polling is kind of maybe not allowed in JS (though I have no proof,
+only heresy)
+
+Are there any &quot;rules&quot; or things in the spec that make polling apis
+untenable?
+
+
+(b) polling is often error prone and those errors can be avoided using
+callbacks and I'm assuming designing an API that is hard or impossible to
+use wrong is a good thing.
+
+To give an example, in GL I can render in 2 threads. Let's say in one
+thread I'm rendering to a texture and in the other thread I'd like to use
+that texture to render something else.
+
+I can insert a query in the first thread, and poll that query in the second
+thread. When the query says the texture is ready the second thread can
+render with it.
+
+The problem is, if I forget to query things won't fail I'll just get the
+wrong results. But I might not. It might be that rendering on thread #1
+takes 1ms and it takes 2ms before thread 2 tries to render so things just
+appear to work, no queries needed. But then something (another tab, another
+app) slows the the system down. Thread #1 takes 4ms now and Thread #2 which
+is just assuming things take 2ms renders and sees old or half rendered
+results.
+
+We can encapsulate some of this. In WebGL we can require that the texture
+being used in both threads be a wrapped object, a SharedTexture, and we can
+require SharedTextures can be used in only 1 thread at a time. You acquire
+and release it on a particular thread. And so now comes the issue:
+
+Should acquire block, poll or use a callback
+
+block = evil
+
+poll has the issue that I can try to use the texture even when I haven't
+acquired it. See the example above. It allows not polling and assuming the
+texture will be available. That might work most of the time but on some
+machine or under certain circumstances the acquire will fail. Apps that
+forget to check for success because the API let them ignore failure will
+then fail in strange and random ways. It basically exposes race conditions
+
+callback seems to make it much harder to use wrong. You get a callback when
+the texture has been acquired. Now you can't use it without calling acquire
+period.
+
+But. that comes back to (a) above. Move devs I've talked to really don't
+want to use callbacks. They're all good devs and they know what they're
+doing and they don't want to deal with what they consider callback/closure
+hell. Especially when they need to acquire multiple things at once.
+
+I'm in the callback camp. (1) to protect programmers from mistakes they
+won't find until the exceptional happens and (2) because I'm under the
+impression that browser vendors would say &quot;no&quot; to polling. But, maybe it
+doesn't matter and polling is fine.
+
+note: this issue already exists in the Web API today with images. Example:
+
+img.src = &quot;someimage.jpg&quot;
+setTimeout(function() {
+   ctx.drawImage(img, 0, 0);
+}, 1000);
+
+Assumes the image will be available in 1 second which may or may not be
+true. The API could have been designed to make this much harder to get
+wrong (though not impossible). If you had get some kind of ImageHandle to
+call drawImage and you could only get that ImageHandle in the 'load' event
+of an image
+
+Images are not quite analogous though as there is no polling built in
+polling on an image to find out if it's finished.
+</PRE>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="081154.html">[whatwg] [URL] Cargo-cult naming in URL and matching
+</A></li>
+	<LI>Next message: <A HREF="081144.html">[whatwg] Polling APIs in JavaScript vs Callbacks
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#38870">[ date ]</a>
+              <a href="thread.html#38870">[ thread ]</a>
+              <a href="subject.html#38870">[ subject ]</a>
+              <a href="author.html#38870">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

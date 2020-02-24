@@ -1,0 +1,188 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] onclose events for MessagePort
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20onclose%20events%20for%20MessagePort&In-Reply-To=%3Calpine.DEB.2.00.1312112338110.26758%40ps20323.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="084059.html">
+   <LINK REL="Next"  HREF="041742.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] onclose events for MessagePort</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20onclose%20events%20for%20MessagePort&In-Reply-To=%3Calpine.DEB.2.00.1312112338110.26758%40ps20323.dreamhostps.com%3E"
+       TITLE="[whatwg] onclose events for MessagePort">ian at hixie.ch
+       </A><BR>
+    <I>Wed Dec 11 15:45:12 PST 2013</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="084059.html">[whatwg] onclose events for MessagePort
+</A></li>
+        <LI>Next message: <A HREF="041742.html">[whatwg] Bicubic filtering on context.drawImage
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#84039">[ date ]</a>
+              <a href="thread.html#84039">[ thread ]</a>
+              <a href="subject.html#84039">[ subject ]</a>
+              <a href="author.html#84039">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Wed, 11 Dec 2013, Ehsan Akhgari wrote:
+&gt;<i> &gt;
+</I>&gt;<i> &gt; Right, but isn't that considered a problem?
+</I>&gt;<i> 
+</I>&gt;<i> Sure, but please remember that bfcache is a (Gecko specific, last I 
+</I>&gt;<i> checked) optimization and where that optimization doesn't work, we just 
+</I>&gt;<i> fall into the regular behavior of every web browser.
+</I>
+It's part of the HTML spec, FWIW.
+
+
+&gt;<i> In general, if we want to fix this problem, we should think about a way 
+</I>&gt;<i> to let the author specify that they want their page to be bfcached no 
+</I>&gt;<i> matter what it's doing, at the risk of putting it in the bfcache 
+</I>&gt;<i> breaking parts of the page.
+</I>
+I don't understand how we could do this in the case of a MessagePort 
+sending an &quot;I'm dead&quot; message and disentangling when the other side is 
+navigated. I mean, that's pretty fatal for the port.
+
+
+&gt;<i> When we decide that is a problem worth fixing, we can discuss solutions 
+</I>&gt;<i> separately.  Making the change being discussed here will not make that 
+</I>&gt;<i> solution harder to specify or implement.
+</I>
+I don't understand why it wouldn't make it harder.
+
+
+&gt;<i> &gt; &gt; and given the fact that currently a solution for the case where the 
+</I>&gt;<i> &gt; &gt; page is navigated away from will need to register an unload event 
+</I>&gt;<i> &gt; &gt; handler (which also disables bfcache) we will be in no worse spot 
+</I>&gt;<i> &gt; &gt; than we are today.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; For pages that register the unload handler, sure. But if we do this, 
+</I>&gt;<i> &gt; we block _all_ pages that use MessagePorts from going into the 
+</I>&gt;<i> &gt; bfcache, because there's no way to know if the other side has a 
+</I>&gt;<i> &gt; registered handler for the event or not when you are navigated.
+</I>&gt;<i> 
+</I>&gt;<i> Note that as I suggestion before, we can only blacklist a page for 
+</I>&gt;<i> bfcache if the handler
+</I>
+...is registered, I assume.
+
+Behaving differently based on whether a handler is registered or not is a 
+violation of the platform's event semantics. The model is that events get 
+fired regardless of whether a handler is present or not. We go to some 
+lengths to keep that invariant.
+
+In any case, finding out if the other side has a listener registered would 
+need sync IPC, which seems like a non-starter to me.
+
+
+&gt;<i> There are ways to avoid that synchronous IPC by delivering that 
+</I>&gt;<i> information alongside with other IPC messages that you'd have to deliver 
+</I>&gt;<i> regardless.
+</I>
+You don't have to do any sync IPC to remote processes when navigating, as 
+far as I can tell. Can you elaborate on this?
+
+
+&gt;<i> &gt; The event approach has the advantage that a no-op implementation need 
+</I>&gt;<i> &gt; be nothing more than an IDL attribute event handler, something which 
+</I>&gt;<i> &gt; should be a trivial burden given how common adding those is on the 
+</I>&gt;<i> &gt; platform.
+</I>&gt;<i> 
+</I>&gt;<i> I'm not sure if I understand this point.  A Promise-based API should be 
+</I>&gt;<i> just as easy to implement as a no-op (at least, given my understanding 
+</I>&gt;<i> of how we generate the Javascript bindings from WebIDL files in Gecko 
+</I>&gt;<i> these days.)
+</I>
+I don't understand how having something could be simpler than not having 
+something. Maybe I'm missing something in the proposal.
+
+
+&gt;<i> I can totally imagine this being harder in engines that don't do that 
+</I>&gt;<i> kind of code generation, but the same could be said about event handlers 
+</I>&gt;<i> too without knowing about the specifics of the implementation of the 
+</I>&gt;<i> engine.
+</I>
+The difference is that event handlers are all over the place, and other 
+than hooking a handler, don't have any requirements on implementations.
+
+
+&gt;<i> &gt; Now, we could still handle your use case (Ehsan and I chatted about 
+</I>&gt;<i> &gt; this on IRC yesterday; the problem is what to do if, for instance, a 
+</I>&gt;<i> &gt; port is being passed across multiple processes, and the OOM killer is 
+</I>&gt;<i> &gt; essentially chasing the end-point, killing processes before they can 
+</I>&gt;<i> &gt; inform the final recipient that the source has itself been killed). 
+</I>&gt;<i> &gt; There's two obvious ways to do it; one is an attribute, the other is 
+</I>&gt;<i> &gt; to just send the event whenever a MessagePort is created if it's other 
+</I>&gt;<i> &gt; side is already known to be crashed. The one with the least impact on 
+</I>&gt;<i> &gt; no-op UAs is the event; that would also have the advantage of meaning 
+</I>&gt;<i> &gt; you didn't have to know synchronously that the port was damaged goods. 
+</I>&gt;<i> &gt; The problem with the attribute is that you might not get the 
+</I>&gt;<i> &gt; notification that the port is ill-fated until after you receive the 
+</I>&gt;<i> &gt; port, even though the 'error' event has already fired (or tried to 
+</I>&gt;<i> &gt; fire) in some other process.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; So my proposal to handle this would be to send another 'error' event, 
+</I>&gt;<i> &gt; basically any time you create a MessagePort that's entangled with 
+</I>&gt;<i> &gt; someone who has crashed already.
+</I>&gt;<i> 
+</I>&gt;<i> I'd like to question whether that is a better API.  I can't think of 
+</I>&gt;<i> anywhere else on the web platform where we have an event handler that 
+</I>&gt;<i> fires in this specific manner (after the fact, and as soon as you 
+</I>&gt;<i> register a handler for that event.)
+</I>
+The event doesn't fire when you register a handler, it fires (well, it's 
+queued) when the object is created.
+
+
+&gt;<i> But a Promise based solution at least has the advantage that the 
+</I>&gt;<i> semantics of the Promise is well defined and consistent with everywhere 
+</I>&gt;<i> else in the platform that Promises are used.  Do you disagree that there 
+</I>&gt;<i> is a consistency and API quality issue here?
+</I>
+Yes. This seems the same to me as how an &lt;iframe&gt; gets a 'load' event when 
+created, if it is created without a src=&quot;&quot; attribute, for example.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="084059.html">[whatwg] onclose events for MessagePort
+</A></li>
+	<LI>Next message: <A HREF="041742.html">[whatwg] Bicubic filtering on context.drawImage
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#84039">[ date ]</a>
+              <a href="thread.html#84039">[ thread ]</a>
+              <a href="subject.html#84039">[ subject ]</a>
+              <a href="author.html#84039">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

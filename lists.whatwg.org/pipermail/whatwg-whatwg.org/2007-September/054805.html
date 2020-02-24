@@ -1,0 +1,308 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Latest proposal for offline web app API
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Latest%20proposal%20for%20offline%20web%20app%20API&In-Reply-To=%3CPine.LNX.4.62.0709211018260.21662%40hixie.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="054836.html">
+   <LINK REL="Next"  HREF="054808.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Latest proposal for offline web app API</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Latest%20proposal%20for%20offline%20web%20app%20API&In-Reply-To=%3CPine.LNX.4.62.0709211018260.21662%40hixie.dreamhostps.com%3E"
+       TITLE="[whatwg] Latest proposal for offline web app API">ian at hixie.ch
+       </A><BR>
+    <I>Fri Sep 21 03:36:07 PDT 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="054836.html">[whatwg] SQL API error handling
+</A></li>
+        <LI>Next message: <A HREF="054808.html">[whatwg] Latest proposal for offline web app API
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#54805">[ date ]</a>
+              <a href="thread.html#54805">[ thread ]</a>
+              <a href="subject.html#54805">[ subject ]</a>
+              <a href="author.html#54805">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>
+Based on discussions in response to previous proposals in this and other 
+forums, I have written a new proposal for offline web app APIs. The idea 
+here is to allow existing applications to be retrofitted with a script 
+layer that enables the applications to work offline, while supporting 
+multiple instances running different versions, being safe against buggy 
+author-provided client and server code, allowing for both replacement and 
+transparent updates, not having any increase in the page load time in any 
+case, and being reasonably easy to develop for.
+
+Note: Some people in <A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">public-html at w3.org</A> suggested that this would be an 
+area that we should not be working on. However, two separate browser 
+vendors as well as a browser extension developer group have independently 
+contacted me requesting support for this _in person_, as well as by e-mail 
+and over IRC, and in two of those three cases have actively been writing 
+experimental and shipping code to add support for such a feature. This is 
+amongst the highest level of demand I've ever seen for a feature in this 
+spec (the last feature with this level of demand was probably &lt;canvas&gt;). I 
+think it is imperative that we work to obtain a consensus on a single 
+specification for this to enable interoperability on this quite important 
+feature, otherwise we'll see quick fragmentation in this space. I believe 
+HTML is the right place to define this due to the tight integration of any 
+solution here with the loading and browsing context aspects of the current 
+HTML5 spec, as should be obvious from the proposal below.
+
+Also, this proposal depends on changes to the database API to support 
+implicit transactions and named and versioned databases per domain, as 
+well as being a motivator for introducing a threading-like worker model 
+(similar to Gears' WorkerPool) that can be &quot;joined&quot; from multiple browsing 
+contexts that share an origin. Both of these are likely to be forthcoming 
+changes to HTML5 based on feedback received to date, so it seems safe to 
+assume these changes will be present while designing this offline Web apps 
+feature. These features are assumed to be the solution for dealing with 
+updating of database schemas in the presence of multiple running 
+instances.
+
+Anyway, here's the proposal (v0.3):
+
+
+An application cache has:
+
+ * A manifest URI by which the cache is identified.
+
+ * A set of one or more resources with URIs and full HTTP headers and
+   bodies (the cache).
+
+ * A set of zero or more strings representing URI prefixes, each
+   mapped to a URI found in the cache (the fallback pages and their
+   opportunistic caching patterns).
+
+ * A set of zero or more URIs that are not in the cache (the
+   online-whitelist set).
+
+
+Browsing contexts are associated with application caches. A browsing
+context with a parent browsing context is always associated with the
+same cache as its parent browsing context.
+
+When a top-level browsing context is navigated, the browsing context
+must be associated with an application cache, as follows:
+
+ * If the resource in question is being fetched via GET and is in one
+   of the application caches:
+
+      The user agent must pick an application cache from the shortlist
+      of those caches that contain the specified URI, and associate
+      the browsing context with it.
+
+      The resource kept in that cache must then be examined. If it is
+      an HTML resource and, when parsed with an HTML parser with
+      scripting disabled, it has an &quot;application&quot; attribute, or, if it
+      is an XML resource and, when parsed with an XML parser with
+      scripting disabled, it has an &quot;application&quot; attribute, and that
+      attribute doesn't match the URI of the cache selected, then
+      unassociate the browsing context with that cache, and continue
+      as if no cache could be found.
+
+ * If you're offline, and any of the caches have fallback pages
+   associated with a pattern that matches the URI of the resource
+   being fetched, then:
+
+      The user agent must pick an application cache from the shortlist
+      of those caches that contain patterns that match the specified
+      URI, and associate the browsing context with it.
+
+      The UA must then use that page, but pretend that it came from
+      the original URI. The page can work out which URI it is
+      impersonating using the document.location API.
+
+ * Otherwise:
+
+    * If you're online, do the appropriate thing.
+
+    * If you're offline, inform the user of the problem.
+
+Then, the document must be loaded. If, during load, an application=&quot;&quot;
+attribute is found, then, if a cache with that manifest URI already
+exists, then, add the resource URI to that cache, and associate the
+browsing context with that cache. If no cache exists for that manifest
+URI, then create a cache for that manifest URI, and add the resource
+URI to that cache. (XXX How do we handle &lt;?xml-stylesheet?&gt; PIs? XXX)
+
+
+The process for picking an application cache is as follows:
+
+  * The user agent must pick the application cache, of those that are
+    shortlisted, that the user most likely wants to see the resource
+    from, taking into account the following:
+
+     - which application cache was most recently updated
+
+     - which application cache was being used to display the resource
+       from which the user decided to look at the new resource
+
+     - which application cache the user prefers
+
+    (Obviously if only one cache is shortlisted the choice is
+    trivial.)
+
+
+When a subresource load is initiated by a browsing context that has an
+associated application cache, the user agent must proceed as follows:
+
+ - If the resource is being fetched via GET, and the cache's manifest
+   and the resources it points to has been fully downloaded, and the
+   cache does not contain a mention of the specified resource (not
+   even in the online whitelist), then fail the load.
+
+ - Otherwise, if the resource is being fetched via GET and the cache
+   contains that resource, then return the cached resource.
+
+ - Otherwise, if you are online: Hit the network to fetch the
+   resource. Do not store the resource in the cache.
+
+ - Otherwise, fail the load.
+
+
+If a browsing context is associated with a cache, then run the update
+process asynchronously as soon as the load of the resource starts.
+
+The update process is as follows:
+ - If the cache already existed before loading the resource, then:
+    - set the offline state of every top-level browsing context that
+      is using this cache to 'checking'.
+    - fire a checkingupdate event at every top-level browsing context
+      using this cache.
+    - if not canceled, display UI saying that a check is in progress.
+ - The given manifest must be fetched.
+ - If this results in a 4xx or 5xx error, or a DNS error, or returns
+   something of the a MIME type other than text/cache-manifest, or
+   the manifest fails to get parsed, then:
+    - if the cache was just created, then unassociate the browsing
+      context with the cache, and just ignore the offline stuff.
+    - if the cache already existed, then set the offline state of
+      every top-level browsing context that is using this cache to
+      'idle' and fire an 'updateerror' event to them all.
+    - if not canceled, mention error to user somehow.
+    - abort these steps
+ - If the download was successful but the manifest hasn't changed
+   since the last time it was fetched for this cache, then:
+    - set the offline state of every top-level browsing context that
+      is using this cache to 'idle'.
+    - fire a noupdate event at every top-level browsing context using
+      this cache.
+    - remove any ui indicating that an update is in progress.
+    - abort these steps
+ - Download the data from the manifest.
+    - set the offline state of every top-level browsing context that
+      is using this cache to 'updating'.
+    - fire an updating event at every top-level browsing context using
+      this cache.
+    - if not canceled, show ui that update is in progress, and keep
+      updating this ui when progress events would have fired (below).
+    - if the cache was not just created: create a new cache.
+    - for each file listed in the manifest as needing to be cached,
+      fetch the file into the new cache, using the old cache as a
+      cache if a new cache wasn't just created, honouring expiration,
+      ETag, last-modified, etc. (Send progress events during this.)
+    - if a new cache wasn't just created, also do this for each file
+      listed in the old cache that matches the opportunistic caching
+      pattern in the new manifest. (Send progress events during this.)
+    - if a new cache wasn't just created, also do this for each file
+      listed in the old cache that was added to the cache using the
+      addition API. (Send progress events during this.)
+    - for each file listed in the manifest as being a fallback page,
+      download the fallback page in the same way as above, and store
+      the prefix URI in the cache. (Send progress events during this.)
+    - for each online-whitelisted URI in the manifest, store the URI
+      in the cache for future reference.
+    - if anything results in a 4xx, 5xx, or DNS error, then:
+      - if the cache was just created, then unassociate the browsing
+        context with the cache, and just ignore the offline stuff.
+      - if the cache already existed, then set the offline state of
+        every top-level browsing context that is using this cache to
+        'idle' and fire an 'updateerror' event to them all.
+      - if not canceled, maybe tell user somehow.
+      - abort these steps
+ - Update the instances of the app.
+    - set the offline state of every top-level browsing context that
+      is using this cache to 'update ready'.
+    - fire an updateready event at every top-level browsing context
+      using this cache.
+    - if not canceled, tell user update is ready (the page is expected
+      to either call location.reload(), or the API to swap the new
+      cache in, but both could be delayed, e.g. to wait for the user
+      to finish the current task).
+
+The above algorithm mentions that progress events have to be sent --
+this means that an 'updateprogress' progress event must be sent at
+every top-level browsing context using the cache while the download is
+progressing.
+
+Any file can be listed in the manifest, but the fallback patterns must
+match same-origin restrictions.
+
+
+API:
+
+Provide methods and/or properties for the following:
+
+ * Add a resource to the cache. The resource persists (it's a
+   permanent addition to the manifest.)
+
+ * Remove a resource from the cache that was added using the
+   aforementioned API.
+
+ * Invoke the update() algorithm.
+
+ * Check the current status of the updating: 'idle', 'checking',
+   'updating', 'update ready'.
+
+ * Swap in the newest cache without a reload.
+
+
+(When I write up the feature in the HTML5 spec I will reply in more detail 
+to the actual feedback received on the WHATWG list and posted on the 
+HTMLWG wiki, so if I haven't covered something here that was sent to one 
+of those locations, I will still address it later, fear not.)
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="054836.html">[whatwg] SQL API error handling
+</A></li>
+	<LI>Next message: <A HREF="054808.html">[whatwg] Latest proposal for offline web app API
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#54805">[ date ]</a>
+              <a href="thread.html#54805">[ thread ]</a>
+              <a href="subject.html#54805">[ subject ]</a>
+              <a href="author.html#54805">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

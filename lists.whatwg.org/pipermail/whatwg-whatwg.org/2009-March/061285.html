@@ -1,0 +1,322 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] &lt;video&gt; feedback
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20%3Cvideo%3E%20feedback&In-Reply-To=%3CPine.LNX.4.62.0903250738070.25082%40hixie.dreamhostps.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="061268.html">
+   <LINK REL="Next"  HREF="061297.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] &lt;video&gt; feedback</H1>
+<!--htdig_noindex-->
+    <B>Ian Hickson</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20%3Cvideo%3E%20feedback&In-Reply-To=%3CPine.LNX.4.62.0903250738070.25082%40hixie.dreamhostps.com%3E"
+       TITLE="[whatwg] &lt;video&gt; feedback">ian at hixie.ch
+       </A><BR>
+    <I>Wed Mar 25 03:16:32 PDT 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="061268.html">[whatwg] Synchronized play/seek of multiple &lt;audio&gt; elements?
+</A></li>
+        <LI>Next message: <A HREF="061297.html">[whatwg] &lt;video&gt; feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#61285">[ date ]</a>
+              <a href="thread.html#61285">[ thread ]</a>
+              <a href="subject.html#61285">[ subject ]</a>
+              <a href="author.html#61285">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Wed, 4 Mar 2009, Chris Pearce wrote:
+&gt;<i>
+</I>&gt;<i> The media element spec says:
+</I>&gt;<i>
+</I>&gt;<i> &gt; If a media element whose |networkState| has the value |NETWORK_EMPTY| 
+</I>&gt;<i> &gt; is inserted into a document, the user agent must asynchronously invoke 
+</I>&gt;<i> &gt; the media element's resource selection algorithm.
+</I>&gt;<i>
+</I>&gt;<i> The resource selection algorithm then goes on to set the 
+</I>&gt;<i> delaying-the-load-event flag to true. Depending on how the asynchronous 
+</I>&gt;<i> invocation is implemented, the document could actually complete loading 
+</I>&gt;<i> during the time after the insertion of a media element, but before the 
+</I>&gt;<i> resource-selection algorithm sets the delaying-the-load-event flag is 
+</I>&gt;<i> set to true. This means the load event could fire during that time, even 
+</I>&gt;<i> though we intended to delay the load event.
+</I>&gt;<i> 
+</I>&gt;<i> Maybe we should set the delaying-the-load-event flag to true before we 
+</I>&gt;<i> asynchronously call the resource-selection algorithm, and then then 
+</I>&gt;<i> resource-selection algorithm can set the delaying-the-load-event flag to 
+</I>&gt;<i> false if that decides it needs to wait for a src or source element 
+</I>&gt;<i> child?
+</I>
+I've fixed this (though not quite as you describe, for simplicity's sake).
+
+
+On Fri, 6 Mar 2009, Chris Pearce wrote:
+&gt;<i>
+</I>&gt;<i> There's an additional problem with the current media load algorithm 
+</I>&gt;<i> spec, it's possible to cause two resource-selection asynchronous calls 
+</I>&gt;<i> to run in parallel with the following javascript:
+</I>&gt;<i> 
+</I>&gt;<i> var v = document.createElement(&quot;video&quot;);
+</I>&gt;<i> v.src = &quot;foo.ogg&quot;;
+</I>&gt;<i> v.load();
+</I>&gt;<i> document.body.appendChild(v);
+</I>&gt;<i> 
+</I>&gt;<i> The load() method will asynchronously invoke the media element's 
+</I>&gt;<i> resource selection algorithm, and if the resource selection algorithm 
+</I>&gt;<i> doesn't execute fast enough in the background to change the 
+</I>&gt;<i> networkState, when we add the video to the document and the networkState 
+</I>&gt;<i> is still NETWORK_EMPTY, the add-to-a-document code will asynchronously 
+</I>&gt;<i> invoke the resource selection algorithm again.
+</I>
+I fixed this along with the earlier problem.
+
+
+On Thu, 5 Mar 2009, Robert O'Callahan wrote:
+&gt;<i> On Thu, Feb 26, 2009 at 10:19 PM, Ian Hickson &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">ian at hixie.ch</A>&gt; wrote:
+</I>&gt;<i> &gt; On Wed, 25 Feb 2009, Robert O'Callahan wrote:
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; Under &quot;Once enough of the media data has been fetched to determine 
+</I>&gt;<i> &gt; &gt; the duration of the media resource, its dimensions, and other 
+</I>&gt;<i> &gt; &gt; metadata&quot;, after setting the state to HAVE_METADATA, steps 7 and 8 
+</I>&gt;<i> &gt; &gt; say
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; 7. Set the element's delaying-the-load-event flag to false. This 
+</I>&gt;<i> &gt; &gt; &gt; stops delaying the load event.
+</I>&gt;<i> &gt; &gt; &gt;
+</I>&gt;<i> &gt; &gt; &gt; 8. This is the point at which a user agent that is attempting to 
+</I>&gt;<i> &gt; &gt; &gt; reduce network usage while still fetching the metadata for each 
+</I>&gt;<i> &gt; &gt; &gt; media resource would stop buffering, causing the networkState 
+</I>&gt;<i> &gt; &gt; &gt; attribute to switch to the NETWORK_IDLE value, if the media 
+</I>&gt;<i> &gt; &gt; &gt; element did not have an autobuffer or autoplay attribute.
+</I>&gt;<i> &gt; &gt;
+</I>&gt;<i> &gt; &gt; I suggested HAVE_CURRENT_DATA would be a better state for these 
+</I>&gt;<i> &gt; &gt; actions, and I still think so. These actions should not occur until 
+</I>&gt;<i> &gt; &gt; the UA is able to display the first frame of the video. Authors 
+</I>&gt;<i> &gt; &gt; would want the first frame of a non-autobuffered video to be 
+</I>&gt;<i> &gt; &gt; visible, and the document load event should fire after the first 
+</I>&gt;<i> &gt; &gt; frame is available by analogy with images.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; I've updated the note as per your suggestion.
+</I>&gt;<i> 
+</I>&gt;<i> In step 7 you still stop delaying the load event after loading metadata. 
+</I>&gt;<i> I still say we should keep delaying the load event until we reach 
+</I>&gt;<i> HAVE_CURRENT_DATA.
+</I>
+Man, I suck at this. Fixed. Again. For real this time I hope.
+
+
+On Fri, 13 Mar 2009, Matthew Gregan wrote:
+&gt;<i> 
+</I>&gt;<i> It's possible that neither a 'play' nor 'playing' event will be fired 
+</I>&gt;<i> when a media element that has ended playback is played again.  When 
+</I>&gt;<i> first played, paused is set to false.  When played again, playback has 
+</I>&gt;<i> ended, so play() seeks to the beginning, but paused does not change (as 
+</I>&gt;<i> it's already false), so the substeps that may fire play or playing are 
+</I>&gt;<i> not run.
+</I>
+'play' shouldn't fire, since it was never paused.
+
+'playing' should fire, though, since the readyState will have dropped down 
+to HAVE_CURRENT_DATA when the clip is ended, and will drop back up to 
+HAVE_FUTURE_DATA after seeking.
+
+
+&gt;<i> This behaviour seems reasonable if the media element has a loop 
+</I>&gt;<i> attribute, since playback never really stops (as it restarts immediately 
+</I>&gt;<i> upon ending).
+</I>
+Actually the 'playing' event fires even in this case, which is a bit 
+weird. Not sure how to suppress it, though, since if seeking takes 
+non-zero time, we shouldn't suppress it after all.
+
+
+On Sun, 15 Mar 2009, Biju wrote:
+&gt;<i>
+</I>&gt;<i> What I understood from
+</I>&gt;<i> <A HREF="http://www.whatwg.org/specs/web-apps/current-work/multipage/video.html#time-ranges">http://www.whatwg.org/specs/web-apps/current-work/multipage/video.html#time-ranges</A>
+</I>&gt;<i> following will be the syntax to access video elements buffered time-ranges
+</I>&gt;<i> 
+</I>&gt;<i> v1.buffered.length
+</I>&gt;<i> v1.buffered.start(i)
+</I>&gt;<i> v1.buffered.end(i)
+</I>&gt;<i> 
+</I>&gt;<i> When I compare it with existing syntax like
+</I>&gt;<i> 
+</I>&gt;<i> document.links.length
+</I>&gt;<i> document.links[0].href
+</I>&gt;<i> 
+</I>&gt;<i> document.images.length
+</I>&gt;<i> document.images[0].src
+</I>&gt;<i> 
+</I>&gt;<i> window.frames.length
+</I>&gt;<i> window.frames[0].history
+</I>&gt;<i> 
+</I>&gt;<i> I feel it should have been of the pattern
+</I>&gt;<i> 
+</I>&gt;<i> v1.buffered.length
+</I>&gt;<i> v1.buffered[i].start
+</I>&gt;<i> v1.buffered[i].end
+</I>&gt;<i> 
+</I>&gt;<i> So why we changed the syntax for time-ranges?
+</I>&gt;<i> (ie, buffered, seekable and played)
+</I>
+With .links, .images, and .frames, what we are returning are objects that 
+exist independent of the collections.
+
+This is more like NameList in DOM Level 3 Core, which has:
+
+ list.getName(i);
+ list.getNamespaceURI(i);
+
+...instead of:
+
+ list[i].name;
+ list[i].namespaceURI;
+
+The reason to do it this way is to avoid having to create one object per 
+range (or name/uri pair, in the NameList case). This saves memory and CPU, 
+and generally makes things more resilient (e.g. you don't have to worry 
+about garbage collecting items from the array separate from the array).
+
+
+On Tue, 17 Mar 2009, Nathanael Ritz wrote:
+&gt;<i> 
+</I>&gt;<i> My observation is that if it is not already recommended in the spec, 
+</I>&gt;<i> browsers should offer some sort of indication it could not use whatever 
+</I>&gt;<i> file format it was supplied or received something like a 404 from the 
+</I>&gt;<i> server. Whether it's a broken video box icon, or automatically reverting 
+</I>&gt;<i> to the fallback content within the &lt;video&gt; element (if it exists), I 
+</I>&gt;<i> think there should be some sort of warning or indication of a failure.
+</I>
+As the spec says:
+
+# In addition to the above, the user agent may provide messages to the 
+# user (such as &quot;buffering&quot;, &quot;no video loaded&quot;, &quot;error&quot;, or more detailed 
+# information) by overlaying text or icons on the video or other areas of 
+# the element's playback area, or in another appropriate manner.
+
+
+On Wed, 18 Mar 2009, Nathanael Ritz wrote:
+&gt;<i>
+</I>&gt;<i> I found this in the draft that says:
+</I>&gt;<i> 
+</I>&gt;<i> &quot;User agents that cannot render the video may instead make the element 
+</I>&gt;<i> represent a link to an external video playback utility or to the video 
+</I>&gt;<i> data itself.&quot;
+</I>&gt;<i> 
+</I>&gt;<i> But that seems fairly weak. Why not &quot;should&quot; or &quot;must&quot;?
+</I>
+Consider the program &quot;wget&quot;, which is an HTML user agent. It would not be 
+very useful if it showed a link to an external video playback utility.
+
+
+&gt;<i> Could the language not be updated here to include showing fallback 
+</I>&gt;<i> content (along side an alert) when video cannot be found or rendered?
+</I>
+If the video can't be found, why would the fallback content work better? 
+If there are multiple videos, use the &lt;source&gt; element to list them. Once 
+we have a standard codec, there should be no reason to ever have a video 
+that can't be rendered.
+
+
+On Wed, 18 Mar 2009, Nathanael Ritz wrote:
+&gt;<i>
+</I>&gt;<i> I propose that the video and audio elements have some sort of fallback. 
+</I>&gt;<i> Not for accessibility purposes, as that point has been addressed in the 
+</I>&gt;<i> spec. But so that it is clear there was supposed to be a video (or 
+</I>&gt;<i> audio) resource that for whatever reason can't be seen. Isn't the 
+</I>&gt;<i> especially important considering the current debate about .ogg vs other 
+</I>&gt;<i> formats as the standard?
+</I>
+The &lt;source&gt; element provides the fallback.
+
+
+On Wed, 18 Mar 2009, Nathanael Ritz wrote:
+&gt;<i>
+</I>&gt;<i> The comment &quot;it is the page author&#146;s responsibility to provide at least 
+</I>&gt;<i> one video source that is guaranteed to work.&quot; is not realistic. How is 
+</I>&gt;<i> an author supposed to guarantee a video works across all systems and 
+</I>&gt;<i> platforms? What if the video does work and eventually the resource is 
+</I>&gt;<i> removed for whatever reason?
+</I>
+Once we have a standard codec, that will be how you can guarantee that the 
+video will work everywhere.
+
+If the video is removed from the hosting site, then the fallback is 
+unlikely to be much use either.
+
+If all you want to show is an error message, the browser should do that.
+
+
+On Wed, 18 Mar 2009, Kristof Zelechovski wrote:
+&gt;<i>
+</I>&gt;<i> I would expect video type text/html to work everywhere for fallback; the 
+</I>&gt;<i> text can contain an error message.
+</I>
+text/html isn't a video format, and it is not expected that it would be 
+supported.
+
+
+On Thu, 19 Mar 2009, Robert O'Callahan wrote:
+&gt;<i> 
+</I>&gt;<i> It actually might be interesting to specify that resource types that the 
+</I>&gt;<i> browser knows how to handle itself should be usable in &lt;video&gt;, which 
+</I>&gt;<i> would then behave much like &lt;object&gt;.
+</I>
+That sounds like a pretty convincing argument for not doing it. :-)
+
+
+On Mon, 23 Mar 2009, Emil Tin wrote:
+&gt;<i> 
+</I>&gt;<i> i understand that SVG is meant for advanced timing etc.
+</I>&gt;<i> 
+</I>&gt;<i> but it would be very useful to have a simple mechanism in 
+</I>&gt;<i> html/javascript for playing sounds together. conceptually, sounds would 
+</I>&gt;<i> be placed on a timeline at a certain time. the sounds on the timeline 
+</I>&gt;<i> can then be played back together and will start at the right times.
+</I>
+The lack of this feature at this time is intentional. We may add this in 
+the future, once the browsers implement what we have now in a reliable 
+manner, but in the meantime I recommend using SMIL for this purpose.
+
+-- 
+Ian Hickson               U+1047E                )\._.,--....,'``.    fL
+<A HREF="http://ln.hixie.ch/">http://ln.hixie.ch/</A>       U+263A                /,   _.. \   _\  ;`._ ,.
+Things that are impossible just take longer.   `._.-(,_..'--(,_..'`-.;.'
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="061268.html">[whatwg] Synchronized play/seek of multiple &lt;audio&gt; elements?
+</A></li>
+	<LI>Next message: <A HREF="061297.html">[whatwg] &lt;video&gt; feedback
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#61285">[ date ]</a>
+              <a href="thread.html#61285">[ thread ]</a>
+              <a href="subject.html#61285">[ subject ]</a>
+              <a href="author.html#61285">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>

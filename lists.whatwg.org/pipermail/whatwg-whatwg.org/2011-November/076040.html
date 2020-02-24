@@ -1,0 +1,106 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [whatwg] Automatic transaction should support changing the	value of input/textarea
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Automatic%20transaction%20should%20support%20changing%20the%0A%09value%20of%20input/textarea&In-Reply-To=%3CCAKA%2BAxkdGkW8JcxdfUHZ0irogXtn5FFgc6AkrGZapH%2BJLjAe4g%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="076038.html">
+   <LINK REL="Next"  HREF="076042.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[whatwg] Automatic transaction should support changing the	value of input/textarea</H1>
+<!--htdig_noindex-->
+    <B>Aryeh Gregor</B> 
+    <A HREF="mailto:whatwg%40lists.whatwg.org?Subject=Re%3A%20%5Bwhatwg%5D%20Automatic%20transaction%20should%20support%20changing%20the%0A%09value%20of%20input/textarea&In-Reply-To=%3CCAKA%2BAxkdGkW8JcxdfUHZ0irogXtn5FFgc6AkrGZapH%2BJLjAe4g%40mail.gmail.com%3E"
+       TITLE="[whatwg] Automatic transaction should support changing the	value of input/textarea">ayg at aryeh.name
+       </A><BR>
+    <I>Tue Nov  8 06:33:59 PST 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="076038.html">[whatwg] Automatic transaction should support changing the	value of input/textarea
+</A></li>
+        <LI>Next message: <A HREF="076042.html">[whatwg] Automatic transaction should support changing the value of input/textarea
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#76040">[ date ]</a>
+              <a href="thread.html#76040">[ thread ]</a>
+              <a href="subject.html#76040">[ subject ]</a>
+              <a href="author.html#76040">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--/htdig_noindex-->
+<!--beginarticle-->
+<PRE>On Tue, Nov 8, 2011 at 4:48 AM, Jonas Sicking &lt;<A HREF="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">jonas at sicking.cc</A>&gt; wrote:
+&gt;<i> Yup, that seems like the right solution. But we should specify exactly
+</I>&gt;<i> what the UA should store. I.e. should it store the whole before/after
+</I>&gt;<i> values? What should it do if the after-value doesn't match the current
+</I>&gt;<i> value when the transaction is reverted?
+</I>
+Changes to CharacterData all internally go through the &quot;replace data&quot;
+algorithm in DOM4:
+
+<A HREF="http://dvcs.w3.org/hg/domcore/raw-file/tip/Overview.html#concept-cd-replace">http://dvcs.w3.org/hg/domcore/raw-file/tip/Overview.html#concept-cd-replace</A>
+
+I've been told this is more or less how Gecko works internally, too.
+It's not so obvious what conditions to check for, though.  I wrote a
+test:
+
+data:text/html,&lt;!doctype html&gt;
+&lt;div contenteditable&gt;abc&lt;/div&gt;
+&lt;input type=button value=insert onclick='
+var sel = window.getSelection();
+sel.focusNode.replaceData(Math.min(sel.focusOffset, sel.anchorOffset),
+Math.abs(sel.focusOffset - sel.anchorOffset), &quot;x&quot;)
+'&gt;
+
+Type &quot;d&quot; at the end, click button, undo: abcd -&gt; abcdx -&gt; abcx
+Type &quot;d&quot; at the end, select &quot;d&quot;, click button, undo: abcd -&gt; abcx -&gt; abc
+Type &quot;d&quot; at the end, select &quot;cd&quot;, click button, undo: abcd -&gt; abx -&gt; abx
+Type &quot;d&quot; at the end, move cursor before &quot;b&quot;, click button, undo: abcd
+-&gt; axbcd -&gt; axbd
+Select &quot;b&quot;, type &quot;d&quot;, click button, undo: adc -&gt; adxc -&gt; abxc
+Select &quot;b&quot;, type &quot;d&quot;, move cursor before &quot;d&quot;, click button, undo: adc
+-&gt; axdc -&gt; abdc
+
+Gecko and WebKit agree in all of these cases.  It suggests that to
+undo the replaceData, they just do a reverse replaceData with the same
+offset/count, without any sanity check on the contents of the text
+node.  In the first four cases, the thing being undone is an insertion
+of one character at offset 3, so they just delete the character at
+offset 3 if any.  In the last two, the thing being undone is changing
+character 1 from &quot;b&quot; to &quot;d&quot;, so they just change character 1 back to
+&quot;b&quot; regardless of what it is.  This is simple and workable, although
+of course a bit weird if the contents have actually changed.
+
+</PRE>
+
+<!--endarticle-->
+<!--htdig_noindex-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="076038.html">[whatwg] Automatic transaction should support changing the	value of input/textarea
+</A></li>
+	<LI>Next message: <A HREF="076042.html">[whatwg] Automatic transaction should support changing the value of input/textarea
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#76040">[ date ]</a>
+              <a href="thread.html#76040">[ thread ]</a>
+              <a href="subject.html#76040">[ subject ]</a>
+              <a href="author.html#76040">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.whatwg.org/listinfo.cgi/whatwg-whatwg.org">More information about the whatwg
+mailing list</a><br>
+<!--/htdig_noindex-->
+</body></html>
