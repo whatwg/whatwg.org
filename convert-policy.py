@@ -101,6 +101,9 @@ def main():
 
         final_policy_html = template.replace("@POLICY_GOES_HERE@", policy_html)
         final_policy_html = final_policy_html.replace("@TITLE_GOES_HERE@", title)
+        final_policy_html = final_policy_html.replace(
+            u"<hr>\n\n<p><small>Copyright © 2018 WHATWG (Apple, Google, Mozilla, Microsoft). This work is licensed under a <a href=\"https://creativecommons.org/licenses/by/4.0/\">Creative Commons Attribution 4.0 International License</a>.</small></p>",
+            u"<footer>\n <p><small>Copyright © 2018 WHATWG (Apple, Google, Mozilla, Microsoft). This work is licensed under a <a href=\"https://creativecommons.org/licenses/by/4.0/\">Creative Commons Attribution 4.0 International License</a>.</small></p>\n </footer>")
 
         codecs.open("whatwg.org/" + link, "w", encoding="utf-8").write(final_policy_html)
 
