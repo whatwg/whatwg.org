@@ -55,8 +55,9 @@ if [[ "$TRAVIS" == "true" ]]; then
         TARGETS+=("$REPLY")
     done < <(find whatwg.org -maxdepth 1 -type f ! -name "*.*" ! -name "status-2008-12" -print0)
 
-    curl --retry 2 --fail --remote-name --location https://github.com/validator/validator/releases/download/jar/vnu.jar
-    /usr/lib/jvm/java-8-oracle/jre/bin/java -jar vnu.jar --Werror "${TARGETS[@]}"
+    curl --retry 2 --fail --remote-name --location https://github.com/validator/validator/releases/download/linux/vnu.linux.zip
+    unzip vnu.linux.zip
+    ./vnu-runtime-image/bin/vnu --Werror "${TARGETS[@]}"
     echo ""
 fi
 
