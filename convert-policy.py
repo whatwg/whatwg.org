@@ -77,6 +77,7 @@ def postprocess_html(policy_html, template, title):
     result = add_header_anchors(result)
     result = result.replace("<p>EXAMPLE: ", "<p class=\"example\">")
     result = result.replace("<p>NOTE: ", "<p class=\"note\">")
+    result = result.replace("<hr>\n<footer>", "<footer>")
 
     return result
 
