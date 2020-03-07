@@ -2,8 +2,7 @@
 # -*- coding: UTF-8 -*-
 
 import codecs
-import markdown
-from mdx_partial_gfm import PartialGithubFlavoredMarkdownExtension
+import commonmark
 import re
 
 
@@ -55,10 +54,6 @@ def rewrite_defs(policy_markdown):
     return re.sub(r'<a id=([^>]*)>[*][*]([^*]*)[*][*]</a>', '<dfn id=\\1>\\2</dfn>', policy_markdown)
 
 
-def fix_nested_lists(policy_markdown):
-    return re.sub(r'^   1[.]', '    1.', policy_markdown, flags=re.MULTILINE)
-
-
 def avoid_link_false_positives(policy_markdown):
     return re.sub(r'[]] [(]', '] \\(', policy_markdown)
 
@@ -67,7 +62,6 @@ def preprocess_markdown(policy_markdown, mapping_pairs):
     result = lower_headers(policy_markdown)
     result = apply_link_mapping(result, mapping_pairs)
     result = rewrite_defs(result)
-    result = fix_nested_lists(result)
     result = avoid_link_false_positives(result)
 
     return result
@@ -96,7 +90,8 @@ def main():
         (title, policy_markdown) = markdown_title(policy_markdown)
         preprocessed_policy_markdown = preprocess_markdown(policy_markdown, link_mapping_pairs)
 
-        policy_html = markdown.markdown(preprocessed_policy_markdown, extensions=[PartialGithubFlavoredMarkdownExtension()])
+        policy_html = commonmark.commonmark(preprocessed_policy_markdown)
+        policy_html = policy_html.replace("&quot;", "\"")
 
         final_policy_html = template.replace("@POLICY_GOES_HERE@", policy_html)
         final_policy_html = final_policy_html.replace("@TITLE_GOES_HERE@", title)
