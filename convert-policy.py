@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: UTF-8 -*-
 
 import codecs
 import markdown
@@ -35,13 +36,12 @@ def header_text_to_id(header_text):
 
 
 def add_one_header_anchor(line):
-    header_text = line.lstrip('#')
-    header_level = len(line) - len(header_text)
-
-    if header_level <= 2:
+    search = re.search(r'<h([3-6])>(.+)</h([3-6])>', line)
+    if not search:
         return line
 
-    header_text = header_text.lstrip(' ')
+    header_level = search.group(1)
+    header_text = search.group(2)
     header_id = header_text_to_id(header_text)
 
     return '<h{0} id="{1}">{2}<a class="self-link" href="#{1}"></a></h{0}>'.format(header_level, header_id, header_text)
@@ -66,7 +66,6 @@ def avoid_link_false_positives(policy_markdown):
 def preprocess_markdown(policy_markdown, mapping_pairs):
     result = lower_headers(policy_markdown)
     result = apply_link_mapping(result, mapping_pairs)
-    result = add_header_anchors(result)
     result = rewrite_defs(result)
     result = fix_nested_lists(result)
     result = avoid_link_false_positives(result)
@@ -101,6 +100,7 @@ def main():
 
         final_policy_html = template.replace("@POLICY_GOES_HERE@", policy_html)
         final_policy_html = final_policy_html.replace("@TITLE_GOES_HERE@", title)
+        final_policy_html = add_header_anchors(final_policy_html)
 
         codecs.open("whatwg.org/" + link, "w", encoding="utf-8").write(final_policy_html)
 
