@@ -82,6 +82,8 @@ def markdown_title(policy_markdown):
 
             return (title, policy_markdown)
 
+    assert False, "Markdown does not contain a line starting with # WHATWG "
+
 
 def main():
     link_mapping_pairs = parse_link_mapping(codecs.open("sg/policy-link-mapping.txt", "r", encoding="utf-8").read())
