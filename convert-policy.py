@@ -34,7 +34,7 @@ def adjust_header(line):
     if not search:
         return line
 
-    header_level = str(int(search.group(1) + 1))
+    header_level = str(int(search.group(1)) + 1)
     header_text = search.group(2)
     header_id = header_text_to_id(header_text)
 
