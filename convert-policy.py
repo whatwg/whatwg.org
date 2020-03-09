@@ -82,7 +82,7 @@ def markdown_title(policy_markdown):
 
             return (title, policy_markdown)
 
-    return ("Policies", policy_markdown)
+    assert False, "Markdown does not contain a line starting with # WHATWG "
 
 
 def main():
