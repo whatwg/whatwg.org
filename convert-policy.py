@@ -54,15 +54,10 @@ def rewrite_defs(policy_markdown):
     return re.sub(r'<a id=([^>]*)>[*][*]([^*]*)[*][*]</a>', '<dfn id=\\1>\\2</dfn>', policy_markdown)
 
 
-def avoid_link_false_positives(policy_markdown):
-    return re.sub(r'[]] [(]', '] \\(', policy_markdown)
-
-
 def preprocess_markdown(policy_markdown, mapping_pairs):
     result = lower_headers(policy_markdown)
     result = apply_link_mapping(result, mapping_pairs)
     result = rewrite_defs(result)
-    result = avoid_link_false_positives(result)
 
     return result
 
