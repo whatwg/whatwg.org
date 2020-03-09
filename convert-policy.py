@@ -1,7 +1,5 @@
 #!/usr/bin/env python
-# -*- coding: UTF-8 -*-
 
-import codecs
 import commonmark
 import re
 
@@ -26,6 +24,7 @@ def ascii_lower(str):
 
 
 def header_text_to_id(header_text):
+    header_text = header_text.replace("&quot;", "")
     punctuation_regexp = r'[^\w\- ]'
     header_id = ascii_lower(header_text)
     header_id = re.sub(punctuation_regexp, '', header_id)
@@ -63,8 +62,7 @@ def preprocess_markdown(policy_markdown, mapping_pairs):
 
 
 def postprocess_html(policy_html, template, title):
-    result = policy_html.replace("&quot;", "\"")
-    result = template.replace("@POLICY_GOES_HERE@", result)
+    result = template.replace("@POLICY_GOES_HERE@", policy_html)
     result = result.replace("@TITLE_GOES_HERE@", title)
     result = add_header_anchors(result)
 
@@ -83,13 +81,13 @@ def markdown_title(policy_markdown):
 
 
 def main():
-    link_mapping_pairs = parse_link_mapping(codecs.open("sg/policy-link-mapping.txt", "r", encoding="utf-8").read())
-    template = codecs.open("policy-template.html", "r", encoding="utf-8").read()
+    link_mapping_pairs = parse_link_mapping(open("sg/policy-link-mapping.txt", "r", encoding="utf-8").read())
+    template = open("policy-template.html", "r", encoding="utf-8").read()
     for resource, link in link_mapping_pairs:
         if link.startswith("https:"):
             continue
 
-        policy_markdown = codecs.open("sg" + resource[1:].replace("%20", " "), "r", encoding="utf-8").read()
+        policy_markdown = open("sg" + resource[1:].replace("%20", " "), "r", encoding="utf-8").read()
 
         (title, policy_markdown) = markdown_title(policy_markdown)
         preprocessed_policy_markdown = preprocess_markdown(policy_markdown, link_mapping_pairs)
@@ -98,6 +96,6 @@ def main():
 
         postprocessed_policy_html = postprocess_html(policy_html, template, title)
 
-        codecs.open("whatwg.org/" + link, "w", encoding="utf-8").write(postprocessed_policy_html)
+        open("whatwg.org/" + link, "w", encoding="utf-8").write(postprocessed_policy_html)
 
 main()
