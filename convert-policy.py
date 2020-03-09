@@ -6,10 +6,6 @@ import commonmark
 import re
 
 
-def lower_headers(policy_markdown):
-    return re.sub(r'^#', '##', policy_markdown, flags=re.MULTILINE)
-
-
 def parse_link_mapping(link_mapping):
     return [line.split('=',1) for line in link_mapping.split("\n") if len(line) > 0]
 
@@ -35,11 +31,11 @@ def header_text_to_id(header_text):
 
 
 def add_one_header_anchor(line):
-    search = re.search(r'<h([3-6])>(.+)</h([3-6])>', line)
+    search = re.search(r'<h([2-6])>(.+)</h([2-6])>', line)
     if not search:
         return line
 
-    header_level = search.group(1)
+    header_level = str(int(search.group(1)) + 1)
     header_text = search.group(2)
     header_id = header_text_to_id(header_text)
 
@@ -55,8 +51,7 @@ def rewrite_defs(policy_markdown):
 
 
 def preprocess_markdown(policy_markdown, mapping_pairs):
-    result = lower_headers(policy_markdown)
-    result = apply_link_mapping(result, mapping_pairs)
+    result = apply_link_mapping(policy_markdown, mapping_pairs)
     result = rewrite_defs(result)
 
     return result
@@ -88,9 +83,9 @@ def main():
         policy_html = commonmark.commonmark(preprocessed_policy_markdown)
         policy_html = policy_html.replace("&quot;", "\"")
 
-        final_policy_html = template.replace("@POLICY_GOES_HERE@", policy_html)
+        final_policy_html = add_header_anchors(policy_html)
+        final_policy_html = template.replace("@POLICY_GOES_HERE@", final_policy_html)
         final_policy_html = final_policy_html.replace("@TITLE_GOES_HERE@", title)
-        final_policy_html = add_header_anchors(final_policy_html)
 
         codecs.open("whatwg.org/" + link, "w", encoding="utf-8").write(final_policy_html)
 
