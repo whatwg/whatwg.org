@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: UTF-8 -*-
 
-import codecs
 import commonmark
 import re
 
@@ -22,6 +21,7 @@ def ascii_lower(str):
 
 
 def header_text_to_id(header_text):
+    header_text = header_text.replace("&quot;", "")
     punctuation_regexp = r'[^\w\- ]'
     header_id = ascii_lower(header_text)
     header_id = re.sub(punctuation_regexp, '', header_id)
@@ -69,24 +69,23 @@ def markdown_title(policy_markdown):
 
 
 def main():
-    link_mapping_pairs = parse_link_mapping(codecs.open("sg/policy-link-mapping.txt", "r", encoding="utf-8").read())
-    template = codecs.open("policy-template.html", "r", encoding="utf-8").read()
+    link_mapping_pairs = parse_link_mapping(open("sg/policy-link-mapping.txt", "r", encoding="utf-8").read())
+    template = open("policy-template.html", "r", encoding="utf-8").read()
     for resource, link in link_mapping_pairs:
         if link.startswith("https:"):
             continue
 
-        policy_markdown = codecs.open("sg" + resource[1:].replace("%20", " "), "r", encoding="utf-8").read()
+        policy_markdown = open("sg" + resource[1:].replace("%20", " "), "r", encoding="utf-8").read()
 
         (title, policy_markdown) = markdown_title(policy_markdown)
         preprocessed_policy_markdown = preprocess_markdown(policy_markdown, link_mapping_pairs)
 
         policy_html = commonmark.commonmark(preprocessed_policy_markdown)
-        policy_html = policy_html.replace("&quot;", "\"")
 
         final_policy_html = add_header_anchors(policy_html)
         final_policy_html = template.replace("@POLICY_GOES_HERE@", final_policy_html)
         final_policy_html = final_policy_html.replace("@TITLE_GOES_HERE@", title)
 
-        codecs.open("whatwg.org/" + link, "w", encoding="utf-8").write(final_policy_html)
+        open("whatwg.org/" + link, "w", encoding="utf-8").write(final_policy_html)
 
 main()
