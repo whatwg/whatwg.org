@@ -4,10 +4,6 @@ import commonmark
 import re
 
 
-def lower_headers(policy_markdown):
-    return re.sub(r'^#', '##', policy_markdown, flags=re.MULTILINE)
-
-
 def parse_link_mapping(link_mapping):
     return [line.split('=',1) for line in link_mapping.split("\n") if len(line) > 0]
 
@@ -33,20 +29,20 @@ def header_text_to_id(header_text):
     return header_id
 
 
-def add_one_header_anchor(line):
-    search = re.search(r'<h([3-6])>(.+)</h([3-6])>', line)
+def adjust_header(line):
+    search = re.search(r'<h([2-5])>(.+)</h([2-5])>', line)
     if not search:
         return line
 
-    header_level = search.group(1)
+    header_level = str(int(search.group(1) + 1))
     header_text = search.group(2)
     header_id = header_text_to_id(header_text)
 
     return '<h{0} id="{1}">{2}<a class="self-link" href="#{1}"></a></h{0}>'.format(header_level, header_id, header_text)
 
 
-def add_header_anchors(policy_markdown):
-    return str.join('\n', [add_one_header_anchor(line) for line in policy_markdown.split('\n')])
+def adjust_headers(policy_markdown):
+    return str.join('\n', [adjust_header(line) for line in policy_markdown.split('\n')])
 
 
 def rewrite_defs(policy_markdown):
@@ -54,17 +50,16 @@ def rewrite_defs(policy_markdown):
 
 
 def preprocess_markdown(policy_markdown, mapping_pairs):
-    result = lower_headers(policy_markdown)
-    result = apply_link_mapping(result, mapping_pairs)
+    result = apply_link_mapping(policy_markdown, mapping_pairs)
     result = rewrite_defs(result)
 
     return result
 
 
 def postprocess_html(policy_html, template, title):
-    result = template.replace("@POLICY_GOES_HERE@", policy_html)
+    result = adjust_headers(policy_html)
+    result = template.replace("@POLICY_GOES_HERE@", result)
     result = result.replace("@TITLE_GOES_HERE@", title)
-    result = add_header_anchors(result)
 
     return result
 
