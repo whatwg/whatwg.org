@@ -1,13 +1,7 @@
 #!/usr/bin/env python
 
-import codecs
-import markdown
-from mdx_partial_gfm import PartialGithubFlavoredMarkdownExtension
+import commonmark
 import re
-
-
-def lower_headers(policy_markdown):
-    return re.sub(r'^#', '##', policy_markdown, flags=re.MULTILINE)
 
 
 def parse_link_mapping(link_mapping):
@@ -26,6 +20,7 @@ def ascii_lower(str):
 
 
 def header_text_to_id(header_text):
+    header_text = header_text.replace("&quot;", "")
     punctuation_regexp = r'[^\w\- ]'
     header_id = ascii_lower(header_text)
     header_id = re.sub(punctuation_regexp, '', header_id)
@@ -34,42 +29,37 @@ def header_text_to_id(header_text):
     return header_id
 
 
-def add_one_header_anchor(line):
-    header_text = line.lstrip('#')
-    header_level = len(line) - len(header_text)
-
-    if header_level <= 2:
+def adjust_header(line):
+    search = re.search(r'<h([2-5])>(.+)</h([2-5])>', line)
+    if not search:
         return line
 
-    header_text = header_text.lstrip(' ')
+    header_level = str(int(search.group(1)) + 1)
+    header_text = search.group(2)
     header_id = header_text_to_id(header_text)
 
     return '<h{0} id="{1}">{2}<a class="self-link" href="#{1}"></a></h{0}>'.format(header_level, header_id, header_text)
 
 
-def add_header_anchors(policy_markdown):
-    return str.join('\n', [add_one_header_anchor(line) for line in policy_markdown.split('\n')])
+def adjust_headers(policy_markdown):
+    return str.join('\n', [adjust_header(line) for line in policy_markdown.split('\n')])
 
 
 def rewrite_defs(policy_markdown):
     return re.sub(r'<a id=([^>]*)>[*][*]([^*]*)[*][*]</a>', '<dfn id=\\1>\\2</dfn>', policy_markdown)
 
 
-def fix_nested_lists(policy_markdown):
-    return re.sub(r'^   1[.]', '    1.', policy_markdown, flags=re.MULTILINE)
-
-
-def avoid_link_false_positives(policy_markdown):
-    return re.sub(r'[]] [(]', '] \\(', policy_markdown)
-
-
 def preprocess_markdown(policy_markdown, mapping_pairs):
-    result = lower_headers(policy_markdown)
-    result = apply_link_mapping(result, mapping_pairs)
-    result = add_header_anchors(result)
+    result = apply_link_mapping(policy_markdown, mapping_pairs)
     result = rewrite_defs(result)
-    result = fix_nested_lists(result)
-    result = avoid_link_false_positives(result)
+
+    return result
+
+
+def postprocess_html(policy_html, template, title):
+    result = adjust_headers(policy_html)
+    result = template.replace("@POLICY_GOES_HERE@", result)
+    result = result.replace("@TITLE_GOES_HERE@", title)
 
     return result
 
@@ -86,22 +76,21 @@ def markdown_title(policy_markdown):
 
 
 def main():
-    link_mapping_pairs = parse_link_mapping(codecs.open("sg/policy-link-mapping.txt", "r", encoding="utf-8").read())
-    template = codecs.open("policy-template.html", "r", encoding="utf-8").read()
+    link_mapping_pairs = parse_link_mapping(open("sg/policy-link-mapping.txt", "r", encoding="utf-8").read())
+    template = open("policy-template.html", "r", encoding="utf-8").read()
     for resource, link in link_mapping_pairs:
         if link.startswith("https:"):
             continue
 
-        policy_markdown = codecs.open("sg" + resource[1:].replace("%20", " "), "r", encoding="utf-8").read()
+        policy_markdown = open("sg" + resource[1:].replace("%20", " "), "r", encoding="utf-8").read()
 
         (title, policy_markdown) = markdown_title(policy_markdown)
         preprocessed_policy_markdown = preprocess_markdown(policy_markdown, link_mapping_pairs)
 
-        policy_html = markdown.markdown(preprocessed_policy_markdown, extensions=[PartialGithubFlavoredMarkdownExtension()])
+        policy_html = commonmark.commonmark(preprocessed_policy_markdown)
 
-        final_policy_html = template.replace("@POLICY_GOES_HERE@", policy_html)
-        final_policy_html = final_policy_html.replace("@TITLE_GOES_HERE@", title)
+        postprocessed_policy_html = postprocess_html(policy_html, template, title)
 
-        codecs.open("whatwg.org/" + link, "w", encoding="utf-8").write(final_policy_html)
+        open("whatwg.org/" + link, "w", encoding="utf-8").write(postprocessed_policy_html)
 
 main()
