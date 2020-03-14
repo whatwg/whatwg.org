@@ -66,6 +66,7 @@ def postprocess_html(policy_html, template, title):
     result = result.replace("<p>EXAMPLE: ", "<p class=\"example\">")
     result = result.replace("<p>NOTE: ", "<p class=\"note\">")
     result = result.replace("<hr>\n<footer>", "<footer>")
+    result = result.replace("""<a href="https://creativecommons.org/licenses/by/4.0/">""", """<a rel="license" href="https://creativecommons.org/licenses/by/4.0/">""")
 
     return result
 
