@@ -61,7 +61,7 @@ def preprocess_markdown(policy_markdown, mapping_pairs):
 
 def postprocess_html(policy_html, template, title):
     result = adjust_headers(policy_html)
-    result = template.replace("@POLICY_GOES_HERE@", result)
+    result = template.replace("@CONTENT_GOES_HERE@", result)
     result = result.replace("@TITLE_GOES_HERE@", title)
     result = result.replace("<p>EXAMPLE: ", "<p class=\"example\">")
     result = result.replace("<p>NOTE: ", "<p class=\"note\">")
@@ -83,7 +83,7 @@ def markdown_title(policy_markdown):
 
 def main():
     link_mapping_pairs = parse_link_mapping(open("sg/policy-link-mapping.txt", "r", encoding="utf-8").read())
-    template = open("policy-template.html", "r", encoding="utf-8").read()
+    template = open("site-template.html", "r", encoding="utf-8").read()
     for resource, link in link_mapping_pairs:
         if link.startswith("https:"):
             continue
