@@ -108,6 +108,7 @@ curlbikeshed "$COMMIT_DIR/index.html" \
              -F md-warning="Commit $SHA $COMMIT_URL_BASE$SHA replaced by $LS_URL" \
              -F md-title="$H1 Standard (Commit Snapshot $SHA)" \
              -F md-Text-Macro="SNAPSHOT-LINK $BACK_TO_LS_LINK"
+sed -i -e "s#https://resources.whatwg.org/logo-$SHORTNAME.svg#https://resources.whatwg.org/logo-$SHORTNAME-snapshot.svg#g" "$COMMIT_DIR/index.html"
 copy_extra_files "$COMMIT_DIR"
 run_post_build_step "$COMMIT_DIR"
 echo "Commit snapshot output to $COMMIT_DIR"
