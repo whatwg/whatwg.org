@@ -36,7 +36,6 @@ echo ""
 echo "Running deploy for commit: $SHA"
 echo ""
 
-BACK_TO_LS_LINK="<a href=/ id=commit-snapshot-link>Go to the living standard</a>"
 SNAPSHOT_LINK="<a href=/commit-snapshots/$SHA/ id=commit-snapshot-link>Snapshot as of this commit</a>"
 
 rm -rf "$WEB_ROOT" || exit 0
@@ -106,8 +105,7 @@ mkdir -p "$COMMIT_DIR"
 curlbikeshed "$COMMIT_DIR/index.html" \
              -F md-status=LS-COMMIT \
              -F md-warning="Commit $SHA $COMMIT_URL_BASE$SHA replaced by $LS_URL" \
-             -F md-title="$H1 Standard (Commit Snapshot $SHA)" \
-             -F md-Text-Macro="SNAPSHOT-LINK $BACK_TO_LS_LINK"
+             -F md-Text-Macro="COMMIT-SHA $SHA"
 copy_extra_files "$COMMIT_DIR"
 run_post_build_step "$COMMIT_DIR"
 echo "Commit snapshot output to $COMMIT_DIR"
