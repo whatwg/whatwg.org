@@ -10,8 +10,6 @@ SHORTNAME=$(git config --local remote.origin.url | sed -n 's#.*/\([^.]*\)\.git#\
 INPUT_FILE=$(find . -maxdepth 1 -name "*.bs" -print -quit)
 H1=$(grep < "$INPUT_FILE" "^H1: .*$" | sed -e "s/H1: //")
 
-LS_URL="https://$SHORTNAME.spec.whatwg.org/"
-COMMIT_URL_BASE="https://github.com/whatwg/$SHORTNAME/commit/"
 WEB_ROOT="$SHORTNAME.spec.whatwg.org"
 COMMITS_DIR="commit-snapshots"
 REVIEW_DRAFTS_DIR="review-drafts"
@@ -102,7 +100,6 @@ COMMIT_DIR="$WEB_ROOT/$COMMITS_DIR/$SHA"
 mkdir -p "$COMMIT_DIR"
 curlbikeshed "$COMMIT_DIR/index.html" \
              -F md-status=LS-COMMIT \
-             -F md-warning="Commit $SHA $COMMIT_URL_BASE$SHA replaced by $LS_URL" \
              -F md-Text-Macro="COMMIT-SHA $SHA"
 copy_extra_files "$COMMIT_DIR"
 run_post_build_step "$COMMIT_DIR"
