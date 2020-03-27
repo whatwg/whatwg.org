@@ -36,8 +36,6 @@ echo ""
 echo "Running deploy for commit: $SHA"
 echo ""
 
-SNAPSHOT_LINK="<a href=/commit-snapshots/$SHA/ id=commit-snapshot-link>Snapshot as of this commit</a>"
-
 rm -rf "$WEB_ROOT" || exit 0
 
 copy_extra_files() {
@@ -113,7 +111,7 @@ echo ""
 
 header "Starting living standard..."
 curlbikeshed "$WEB_ROOT/index.html" \
-             -F md-Text-Macro="SNAPSHOT-LINK $SNAPSHOT_LINK"
+             -F md-Text-Macro="COMMIT-SHA $SHA"
 copy_extra_files "$WEB_ROOT"
 run_post_build_step "$WEB_ROOT"
 echo "Living standard output to $WEB_ROOT"
