@@ -10,8 +10,6 @@ SHORTNAME=$(git config --local remote.origin.url | sed -n 's#.*/\([^.]*\)\.git#\
 INPUT_FILE=$(find . -maxdepth 1 -name "*.bs" -print -quit)
 H1=$(grep < "$INPUT_FILE" "^H1: .*$" | sed -e "s/H1: //")
 
-LS_URL="https://$SHORTNAME.spec.whatwg.org/"
-COMMIT_URL_BASE="https://github.com/whatwg/$SHORTNAME/commit/"
 WEB_ROOT="$SHORTNAME.spec.whatwg.org"
 COMMITS_DIR="commit-snapshots"
 REVIEW_DRAFTS_DIR="review-drafts"
@@ -35,9 +33,6 @@ SHA=$(git rev-parse HEAD)
 echo ""
 echo "Running deploy for commit: $SHA"
 echo ""
-
-BACK_TO_LS_LINK="<a href=/ id=commit-snapshot-link>Go to the living standard</a>"
-SNAPSHOT_LINK="<a href=/commit-snapshots/$SHA/ id=commit-snapshot-link>Snapshot as of this commit</a>"
 
 rm -rf "$WEB_ROOT" || exit 0
 
@@ -105,9 +100,7 @@ COMMIT_DIR="$WEB_ROOT/$COMMITS_DIR/$SHA"
 mkdir -p "$COMMIT_DIR"
 curlbikeshed "$COMMIT_DIR/index.html" \
              -F md-status=LS-COMMIT \
-             -F md-warning="Commit $SHA $COMMIT_URL_BASE$SHA replaced by $LS_URL" \
-             -F md-title="$H1 Standard (Commit Snapshot $SHA)" \
-             -F md-Text-Macro="SNAPSHOT-LINK $BACK_TO_LS_LINK"
+             -F md-Text-Macro="COMMIT-SHA $SHA"
 copy_extra_files "$COMMIT_DIR"
 run_post_build_step "$COMMIT_DIR"
 echo "Commit snapshot output to $COMMIT_DIR"
@@ -115,7 +108,7 @@ echo ""
 
 header "Starting living standard..."
 curlbikeshed "$WEB_ROOT/index.html" \
-             -F md-Text-Macro="SNAPSHOT-LINK $SNAPSHOT_LINK"
+             -F md-Text-Macro="COMMIT-SHA $SHA"
 copy_extra_files "$WEB_ROOT"
 run_post_build_step "$WEB_ROOT"
 echo "Living standard output to $WEB_ROOT"
