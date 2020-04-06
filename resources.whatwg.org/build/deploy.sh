@@ -8,7 +8,6 @@ set -o nounset
 
 SHORTNAME=$(git config --local remote.origin.url | sed -n 's#.*/\([^.]*\)\.git#\1#p')
 INPUT_FILE=$(find . -maxdepth 1 -name "*.bs" -print -quit)
-H1=$(grep < "$INPUT_FILE" "^H1: .*$" | sed -e "s/H1: //")
 
 WEB_ROOT="$SHORTNAME.spec.whatwg.org"
 COMMITS_DIR="commit-snapshots"
