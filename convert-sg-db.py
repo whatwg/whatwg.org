@@ -111,7 +111,7 @@ def main():
  <p><small>Copyright © {} WHATWG (Apple, Google, Mozilla, Microsoft). This work is licensed under a <a rel="license" href="https://creativecommons.org/licenses/by/4.0/">Creative Commons Attribution 4.0 International License</a>.</small></p>
 </footer>""".format(str(date.today().year))
     template = template.replace("@CONTENT_GOES_HERE@", "@CONTENT_GOES_HERE@" + copyright)
-    db = json.load(open("sg/db.json", "r"))
+    db = json.load(open("sg/db.json", "r", encoding="utf-8"))
 
     for filename, content in [
       ("resources.whatwg.org/biblio.json", create_biblio(db)),
@@ -119,6 +119,6 @@ def main():
       ("idea.whatwg.org/index.html", create_idea_whatwg_org(db, template)),
       ("whatwg.org/workstreams", create_workstreams(db, template))
     ]:
-        open(filename, "w").write(content)
+        open(filename, "w", encoding="utf-8").write(content)
 
 main()
