@@ -78,22 +78,25 @@ def create_workstreams(db, template):
 
 <p>Note that per the <a href="/workstream-policy">Workstream Policy</a>, the official <a href="/workstream-policy#editor">Editors</a> listed here may have delegated responsibilities and editing duties to deputy editors for any given <a href="/workstream-policy#living-standard">Living Standard</a>. As such, the <a href="/workstream-policy#editor">Editor</a> position listed here is more about "who is the official liaison with the <a href="/sg-agreement#steering-group">Steering Group</a>" and less about "who is editing the document". To get an accounting of who is primarily responsible for day-to-day specification work, you'll be better served by checking the Acknowledgments section of the <a href="/workstream-policy#living-standard">Living Standard</a> in question.</p>
 
-<dl>"""
+"""
     for workstream in db["workstreams"]:
-        content += "\n <dt>{}</dt>".format(workstream["name"])
-        content += "\n <dd>"
-        content += "\n  <dl>"
-        content += "\n   <dt>Scope</dt>"
-        content += "\n   <dd>{}</dd>".format(commonmark.commonmark(workstream["scope"])[3:-5]) # Strip leading <p> and trailing </p>\n
-        content += "\n   <dt>Editor{}</dt>".format("" if len(workstream["editors"]) == 1 else "s")
+        content += "\n<h3>{}</h3>".format(workstream["name"])
+        content += """\n<dl class="compact">"""
+        content += "\n <div>"
+        content += "\n  <dt>Scope</dt>"
+        content += "\n  <dd>{}</dd>".format(commonmark.commonmark(workstream["scope"])[3:-5]) # Strip leading <p> and trailing </p>\n
+        content += "\n </div>"
+        content += "\n <div>"
+        content += "\n  <dt>Editor{}</dt>".format("" if len(workstream["editors"]) == 1 else "s")
         for editor in workstream["editors"]:
-            content += """\n   <dd>{0}, <a href="mailto:{1}">{1}</a></dd>""".format(editor["name"], editor["email"])
-        content += "\n   <dt>Standard{}</dt>".format("" if len(workstream["standards"]) == 1 else "s")
+            content += """\n  <dd>{0}, <a href="mailto:{1}">{1}</a></dd>""".format(editor["name"], editor["email"])
+        content += "\n </div>"
+        content += "\n <div>"
+        content += "\n  <dt>Standard{}</dt>".format("" if len(workstream["standards"]) == 1 else "s")
         for standard in workstream["standards"]:
-            content += """\n   <dd><a href="{0}">{1}</a></dd>""".format(standard["href"], standard["name"])
-        content += "\n  </dl>"
-        content += "\n </dd>\n"
-    content += "</dl>\n\n"
+            content += """\n  <dd><a href="{0}">{1}</a></dd>""".format(standard["href"], standard["name"])
+        content += "\n </div>"
+        content += "\n</dl>"
 
     return wrap_in_site_template(template, "Workstreams", content)
 
