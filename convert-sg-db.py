@@ -59,15 +59,6 @@ def create_spec_whatwg_org(db, template):
     template = template.replace("<a href=\"https://spec.whatwg.org/\">Standards</a>", "<a>Standards</a>")
     return wrap_in_site_template(template, "Standards", content)
 
-def standard_or_idea_to_html(document):
-    output = "\n <dt><a href=\"{0}\">{1}</a></dt>".format(document["href"], document["name"])
-    return output + "\n <dd>{}</dd>\n".format(commonmark.commonmark(document["description"])[:-1]) # Strip trailing \n
-
-def wrap_in_site_template(template, title, content):
-    output = template.replace("@TITLE_GOES_HERE@", title)
-    return output.replace("@CONTENT_GOES_HERE@", content)
-
-
 def create_idea_whatwg_org(db, template):
     content = "<p>The WHATWG works on a number of ideas that aspire to become web platform standards.</p>\n\n"
     content += "<dl>"
@@ -76,6 +67,10 @@ def create_idea_whatwg_org(db, template):
     content += "</dl>\n\n"
 
     return wrap_in_site_template(template, "Ideas", content)
+
+def standard_or_idea_to_html(document):
+    output = "\n <dt><a href=\"{0}\">{1}</a></dt>".format(document["href"], document["name"])
+    return output + "\n <dd>{}</dd>\n".format(commonmark.commonmark(document["description"])[:-1]) # Strip trailing \n
 
 
 def create_workstreams(db, template):
@@ -102,6 +97,10 @@ def create_workstreams(db, template):
 
     return wrap_in_site_template(template, "Workstreams", content)
 
+
+def wrap_in_site_template(template, title, content):
+    output = template.replace("@TITLE_GOES_HERE@", title)
+    return output.replace("@CONTENT_GOES_HERE@", content)
 
 def main():
     template = open("site-template.html", "r", encoding="utf-8").read()
