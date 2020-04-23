@@ -10,7 +10,7 @@
 
 */
 
-const cacheKeyToUse = "v2_" + (self.cacheKey || "v0");
+const cacheKeyToUse = "v3_" + (self.cacheKey || "v0");
 const everythingToCache = [
   "/",
   "https://whatwg.org/style/shared.css",
