@@ -3,6 +3,7 @@
 import json
 import commonmark
 from datetime import date
+from convert_policy import obtain_link_mapping, preprocess_markdown
 
 
 def create_biblio(db):
@@ -74,11 +75,9 @@ def standard_or_idea_to_html(document):
 
 
 def create_workstreams(db, template):
-    content = """<p>This document contains an official <a href="/sg-agreement#steering-group">Steering Group</a>-maintained accounting of the WHATWG workstreams, their responsible editors, and their associated standards.</p>
-
-<p>Note that per the <a href="/workstream-policy">Workstream Policy</a>, the official <a href="/workstream-policy#editor">Editors</a> listed here may have delegated responsibilities and editing duties to deputy editors for any given <a href="/workstream-policy#living-standard">Living Standard</a>. As such, the <a href="/workstream-policy#editor">Editor</a> position listed here is more about "who is the official liaison with the <a href="/sg-agreement#steering-group">Steering Group</a>" and less about "who is editing the document". To get an accounting of who is primarily responsible for day-to-day specification work, you'll be better served by checking the Acknowledgments section of the <a href="/workstream-policy#living-standard">Living Standard</a> in question.</p>
-
-"""
+    introduction = open("sg/Workstreams Introduction.md", "r", encoding="utf-8").read()
+    introduction = introduction.replace("<!-- This ends up being included at https://whatwg.org/workstreams -->\n", "")
+    content = commonmark.commonmark(preprocess_markdown(introduction, obtain_link_mapping()))
     for workstream in db["workstreams"]:
         content += "\n<h3>{}</h3>".format(workstream["name"])
         content += """\n<dl class="compact">"""
