@@ -1,9 +1,8 @@
 #!/usr/bin/env python
 
 import json
-import commonmark
 from datetime import date
-from convert_policy import obtain_link_mapping, preprocess_markdown
+from convert_policy import markdown, obtain_link_mapping
 
 
 def create_biblio(db):
@@ -71,19 +70,19 @@ def create_idea_whatwg_org(db, template):
 
 def standard_or_idea_to_html(document):
     output = "\n <dt><a href=\"{0}\">{1}</a></dt>".format(document["href"], document["name"])
-    return output + "\n <dd>{}</dd>\n".format(commonmark.commonmark(document["description"])[:-1]) # Strip trailing \n
+    return output + "\n <dd>{}</dd>\n".format(markdown(document["description"])[:-1]) # Strip trailing \n
 
 
 def create_workstreams(db, template):
     introduction = open("sg/Workstreams Introduction.md", "r", encoding="utf-8").read()
     introduction = introduction.replace("<!-- This ends up being included at https://whatwg.org/workstreams -->\n", "")
-    content = commonmark.commonmark(preprocess_markdown(introduction, obtain_link_mapping()))
+    content = markdown(introduction, obtain_link_mapping())
     for workstream in db["workstreams"]:
         content += "\n<h3>{}</h3>".format(workstream["name"])
         content += """\n<dl class="compact">"""
         content += "\n <div>"
         content += "\n  <dt>Scope</dt>"
-        content += "\n  <dd>{}</dd>".format(commonmark.commonmark(workstream["scope"])[3:-5]) # Strip leading <p> and trailing </p>\n
+        content += "\n  <dd>{}</dd>".format(markdown(workstream["scope"])[3:-5]) # Strip leading <p> and trailing </p>\n
         content += "\n </div>"
         content += "\n <div>"
         content += "\n  <dt>Editor{}</dt>".format("" if len(workstream["editors"]) == 1 else "s")

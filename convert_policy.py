@@ -53,9 +53,10 @@ def rewrite_defs(policy_markdown):
     return re.sub(r'<a id=([^>]*)>[*][*]([^*]*)[*][*]</a>', '<dfn id=\\1>\\2</dfn>', policy_markdown)
 
 
-def preprocess_markdown(policy_markdown, mapping_pairs):
+def markdown(policy_markdown, mapping_pairs = []):
     result = apply_link_mapping(policy_markdown, mapping_pairs)
     result = rewrite_defs(result)
+    result = commonmark.commonmark(result)
 
     return result
 
@@ -93,9 +94,8 @@ def main():
         policy_markdown = open("sg" + resource[1:].replace("%20", " "), "r", encoding="utf-8").read()
 
         (title, policy_markdown) = markdown_title(policy_markdown)
-        preprocessed_policy_markdown = preprocess_markdown(policy_markdown, link_mapping_pairs)
 
-        policy_html = commonmark.commonmark(preprocessed_policy_markdown)
+        policy_html = markdown(policy_markdown, link_mapping_pairs)
 
         postprocessed_policy_html = postprocess_html(policy_html, template, title)
 
