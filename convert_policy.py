@@ -4,7 +4,8 @@ import commonmark
 import re
 
 
-def parse_link_mapping(link_mapping):
+def obtain_link_mapping():
+    link_mapping = open("sg/policy-link-mapping.txt", "r", encoding="utf-8").read()
     return [line.split('=',1) for line in link_mapping.split("\n") if len(line) > 0]
 
 
@@ -83,7 +84,7 @@ def markdown_title(policy_markdown):
 
 
 def main():
-    link_mapping_pairs = parse_link_mapping(open("sg/policy-link-mapping.txt", "r", encoding="utf-8").read())
+    link_mapping_pairs = obtain_link_mapping()
     template = open("site-template.html", "r", encoding="utf-8").read()
     for resource, link in link_mapping_pairs:
         if link.startswith("https:"):
