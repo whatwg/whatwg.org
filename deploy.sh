@@ -69,5 +69,6 @@ else
     eval "$(ssh-agent -s)"
     echo "$SERVER_DEPLOY_KEY" | ssh-add -
     mkdir -p ~/.ssh/ && echo "$SERVER $SERVER_PUBLIC_KEY" > ~/.ssh/known_hosts
-    rsync --archive --chmod="D755,F644" --compress --delete --verbose ./whatwg.org ./*.whatwg.org "deploy@$SERVER:/var/www/"
+    rsync --verbose --archive --chmod=D755,F644 --compress --delete \
+          ./whatwg.org ./*.whatwg.org "deploy@$SERVER:/var/www/"
 fi
