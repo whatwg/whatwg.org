@@ -42,18 +42,13 @@ copy_logo "samsung-internet/samsung-internet.svg" "samsung.svg"
 copy_logo "uc/uc_32x32.png" "uc.png"
 echo ""
 
-# Run the HTML checker only when building on Travis
-if [[ "$TRAVIS" == "true" ]]; then
+# Run the HTML checker only when building on CI
+if [[ "$GITHUB_ACTIONS" == "true" ]]; then
     header "Running the HTML checker..."
 
-    # Check the targets given explicitly here, plus most of the extensionless files directly inside
-    # whatwg.org/. This uses https://stackoverflow.com/a/23357277/3191 to get the results of the
-    # find command into an array. TODO: if Travis CI ever gets Bash 4.4, we can use the simpler
-    # version at https://stackoverflow.com/a/54561526/3191.
-    TARGETS=(whatwg.org/news whatwg.org/validator whatwg.org/index.html idea.whatwg.org/index.html spec.whatwg.org/index.html)
-    while IFS=  read -r -d $'\0'; do
-        TARGETS+=("$REPLY")
-    done < <(find whatwg.org -maxdepth 1 -type f ! -name "*.*" ! -name "status-2008-12" -print0)
+    # Check most of the extensionless files in whatwg.org/, plus targets explicitly listed.
+    readarray -d '' TARGETS < <(find whatwg.org -maxdepth 1 -type f ! -name "*.*" ! -name "status-2008-12" -print0)
+    TARGETS+=(whatwg.org/news whatwg.org/validator whatwg.org/index.html idea.whatwg.org/index.html spec.whatwg.org/index.html)
 
     curl --retry 2 --fail --remote-name --location https://github.com/validator/validator/releases/download/linux/vnu.linux.zip
     unzip -qq vnu.linux.zip
@@ -62,13 +57,13 @@ if [[ "$TRAVIS" == "true" ]]; then
 fi
 
 # This ensures that only changes to the master branch get deployed
-if [[ "$GITHUB_REF" != "refs/heads/master" ]]; then
-    header "Skipping deploy"
-else
+if [[ "$GITHUB_EVENT_NAME" == "push" && "$GITHUB_REF" == "refs/heads/master" ]]; then
     header "Synchronizing content with whatwg.org et al"
     eval "$(ssh-agent -s)"
     echo "$SERVER_DEPLOY_KEY" | ssh-add -
     mkdir -p ~/.ssh/ && echo "$SERVER $SERVER_PUBLIC_KEY" > ~/.ssh/known_hosts
     rsync --verbose --archive --chmod=D755,F644 --compress --delete \
           ./whatwg.org ./*.whatwg.org "deploy@$SERVER:/var/www/"
+else
+    header "Skipping deploy"
 fi
