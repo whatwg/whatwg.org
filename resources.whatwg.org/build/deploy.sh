@@ -14,16 +14,21 @@ COMMITS_DIR="commit-snapshots"
 REVIEW_DRAFTS_DIR="review-drafts"
 
 # Optional environment variables (won't be set for local deploys)
+GITHUB_ACTIONS=${GITHUB_ACTIONS:-false}
+GITHUB_EVENT_NAME=${GITHUB_EVENT_NAME:-}
+GITHUB_REF=${GITHUB_REF:-}
 TRAVIS=${TRAVIS:-false}
 TRAVIS_BRANCH=${TRAVIS_BRANCH:-}
 TRAVIS_PULL_REQUEST=${TRAVIS_PULL_REQUEST:-false}
 ENCRYPTION_LABEL=${ENCRYPTION_LABEL:-}
-SERVER="165.227.248.76"
-SERVER_PUBLIC_KEY="ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBDt6Igtp73aTOYXuFb8qLtgs80wWF6cNi3/AItpWAMpX3PymUw7stU7Pi+IoBJz21nfgmxaKp3gfSe2DPNt06l8="
+# TODO: Remove the default server info when everything is on GitHub Actions.
+SERVER=${SERVER:-"165.227.248.76"}
+SERVER_PUBLIC_KEY=${SERVER_PUBLIC_KEY:-"ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBDt6Igtp73aTOYXuFb8qLtgs80wWF6cNi3/AItpWAMpX3PymUw7stU7Pi+IoBJz21nfgmxaKp3gfSe2DPNt06l8="}
+SERVER_DEPLOY_KEY=${SERVER_DEPLOY_KEY:-}
 EXTRA_FILES=${EXTRA_FILES:-}
 POST_BUILD_STEP=${POST_BUILD_STEP:-}
 
-if [[ "$TRAVIS" != "true" ]]; then
+if [[ "$GITHUB_ACTIONS" != "true" && "$TRAVIS" != "true" ]]; then
     echo "Running a local deploy into $WEB_ROOT directory"
 fi
 
@@ -167,8 +172,8 @@ header "Overview of generated files:"
 find "$WEB_ROOT" -type f -print
 echo ""
 
-# Run the HTML checker only when building on Travis
-if [[ "$TRAVIS" == "true" ]]; then
+# Run the HTML checker only in CI
+if [[ "$GITHUB_ACTIONS" == "true" || "$TRAVIS" == "true" ]]; then
     header "Running the HTML checker..."
     curlretry --fail --remote-name --location https://github.com/validator/validator/releases/download/linux/vnu.linux.zip
     unzip -q vnu.linux.zip
@@ -180,8 +185,18 @@ if [[ "$TRAVIS" == "true" ]]; then
     echo ""
 fi
 
-# Deploy from Travis on push to master branch only
-if [[ "$TRAVIS_BRANCH" == "master" && "$TRAVIS_PULL_REQUEST" == "false" ]]; then
+# Deploy from push to master branch only
+if [[ "$GITHUB_EVENT_NAME" == "push" && "$GITHUB_REF" == "refs/heads/master" ]]; then
+    header "rsync to the WHATWG server..."
+    eval "$(ssh-agent -s)"
+    echo "$SERVER_DEPLOY_KEY" | ssh-add -
+    mkdir -p ~/.ssh/ && echo "$SERVER $SERVER_PUBLIC_KEY" > ~/.ssh/known_hosts
+    # No --delete as that would require extra care to not delete snapshots.
+    # --chmod=D755,F644 means read-write for user, read-only for others.
+    rsync --verbose --archive --chmod=D755,F644 --compress \
+          "$WEB_ROOT" "deploy@$SERVER:/var/www/"
+    echo ""
+elif [[ "$TRAVIS_BRANCH" == "master" && "$TRAVIS_PULL_REQUEST" == "false" ]]; then
     header "rsync to the WHATWG server..."
     # Get the deploy key by using Travis's stored variables to decrypt deploy_key.enc
     ENCRYPTED_KEY_VAR="encrypted_${ENCRYPTION_LABEL}_key"
@@ -197,6 +212,6 @@ if [[ "$TRAVIS_BRANCH" == "master" && "$TRAVIS_PULL_REQUEST" == "false" ]]; then
     # --chmod=D755,F644 means read-write for user, read-only for others.
     rsync --rsh="ssh -o UserKnownHostsFile=known_hosts" --verbose \
           --archive --chmod=D755,F644 --compress \
-          "$WEB_ROOT" deploy@$SERVER:/var/www/
+          "$WEB_ROOT" "deploy@$SERVER:/var/www/"
     echo ""
 fi
