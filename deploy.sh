@@ -62,23 +62,13 @@ if [[ "$TRAVIS" == "true" ]]; then
 fi
 
 # This ensures that only changes to the master branch get deployed
-if [[ "$TRAVIS_BRANCH" != "master" || "$TRAVIS_PULL_REQUEST" != "false" ]]; then
+if [[ "$GITHUB_REF" != "refs/heads/master" ]]; then
     header "Skipping deploy"
 else
     header "Synchronizing content with whatwg.org et al"
-    ENCRYPTED_KEY_VAR="encrypted_${ENCRYPTION_LABEL}_key"
-    ENCRYPTED_IV_VAR="encrypted_${ENCRYPTION_LABEL}_iv"
-    ENCRYPTED_KEY=${!ENCRYPTED_KEY_VAR}
-    ENCRYPTED_IV=${!ENCRYPTED_IV_VAR}
-    openssl aes-256-cbc -K "$ENCRYPTED_KEY" -iv "$ENCRYPTED_IV" -in deploy_key.enc -out deploy_key -d
-    chmod 600 deploy_key
     eval "$(ssh-agent -s)"
-    ssh-add deploy_key
-    echo "$SERVER $SERVER_PUBLIC_KEY" > known_hosts
-    # --verbose isn't used because there are too many files to list them all
-    # without exceeding log size limits:
-    # https://github.com/whatwg/whatwg.org/issues/287
-    rsync --archive --chmod="D755,F644" --compress --delete --stats --log-file="rsync-log.txt" --rsh="ssh -o UserKnownHostsFile=known_hosts" ./whatwg.org ./*.whatwg.org "deploy@$SERVER:/var/www/"
-    scp -o="UserKnownHostsFile=known_hosts" rsync-log.txt "deploy@$SERVER:/var/www/whatwg.org/"
-    echo "Full rsync log at https://whatwg.org/rsync-log.txt"
+    echo "$SERVER_DEPLOY_KEY" | ssh-add -
+    mkdir -p ~/.ssh/ && echo "$SERVER $SERVER_PUBLIC_KEY" > ~/.ssh/known_hosts
+    rsync --verbose --archive --chmod=D755,F644 --compress --delete \
+          ./whatwg.org ./*.whatwg.org "deploy@$SERVER:/var/www/"
 fi
