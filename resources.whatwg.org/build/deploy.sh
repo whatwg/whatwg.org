@@ -6,7 +6,7 @@ set -o nounset
 # https://github.com/whatwg/whatwg.org/tree/master/resources.whatwg.org/build.
 # See README.md for documentation.
 
-SHORTNAME=$(git config --local remote.origin.url | sed -n 's#.*/\([^.]*\)\.git#\1#p')
+SHORTNAME=$(git config --local remote.origin.url | sed -n 's#.*/\([^.]*\)\(\.git\)\?#\1#p')
 INPUT_FILE=$(find . -maxdepth 1 -name "*.bs" -print -quit)
 
 WEB_ROOT="$SHORTNAME.spec.whatwg.org"
