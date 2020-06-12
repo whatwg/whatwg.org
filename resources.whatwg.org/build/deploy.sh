@@ -6,6 +6,8 @@ set -o nounset
 # https://github.com/whatwg/whatwg.org/tree/master/resources.whatwg.org/build.
 # See README.md for documentation.
 
+# This extracts the repository name from the remote URL, as the component after the final slash,
+# stripping any trailing .git, to be robust against various remote URLs locally and in CI.
 SHORTNAME=$(git config --local remote.origin.url | sed -n 's#.*/\([^.]*\)\(\.git\)\?#\1#p')
 INPUT_FILE=$(find . -maxdepth 1 -name "*.bs" -print -quit)
 
