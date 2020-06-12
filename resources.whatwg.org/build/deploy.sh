@@ -6,10 +6,6 @@ set -o nounset
 # https://github.com/whatwg/whatwg.org/tree/master/resources.whatwg.org/build.
 # See README.md for documentation.
 
-SHORTNAME=$(git config --local remote.origin.url | sed -n 's#.*/\([^.]*\)\(\.git\)\?#\1#p')
-INPUT_FILE=$(find . -maxdepth 1 -name "*.bs" -print -quit)
-
-WEB_ROOT="$SHORTNAME.spec.whatwg.org"
 COMMITS_DIR="commit-snapshots"
 REVIEW_DRAFTS_DIR="review-drafts"
 
@@ -27,6 +23,16 @@ SERVER_PUBLIC_KEY=${SERVER_PUBLIC_KEY:-"ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTIt
 SERVER_DEPLOY_KEY=${SERVER_DEPLOY_KEY:-}
 EXTRA_FILES=${EXTRA_FILES:-}
 POST_BUILD_STEP=${POST_BUILD_STEP:-}
+
+INPUT_FILE=$(find . -maxdepth 1 -name "*.bs" -print -quit)
+
+if [[ "$GITHUB_ACTIONS" == "true" ]]; then
+    SHORTNAME=$(echo "$GITHUB_REPOSITORY" | cut -d/ -f2)
+else
+    SHORTNAME=$(git config --local remote.origin.url | sed -n 's#.*/\([^.]*\)\(\.git\)\?#\1#p')
+fi
+
+WEB_ROOT="$SHORTNAME.spec.whatwg.org"
 
 if [[ "$GITHUB_ACTIONS" != "true" && "$TRAVIS" != "true" ]]; then
     echo "Running a local deploy into $WEB_ROOT directory"
