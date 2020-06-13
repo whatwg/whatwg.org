@@ -195,7 +195,6 @@ if [[ "$GITHUB_EVENT_NAME" == "push" && "$GITHUB_REF" == "refs/heads/master" ]];
     # --chmod=D755,F644 means read-write for user, read-only for others.
     rsync --verbose --archive --chmod=D755,F644 --compress \
           "$WEB_ROOT" "deploy@$SERVER:/var/www/"
-    echo ""
 elif [[ "$TRAVIS_BRANCH" == "master" && "$TRAVIS_PULL_REQUEST" == "false" ]]; then
     header "rsync to the WHATWG server..."
     # Get the deploy key by using Travis's stored variables to decrypt deploy_key.enc
@@ -213,5 +212,6 @@ elif [[ "$TRAVIS_BRANCH" == "master" && "$TRAVIS_PULL_REQUEST" == "false" ]]; th
     rsync --rsh="ssh -o UserKnownHostsFile=known_hosts" --verbose \
           --archive --chmod=D755,F644 --compress \
           "$WEB_ROOT" "deploy@$SERVER:/var/www/"
-    echo ""
+else
+    header "Skipping deploy"
 fi
