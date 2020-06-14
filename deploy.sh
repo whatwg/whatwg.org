@@ -27,7 +27,7 @@ copy_logo() {
     echo "  $source_file => $target_file"
     cp "$source_file" "$target_file"
 }
-copy_logo "android-webview-beta/android-webview-beta_32x32.png" "android-webview.png"
+copy_logo "android-webview/android-webview_32x32.png" "android-webview.png"
 copy_logo "chrome/chrome.svg" "chrome.svg"
 copy_logo "edge/edge.svg" "edge.svg"
 copy_logo "edge_12-18/edge_12-18.svg" "edge_legacy.svg"
