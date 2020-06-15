@@ -19,18 +19,13 @@ REVIEW_DRAFTS_DIR="review-drafts"
 GITHUB_ACTIONS=${GITHUB_ACTIONS:-false}
 GITHUB_EVENT_NAME=${GITHUB_EVENT_NAME:-}
 GITHUB_REF=${GITHUB_REF:-}
-TRAVIS=${TRAVIS:-false}
-TRAVIS_BRANCH=${TRAVIS_BRANCH:-}
-TRAVIS_PULL_REQUEST=${TRAVIS_PULL_REQUEST:-false}
-ENCRYPTION_LABEL=${ENCRYPTION_LABEL:-}
-# TODO: Remove the default server info when everything is on GitHub Actions.
-SERVER=${SERVER:-"165.227.248.76"}
-SERVER_PUBLIC_KEY=${SERVER_PUBLIC_KEY:-"ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBDt6Igtp73aTOYXuFb8qLtgs80wWF6cNi3/AItpWAMpX3PymUw7stU7Pi+IoBJz21nfgmxaKp3gfSe2DPNt06l8="}
+SERVER=${SERVER:-}
+SERVER_PUBLIC_KEY=${SERVER_PUBLIC_KEY:-}
 SERVER_DEPLOY_KEY=${SERVER_DEPLOY_KEY:-}
 EXTRA_FILES=${EXTRA_FILES:-}
 POST_BUILD_STEP=${POST_BUILD_STEP:-}
 
-if [[ "$GITHUB_ACTIONS" != "true" && "$TRAVIS" != "true" ]]; then
+if [[ "$GITHUB_ACTIONS" != "true" ]]; then
     echo "Running a local deploy into $WEB_ROOT directory"
 fi
 
@@ -122,11 +117,7 @@ echo ""
 
 header "Starting review drafts (if applicable)..."
 echo "Note: review drafts must be added or changed in a single commit on master"
-if [[ "$TRAVIS_PULL_REQUEST" == "true" ]]; then
-    CHANGED_FILES=$(git diff --name-only master..HEAD)
-else
-    CHANGED_FILES=$(git diff --name-only HEAD^ HEAD)
-fi
+CHANGED_FILES=$(git diff --name-only HEAD^ HEAD)
 for CHANGED in $CHANGED_FILES; do # Omit quotes around variable to split on whitespace
     if ! [[ "$CHANGED" =~ ^review-drafts/.*.bs$ ]]; then
         continue
@@ -175,7 +166,7 @@ find "$WEB_ROOT" -type f -print
 echo ""
 
 # Run the HTML checker only in CI
-if [[ "$GITHUB_ACTIONS" == "true" || "$TRAVIS" == "true" ]]; then
+if [[ "$GITHUB_ACTIONS" == "true" ]]; then
     header "Running the HTML checker..."
     curlretry --fail --remote-name --location https://github.com/validator/validator/releases/download/linux/vnu.linux.zip
     unzip -q vnu.linux.zip
@@ -196,23 +187,6 @@ if [[ "$GITHUB_EVENT_NAME" == "push" && "$GITHUB_REF" == "refs/heads/master" ]];
     # No --delete as that would require extra care to not delete snapshots.
     # --chmod=D755,F644 means read-write for user, read-only for others.
     rsync --verbose --archive --chmod=D755,F644 --compress \
-          "$WEB_ROOT" "deploy@$SERVER:/var/www/"
-elif [[ "$TRAVIS_BRANCH" == "master" && "$TRAVIS_PULL_REQUEST" == "false" ]]; then
-    header "rsync to the WHATWG server..."
-    # Get the deploy key by using Travis's stored variables to decrypt deploy_key.enc
-    ENCRYPTED_KEY_VAR="encrypted_${ENCRYPTION_LABEL}_key"
-    ENCRYPTED_IV_VAR="encrypted_${ENCRYPTION_LABEL}_iv"
-    ENCRYPTED_KEY=${!ENCRYPTED_KEY_VAR}
-    ENCRYPTED_IV=${!ENCRYPTED_IV_VAR}
-    openssl aes-256-cbc -K "$ENCRYPTED_KEY" -iv "$ENCRYPTED_IV" -in deploy_key.enc -out deploy_key -d
-    chmod 600 deploy_key
-    eval "$(ssh-agent -s)"
-    ssh-add deploy_key
-    echo "$SERVER $SERVER_PUBLIC_KEY" > known_hosts
-    # No --delete as that would require extra care to not delete snapshots.
-    # --chmod=D755,F644 means read-write for user, read-only for others.
-    rsync --rsh="ssh -o UserKnownHostsFile=known_hosts" --verbose \
-          --archive --chmod=D755,F644 --compress \
           "$WEB_ROOT" "deploy@$SERVER:/var/www/"
 else
     header "Skipping deploy"
