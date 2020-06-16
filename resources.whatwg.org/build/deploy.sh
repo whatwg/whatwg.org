@@ -178,8 +178,8 @@ if [[ "$GITHUB_ACTIONS" == "true" ]]; then
     echo ""
 fi
 
-# Deploy from push to master branch only
-if [[ "$GITHUB_EVENT_NAME" == "push" && "$GITHUB_REF" == "refs/heads/master" ]]; then
+# Deploy from push to master branch on non-forks only
+if [[ "$GITHUB_REPOSITORY" == whatwg/* && "$GITHUB_EVENT_NAME" == "push" && "$GITHUB_REF" == "refs/heads/master" ]]; then
     header "rsync to the WHATWG server..."
     eval "$(ssh-agent -s)"
     echo "$SERVER_DEPLOY_KEY" | ssh-add -
