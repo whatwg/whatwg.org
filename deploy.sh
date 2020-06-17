@@ -56,8 +56,10 @@ if [[ "$GITHUB_ACTIONS" == "true" ]]; then
     echo ""
 fi
 
-# This ensures that only changes to the master branch get deployed
-if [[ "$GITHUB_EVENT_NAME" == "push" && "$GITHUB_REF" == "refs/heads/master" ]]; then
+# This ensures that only changes to the master branch get deployed.
+# (The repository_dispatch event is always for the master branch.)
+if [[ ("$GITHUB_EVENT_NAME" == "push" && "$GITHUB_REF" == "refs/heads/master") ||
+      "$GITHUB_EVENT_NAME" == "repository_dispatch" ]]; then
     header "Synchronizing content with whatwg.org et al"
     eval "$(ssh-agent -s)"
     echo "$SERVER_DEPLOY_KEY" | ssh-add -
