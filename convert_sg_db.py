@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 import json
-from datetime import date
 from convert_policy import markdown, obtain_link_mapping
 
 
@@ -106,8 +105,8 @@ def wrap_in_site_template(template, title, content):
 def main():
     template = open("site-template.html", "r", encoding="utf-8").read()
     copyright = """<footer>
- <p><small>Copyright © {} WHATWG (Apple, Google, Mozilla, Microsoft). This work is licensed under a <a rel="license" href="https://creativecommons.org/licenses/by/4.0/">Creative Commons Attribution 4.0 International License</a>.</small></p>
-</footer>""".format(str(date.today().year))
+ <p><small>Copyright © WHATWG (Apple, Google, Mozilla, Microsoft). This work is licensed under a <a rel="license" href="https://creativecommons.org/licenses/by/4.0/">Creative Commons Attribution 4.0 International License</a>.</small></p>
+</footer>"""
     template = template.replace("@CONTENT_GOES_HERE@", "@CONTENT_GOES_HERE@" + copyright)
     db = json.load(open("sg/db.json", "r", encoding="utf-8"))
 
