@@ -101,4 +101,5 @@ def main():
 
         open("whatwg.org/" + link, "w", encoding="utf-8").write(postprocessed_policy_html)
 
-main()
+if __name__ == "__main__":
+    main()
