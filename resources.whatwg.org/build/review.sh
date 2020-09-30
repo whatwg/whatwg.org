@@ -19,17 +19,28 @@ header "Creating a git branch with a Review Draft:"
 git checkout master
 git pull
 git checkout -b "review-draft-$(date +'%F')"
+echo ""
+
+INPUT=$(find . -maxdepth 1 -name "*.bs" -print -quit)
+YYYYMM="$(date +'%Y-%m')"
+
+sed -E -i '' 's/Text Macro: LATESTRD '[0-9]\+'-'[0-9]\+'/Text Macro: LATESTRD '"$YYYYMM"'/' "$INPUT"
+echo "Updated Living Standard to point to the new Review Draft"
+header "Please verify that only one line changed:"
+git diff -up
+echo ""
 
 mkdir -p "review-drafts"
-INPUT_FILE=$(find . -maxdepth 1 -name "*.bs" -print -quit)
-REVIEW_DRAFT="review-drafts/$(date +'%Y-%m').bs"
+REVIEW_DRAFT="review-drafts/$YYYYMM.bs"
+
 # The backslash+linefeed literal is for sed.
 # shellcheck disable=SC1004
 sed 's/^Group: WHATWG$/&\
-'"Date: $(date +'%Y-%m-%d')/g" < "$INPUT_FILE" > "$REVIEW_DRAFT"
+'"Date: $(date +'%Y-%m-%d')/g" < "$INPUT" > "$REVIEW_DRAFT"
 echo "Created Review Draft at $REVIEW_DRAFT"
-header "Please verify that only one line changed relative to $INPUT_FILE:"
-diff -up "$INPUT_FILE" "$REVIEW_DRAFT" || true
+header "Please verify that only one line changed relative to $INPUT:"
+diff -up "$INPUT" "$REVIEW_DRAFT" || true
 
+git add "$INPUT"
 git add review-drafts/*
 git commit -m "Review Draft Publication: $(date +'%B %G')"
