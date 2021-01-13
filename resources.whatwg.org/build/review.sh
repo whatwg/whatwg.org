@@ -3,10 +3,10 @@ set -o errexit
 set -o nounset
 
 # This script is maintained at
-# https://github.com/whatwg/whatwg.org/tree/master/resources.whatwg.org/build and assumes English as
+# https://github.com/whatwg/whatwg.org/tree/main/resources.whatwg.org/build and assumes English as
 # your locale. See README.md there for documentation.
 #
-# Please keep this synchronized with https://github.com/whatwg/html/blob/master/review-draft.sh.
+# Please keep this synchronized with https://github.com/whatwg/html/blob/main/review-draft.sh.
 
 header() {
   echo ""
@@ -16,7 +16,7 @@ header() {
 
 header "Creating a git branch with a Review Draft:"
 
-git checkout master
+git checkout main
 git pull
 git checkout -b "review-draft-$(date +'%F')"
 echo ""

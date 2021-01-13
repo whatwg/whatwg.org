@@ -3,7 +3,7 @@ set -o errexit
 set -o nounset
 
 # This script is maintained at
-# https://github.com/whatwg/whatwg.org/tree/master/resources.whatwg.org/build.
+# https://github.com/whatwg/whatwg.org/tree/main/resources.whatwg.org/build.
 # See README.md for documentation.
 
 # This extracts the repository name from the remote URL, as the component after the final slash,
@@ -116,7 +116,7 @@ echo "Living standard output to $WEB_ROOT"
 echo ""
 
 header "Starting review drafts (if applicable)..."
-echo "Note: review drafts must be added or changed in a single commit on master"
+echo "Note: review drafts must be added or changed in a single commit on main"
 CHANGED_FILES=$(git diff --name-only HEAD^ HEAD)
 for CHANGED in $CHANGED_FILES; do # Omit quotes around variable to split on whitespace
     if ! [[ "$CHANGED" =~ ^review-drafts/.*.bs$ ]]; then
@@ -178,8 +178,8 @@ if [[ "$GITHUB_ACTIONS" == "true" ]]; then
     echo ""
 fi
 
-# Deploy from push to master branch on non-forks only
-if [[ "$GITHUB_REPOSITORY" == whatwg/* && "$GITHUB_EVENT_NAME" == "push" && "$GITHUB_REF" == "refs/heads/master" ]]; then
+# Deploy from push to main branch on non-forks only
+if [[ "$GITHUB_REPOSITORY" == whatwg/* && "$GITHUB_EVENT_NAME" == "push" && "$GITHUB_REF" == "refs/heads/main" ]]; then
     header "rsync to the WHATWG server..."
     eval "$(ssh-agent -s)"
     echo "$SERVER_DEPLOY_KEY" | ssh-add -
