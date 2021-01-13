@@ -7,10 +7,10 @@ The resources in this folder are used for building WHATWG standards.
 The `deploy.sh` script is used by most WHATWG standards and is meant to run either in GitHub Actions to build/deploy, or locally for preview purposes. It performs the following steps:
 
 - Running [Bikeshed](https://github.com/tabatkins/bikeshed), through its [web API](https://api.csswg.org/bikeshed/), to produce:
-  - If on master, the built Living Standard, as well as a commit snapshot
+  - If on the main branch, the built Living Standard, as well as a commit snapshot
   - Otherwise, a branch snapshot of the standard
 - Running the [Nu HTML checker](http://checker.html5.org/) on the build results
-- Deploying the build results to the WHATWG web server (on push to master, not on pull requests)
+- Deploying the build results to the WHATWG web server (on push to the main branch, not on pull requests)
 
 For GitHub Actions deploys, the following environment variables are required:
 - `$SERVER` is the server to deploy to.
@@ -47,4 +47,4 @@ curl --remote-name --fail https://resources.whatwg.org/build/review.sh && bash .
 
 or more typically `make review`.
 
-Please see https://github.com/whatwg/meta/blob/master/MAINTAINERS.md for information on creating and announcing Review Drafts.
+Please see https://github.com/whatwg/meta/blob/main/MAINTAINERS.md for information on creating and announcing Review Drafts.
