@@ -50,7 +50,7 @@ if [[ "$GITHUB_ACTIONS" == "true" ]]; then
     readarray -d '' TARGETS < <(find whatwg.org -maxdepth 1 -type f ! -name "*.*" ! -name "status-2008-12" -print0)
     TARGETS+=(whatwg.org/news whatwg.org/validator whatwg.org/index.html idea.whatwg.org/index.html spec.whatwg.org/index.html)
 
-    curl --retry 2 --fail --remote-name --location https://github.com/validator/validator/releases/download/linux/vnu.linux.zip
+    curl --retry 2 --fail --remote-name --location https://github.com/validator/validator/releases/latest/download/vnu.linux.zip
     unzip -qq vnu.linux.zip
     ./vnu-runtime-image/bin/vnu --Werror "${TARGETS[@]}"
     echo ""
