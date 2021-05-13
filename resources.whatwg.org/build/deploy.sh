@@ -170,7 +170,7 @@ echo ""
 # Run the HTML checker only in CI
 if [[ "$GITHUB_ACTIONS" == "true" ]]; then
     header "Running the HTML checker..."
-    curlretry --fail --remote-name --location https://github.com/validator/validator/releases/latest/download/vnu.linux.zip
+    curlretry --fail --remote-name --location https://github.com/validator/validator/releases/download/linux/vnu.linux.zip
     unzip -q vnu.linux.zip
     if [ -f .htmlcheckerfilter ]; then
       ./vnu-runtime-image/bin/vnu --verbose --skip-non-html --Werror --filterfile .htmlcheckerfilter "$WEB_ROOT"
