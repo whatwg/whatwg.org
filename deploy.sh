@@ -52,7 +52,9 @@ if [[ "$GITHUB_ACTIONS" == "true" ]]; then
 
     curl --retry 2 --fail --remote-name --location https://github.com/validator/validator/releases/download/linux/vnu.linux.zip
     unzip -qq vnu.linux.zip
-    ./vnu-runtime-image/bin/vnu --Werror "${TARGETS[@]}"
+    # shellcheck disable=SC1111
+    FILTER_PATTERN=".*Illegal character in fragment: “#” is not allowed.*"
+    ./vnu-runtime-image/bin/vnu --Werror --filterpattern "$FILTER_PATTERN" "${TARGETS[@]}"
     echo ""
 fi
 
