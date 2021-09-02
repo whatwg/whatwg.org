@@ -8,7 +8,7 @@ set -o nounset
 
 # This extracts the repository name from the remote URL, as the component after the final slash,
 # stripping any trailing .git, to be robust against various remote URLs locally and in CI.
-SHORTNAME=$(git config --local remote.origin.url | sed -n 's#.*/\([^.]*\)\(\.git\)\?#\1#p')
+SHORTNAME=$(git config --local remote.origin.url | sed 's/.*\///' | sed 's/.git//')
 INPUT_FILE=$(find . -maxdepth 1 -name "*.bs" -print -quit)
 
 WEB_ROOT="$SHORTNAME.spec.whatwg.org"
