@@ -1,6 +1,14 @@
 resources.whatwg.org
 ==============================================
 
+PNG logo creation
+-----------------
+
+The majority of PNG logos have been created using:
+
+* `inkscape --export-type=png <file>.svg -w 500 -h 500` (see [Inkscape](https://inkscape.org/)).
+* Running [ImageOptim](https://imageoptim.com/).
+
 Contributors
 ------------
 
