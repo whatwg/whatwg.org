@@ -50,9 +50,13 @@ def author_to_biblio(person):
 def create_spec_whatwg_org(db, template):
     content = "<p>The WHATWG works on a number of technologies that are fundamental parts of the web platform. They are organised somewhat arbitrarily based on the preferences of those editing the standard for those technologies.</p>\n\n"
     content += "<dl>"
+    standards = []
     for workstream in db["workstreams"]:
         for standard in workstream["standards"]:
-            content += standard_or_idea_to_html(standard)
+            standards.append(standard)
+    standards.sort(key=lambda standard: standard["name"])
+    for standard in standards:
+        content += standard_or_idea_to_html(standard)
     content += "</dl>\n\n<p>The WHATWG also works on a <a href=\"https://idea.whatwg.org/\">number of ideas</a> that aspire to become standards one day.</p>\n\n"
 
     template = template.replace("<a href=\"https://spec.whatwg.org/\">Standards</a>", "<a>Standards</a>")
