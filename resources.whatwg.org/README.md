@@ -1,13 +1,18 @@
 resources.whatwg.org
 ==============================================
 
-PNG logo creation
+Logo creation
 -----------------
 
 The majority of PNG logos have been created using:
 
 * `inkscape --export-type=png <file>.svg -w 500 -h 500` (see [Inkscape](https://inkscape.org/)).
 * Running [ImageOptim](https://imageoptim.com/).
+
+These tools can be useful to reduce the size of an SVG logo:
+
+* https://jakearchibald.github.io/svgomg/
+* https://simon.html5.org/tools/js/svg-optimizer/ (lossy)
 
 Contributors
 ------------
