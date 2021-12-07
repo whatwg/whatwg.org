@@ -89,7 +89,7 @@ MATCHES=$(
   grep -niE '\s+$' "$INPUT_FILE" | perl -lpe 'print "\nTrailing whitespace:" if $. == 1'
   grep $'\t' "$INPUT_FILE" | perl -lpe 'print "\nTab:" if $. == 1'
   grep $'\xc2\xa0' "$INPUT_FILE" | perl -lpe 'print "\nUnescaped nonbreaking space:" if $. == 1'
-  grep $'[≪≫]' fetch.bs | perl -lpe 'print "\nWrong list literals:" if $. == 1'
+  grep $'[\u226a\u226b]' fetch.bs | perl -lpe 'print "\nWrong list literals, use \uAB\uBB instead:" if $. == 1'
 )
 if [ -n "$MATCHES" ]; then
   echo "$MATCHES"
