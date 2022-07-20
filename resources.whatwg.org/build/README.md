@@ -34,17 +34,3 @@ curl --remote-name --fail https://resources.whatwg.org/build/deploy.sh && bash .
 or more typically `make deploy`.
 
 Whether the script is running locally or on GitHub Actions, and whether it should really deploy, is determined using [the `GITHUB_*` environment variables](https://help.github.com/en/actions/configuring-and-managing-workflows/using-environment-variables).
-
-## `review.sh`
-
-The `review.sh` script is also used by most WHATWG standards and is meant to be run locally to generate a new [Review Draft](https://whatwg.org/workstream-policy#review-drafts).
-
-It can be run with
-
-```bash
-curl --remote-name --fail https://resources.whatwg.org/build/review.sh && bash ./review.sh
-```
-
-or more typically `make review`.
-
-Please see https://github.com/whatwg/meta/blob/main/MAINTAINERS.md for information on creating and announcing Review Drafts.
