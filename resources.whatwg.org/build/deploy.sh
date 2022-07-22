@@ -66,16 +66,16 @@ curlbikeshed() {
     # The Accept: header ensures we get the error output even when warnings are produced, per
     # https://github.com/whatwg/whatwg.org/issues/227#issuecomment-419969339.
     HTTP_STATUS=$(curlretry https://api.csswg.org/bikeshed/ \
-                            --output "$1" \
+                            --output "$2" \
                             --write-out "%{http_code}" \
                             --header "Accept: text/plain, text/html" \
                             -F die-on=warning \
-                            -F file=@"$INPUT_FILE" \
-                            "${@:2}")
+                            -F file=@"$1" \
+                            "${@:3}")
 
     if [[ "$HTTP_STATUS" != "200" ]]; then
-        cat "$1"
-        rm -f "$1"
+        cat "$2"
+        rm -f "$2"
         exit 22
     fi
 }
@@ -102,7 +102,8 @@ echo ""
 header "Starting commit snapshot..."
 COMMIT_DIR="$WEB_ROOT/$COMMITS_DIR/$SHA"
 mkdir -p "$COMMIT_DIR"
-curlbikeshed "$COMMIT_DIR/index.html" \
+curlbikeshed "$INPUT_FILE" \
+             "$COMMIT_DIR/index.html" \
              -F md-status=LS-COMMIT \
              -F md-Text-Macro="COMMIT-SHA $SHA"
 copy_extra_files "$COMMIT_DIR"
@@ -111,7 +112,8 @@ echo "Commit snapshot output to $COMMIT_DIR"
 echo ""
 
 header "Starting living standard..."
-curlbikeshed "$WEB_ROOT/index.html" \
+curlbikeshed "$INPUT_FILE" \
+             "$WEB_ROOT/index.html" \
              -F md-Text-Macro="COMMIT-SHA $SHA"
 copy_extra_files "$WEB_ROOT"
 run_post_build_step "$WEB_ROOT"
@@ -129,8 +131,8 @@ for CHANGED in $CHANGED_FILES; do # Omit quotes around variable to split on whit
     BASENAME=$(basename "$CHANGED" .bs)
     DRAFT_DIR="$WEB_ROOT/$REVIEW_DRAFTS_DIR/$BASENAME"
     mkdir -p "$DRAFT_DIR"
-    curlbikeshed "$DRAFT_DIR/index.html" \
-                 -F md-Status="RD"
+    curlbikeshed "$CHANGED" \
+                 "$DRAFT_DIR/index.html"
     copy_extra_files "$DRAFT_DIR"
     run_post_build_step "$DRAFT_DIR"
     echo "Review draft output to $DRAFT_DIR"
