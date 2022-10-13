@@ -62,24 +62,6 @@ curlretry() {
     curl --retry 2 "$@"
 }
 
-curlbikeshed() {
-    # The Accept: header ensures we get the error output even when warnings are produced, per
-    # https://github.com/whatwg/whatwg.org/issues/227#issuecomment-419969339.
-    HTTP_STATUS=$(curlretry https://api.csswg.org/bikeshed/ \
-                            --output "$2" \
-                            --write-out "%{http_code}" \
-                            --header "Accept: text/plain, text/html" \
-                            -F die-on=warning \
-                            -F file=@"$1" \
-                            "${@:3}")
-
-    if [[ "$HTTP_STATUS" != "200" ]]; then
-        cat "$2"
-        rm -f "$2"
-        exit 22
-    fi
-}
-
 header "Linting the source:"
 MATCHES=$(
   perl -ne '$/ = "\n\n"; print "$_" if (/chosing|approprate|occured|elemenst|\bteh\b|\blabelled\b|\blabelling\b|\bhte\b|taht|linx\b|speciication|attribue|kestern|horiontal|\battribute\s+attribute\b|\bthe\s+the\b|\bthe\s+there\b|\bfor\s+for\b|\bor\s+or\b|\bany\s+any\b|\bbe\s+be\b|\bwith\s+with\b|\bis\s+is\b/si)' "$INPUT_FILE" | perl -lpe 'print "\nPossible typos:" if $. == 1'
@@ -102,19 +84,21 @@ echo ""
 header "Starting commit snapshot..."
 COMMIT_DIR="$WEB_ROOT/$COMMITS_DIR/$SHA"
 mkdir -p "$COMMIT_DIR"
-curlbikeshed "$INPUT_FILE" \
-             "$COMMIT_DIR/index.html" \
-             -F md-status=LS-COMMIT \
-             -F md-Text-Macro="COMMIT-SHA $SHA"
+bikeshed spec "$INPUT_FILE" \
+              "$COMMIT_DIR/index.html" \
+              --die-on=warning \
+              --md-status=LS-COMMIT \
+              --md-Text-Macro="COMMIT-SHA $SHA"
 copy_extra_files "$COMMIT_DIR"
 run_post_build_step "$COMMIT_DIR"
 echo "Commit snapshot output to $COMMIT_DIR"
 echo ""
 
 header "Starting living standard..."
-curlbikeshed "$INPUT_FILE" \
-             "$WEB_ROOT/index.html" \
-             -F md-Text-Macro="COMMIT-SHA $SHA"
+bikeshed spec "$INPUT_FILE" \
+              "$WEB_ROOT/index.html" \
+              --die-on=warning \
+              --md-Text-Macro="COMMIT-SHA $SHA"
 copy_extra_files "$WEB_ROOT"
 run_post_build_step "$WEB_ROOT"
 echo "Living standard output to $WEB_ROOT"
@@ -131,8 +115,9 @@ for CHANGED in $CHANGED_FILES; do # Omit quotes around variable to split on whit
     BASENAME=$(basename "$CHANGED" .bs)
     DRAFT_DIR="$WEB_ROOT/$REVIEW_DRAFTS_DIR/$BASENAME"
     mkdir -p "$DRAFT_DIR"
-    curlbikeshed "$CHANGED" \
-                 "$DRAFT_DIR/index.html"
+    bikeshed spec "$CHANGED" \
+                  "$DRAFT_DIR/index.html" \
+                  --die-on=warning
     copy_extra_files "$DRAFT_DIR"
     run_post_build_step "$DRAFT_DIR"
     echo "Review draft output to $DRAFT_DIR"
