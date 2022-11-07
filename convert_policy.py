@@ -34,11 +34,11 @@ def header_text_to_id(header_text):
 
 
 def adjust_header(line):
-    search = re.search(r'<h([2-5])>(.+)</h([2-5])>', line)
+    search = re.search(r'<h([2-6])>(.+)</h([2-6])>', line)
     if not search:
         return line
 
-    header_level = str(int(search.group(1)) + 1)
+    header_level = search.group(1)
     header_text = search.group(2)
     header_id = header_text_to_id(header_text)
 

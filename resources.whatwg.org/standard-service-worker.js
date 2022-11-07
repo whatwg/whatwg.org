@@ -8,7 +8,7 @@
 
 const standardShortname = location.host.split(".")[0];
 
-const cacheKey = "v8";
+const cacheKey = "v9";
 const toCache = [
   location.origin + "/",
   "https://resources.whatwg.org/spec.css",
