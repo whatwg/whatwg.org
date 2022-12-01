@@ -85,7 +85,7 @@ def create_workstreams(db, template):
     introduction = introduction.replace("<!-- This ends up being included at https://whatwg.org/workstreams -->\n", "")
     content = markdown(introduction, obtain_link_mapping())
     for workstream in db["workstreams"]:
-        content += "\n<h2>{}</h2>".format(workstream["name"])
+        content += '\n<h2 id="{}">{}</h2>'.format(workstream["id"], workstream["name"])
         content += """\n<dl class="compact">"""
         content += "\n <div>"
         content += "\n  <dt>Scope</dt>"
