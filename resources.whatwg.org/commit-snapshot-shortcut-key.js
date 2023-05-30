@@ -2,7 +2,7 @@
 // `<a href="https://{my-spec}.spec.whatwg.org/commit-snapshots/{commit-sha}" id="commit-snapshot-link">Snapshot as of this commit</a>`.
 //
 // Then include this script with
-// `<script src="https://resources.whatwg.org/commit-snapshot-shortcut-key.js" async></script>`.
+// `<script src="https://resources.whatwg.org/commit-snapshot-shortcut-key.js" defer></script>`.
 
 (function () {
   'use strict';
