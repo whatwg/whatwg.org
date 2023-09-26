@@ -122,7 +122,7 @@ echo ""
 
 header "Starting review drafts (if applicable)..."
 echo "Note: review drafts must be added or changed in a single commit on main"
-CHANGED_FILES=$(git diff --name-only HEAD^ HEAD)
+CHANGED_FILES=$(git show --format="format:" --name-only HEAD)
 for CHANGED in $CHANGED_FILES; do # Omit quotes around variable to split on whitespace
     if ! [[ "$CHANGED" =~ ^review-drafts/.*.bs$ ]]; then
         continue
