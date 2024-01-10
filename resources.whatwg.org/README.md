@@ -14,17 +14,36 @@ These tools can be useful to reduce the size of an SVG logo:
 * https://jakearchibald.github.io/svgomg/
 * https://simon.html5.org/tools/js/svg-optimizer/ (lossy)
 
+Stylesheets Organization
+------------------------
+
+There are four broud groups of documents produced by WHATWG: HTML (produced by Wattsi), the HTML Dev edition (stripped-down, differently-styled version of HTML), all other specs (produced by Bikeshed), and Review Drafts (even more stripped down versions of specs, both Wattsi- and Bikeshed-generated).
+
+The various CSS files apply across these categories as follows:
+
+<table>
+  <thead>
+    <tr><td><th>HTML<th>HTML Dev<th>Other Specs<th>Review Drafts
+  </thead>
+  <tr><th>standard-shared-with-dev.css<td>✓<td>✓<td>✓<td>
+  <tr><th>standard.css<td>✓<td><td>✓<td>
+  <tr><th>spec.css<td>✓<td><td>✓<td>✓
+</table>
+
+Additionally, HTML, HTML Dev, and Review Drafts have their own dedicated stylesheets. HTML and HTML Dev's are in the HTML repo (`styles.css` and `dev/styles.css`), Review Drafts' is here (`review-drafts.css`). For any styling specific to "Other Specs" that shouldn't apply to Review Drafts, put it in `specs.css` and negate it in `review-drafts.css`.
+
 Contributors
 ------------
 
 * Anne van Kesteren
 * Domenic Denicola
+* Henri Sivonen
 * Janessa Det
 * Matthew Raymond
 * Robbert Broersma
 * Simon Pieters
+* Tab Atkins
 * Terin Stock
-* Henri Sivonen
 
 License (excluding browser-logos and fonts)
 -------
