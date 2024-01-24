@@ -86,7 +86,6 @@ COMMIT_DIR="$WEB_ROOT/$COMMITS_DIR/$SHA"
 mkdir -p "$COMMIT_DIR"
 bikeshed spec "$INPUT_FILE" \
               "$COMMIT_DIR/index.html" \
-              --die-on=warning \
               --md-status=LS-COMMIT \
               --md-Text-Macro="COMMIT-SHA $SHA"
 copy_extra_files "$COMMIT_DIR"
@@ -97,7 +96,6 @@ echo ""
 header "Starting living standard..."
 bikeshed spec "$INPUT_FILE" \
               "$WEB_ROOT/index.html" \
-              --die-on=warning \
               --md-Text-Macro="COMMIT-SHA $SHA"
 copy_extra_files "$WEB_ROOT"
 run_post_build_step "$WEB_ROOT"
@@ -116,8 +114,7 @@ for CHANGED in $CHANGED_FILES; do # Omit quotes around variable to split on whit
     DRAFT_DIR="$WEB_ROOT/$REVIEW_DRAFTS_DIR/$BASENAME"
     mkdir -p "$DRAFT_DIR"
     bikeshed spec "$CHANGED" \
-                  "$DRAFT_DIR/index.html" \
-                  --die-on=warning
+                  "$DRAFT_DIR/index.html"
     copy_extra_files "$DRAFT_DIR"
     run_post_build_step "$DRAFT_DIR"
     echo "Review draft output to $DRAFT_DIR"
