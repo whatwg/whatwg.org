@@ -72,11 +72,11 @@ def create_idea_whatwg_org(db, template):
     return wrap_in_site_template(template, "Ideas", content)
 
 def standard_or_idea_to_html(document):
-    twitter_output = ""
-    # Optional as ideas currently do not have Twitter accounts
+    x_output = ""
+    # Optional as ideas currently do not have X accounts
     if "twitter" in document:
-        twitter_output = " (<a href=\"https://x.com/{0}\">@{1}</a>)".format(document["twitter"], document["twitter"])
-    output = "\n <dt><a href=\"{0}\">{1}</a>{2}</dt>".format(document["href"], document["name"], twitter_output)
+        x_output = " (<a href=\"https://x.com/{0}\">@{1}</a>)".format(document["twitter"], document["twitter"])
+    output = "\n <dt><a href=\"{0}\">{1}</a>{2}</dt>".format(document["href"], document["name"], x_output)
     return output + "\n <dd>{}</dd>\n".format(markdown(document["description"])[:-1]) # Strip trailing \n
 
 

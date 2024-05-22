@@ -1,12 +1,12 @@
 "use strict";
 
-self.cacheKey = "v5";
+self.cacheKey = "v6";
 self.toCache = [
   "/img/arrow.svg",
-  "/img/bird-webpage.svg",
   "/img/checker.svg",
   "/img/chat.svg",
   "/img/participate.svg",
+  "/img/x.svg",
   "/validator/",
   "/faq",
   "/chat",
