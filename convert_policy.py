@@ -65,6 +65,7 @@ def postprocess_html(policy_html, template, title):
     result = adjust_headers(policy_html)
     result = template.replace("@CONTENT_GOES_HERE@", result)
     result = result.replace("@TITLE_GOES_HERE@", title)
+    result = result.replace("@POLICIES_LINK_GOES_HERE@", "" if title == "Policies" else " href=\"https://whatwg.org/policies\"")        
     result = result.replace("<p>EXAMPLE: ", "<p class=\"example\">")
     result = result.replace("<p>NOTE: ", "<p class=\"note\">")
     result = result.replace("<hr>\n<footer>", "<footer>")

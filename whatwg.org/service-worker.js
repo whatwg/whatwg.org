@@ -1,6 +1,6 @@
 "use strict";
 
-self.cacheKey = "v6";
+self.cacheKey = "v7";
 self.toCache = [
   "/img/arrow.svg",
   "/img/checker.svg",
