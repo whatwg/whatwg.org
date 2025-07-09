@@ -108,6 +108,7 @@ def create_workstreams(db, template):
 
 def wrap_in_site_template(template, title, content):
     output = template.replace("@TITLE_GOES_HERE@", title)
+    output = output.replace("@POLICIES_LINK_GOES_HERE@", "<a href=\"https://whatwg.org/policies\">Policies</a>")        
     return output.replace("@CONTENT_GOES_HERE@", content)
 
 def main():
