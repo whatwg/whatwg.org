@@ -1,6 +1,6 @@
 "use strict";
 
-self.cacheKey = "v8";
+self.cacheKey = "v9";
 self.toCache = [
   "/img/arrow.svg",
   "/img/checker.svg",
@@ -21,7 +21,8 @@ self.toCache = [
   "/privacy-policy",
   "/policies",
   "/working-mode",
-  "/stages"
+  "/stages",
+  "/ai-policy"
 ];
 
 importScripts("https://resources.whatwg.org/website-service-worker.js");
