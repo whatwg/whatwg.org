@@ -9,7 +9,7 @@
 // has ever understood has to keep working. Evolve the format by adding a branch in
 // `hydrate`, never by redefining a version that has already shipped.
 
-const MDN_URL = 'https://developer.mozilla.org/en-US/docs/Web/';
+const MDN_DOCS = 'https://developer.mozilla.org/en-US/docs/';
 const CANIUSE_URL = 'https://caniuse.com/#feat=';
 
 // Render groups, in the order they appear in a panel, separated by <hr>.
@@ -154,10 +154,27 @@ function supportTable(cells, caniuse) {
   return table;
 }
 
-function featurePanel(record) {
-  const [slug, level, cells, caniuse] = record.split('|');
+// `path` is an article's URL relative to MDN's /docs/, e.g. "Web/HTML/Element/video". Not
+// every article is under /docs/Web/ -- some are /docs/Learn/ or /docs/Glossary/ pages --
+// and a generator may hand us an absolute URL instead, so only prepend the base when the
+// path is in fact relative.
+function articleHref(path) {
+  return path.includes('://') ? path : MDN_DOCS + path;
+}
 
-  const article = element('a', { href: MDN_URL + slug }, slug.slice(slug.indexOf('/') + 1));
+// The label drops the area and the category, so "Web/HTML/Element/video" reads as
+// "Element/video". "Web/" is where nearly everything the spec links to lives rather than a
+// category of its own, so it doesn't count as one.
+function articleLabel(path) {
+  const relative = path.startsWith(MDN_DOCS) ? path.slice(MDN_DOCS.length) : path;
+  const segments = relative.replace(/^Web\//, '').split('/');
+  return segments.length > 1 ? segments.slice(1).join('/') : relative;
+}
+
+function featurePanel(record) {
+  const [path, level, cells, caniuse] = record.split('|');
+
+  const article = element('a', { href: articleHref(path) }, articleLabel(path));
   const panel = element('div', { class: 'feature' }, element('p', {}, article));
 
   if (level in LEVELS) {
