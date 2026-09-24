@@ -141,7 +141,8 @@ function supportTable(cells, caniuse) {
       groups[slot.group].push(browserRow(slot, cells[slotIndex]));
     }
   });
-  if (caniuse !== undefined) {
+  // Empty when a record has a label but no caniuse entry.
+  if (caniuse) {
     groups.push([caniuseRow(caniuse)]);
   }
 
@@ -173,10 +174,16 @@ function articleLabel(path) {
 }
 
 function featurePanel(record) {
-  const [path, level, cells, caniuse] = record.split('|');
+  const [path, level, cells, caniuse, label] = record.split('|');
 
   const article = element('a', { href: articleHref(path) }, articleLabel(path));
-  const panel = element('div', { class: 'feature' }, element('p', {}, article));
+  const heading = element('p', {}, article);
+  // Only there when another record in the panel has the same article, to say which one
+  // this is, e.g. "disabled" on <textarea> rather than <input>.
+  if (label) {
+    heading.append(` (${label})`);
+  }
+  const panel = element('div', { class: 'feature' }, heading);
 
   if (level in LEVELS) {
     panel.append(element('p', { class: LEVELS[level].class }, LEVELS[level].text));
