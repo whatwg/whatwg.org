@@ -1,9 +1,10 @@
 'use strict';
 
 // Builds MDN annotation panels on demand from the compact `data-mdn` attribute written by
-// the spec generator (wattsi's EncodeMDNAnnotations; Bikeshed's mdnspeclinks.py builds its
-// panels eagerly for now). Only the wire format is shared: the browser labels, the
-// engine-support strings and the render grouping all live here.
+// the spec generator: wattsi's AppendMDNAnnotations, or Bikeshed's mdnspeclinks.py, which
+// bundles its own copy of this script as bikeshed/mdn/mdn-anno.js. Only the wire format is
+// shared: the browser labels, the engine-support strings and the render grouping all live
+// here.
 //
 // Archived commit snapshots load this file forever, so every format version this script
 // has ever understood has to keep working. Evolve the format by adding a branch in
