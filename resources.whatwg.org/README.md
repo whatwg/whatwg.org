@@ -30,6 +30,8 @@ The various CSS files apply across these categories as follows:
   <tr><th>spec.css<td>✓<td><td>✓<td>✓
 </table>
 
+`standard-mdn-annos.js` goes with the `.mdn-anno` rules in `standard-shared-with-dev.css`: it fills in an MDN annotation panel from its `data-mdn` attribute the first time the reader opens it. HTML and HTML Dev load it. Note that archived commit snapshots load both files at runtime and can never be rebuilt, so changes to either have to be additive — see the comments at the top of each.
+
 Additionally, HTML, HTML Dev, and Review Drafts have their own dedicated stylesheets. HTML and HTML Dev's are in the HTML repo (`styles.css` and `dev/styles.css`), Review Drafts' is here (`review-drafts.css`). For any styling specific to "Other Specs" that shouldn't apply to Review Drafts, put it in `specs.css` and negate it in `review-drafts.css`.
 
 Contributors
